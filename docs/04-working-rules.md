@@ -69,21 +69,21 @@ Chi phí khoảng 10 phút mỗi tuần, tiết kiệm ước tính hai tuần �
 
 Ba con số dưới đây phải trả lời được ở bất kỳ thời điểm nào trong năm, cập nhật vào journal mỗi khi có số mới.
 
-| Chỉ số | Vì sao cần theo dõi |
-|---|---|
-| **Cost / run** | Nhân với tổng số run dự kiến để kiểm tra ngân sách. Phát hiện vượt ngân sách ở P1 còn xoay xở được, phát hiện ở P8 thì không |
-| **Tỷ lệ compile** | Verification layer chỉ áp dụng được cho phần dữ liệu build thành công. Tỷ lệ thấp buộc phải điều chỉnh thiết kế đánh giá |
-| **Delta baseline vs harness** | Đây là kết quả trung tâm của đồ án |
+| Chỉ số                            | Vì sao cần theo dõi                                                                                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cost / run**                | Nhân với tổng số run dự kiến để kiểm tra ngân sách. Phát hiện vượt ngân sách ở P1 còn xoay xở được, phát hiện ở P8 thì không |
+| **Tỷ lệ compile**           | Verification layer chỉ áp dụng được cho phần dữ liệu build thành công. Tỷ lệ thấp buộc phải điều chỉnh thiết kế đánh giá         |
+| **Delta baseline vs harness** | Đây là kết quả trung tâm của đồ án                                                                                                             |
 
 ---
 
 ## Lịch họp
 
-| Loại | Tần suất | Thời lượng | Nội dung |
-|---|---|---|---|
-| Standup | Thứ 2 hàng tuần | 20 phút | Mỗi người ba mục: đã làm, sẽ làm, đang vướng |
-| Phase review | Cuối mỗi phase | 60 phút | Đối chiếu cột Deliverables trong timeline, quyết định descope nếu cần |
-| Bắt buộc | Tuần 9 và tuần 11 | 60 phút | Xem chi tiết bên dưới |
+| Loại        | Tần suất           | Thời lượng | Nội dung                                                                      |
+| ------------ | -------------------- | ------------- | ------------------------------------------------------------------------------ |
+| Standup      | Thứ 2 hàng tuần   | 20 phút      | Mỗi người ba mục: đã làm, sẽ làm, đang vướng                       |
+| Phase review | Cuối mỗi phase     | 60 phút      | Đối chiếu cột Deliverables trong timeline, quyết định descope nếu cần |
+| Bắt buộc   | Tuần 9 và tuần 11 | 60 phút      | Xem chi tiết bên dưới                                                      |
 
 ### Hai cuộc họp bắt buộc
 

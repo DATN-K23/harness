@@ -8,7 +8,7 @@ Phân công theo track. Đọc kỹ phần của mình, đọc lướt phần c�
 
 | | Track | Phạm vi | Sản phẩm cuối |
 |---|---|---|---|
-| **TV1** | Team lead + Agent loop | Chu trình điều khiển trung tâm của harness | Core loop ổn định, 100 run liên tiếp không crash |
+| **TV1** | Agent loop | Chu trình điều khiển trung tâm của harness | Core loop ổn định, 100 run liên tiếp không crash |
 | **TV2** | Context & Memory | Quản lý context budget, compaction, memory | Compaction và memory có flag bật/tắt |
 | **TV3** | Tools & Skills | Tool layer và skill catalog | Tool registry đầy đủ, ba skill mẫu |
 | **TV4** | Security & Verification | Sandbox, guardrail, môi trường thực thi test | Adversarial test suite, verification layer |
@@ -17,7 +17,7 @@ Phân công theo track. Đọc kỹ phần của mình, đọc lướt phần c�
 
 ---
 
-## TV1 — Team lead + Agent loop
+## TV1 — Agent loop
 
 ### Phạm vi kỹ thuật
 
@@ -30,10 +30,6 @@ cho tới stop condition.
   provider** — chi phí phát triển và bảo trì không tương xứng với giá trị mang lại
 - Structured output cho verdict, không parse văn xuôi tự do
 - Retry policy với backoff, đếm riêng lỗi hạ tầng và lỗi logic của agent
-
-### Trách nhiệm quản lý
-
-Chốt kiến trúc, chủ trì họp tuần, giữ nhịp timeline, và giữ phạm vi đồ án khi có đề xuất mở rộng.
 
 ### Rủi ro cần lưu ý
 

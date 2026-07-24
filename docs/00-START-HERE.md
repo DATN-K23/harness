@@ -8,7 +8,7 @@ Tài liệu vào cửa cho toàn nhóm. Đọc trước khi bắt đầu bất k
 
 | # | Tài liệu | Đối tượng | Thời lượng |
 |---|---|---|---|
-| 1 | [`../idel.md`](../idel.md) | Toàn nhóm | 10 phút |
+| 1 | [`../idea.md`](../idea.md) | Toàn nhóm | 10 phút |
 | 2 | Tài liệu này | Toàn nhóm | 15 phút |
 | 3 | [`01-glossary.md`](01-glossary.md) | Toàn nhóm, đọc lướt rồi tra lại khi cần | 10 phút |
 | 4 | [`02-roles.md`](02-roles.md) | Toàn nhóm, đọc kỹ phần của mình | 10 phút |

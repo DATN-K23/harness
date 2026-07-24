@@ -100,7 +100,7 @@ Mọi thành phần dự kiến đưa vào ablation study phải có flag kể t
 
 ```
 project/
-├─ idel.md              Mô tả ý tưởng
+├─ idea.md              Mô tả ý tưởng
 ├─ docs/
 │  ├─ timeline.csv      Kế hoạch cả năm
 │  ├─ journal.md        Nhật ký tuần

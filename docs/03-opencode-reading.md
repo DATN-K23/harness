@@ -30,13 +30,13 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV1 — Agent loop
 
-| File | Dòng | Nội dung |
-|---|---|---|
-| `session/processor.ts` | 718 | **Trọng tâm.** Agent loop được triển khai ở đây |
-| `session/session.ts` | 1018 | Vòng đời của một session |
-| `session/run-state.ts` | 151 | Trạng thái một run: đang chạy, hoàn tất, bị huỷ |
-| `session/llm.ts` | 404 | Điểm gọi thực tế tới provider |
-| `session/retry.ts` | 201 | Chiến lược retry và backoff |
+| File                     | Dòng | Nội dung                                                      |
+| ------------------------ | ----- | -------------------------------------------------------------- |
+| `session/processor.ts` | 718   | **Trọng tâm.** Agent loop được triển khai ở đây |
+| `session/session.ts`   | 1018  | Vòng đời của một session                                  |
+| `session/run-state.ts` | 151   | Trạng thái một run: đang chạy, hoàn tất, bị huỷ       |
+| `session/llm.ts`       | 404   | Điểm gọi thực tế tới provider                            |
+| `session/retry.ts`     | 201   | Chiến lược retry và backoff                                |
 
 **Câu hỏi cần trả lời:**
 
@@ -50,16 +50,16 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV2 — Context & Memory
 
-| File | Dòng | Nội dung |
-|---|---|---|
-| `session/compaction.ts` | 562 | **Trọng tâm.** Cơ chế nén hội thoại |
-| `session/prompt/*.txt` | ~100/file | **Đọc trước.** System prompt thực tế cho từng provider |
-| `session/prompt.ts` | 1631 | Lắp ráp prompt. File dài, đọc lướt, chỉ đọc kỹ phần assembly |
-| `session/system.ts` | 145 | Phần system context nền |
-| `session/instruction.ts` | 237 | Nạp instruction riêng của từng project |
-| `session/reminders.ts` | 92 | Nhắc lại chỉ dẫn giữa chừng khi agent đi lệch |
-| `session/overflow.ts` | 34 | Ngắn, đọc toàn bộ. Xử lý tràn context |
-| `tool/truncate.ts` | 156 | Cắt tool output |
+| File                       | Dòng     | Nội dung                                                                |
+| -------------------------- | --------- | ------------------------------------------------------------------------ |
+| `session/compaction.ts`  | 562       | **Trọng tâm.** Cơ chế nén hội thoại                         |
+| `session/prompt/*.txt`   | ~100/file | **Đọc trước.** System prompt thực tế cho từng provider      |
+| `session/prompt.ts`      | 1631      | Lắp ráp prompt. File dài, đọc lướt, chỉ đọc kỹ phần assembly |
+| `session/system.ts`      | 145       | Phần system context nền                                                |
+| `session/instruction.ts` | 237       | Nạp instruction riêng của từng project                               |
+| `session/reminders.ts`   | 92        | Nhắc lại chỉ dẫn giữa chừng khi agent đi lệch                    |
+| `session/overflow.ts`    | 34        | Ngắn, đọc toàn bộ. Xử lý tràn context                            |
+| `tool/truncate.ts`       | 156       | Cắt tool output                                                         |
 
 **Câu hỏi cần trả lời:**
 
@@ -73,16 +73,16 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV3 — Tools & Skills
 
-| File | Dòng | Nội dung |
-|---|---|---|
-| `tool/tool.ts` | 183 | **Trọng tâm, đọc trước tiên.** Định nghĩa interface của một tool |
-| `tool/registry.ts` | 450 | Tool được đăng ký và cung cấp cho model ra sao |
-| `tool/read.ts` + `read.txt` | 386 + 14 | Tool đọc file. Đối chiếu `.txt` với `.ts` |
-| `tool/glob.ts` + `.txt` | 76 + 6 | Tìm file theo pattern |
-| `tool/grep.ts` + `.txt` | 112 + 8 | Tìm nội dung trong source |
-| `tool/skill.ts` + `.txt` | 70 + 5 | **Nạp skill — cơ chế nhóm cần tham khảo trực tiếp** |
-| `skill/discovery.ts` | — | Phát hiện skill khả dụng |
-| `tool/json-schema.ts` | 164 | Mô tả tham số tool cho model |
+| File                            | Dòng    | Nội dung                                                                          |
+| ------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `tool/tool.ts`                | 183      | **Trọng tâm, đọc trước tiên.** Định nghĩa interface của một tool |
+| `tool/registry.ts`            | 450      | Tool được đăng ký và cung cấp cho model ra sao                             |
+| `tool/read.ts` + `read.txt` | 386 + 14 | Tool đọc file. Đối chiếu`.txt` với `.ts`                                 |
+| `tool/glob.ts` + `.txt`     | 76 + 6   | Tìm file theo pattern                                                             |
+| `tool/grep.ts` + `.txt`     | 112 + 8  | Tìm nội dung trong source                                                        |
+| `tool/skill.ts` + `.txt`    | 70 + 5   | **Nạp skill — cơ chế nhóm cần tham khảo trực tiếp**                 |
+| `skill/discovery.ts`          | —       | Phát hiện skill khả dụng                                                       |
+| `tool/json-schema.ts`         | 164      | Mô tả tham số tool cho model                                                    |
 
 **Câu hỏi cần trả lời:**
 
@@ -98,15 +98,15 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV4 — Security
 
-| File | Dòng | Nội dung |
-|---|---|---|
-| `tool/shell.ts` | 645 | **Trọng tâm.** Thực thi shell command, bề mặt rủi ro lớn nhất |
-| `permission/index.ts` | — | Cơ chế xin phép trước hành động nhạy cảm |
-| `permission/evaluate.ts` | — | Logic ra quyết định cho phép hay từ chối |
-| `permission/arity.ts` | — | Khớp rule theo pattern đường dẫn |
-| `tool/shell/prompt.ts` | 293 | Chỉ dẫn cho model về việc chạy lệnh |
-| `tool/shell/shell.txt` | 21 | Ngắn, đọc toàn bộ |
-| `tool/task.ts` + `.txt` | 360 + 19 | Uỷ nhiệm công việc cho sub-agent |
+| File                        | Dòng    | Nội dung                                                                   |
+| --------------------------- | -------- | --------------------------------------------------------------------------- |
+| `tool/shell.ts`           | 645      | **Trọng tâm.** Thực thi shell command, bề mặt rủi ro lớn nhất |
+| `permission/index.ts`     | —       | Cơ chế xin phép trước hành động nhạy cảm                          |
+| `permission/evaluate.ts`  | —       | Logic ra quyết định cho phép hay từ chối                              |
+| `permission/arity.ts`     | —       | Khớp rule theo pattern đường dẫn                                       |
+| `tool/shell/prompt.ts`    | 293      | Chỉ dẫn cho model về việc chạy lệnh                                   |
+| `tool/shell/shell.txt`    | 21       | Ngắn, đọc toàn bộ                                                      |
+| `tool/task.ts` + `.txt` | 360 + 19 | Uỷ nhiệm công việc cho sub-agent                                        |
 
 **Câu hỏi cần trả lời:**
 
@@ -122,13 +122,13 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV5 — Data model
 
-| File | Dòng | Nội dung |
-|---|---|---|
-| `session/message-v2.ts` | 734 | **Trọng tâm.** Cấu trúc dữ liệu của message và tool call |
-| `session/tools.ts` | 590 | Tool result được ghi nhận ra sao |
-| `provider/transform.ts` | — | Chuẩn hoá khác biệt định dạng giữa các provider |
-| `provider/provider.ts` | — | Quản lý provider |
-| `session/llm/request.ts` | 226 | Thành phần của một request gửi đi |
+| File                       | Dòng | Nội dung                                                              |
+| -------------------------- | ----- | ---------------------------------------------------------------------- |
+| `session/message-v2.ts`  | 734   | **Trọng tâm.** Cấu trúc dữ liệu của message và tool call |
+| `session/tools.ts`       | 590   | Tool result được ghi nhận ra sao                                   |
+| `provider/transform.ts`  | —    | Chuẩn hoá khác biệt định dạng giữa các provider               |
+| `provider/provider.ts`   | —    | Quản lý provider                                                     |
+| `session/llm/request.ts` | 226   | Thành phần của một request gửi đi                                |
 
 **Câu hỏi cần trả lời:**
 
@@ -144,14 +144,14 @@ Hai file nên đọc chung trước khi vào phần riêng: `AGENTS.md` và `CON
 
 ## TV6 — Backend & data flow
 
-| File | Nội dung |
-|---|---|
-| `server/server.ts` | **Trọng tâm.** Khởi tạo server |
-| `server/routes/` | Danh sách API và quy ước đặt tên |
-| `server/event.ts` | Sự kiện đẩy tới client |
-| `bus/` | Cơ chế giao tiếp giữa các thành phần |
-| `packages/sdk/` | Client gọi vào server |
-| `packages/tui/` | Giao diện dòng lệnh — **tham khảo cách hiển thị tiến trình agent theo thời gian thực** |
+| File                 | Nội dung                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `server/server.ts` | **Trọng tâm.** Khởi tạo server                                                                |
+| `server/routes/`   | Danh sách API và quy ước đặt tên                                                                 |
+| `server/event.ts`  | Sự kiện đẩy tới client                                                                             |
+| `bus/`             | Cơ chế giao tiếp giữa các thành phần                                                             |
+| `packages/sdk/`    | Client gọi vào server                                                                                 |
+| `packages/tui/`    | Giao diện dòng lệnh —**tham khảo cách hiển thị tiến trình agent theo thời gian thực** |
 
 **Câu hỏi cần trả lời:**
 

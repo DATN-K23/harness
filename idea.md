@@ -4,7 +4,7 @@
 
 ---
 
-## Hình dung thế này
+> ## Hình dung thế này
 
 Tưởng tượng một chuyên gia kiểm định smart contract rất giỏi, nhưng bị nhốt trong một căn phòng kín. Anh ta chỉ được nhìn **đúng một tờ giấy** ai đó luồn vào. Không được mở máy tính xem các file khác. Không được ghi chú. Không được chạy thử code để kiểm tra xem linh cảm của mình đúng hay sai.
 

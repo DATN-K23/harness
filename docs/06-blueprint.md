@@ -24,7 +24,7 @@ Blueprint không mô tả chi tiết từng class hoặc framework. Các chi ti�
 
 Nếu xuất hiện mâu thuẫn, dùng thứ tự sau:
 
-1. [`idea.md`](../idea.md): luận điểm và phạm vi nghiên cứu.
+1. [`idea.md`](idea.md): luận điểm và phạm vi nghiên cứu.
 2. Blueprint này: ranh giới kiến trúc và hợp đồng hệ thống.
 3. [`04-working-rules.md`](04-working-rules.md): quy tắc bắt buộc về ablation, ground truth và data split.
 4. [`02-roles.md`](02-roles.md): quyền sở hữu module.

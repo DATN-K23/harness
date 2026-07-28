@@ -8,13 +8,15 @@ Tài liệu vào cửa cho toàn nhóm. Đọc trước khi bắt đầu bất k
 
 | # | Tài liệu | Đối tượng | Thời lượng |
 |---|---|---|---|
-| 1 | [`../idea.md`](../idea.md) | Toàn nhóm | 10 phút |
+| 1 | [`idea.md`](idea.md) | Toàn nhóm | 10 phút |
 | 2 | Tài liệu này | Toàn nhóm | 15 phút |
 | 3 | [`01-glossary.md`](01-glossary.md) | Toàn nhóm, đọc lướt rồi tra lại khi cần | 10 phút |
 | 4 | [`02-roles.md`](02-roles.md) | Toàn nhóm, đọc kỹ phần của mình | 10 phút |
 | 5 | [`03-opencode-reading.md`](03-opencode-reading.md) | Toàn nhóm | 5 phút đọc, ~6 giờ thực hiện |
 | 6 | [`04-working-rules.md`](04-working-rules.md) | Toàn nhóm | 10 phút |
 | 7 | [`05-timeline-guide.md`](05-timeline-guide.md) | TV1 đọc kỹ, còn lại đọc lướt | 10 phút |
+| 8 | [`06-blueprint.md`](06-blueprint.md) | Toàn nhóm, đọc trước khi scaffold | 60 phút |
+| 9 | [`07-slice-1-implementation-plan.md`](07-slice-1-implementation-plan.md) | Toàn nhóm triển khai Slice 1 | 30 phút |
 
 ---
 

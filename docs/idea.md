@@ -163,4 +163,4 @@ Xử lý được chúng một cách minh bạch — kể cả khi số liệu k
 
 ---
 
-**Tiếp theo:** [2 · Lộ trình](2-lo-trinh.md) — mỗi giai đoạn xong sẽ có gì trong tay.
+**Tiếp theo:** [Start Here](00-START-HERE.md) — thứ tự đọc tài liệu và phạm vi làm việc của nhóm.

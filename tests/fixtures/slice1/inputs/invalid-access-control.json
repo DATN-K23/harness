@@ -1,0 +1,18 @@
+{
+  "id": "finding_slice1_invalid_access_control",
+  "title": "Missing access control on setFee",
+  "description": "Any account can call setFee and change the protocol fee.",
+  "severity": "high",
+  "locations": [
+    {
+      "path": "contracts/Vault.sol",
+      "start_line": 34,
+      "end_line": 37
+    }
+  ],
+  "impact": "An arbitrary account can set an excessive protocol fee.",
+  "preconditions": ["The attacker can submit a transaction to setFee."],
+  "evidence_refs": [],
+  "verification_status": "not_attempted",
+  "confidence": 0.8
+}

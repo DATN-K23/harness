@@ -4,8 +4,8 @@ Repository triển khai harness đánh giá và kiểm định smart-contract fi
 
 ## Trạng thái hiện tại
 
-WP0 và phần scaffold/quality tooling của WP1 đã được triển khai. Chưa có package nghiệp vụ, agent loop,
-provider, tool runtime hoặc Judge demo.
+WP0 và WP1 đã đóng. Workspace scaffold và quality gate đã được merge qua PR #1; CI chạy xanh trên Windows
+và Ubuntu. Chưa có package nghiệp vụ, agent loop, provider, tool runtime hoặc Judge demo.
 
 ## Prerequisites
 

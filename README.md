@@ -4,8 +4,8 @@ Repository triển khai harness đánh giá và kiểm định smart-contract fi
 
 ## Trạng thái hiện tại
 
-WP0 và WP1 đã đóng. WP2 contract/schema v0 đã triển khai và đang chờ contract-freeze review. Chưa có domain
-state machine, agent loop, provider adapter, tool runtime hoặc Judge demo.
+WP0, WP1 và WP2 đã đóng. WP3 domain invariant/state machine đã triển khai và đang chờ gate review. Chưa có
+application port, adapter, agent loop, provider adapter, tool runtime hoặc Judge demo.
 
 ## Prerequisites
 

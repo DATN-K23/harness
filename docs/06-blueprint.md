@@ -1514,13 +1514,13 @@ Trạng thái architecture readiness:
 
 - [X] Chốt primary language và workspace tool.
 - [X] Chốt schema library và JSON Schema conversion.
-- [ ] Chốt schema v0 cho `Run`, `RunEvent`, `ToolCall`, `Finding`, `VerificationResult`.
+- [X] Chốt schema v0 cho `Run`, `RunEvent`, `ToolCall`, `Finding`, `VerificationResult`.
 - [X] Chốt dependency rules.
 - [X] Chốt source/ground-truth mount boundary.
 - [X] Chốt prompt composition v0 và prompt hashing.
 - [X] Chốt error taxonomy và retry defaults.
 - [ ] Có một fake-provider scenario cho walking skeleton.
-- [ ] Chỉ định owner/reviewer cho shared contracts.
+- [X] Chỉ định owner/reviewer cho shared contracts.
 - [ ] Chạy provider, database-driver và sandbox acceptance spike trước implementation tương ứng.
 
 Nhóm có thể tạo workspace và source skeleton ngay. Schema v0 và fake-provider scenario là hai artifact code đầu

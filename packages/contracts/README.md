@@ -17,6 +17,8 @@ Nguồn schema duy nhất cho runtime validation, TypeScript type và JSON Schem
   thuật toán tạo hash thuộc WP5, còn WP2 chỉ freeze representation.
 - `confidence` nằm trong `[0, 1]`; line number và token/step limit là số nguyên dương.
 - `uncertain` và `unverified` là trạng thái riêng, không tự động ép thành `invalid` hoặc `rejected`.
+- `StopReason` phân biệt `max_steps`, `timeout`, `cancellation` và `internal_failure`; domain giữ nguyên reason
+  khi Run kết thúc.
 
 ## JSON Schema
 

@@ -61,3 +61,20 @@ Windows/Ubuntu xác nhận khi mở PR.
 
 **Tiếp theo:** Dừng tại Gate WP4. WP5 và WP6 chỉ bắt đầu sau khi port/adapter contract được review và CI hai hệ
 điều hành pass.
+
+### Cập nhật WP5 (29/07/2026)
+
+**Hoàn thành:** WP4 đã merge qua PR #5. Thêm bốn config YAML cho Judge Slice 1, typed YAML source adapter,
+structured merge theo `defaults → mode policy → experiment → explicit override`, immutable config snapshot và
+sáu Judge prompt component v0. Mỗi component và manifest tổng được SHA-256 sau khi chuẩn hóa BOM, Unicode và
+line ending.
+
+**Quyết định contract:** `recovery_limits` và `policy` được thêm dưới dạng optional field để snapshot WP2 cũ
+vẫn parse được; resolver WP5 luôn tạo snapshot có đầy đủ hai field. Điều này sửa thiếu sót giữa contract WP2 và
+DQ-16 mà không tạo breaking migration.
+
+**Bằng chứng:** Golden prompt và aggregate hash được pin; cùng input tạo cùng hash, CRLF/LF tạo cùng component
+hash, còn đổi content hoặc thứ tự component làm aggregate hash đổi. Config sai bị chặn trước khi tạo snapshot;
+prompt không chứa host path, fixture oracle, source finding hoặc tool implementation.
+
+**Tiếp theo:** Dừng tại Gate WP5 trước khi WP7 dùng prompt/config contract hoặc WP8 tích hợp agent loop.

@@ -1,0 +1,8 @@
+limits:
+  max_steps: 4
+  max_input_tokens: 10000
+  max_output_tokens: 2000
+  max_cost_usd: 0
+  wall_clock_timeout_ms: 30000
+recovery_limits:
+  max_repair_attempts: 2

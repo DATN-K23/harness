@@ -4,3 +4,4 @@ export * from "./deterministic-id-generator.js";
 export * from "./filesystem-source-workspace.js";
 export * from "./in-memory-event-store.js";
 export * from "./in-memory-run-repository.js";
+export * from "./yaml-run-config-source.js";

@@ -12,6 +12,7 @@
   "dependencies": {
     "@audit-harness/application": "workspace:*",
     "@audit-harness/contracts": "workspace:*",
-    "@audit-harness/domain": "workspace:*"
+    "@audit-harness/domain": "workspace:*",
+    "yaml": "2.8.1"
   }
 }

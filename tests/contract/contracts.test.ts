@@ -207,6 +207,32 @@ describe("contracts schema v0", () => {
     }
   });
 
+  it("accepts legacy snapshots and additive WP5 policy fields", () => {
+    const legacy = createConfigSnapshot();
+    expect(RunConfigSnapshotSchema.safeParse(legacy).success).toBe(true);
+
+    expect(
+      RunConfigSnapshotSchema.safeParse({
+        ...legacy,
+        recovery_limits: {
+          max_repair_attempts: 2,
+        },
+        policy: {
+          workspace: {
+            read_only: true,
+            relative_paths_only: true,
+            deny_path_traversal: true,
+            deny_symlink_escape: true,
+          },
+          tools: {
+            allowed_capabilities: ["read_workspace"],
+            network_allowed: false,
+          },
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   it("defines serializable provider, model-event and tool contracts", () => {
     const toolDefinition = ToolDefinitionSchema.parse({
       id: "read_file",

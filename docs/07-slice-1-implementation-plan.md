@@ -385,12 +385,12 @@ nhận khi mở PR.
 
 #### Config tối thiểu
 
-- [ ] `defaults.yaml`: model reference giả, mode, output contract version.
-- [ ] `flags.yaml`: tools và prompt variant; các tính năng Slice sau mặc định tắt.
-- [ ] `runtime.yaml`: `max_steps`, timeout và repair limit đã quyết định.
-- [ ] `policies/judge.yaml`: workspace/tool policy tối thiểu của Judge mode.
-- [ ] merge config theo thứ tự blueprint và validate trước khi tạo Run.
-- [ ] tạo immutable `RunConfigSnapshot`.
+- [x] `defaults.yaml`: model reference giả, mode, output contract version.
+- [x] `flags.yaml`: tools và prompt variant; các tính năng Slice sau mặc định tắt.
+- [x] `runtime.yaml`: `max_steps`, timeout và repair limit đã quyết định.
+- [x] `policies/judge.yaml`: workspace/tool policy tối thiểu của Judge mode.
+- [x] merge config theo thứ tự blueprint và validate trước khi tạo Run.
+- [x] tạo immutable `RunConfigSnapshot`.
 
 #### Prompt component v0
 
@@ -419,6 +419,11 @@ Tool definition đi qua provider tool contract, không lặp toàn bộ trong sy
 - đổi thứ tự component làm hash thay đổi;
 - config sai bị từ chối trước khi agent loop bắt đầu;
 - prompt không chứa tool implementation hoặc ground truth.
+
+**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP5. YAML chỉ được
+đọc trong `adapters`; merge, validation cuối, prompt composition và hashing nằm trong `application`. WP5 bổ
+sung `recovery_limits` và `policy` dưới dạng optional field của wire schema để snapshot WP2 cũ vẫn tương thích,
+nhưng resolver mới luôn ghi đủ hai field.
 
 ---
 

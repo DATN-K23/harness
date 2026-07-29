@@ -338,21 +338,21 @@ chỉ phụ thuộc `contracts`; test dùng timestamp cố định do caller tru
 
 #### Port cần có
 
-- [ ] `ModelProvider`;
-- [ ] `Workspace`;
-- [ ] `RunRepository`;
-- [ ] `RunEventSink`/`EventStore`;
-- [ ] `Clock`;
-- [ ] `IdGenerator`;
-- [ ] interface tối thiểu mà agent runtime dùng để resolve/execute tool.
+- [x] `ModelProvider`;
+- [x] `Workspace`;
+- [x] `RunRepository`;
+- [x] `RunEventSink`/`EventStore`;
+- [x] `Clock`;
+- [x] `IdGenerator`;
+- [x] interface tối thiểu mà agent runtime dùng để resolve/execute tool.
 
 #### Adapter cần có
 
-- [ ] in-memory run repository;
-- [ ] in-memory event store giữ đúng thứ tự event trong một run;
-- [ ] deterministic clock cho test;
-- [ ] deterministic ID generator cho test;
-- [ ] filesystem source workspace adapter.
+- [x] in-memory run repository;
+- [x] in-memory event store giữ đúng thứ tự event trong một run;
+- [x] deterministic clock cho test;
+- [x] deterministic ID generator cho test;
+- [x] filesystem source workspace adapter.
 
 #### Workspace boundary
 
@@ -371,6 +371,11 @@ Filesystem adapter phải:
 - adapter có contract test chung;
 - thay in-memory adapter bằng adapter khác không sửa domain;
 - boundary test chạy trên Windows và Linux.
+
+**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP4. Port nằm trong
+`application`, implementation nằm trong `adapters`; core không import adapter. Reusable contract suite áp dụng
+cho repository/event store, còn filesystem boundary suite dùng API đa nền tảng và được CI Windows/Ubuntu xác
+nhận khi mở PR.
 
 ---
 

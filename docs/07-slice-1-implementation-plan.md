@@ -243,8 +243,12 @@ Trạng thái gate sau implementation:
 - [x] local frozen install, `check`, default test và Slice 1 fixture preflight;
 - [x] không tạo package nghiệp vụ rỗng;
 - [x] test sau khi install không cần network hoặc API key;
-- [ ] fresh clone trên máy Windows thứ hai;
-- [ ] GitHub Actions Windows/Linux thực sự chạy xanh.
+- [x] fresh checkout, frozen install và toàn bộ quality command chạy xanh trên GitHub-hosted Windows runner;
+- [x] GitHub Actions Windows/Linux thực sự chạy xanh trên PR #1.
+
+**WP1 closed:** PR #1 được merge vào `main` sau khi hai required status check cùng pass. GitHub-hosted runner
+cung cấp môi trường sạch, độc lập với máy scaffold; việc clone repository trên máy thành viên khác thuộc bước
+onboarding và không chặn WP1.
 
 ---
 

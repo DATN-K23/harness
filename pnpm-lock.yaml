@@ -39,6 +39,27 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.13.3)(vite@8.1.5(@types/node@24.13.3))
 
+  packages/adapters:
+    dependencies:
+      '@audit-harness/application':
+        specifier: workspace:*
+        version: link:../application
+      '@audit-harness/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@audit-harness/domain':
+        specifier: workspace:*
+        version: link:../domain
+
+  packages/application:
+    dependencies:
+      '@audit-harness/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@audit-harness/domain':
+        specifier: workspace:*
+        version: link:../domain
+
   packages/contracts:
     dependencies:
       zod:

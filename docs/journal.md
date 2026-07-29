@@ -46,3 +46,18 @@ schema không thể complete Run; failed/cancelled Run giữ stop reason. Domain
 filesystem, clock thật, provider hoặc database.
 
 **Tiếp theo:** Dừng tại Gate WP3 trước khi triển khai port/adapter của WP4.
+
+### Cập nhật WP4 (29/07/2026)
+
+**Hoàn thành:** WP3 đã merge qua PR #4. Tạo `packages/application` chứa port `ModelProvider`, `Workspace`,
+`RunRepository`, `RunEventSink`/`EventStore`, `Clock`, `IdGenerator`, `ToolResolver` và `ToolExecutor`. Tạo
+`packages/adapters` với in-memory repository/event store, deterministic clock/ID và filesystem source
+workspace.
+
+**Bằng chứng:** Reusable contract suite kiểm tra repository/event store; event store bắt đầu sequence từ 1,
+giữ thứ tự theo từng run và từ chối event ID trùng. Filesystem boundary test từ chối absolute path, traversal
+và symlink ra ngoài root; lỗi có type và không chứa host source path. Test sử dụng API Node đa nền tảng để CI
+Windows/Ubuntu xác nhận khi mở PR.
+
+**Tiếp theo:** Dừng tại Gate WP4. WP5 và WP6 chỉ bắt đầu sau khi port/adapter contract được review và CI hai hệ
+điều hành pass.

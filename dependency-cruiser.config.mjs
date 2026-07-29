@@ -58,6 +58,18 @@ export default {
       },
     },
     {
+      name: "application-only-depends-inward",
+      severity: "error",
+      comment:
+        "Application ports may depend only on domain and frozen contracts.",
+      from: {
+        path: "^packages/application(?:/|$)",
+      },
+      to: {
+        path: "^packages/(?!application(?:/|$)|domain(?:/|$)|contracts(?:/|$))",
+      },
+    },
+    {
       name: "core-does-not-read-root-config",
       severity: "error",
       comment:

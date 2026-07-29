@@ -39,35 +39,21 @@ Một hạng mục được xem là hoàn thành khi thoả cả bốn điều k
 - [ ] Chạy được trên máy của thành viên khác, không chỉ máy người phát triển
 - [ ] Có bằng chứng kiểm chứng: ảnh chụp, log, hoặc một lệnh người khác thực hiện lại được
 - [ ] Nếu có ảnh hưởng tới số liệu đánh giá thì đã có config flag
-- [ ] Đã ghi vào project journal
+- [ ] Đã cập nhật trạng thái trong `timeline.csv`
 
 ---
 
-## Project journal
+## Theo dõi tiến độ
 
-File [`journal.md`](journal.md), cập nhật hàng tuần, cả nhóm cùng đóng góp.
-
-```
-## Tuần 7 (18-24/08/2026)
-
-**Hoàn thành:** TV3 xong grep tool kèm số dòng. TV5 gán nhãn 40/50 case của eval set v0.
-**Vướng mắc:** TV4 — Foundry build thất bại trên 6/20 repo, đang xác định nguyên nhân.
-**Quyết định:** Dùng LiteLLM thay vì tự viết provider adapter. Lý do: 4 provider, tự viết ước tính 2 tuần.
-**Số liệu mới:** baseline 61%, harness 74% trên eval set v0 (n=50).
-**Kế hoạch tuần sau:** TV1 chốt core interface. TV5 chạy thử provider thứ hai.
-```
-
-**Lý do bắt buộc:** đến giai đoạn viết báo cáo (04/2027), việc tái dựng bối cảnh của các quyết định đã đưa ra
-từ 08/2026 gần như không khả thi nếu không có ghi chép. Journal chuyển hoá trực tiếp thành nội dung Chương 3
-và phần thuyết minh thiết kế.
-
-Chi phí khoảng 10 phút mỗi tuần, tiết kiệm ước tính hai tuần ở giai đoạn viết báo cáo.
+Cuối mỗi chu kỳ, cả nhóm cập nhật cột `Trạng thái` trong [`timeline.csv`](timeline.csv). Hạng mục chưa hoàn
+thành phải ghi rõ vướng mắc, người xử lý và bước tiếp theo trong công cụ quản lý công việc chung của nhóm.
 
 ---
 
 ## Ba chỉ số theo dõi liên tục
 
-Ba con số dưới đây phải trả lời được ở bất kỳ thời điểm nào trong năm, cập nhật vào journal mỗi khi có số mới.
+Ba con số dưới đây phải trả lời được ở bất kỳ thời điểm nào trong năm và được cập nhật tại buổi đồng bộ khi
+có số mới.
 
 | Chỉ số                            | Vì sao cần theo dõi                                                                                                                                   |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -99,33 +85,10 @@ Mọi thành phần dự kiến đưa vào ablation study phải có flag kể t
 ## Cấu trúc thư mục
 
 ```
-project/
-├─ idea.md              Mô tả ý tưởng
-├─ docs/
-│  ├─ timeline.csv      Kế hoạch cả năm
-│  ├─ journal.md        Nhật ký tuần
-│  ├─ notes/            Note đọc OpenCode
-│  ├─ decisions/        Mỗi quyết định lớn một file
-│  └─ templates/        Biểu mẫu
-├─ opencode/            THAM KHẢO — không sửa, không copy
-└─ (source của nhóm)    Khởi tạo từ P0
+harness/
+├─ docs/                Tài liệu định hướng ban đầu của nhóm
+└─ (source của nhóm)    Được tổ chức khi nhóm chốt kiến trúc
 ```
-
-`opencode/` là thư mục chỉ đọc. Không chỉnh sửa và không sao chép file sang source của nhóm. Khi cần áp dụng
-một ý tưởng thiết kế, đọc hiểu rồi tự triển khai lại — sao chép trực tiếp làm suy yếu luận điểm về tính
-nguyên bản của công trình.
-
----
-
-## Decision record
-
-Mỗi quyết định có ảnh hưởng dài hạn được ghi thành một file trong `docs/decisions/`, đặt tên
-`YYYY-MM-DD-slug.md`, độ dài khoảng nửa trang. Mẫu: [`templates/decision.md`](templates/decision.md).
-
-**Lý do:** hội đồng sẽ chất vấn cơ sở của các lựa chọn kỹ thuật. Có decision record thì trả lời được ngay, và
-phần thuyết minh thiết kế trong báo cáo có sẵn nội dung.
-
----
 
 ## Nguyên tắc descope
 
@@ -146,6 +109,6 @@ Không cắt giảm trong mọi trường hợp:
 - Trace view
 - Offline demo
 
-Mỗi lần descope, ghi vào journal kèm lý do. Trong báo cáo, trình bày dưới dạng giới hạn phạm vi đã xác định
+Mỗi lần descope, ghi rõ lý do khi cập nhật kế hoạch. Trong báo cáo, trình bày dưới dạng giới hạn phạm vi đã xác định
 chứ không phải hạng mục chưa hoàn thành. Một đồ án nêu rõ phạm vi và cơ sở giới hạn phạm vi có chất lượng
 trình bày cao hơn một đồ án triển khai dở dang nhiều hạng mục.

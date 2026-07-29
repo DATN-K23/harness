@@ -12,11 +12,8 @@ Tài liệu vào cửa cho toàn nhóm. Đọc trước khi bắt đầu bất k
 | 2 | Tài liệu này | Toàn nhóm | 15 phút |
 | 3 | [`01-glossary.md`](01-glossary.md) | Toàn nhóm, đọc lướt rồi tra lại khi cần | 10 phút |
 | 4 | [`02-roles.md`](02-roles.md) | Toàn nhóm, đọc kỹ phần của mình | 10 phút |
-| 5 | [`03-opencode-reading.md`](03-opencode-reading.md) | Toàn nhóm | 5 phút đọc, ~6 giờ thực hiện |
-| 6 | [`04-working-rules.md`](04-working-rules.md) | Toàn nhóm | 10 phút |
-| 7 | [`05-timeline-guide.md`](05-timeline-guide.md) | TV1 đọc kỹ, còn lại đọc lướt | 10 phút |
-| 8 | [`06-blueprint.md`](06-blueprint.md) | Toàn nhóm, đọc trước khi scaffold | 60 phút |
-| 9 | [`07-slice-1-implementation-plan.md`](07-slice-1-implementation-plan.md) | Toàn nhóm triển khai Slice 1 | 30 phút |
+| 5 | [`04-working-rules.md`](04-working-rules.md) | Toàn nhóm | 10 phút |
+| 6 | [`05-timeline-guide.md`](05-timeline-guide.md) và [`timeline.csv`](timeline.csv) | Toàn nhóm | 15 phút |
 
 ---
 
@@ -81,27 +78,6 @@ Nếu cả năm chỉ hoàn thiện được một thành phần, đó phải l�
 
 ---
 
-## Vai trò của OpenCode trong đồ án
-
-`opencode/` là một dự án mã nguồn mở đã giải quyết tốt lớp bài toán kỹ thuật nền mà nhóm sắp phải giải:
-agent loop, tool registry, context management, permission model.
-
-**Nhóm không fork và không copy code.** Fork một dự án có sẵn rồi chỉnh sửa sẽ làm phần lớn công trình không
-còn thuộc về nhóm, và đây là điểm hội đồng sẽ chất vấn trực tiếp.
-
-Mục đích đọc OpenCode:
-
-- Nắm được một hệ thống loại này gồm những thành phần gì, thay vì thiết kế lại từ đầu
-- Nhận diện các quyết định thiết kế đã được kiểm chứng qua thực tế sử dụng
-- Thu thập tư liệu cho Chương 2 của báo cáo (khảo sát công trình liên quan)
-
-Khác biệt cốt lõi cần giữ rõ trong đầu: OpenCode là công cụ **hỗ trợ viết code**. Đồ án là công cụ **kiểm
-định code**, nghĩa là có thêm hai thành phần OpenCode không có — Judge mode (phân loại một finding là valid
-hay invalid) và verification layer (bắt agent tự chứng minh bằng test thực thi được). Đó là phạm vi đóng
-góp của nhóm.
-
----
-
 ## Bốn rủi ro phương pháp luận
 
 Bốn rủi ro dưới đây nguy hiểm vì chúng không tạo ra bất kỳ dấu hiệu cảnh báo nào. Hệ thống vẫn chạy, số liệu
@@ -155,10 +131,5 @@ Có. Cùng cấu hình, cùng phiên bản prompt, cùng split thì cho cùng k�
 
 ## Công việc hai tuần đầu
 
-Một việc chung cho cả nhóm: đọc phần OpenCode được phân công, nộp note một trang theo
-[`templates/opencode-note.md`](templates/opencode-note.md), lưu vào `docs/notes/opencode-TVx.md`, hạn cuối
-tuần 2.
-
-Song song, mỗi thành viên bắt đầu phần chuyên môn theo [`02-roles.md`](02-roles.md).
-
-Sáu note này hợp thành bản khảo sát kiến trúc đầu tiên và sẽ được sử dụng trực tiếp trong báo cáo.
+Mỗi thành viên bắt đầu phần chuyên môn theo [`02-roles.md`](02-roles.md), đối chiếu đầu ra cần đạt trong
+[`timeline.csv`](timeline.csv) và tuân theo [`04-working-rules.md`](04-working-rules.md).

@@ -37,10 +37,6 @@ Cả ba track còn lại phụ thuộc vào interface của core. Interface cầ
 P8**. Nếu core còn thay đổi sau mốc freeze thì số liệu đo trước và sau không so sánh được với nhau, kéo theo
 toàn bộ bảng kết quả mất giá trị.
 
-### Đọc OpenCode
-
-`session/processor.ts`, `session/session.ts`, `session/run-state.ts`, `session/llm.ts`, `session/retry.ts`
-
 ---
 
 ## TV2 — Context & Memory
@@ -65,11 +61,6 @@ Cần đo và ghi lại lượng token tiết kiệm được sau mỗi cải ti
 
 Sai sót ở reset policy làm hỏng toàn bộ số liệu đánh giá mà không tạo ra dấu hiệu cảnh báo nào.
 
-### Đọc OpenCode
-
-`session/compaction.ts`, `session/prompt.ts`, `session/prompt/*.txt`, `session/system.ts`,
-`session/instruction.ts`, `session/reminders.ts`, `session/overflow.ts`, `tool/truncate.ts`
-
 ---
 
 ## TV3 — Tools & Skills
@@ -81,7 +72,7 @@ Model không tự thực thi được hành động nào, nó chỉ phát ra too
 - Tool nền tảng: `read_file` (có tham số dòng), `glob`, `grep` (kèm số dòng), `list_dir`
 - Tool cho Judge mode: xem diff, tìm định nghĩa hàm xuyên repository, truy vết call graph
 - Tool registry: thêm tool mới không cần sửa core
-- **Tách tool description ra file `.txt` riêng** (mô hình OpenCode đang dùng). Lợi ích: version hoá độc lập,
+- **Tách tool description ra file `.txt` riêng**. Lợi ích: version hoá độc lập,
   chỉnh mô tả không đụng code, và TV5 có thể ablate riêng phần mô tả
 - Error message phải đọc được bởi model: nêu rõ chuyện gì xảy ra, dữ kiện xung quanh, và gợi ý hành động
   tiếp theo. Thông báo dạng `Error: ENOENT` không giúp model tự sửa
@@ -93,11 +84,6 @@ Model không tự thực thi được hành động nào, nó chỉ phát ra too
 Xu hướng phổ biến là làm nhiều tool. Số lượng không tương quan với chất lượng. TV5 sẽ đo được tool nào không
 bao giờ được gọi và tool nào thường xuyên bị gọi sai tham số; kết quả đó nên dẫn tới việc loại bỏ hoặc thiết
 kế lại, không phải bổ sung thêm.
-
-### Đọc OpenCode
-
-`tool/tool.ts`, `tool/registry.ts`, `tool/read.ts` + `read.txt`, `tool/glob.ts`, `tool/grep.ts`,
-`tool/skill.ts`, `skill/discovery.ts`, `tool/json-schema.ts`
 
 ---
 
@@ -128,11 +114,6 @@ Trọng tâm của đồ án, triển khai từ P6 (tháng 01/2027).
 build thành công. Nếu tỷ lệ chỉ đạt 30% thì thiết kế đánh giá phải điều chỉnh, và cả nhóm cần biết điều đó
 ở P0 chứ không phải P6.
 
-### Đọc OpenCode
-
-`permission/index.ts`, `permission/evaluate.ts`, `permission/arity.ts`, `tool/shell.ts`,
-`tool/shell/prompt.ts`, `tool/shell/shell.txt`, `session/retry.ts`, `tool/task.ts`
-
 ---
 
 ## TV5 — Data & Evaluation
@@ -161,11 +142,6 @@ giờ máy và ngân sách API.
 
 Cần chủ động rà soát yêu cầu dữ liệu ngay từ P2, không chờ tới khi cần dùng.
 
-### Đọc OpenCode
-
-`session/message-v2.ts`, `session/tools.ts`, `provider/provider.ts`, `provider/transform.ts`,
-`session/llm/request.ts`
-
 ---
 
 ## TV6 — Application & Demo
@@ -190,10 +166,6 @@ Phần hệ thống mà hội đồng quan sát trực tiếp.
 Thứ tự ưu tiên: trace view, luồng end-to-end hoạt động, sau đó mới tới các cải thiện về giao diện.
 
 Chi phí xây offline demo khoảng nửa ngày và nó loại bỏ rủi ro lớn nhất của buổi bảo vệ.
-
-### Đọc OpenCode
-
-`server/server.ts`, `server/routes/`, `server/event.ts`, `bus/`, `packages/sdk/`, `packages/tui/`
 
 ---
 

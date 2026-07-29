@@ -1,6 +1,0 @@
-schema_version: 1
-mode: judge
-model:
-  provider: fake
-  model: slice1-scripted
-output_contract_version: 1.0.0

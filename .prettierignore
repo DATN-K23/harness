@@ -1,8 +1,0 @@
-.git/
-node_modules/
-.pnpm-store/
-dist/
-coverage/
-docs/
-pnpm-lock.yaml
-tests/fixtures/**/*.sol

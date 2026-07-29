@@ -1,6 +1,0 @@
-{
-  "classification": "invalid",
-  "severity": "unknown",
-  "reasoning_summary": "setFee is protected by onlyOwner, and onlyOwner requires msg.sender to equal the stored owner address.",
-  "evidence_refs": ["contracts/Vault.sol:13-16", "contracts/Vault.sol:34"]
-}

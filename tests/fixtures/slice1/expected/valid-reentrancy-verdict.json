@@ -1,6 +1,0 @@
-{
-  "classification": "valid",
-  "severity": "high",
-  "reasoning_summary": "withdraw sends Ether to msg.sender before clearing balances[msg.sender]. A receiver callback can re-enter withdraw while the original positive balance is still recorded.",
-  "evidence_refs": ["contracts/Vault.sol:28", "contracts/Vault.sol:31"]
-}

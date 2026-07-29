@@ -34,3 +34,15 @@ TypeScript type đều suy ra từ Zod. JSON Schema dùng native `z.toJSONSchema
 round-trip không mất dữ liệu; `valid`, `invalid`, `uncertain` giữ riêng. WP2 sẵn sàng contract-freeze review.
 
 **Tiếp theo:** Dừng tại Gate WP2. Chỉ bắt đầu WP3 sau khi contract consumer xác nhận schema v0.
+
+### Cập nhật WP3 (29/07/2026)
+
+**Hoàn thành:** WP2 đã freeze qua PR #3. Tạo `packages/domain` với Run state machine, ToolCall settlement,
+typed invariant error và typed stop reason cho `max_steps`, timeout, cancellation, internal failure. Transition
+trả state mới, không mutate state cũ; timestamp do caller truyền và phải tăng đơn điệu.
+
+**Bằng chứng:** Table test bao phủ mọi Run transition hợp lệ/bị cấm; ToolCall không settle lần hai; verdict sai
+schema không thể complete Run; failed/cancelled Run giữ stop reason. Domain chỉ phụ thuộc `contracts`, không dùng
+filesystem, clock thật, provider hoặc database.
+
+**Tiếp theo:** Dừng tại Gate WP3 trước khi triển khai port/adapter của WP4.

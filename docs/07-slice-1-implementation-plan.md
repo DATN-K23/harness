@@ -293,8 +293,8 @@ onboarding và không chặn WP1.
 TV1, TV3, TV5 và TV6 approve. Sau gate, thay đổi breaking phải kèm migration note hoặc decision record, kể cả
 khi Slice 1 mới dùng in-memory storage.
 
-**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP2. Chưa đánh dấu
-contract frozen trước khi gate được xác nhận.
+**WP2 closed:** contract/schema v0 đã freeze qua PR #3. Từ thời điểm này, breaking change phải có migration
+note hoặc decision record.
 
 ---
 
@@ -304,14 +304,14 @@ contract frozen trước khi gate được xác nhận.
 
 #### Công việc
 
-- [ ] Implement transition:
+- [x] Implement transition:
   `queued → running → waiting_tool → running → completed|failed|cancelled`.
-- [ ] Từ chối transition không hợp lệ, ví dụ `completed → running`.
-- [ ] Bảo đảm ToolCall chỉ settle một lần.
-- [ ] Bảo đảm Run chỉ `completed` khi có structured verdict hợp lệ.
-- [ ] Không dùng trạng thái `done`.
-- [ ] Định nghĩa typed invariant error.
-- [ ] Định nghĩa stop reason tối thiểu cho `max_steps`, timeout, cancellation và internal failure.
+- [x] Từ chối transition không hợp lệ, ví dụ `completed → running`.
+- [x] Bảo đảm ToolCall chỉ settle một lần.
+- [x] Bảo đảm Run chỉ `completed` khi có structured verdict hợp lệ.
+- [x] Không dùng trạng thái `done`.
+- [x] Định nghĩa typed invariant error.
+- [x] Định nghĩa stop reason tối thiểu cho `max_steps`, timeout, cancellation và internal failure.
 
 `verifying` có thể tồn tại trong contract v0 nhưng chưa có use case ở Slice 1.
 
@@ -326,6 +326,9 @@ contract frozen trước khi gate được xác nhận.
 #### Gate WP3
 
 Domain test không cần filesystem, clock thật, provider hoặc database.
+
+**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP3. Domain package
+chỉ phụ thuộc `contracts`; test dùng timestamp cố định do caller truyền vào.
 
 ---
 

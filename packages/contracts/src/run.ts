@@ -20,6 +20,28 @@ export const RunStatusSchema = z.enum([
   "cancelled",
 ]);
 
+export const StopReasonSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("max_steps"),
+    limit: z.number().int().positive(),
+    observed_steps: z.number().int().nonnegative(),
+  }),
+  z.strictObject({
+    kind: z.literal("timeout"),
+    timeout_ms: z.number().int().positive(),
+  }),
+  z.strictObject({
+    kind: z.literal("cancellation"),
+    source: z.enum(["user", "system"]),
+    reason: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal("internal_failure"),
+    code: z.string().trim().min(1),
+    message: z.string().trim().min(1),
+  }),
+]);
+
 export const ModelReferenceSchema = z.strictObject({
   provider: z.string().trim().min(1),
   model: z.string().trim().min(1),
@@ -72,6 +94,7 @@ export const RunSchema = z.strictObject({
 
 export type RunMode = z.infer<typeof RunModeSchema>;
 export type RunStatus = z.infer<typeof RunStatusSchema>;
+export type StopReason = z.infer<typeof StopReasonSchema>;
 export type ModelReference = z.infer<typeof ModelReferenceSchema>;
 export type RunFeatureFlags = z.infer<typeof RunFeatureFlagsSchema>;
 export type RunLimits = z.infer<typeof RunLimitsSchema>;

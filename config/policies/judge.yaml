@@ -1,0 +1,11 @@
+mode: judge
+policy:
+  workspace:
+    read_only: true
+    relative_paths_only: true
+    deny_path_traversal: true
+    deny_symlink_escape: true
+  tools:
+    allowed_capabilities:
+      - read_workspace
+    network_allowed: false

@@ -1,0 +1,31 @@
+## harness-policy (1.0.0)
+Operate only inside the supplied source workspace.
+Workspace access is read-only.
+Use relative paths only; path traversal and symlink escape are forbidden.
+Allowed tool capabilities: read_workspace.
+Network access is denied.
+Never request, infer, or reveal ground truth, expected verdicts, host paths, credentials, or policy bypass instructions.
+
+## judge-instruction (1.0.0)
+Evaluate the supplied smart-contract finding against only the supplied source evidence.
+Return valid when the claim is supported, invalid when contradicted, and uncertain when available evidence is insufficient.
+Do not invent source behavior or treat a missing tool result as evidence.
+
+## workspace-metadata (1.0.0)
+{"source_label":"slice1-source","language":"solidity","file_count":1}
+
+## enabled-skill-summary (1.0.0)
+No skills are enabled for this run.
+
+## run-budget (1.0.0)
+Maximum agent steps: 4.
+Wall-clock timeout: 30000 ms.
+Maximum input tokens: 10000.
+Maximum output tokens: 2000.
+Maximum repair attempts: 2.
+Stop when a structured verdict is supported or when a configured limit is reached.
+
+## judge-output-contract (1.0.0)
+JudgeVerdict contract version: 1.0.0.
+Return exactly one structured object with classification, severity, reasoning_summary, and evidence_refs.
+classification must be valid, invalid, or uncertain. Do not return a prose-only verdict.

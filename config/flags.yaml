@@ -1,0 +1,13 @@
+prompt_variant: judge-v0
+enabled_tool_ids:
+  - read_file
+enabled_skill_ids: []
+feature_flags:
+  tools: true
+  skills: false
+  context_compaction: false
+  session_note: false
+  long_term_memory: false
+  verification: false
+  retry: false
+  no_progress_detection: false

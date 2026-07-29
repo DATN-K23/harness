@@ -7,6 +7,7 @@ import {
   TimestampSchema,
 } from "./common.js";
 import { PromptManifestSchema } from "./prompt.js";
+import { ToolCapabilitySchema } from "./tool.js";
 
 export const RunModeSchema = z.enum(["judge", "audit"]);
 
@@ -66,6 +67,23 @@ export const RunLimitsSchema = z.strictObject({
   wall_clock_timeout_ms: z.number().int().positive(),
 });
 
+export const RunRecoveryLimitsSchema = z.strictObject({
+  max_repair_attempts: z.number().int().nonnegative(),
+});
+
+export const RunPolicySnapshotSchema = z.strictObject({
+  workspace: z.strictObject({
+    read_only: z.boolean(),
+    relative_paths_only: z.boolean(),
+    deny_path_traversal: z.boolean(),
+    deny_symlink_escape: z.boolean(),
+  }),
+  tools: z.strictObject({
+    allowed_capabilities: z.array(ToolCapabilitySchema),
+    network_allowed: z.boolean(),
+  }),
+});
+
 export const RunConfigSnapshotSchema = z.strictObject({
   schema_version: SchemaVersionSchema,
   mode: RunModeSchema,
@@ -75,6 +93,8 @@ export const RunConfigSnapshotSchema = z.strictObject({
   enabled_skill_ids: z.array(z.string().trim().min(1)),
   feature_flags: RunFeatureFlagsSchema,
   limits: RunLimitsSchema,
+  recovery_limits: RunRecoveryLimitsSchema.optional(),
+  policy: RunPolicySnapshotSchema.optional(),
   pricing_catalog_hash: Sha256Schema.nullable(),
   created_at: TimestampSchema,
 });
@@ -98,5 +118,7 @@ export type StopReason = z.infer<typeof StopReasonSchema>;
 export type ModelReference = z.infer<typeof ModelReferenceSchema>;
 export type RunFeatureFlags = z.infer<typeof RunFeatureFlagsSchema>;
 export type RunLimits = z.infer<typeof RunLimitsSchema>;
+export type RunRecoveryLimits = z.infer<typeof RunRecoveryLimitsSchema>;
+export type RunPolicySnapshot = z.infer<typeof RunPolicySnapshotSchema>;
 export type RunConfigSnapshot = z.infer<typeof RunConfigSnapshotSchema>;
 export type Run = z.infer<typeof RunSchema>;

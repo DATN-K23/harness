@@ -19,6 +19,8 @@ Nguồn schema duy nhất cho runtime validation, TypeScript type và JSON Schem
 - `uncertain` và `unverified` là trạng thái riêng, không tự động ép thành `invalid` hoặc `rejected`.
 - `StopReason` phân biệt `max_steps`, `timeout`, `cancellation` và `internal_failure`; domain giữ nguyên reason
   khi Run kết thúc.
+- WP5 thêm optional `recovery_limits` và `policy` vào wire snapshot để snapshot v0 cũ vẫn parse được; resolver
+  WP5 luôn tạo snapshot mới có cả hai field.
 
 ## JSON Schema
 

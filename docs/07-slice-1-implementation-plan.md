@@ -436,14 +436,14 @@ nhưng resolver mới luôn ghi đủ hai field.
 
 #### Registry tối thiểu
 
-- [ ] đăng ký tool theo ID/version;
-- [ ] từ chối ID trùng;
-- [ ] resolve tool theo ID;
-- [ ] validate input bằng Zod;
-- [ ] gọi workspace qua port;
-- [ ] trả `ToolResult` chuẩn;
-- [ ] trả model-readable error cho lỗi có thể sửa;
-- [ ] agent loop chỉ biết registry interface, không import `read_file`.
+- [x] đăng ký tool theo ID/version;
+- [x] từ chối ID trùng;
+- [x] resolve tool theo ID;
+- [x] validate input bằng Zod;
+- [x] gọi workspace qua port;
+- [x] trả `ToolResult` chuẩn;
+- [x] trả model-readable error cho lỗi có thể sửa;
+- [x] agent loop chỉ biết registry interface, không import `read_file`.
 
 Tool visibility, mode filtering, concurrency, artifact truncation và registry production đầy đủ để Slice 4.
 
@@ -500,6 +500,11 @@ Hãy kiểm tra lại path và gọi read_file với một relative path hợp l
 #### Gate WP6
 
 TV1 ghép `read_file` thông qua registry interface mà không sửa agent core cho riêng tool này.
+
+**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP6. `ToolRegistry`
+implement `ToolResolver`/`ToolExecutor`, còn `read_file` chỉ nhận `Workspace` port. Slice 1 chưa có artifact
+store nên `artifact_refs` là mảng rỗng hợp lệ; nội dung đầy đủ vẫn nằm trong `ToolResult` và chưa áp dụng
+truncation.
 
 ---
 

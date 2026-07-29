@@ -78,6 +78,18 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/tools-skills:
+    dependencies:
+      '@audit-harness/application':
+        specifier: workspace:*
+        version: link:../application
+      '@audit-harness/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.1.11
+        version: 4.1.11
+
 packages:
 
   '@emnapi/core@1.11.1':

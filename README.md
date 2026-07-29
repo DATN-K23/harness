@@ -4,8 +4,8 @@ Repository triển khai harness đánh giá và kiểm định smart-contract fi
 
 ## Trạng thái hiện tại
 
-WP0-WP4 đã đóng. WP5 đã triển khai config snapshot, Judge prompt v0 và deterministic prompt hash; hiện đang
-chờ Gate WP5. Chưa có agent loop, provider adapter, tool runtime hoặc Judge demo.
+WP0-WP5 đã đóng. WP6 đã triển khai tool registry tối thiểu và `read_file` v0; hiện đang chờ Gate WP6. Chưa có
+agent loop, provider adapter hoặc Judge demo.
 
 ## Prerequisites
 

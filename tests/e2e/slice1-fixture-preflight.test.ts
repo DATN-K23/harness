@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 interface FindingFixture {
-  id: string;
+  finding_id: string;
   locations: Array<{
     path: string;
     start_line: number;
@@ -44,7 +44,7 @@ describe("Slice 1 fixture preflight", () => {
     async (filename, startLine, endLine) => {
       const finding = await readJson<FindingFixture>(`inputs/${filename}`);
 
-      expect(finding.id).toBeTruthy();
+      expect(finding.finding_id).toBeTruthy();
       expect(finding).not.toHaveProperty("classification");
       expect(finding.locations[0]).toMatchObject({
         path: "contracts/Vault.sol",

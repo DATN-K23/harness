@@ -1,5 +1,5 @@
 {
-  "id": "finding_slice1_valid_reentrancy",
+  "finding_id": "finding_slice1_valid_reentrancy",
   "title": "Reentrancy in withdraw",
   "description": "The withdraw function sends Ether before clearing the caller's balance, so a callback can re-enter withdraw and receive the same balance more than once.",
   "severity": "high",

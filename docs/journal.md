@@ -78,3 +78,20 @@ hash, còn đổi content hoặc thứ tự component làm aggregate hash đổi
 prompt không chứa host path, fixture oracle, source finding hoặc tool implementation.
 
 **Tiếp theo:** Dừng tại Gate WP5 trước khi WP7 dùng prompt/config contract hoặc WP8 tích hợp agent loop.
+
+### Cập nhật WP6 (29/07/2026)
+
+**Hoàn thành:** WP5 đã merge qua PR #6. Tạo `packages/tools-skills` với executable tool abstraction,
+`ToolRegistry` implement application port và `read_file` v0. Registry đăng ký/resolve theo ID, từ chối ID trùng,
+validate Zod input và validate `ToolResult` trước khi trả cho runtime.
+
+**Error contract:** Unknown tool, input sai, line range sai, file không tồn tại và workspace denial đều trở
+thành typed `ToolExecutionError` chứa `ToolError` chuẩn. Model message có mã lỗi, input sai và cách sửa an toàn;
+permission denial không retry, không chứa host path hoặc raw stack.
+
+**Bằng chứng:** Test bao phủ đọc toàn file, khoảng dòng inclusive, dòng đầu/cuối, range đảo/out-of-bounds,
+unknown/duplicate tool, input sai kiểu, file thiếu, absolute path, traversal và symlink escape. Dependency rule
+ngăn `tools-skills` import adapter, domain internals hoặc agent loop.
+
+**Tiếp theo:** Dừng tại Gate WP6. WP8 chỉ tích hợp `read_file` qua `ToolResolver`/`ToolExecutor`, không thêm
+nhánh `if tool_id === "read_file"` vào agent core.

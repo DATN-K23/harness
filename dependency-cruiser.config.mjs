@@ -104,6 +104,18 @@ export default {
       },
     },
     {
+      name: "tools-only-depend-on-ports-and-contracts",
+      severity: "error",
+      comment:
+        "Concrete tools use application ports and frozen contracts, never adapters or domain internals.",
+      from: {
+        path: "^packages/tools-skills(?:/|$)",
+      },
+      to: {
+        path: "^packages/(?!tools-skills(?:/|$)|application(?:/|$)|contracts(?:/|$))",
+      },
+    },
+    {
       name: "worker-does-not-import-ground-truth",
       severity: "error",
       comment: "Runtime workers must not access evaluation ground truth.",

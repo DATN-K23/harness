@@ -258,15 +258,15 @@ onboarding và không chặn WP1.
 
 #### Nhóm schema bắt buộc
 
-- [ ] ID: `run_id`, `turn_id`, `message_id`, `tool_call_id`, `event_id`, `finding_id`.
-- [ ] `RunMode`, `RunStatus`, `ToolCallStatus`.
-- [ ] `Run` và `RunConfigSnapshot`.
-- [ ] Prompt component manifest và aggregate prompt hash.
-- [ ] Provider request, normalized `ModelEvent` và provider finish reason tối thiểu.
-- [ ] `ToolDefinition`, `ToolCall`, `ToolResult` và typed `ToolError`.
-- [ ] `RunEvent` discriminated union.
-- [ ] Judge input và `JudgeVerdict`.
-- [ ] `Finding` và `VerificationResult` contract v0 để đóng architecture-readiness gap; behavior verification
+- [x] ID: `run_id`, `turn_id`, `message_id`, `tool_call_id`, `event_id`, `finding_id`.
+- [x] `RunMode`, `RunStatus`, `ToolCallStatus`.
+- [x] `Run` và `RunConfigSnapshot`.
+- [x] Prompt component manifest và aggregate prompt hash.
+- [x] Provider request, normalized `ModelEvent` và provider finish reason tối thiểu.
+- [x] `ToolDefinition`, `ToolCall`, `ToolResult` và typed `ToolError`.
+- [x] `RunEvent` discriminated union.
+- [x] Judge input và `JudgeVerdict`.
+- [x] `Finding` và `VerificationResult` contract v0 để đóng architecture-readiness gap; behavior verification
   chỉ được triển khai ở Slice 6.
 
 #### Quy tắc schema
@@ -292,6 +292,9 @@ onboarding và không chặn WP1.
 
 TV1, TV3, TV5 và TV6 approve. Sau gate, thay đổi breaking phải kèm migration note hoặc decision record, kể cả
 khi Slice 1 mới dùng in-memory storage.
+
+**Trạng thái:** implementation và test bắt buộc đã hoàn thành; sẵn sàng review tại Gate WP2. Chưa đánh dấu
+contract frozen trước khi gate được xác nhận.
 
 ---
 

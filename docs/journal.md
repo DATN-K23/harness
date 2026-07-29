@@ -23,3 +23,14 @@ Linux; runtime test không cần API key hoặc model provider.
 PR #1. Chưa có cost/run, compile rate hoặc baseline-vs-harness delta vì agent runtime chưa được triển khai.
 
 **Kế hoạch tuần sau:** WP0 và WP1 đã đóng qua PR #1. Bắt đầu WP2 contract/schema v0.
+
+### Cập nhật WP2 (29/07/2026)
+
+**Hoàn thành:** Tạo `packages/contracts` làm nguồn schema duy nhất; triển khai ID, Run/config, prompt manifest,
+provider/model event, tool call/error/result, RunEvent, Finding, Judge và VerificationResult contract v0.
+TypeScript type đều suy ra từ Zod. JSON Schema dùng native `z.toJSONSchema()` và được đối chiếu bằng AJV.
+
+**Bằng chứng:** Fixture Slice 1 parse thành công; invalid field/enum và event payload sai type bị từ chối;
+round-trip không mất dữ liệu; `valid`, `invalid`, `uncertain` giữ riêng. WP2 sẵn sàng contract-freeze review.
+
+**Tiếp theo:** Dừng tại Gate WP2. Chỉ bắt đầu WP3 sau khi contract consumer xác nhận schema v0.

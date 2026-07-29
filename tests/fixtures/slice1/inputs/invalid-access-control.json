@@ -1,5 +1,5 @@
 {
-  "id": "finding_slice1_invalid_access_control",
+  "finding_id": "finding_slice1_invalid_access_control",
   "title": "Missing access control on setFee",
   "description": "Any account can call setFee and change the protocol fee.",
   "severity": "high",

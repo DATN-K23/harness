@@ -9,11 +9,11 @@ File [`timeline.csv`](timeline.csv) là timeline làm việc của nhóm. Mở b
 - Cột `Kết quả chung` cho biết đầu ra để cả nhóm kiểm tra tiến độ.
 - Cột `Trạng thái` dùng để theo dõi thực tế với các giá trị ngắn gọn: `Chưa bắt đầu`, `Đang làm`, `Hoàn thành`, hoặc `Chậm`.
 
-Timeline chỉ trả lời ba câu hỏi: ai làm gì, làm trong giai đoạn nào, và đầu ra là gì. Không liệt kê tên hàm, tên file, thư viện hoặc cách triển khai. Chi tiết kỹ thuật, rủi ro và phương án xử lý được ghi trong tài liệu track và journal.
+Timeline chỉ trả lời ba câu hỏi: ai làm gì, làm trong giai đoạn nào, và đầu ra là gì. Không liệt kê tên hàm, tên file, thư viện hoặc cách triển khai. Chi tiết kỹ thuật, rủi ro và phương án xử lý do từng track tự quản lý.
 
 ## Cập nhật
 
-Cuối mỗi chu kỳ, cả nhóm cập nhật trạng thái hạng mục và ghi thay đổi quan trọng vào journal. Nếu một hạng mục bị chậm, đổi cách làm hoặc giảm phạm vi trong chính track đó; không đẩy cả công việc sang chu kỳ sau mà không thông báo.
+Cuối mỗi chu kỳ, cả nhóm cập nhật trạng thái hạng mục trực tiếp trong timeline. Nếu một hạng mục bị chậm, đổi cách làm hoặc giảm phạm vi trong chính track đó; không đẩy cả công việc sang chu kỳ sau mà không thông báo.
 
 ## Mốc chính
 

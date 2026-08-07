@@ -8,6 +8,8 @@ export default defineConfig({
       "tests/unit/**/*.test.ts",
       "tests/contract/**/*.test.ts",
       "tests/integration/**/*.test.ts",
+      "packages/**/*.spec.ts",
+      "apps/**/*.spec.ts",
     ],
     exclude: ["tests/e2e/**"],
     passWithNoTests: false,

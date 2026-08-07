@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuditHarnessClient } from "../../hooks/useAuditHarnessClient.js";
 import { useRunStore } from "../../stores/run.store.js";
 import { TraceHeader } from "./TraceHeader.js";
 import { VerdictBanner } from "./VerdictBanner.js";
 import { ToolCallCard } from "./ToolCallCard.js";
+import { RefreshCw, AlertCircle } from "lucide-react";
 
 interface TraceViewProps {
   runId: string;
@@ -21,81 +22,118 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
     setSseStatus,
     reset,
   } = useRunStore();
+
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    // Reset store khi chuyển sang runId mới
+  const fetchAndSubscribe = async (isCancelled: () => boolean) => {
+    setIsLoading(true);
+    setError(null);
     reset();
 
-    async function initialize() {
-      try {
-        // Step 1: REST GET /api/v1/runs/:id (Hydrate run metadata)
-        const runData = await client.getRun(runId);
-        setRun(runData);
+    // Hủy subscription trước đó nếu có
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
 
-        // Step 2: REST GET /api/v1/runs/:id/tool-calls (Hydrate full tool call history)
-        const historicalToolCalls = await client.getToolCalls(runId, {
-          fromStep: 0,
-          limit: 500,
-        });
-        historicalToolCalls.forEach(appendToolCall);
+    try {
+      // Step 1: REST GET /api/v1/runs/:id (Hydrate run metadata)
+      const runData = await client.getRun(runId);
+      if (isCancelled()) return;
+      setRun(runData);
 
-        // Step 3: Connect SSE Stream nếu RUNNING
-        if (runData.status === "RUNNING") {
-          setSseStatus("connecting");
+      // Step 2: REST GET /api/v1/runs/:id/tool-calls (Hydrate full tool call history)
+      const historicalToolCalls = await client.getToolCalls(runId, {
+        fromStep: 0,
+        limit: 500,
+      });
+      if (isCancelled()) return;
+      historicalToolCalls.forEach(appendToolCall);
 
-          // W1 Fix: fromStep phải là maxStepIndex (không phải array.length)
-          // Ví dụ: 47 tool calls ở step 1,3,5,...93 → fromStep=93 (không phải 47)
-          const maxStepIndex =
-            historicalToolCalls.length > 0
-              ? Math.max(...historicalToolCalls.map((tc) => tc.stepIndex))
-              : 0;
+      setIsLoading(false);
 
-          unsubscribeRef.current = client.subscribeRunStream(
-            runId,
-            {
-              // C4 Fix: setSseStatus('connected') nằm trong onopen callback
-              // để tránh race condition: onError có thể fire trước khi line tiếp theo execute
-              onopen: () => setSseStatus("connected"),
-              onThought: (e) => appendThought(e),
-              onToolCall: (e) => appendToolCall(e),
-              onStatusChanged: (e) => {
-                // NW3 Fix: Dùng setRunStatus (functional updater) thay vì spread stale runData
-                // Tránh ghi đè các field đã được cập nhật bởi Worker trong luúc đang subscribe
-                setRunStatus(e.status);
-              },
-              onVerdict: (_e) => {
-                // Re-hydrate từ DB để lấy verdict đầy đủ (Source of Truth)
+      // Step 3: Connect SSE Stream nếu RUNNING
+      if (runData.status === "RUNNING") {
+        setSseStatus("connecting");
+
+        const maxStepIndex =
+          historicalToolCalls.length > 0
+            ? Math.max(...historicalToolCalls.map((tc) => tc.stepIndex))
+            : 0;
+
+        const unsubscribe = client.subscribeRunStream(
+          runId,
+          {
+            onopen: () => {
+              if (!isCancelled()) setSseStatus("connected");
+            },
+            onThought: (e) => {
+              if (!isCancelled()) appendThought(e);
+            },
+            onToolCall: (e) => {
+              if (!isCancelled()) appendToolCall(e);
+            },
+            onStatusChanged: (e) => {
+              if (!isCancelled()) setRunStatus(e.status);
+            },
+            onVerdict: (_e) => {
+              if (!isCancelled()) {
                 client
                   .getRun(runId)
-                  .then(setRun)
+                  .then((updated) => {
+                    if (!isCancelled()) setRun(updated);
+                  })
                   .catch(() => {});
-              },
-              onCompleted: () => {
+              }
+            },
+            onCompleted: () => {
+              if (!isCancelled()) {
                 setSseStatus("offline");
                 client
                   .getRun(runId)
-                  .then(setRun)
+                  .then((updated) => {
+                    if (!isCancelled()) setRun(updated);
+                  })
                   .catch(() => {});
-              },
-              onError: () => setSseStatus("reconnecting"),
+              }
             },
-            { fromStep: maxStepIndex },
-          );
+            onError: () => {
+              if (!isCancelled()) setSseStatus("reconnecting");
+            },
+          },
+          { fromStep: maxStepIndex },
+        );
+
+        if (!isCancelled()) {
+          unsubscribeRef.current = unsubscribe;
         } else {
-          setSseStatus("offline");
+          unsubscribe();
         }
-      } catch (err) {
-        console.error("Initialization error in TraceView:", err);
+      } else {
         setSseStatus("offline");
       }
+    } catch (err: any) {
+      if (isCancelled()) return;
+      console.error("Initialization error in TraceView:", err);
+      setError(err?.message || "Không thể tải thông tin Audit Run");
+      setSseStatus("offline");
+      setIsLoading(false);
     }
+  };
 
-    initialize();
+  useEffect(() => {
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+
+    fetchAndSubscribe(isCancelled);
 
     return () => {
+      cancelled = true;
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
     };
   }, [runId]);
@@ -105,6 +143,46 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
       <TraceHeader run={currentRun} />
 
       {currentRun?.verdict && <VerdictBanner verdict={currentRun.verdict} />}
+
+      {/* State: Error alert */}
+      {error && (
+        <div
+          className="glass-panel"
+          style={{
+            padding: "20px 24px",
+            borderRadius: "12px",
+            background: "rgba(244, 63, 94, 0.1)",
+            border: "1px solid rgba(244, 63, 94, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "20px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <AlertCircle size={20} color="#f43f5e" />
+            <span style={{ color: "#fca5a5", fontSize: "0.9rem" }}>
+              {error}
+            </span>
+          </div>
+          <button
+            onClick={() => fetchAndSubscribe(() => false)}
+            style={{
+              padding: "6px 14px",
+              background: "#f43f5e",
+              color: "#fff",
+              borderRadius: "6px",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <RefreshCw size={14} /> Thử lại
+          </button>
+        </div>
+      )}
 
       <div style={{ marginTop: "20px" }}>
         <h3
@@ -118,7 +196,25 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
           Agent Execution Trajectory ({toolCalls.length} Tool Calls)
         </h3>
 
-        {toolCalls.length === 0 ? (
+        {/* State: Loading Skeleton */}
+        {isLoading ? (
+          <div
+            className="glass-panel"
+            style={{
+              padding: "40px",
+              textAlign: "center",
+              color: "#06b6d4",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+            }}
+          >
+            <RefreshCw className="animate-spin" size={20} />
+            <span>Đang tải dữ liệu Audit Run...</span>
+          </div>
+        ) : toolCalls.length === 0 ? (
           <div
             className="glass-panel"
             style={{

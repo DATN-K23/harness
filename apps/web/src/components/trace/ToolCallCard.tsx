@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import type { ToolCall } from "@audit-harness/contracts";
 import {
-  Terminal,
   ChevronDown,
   ChevronUp,
   AlertTriangle,
@@ -25,6 +24,17 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
         return "🛡️";
       default:
         return "🔧";
+    }
+  };
+
+  /** Safe JSON parser để phòng thủ crash UI khi argumentsJson không hợp lệ */
+  const formatArgumentsJson = (jsonStr: string): string => {
+    if (!jsonStr) return "{}";
+    try {
+      const parsed = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return jsonStr; // Trả về raw string nếu parse lỗi thay vì crash
     }
   };
 
@@ -136,11 +146,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
                 color: "#38bdf8",
               }}
             >
-              {JSON.stringify(
-                JSON.parse(toolCall.argumentsJson || "{}"),
-                null,
-                2,
-              )}
+              {formatArgumentsJson(toolCall.argumentsJson)}
             </pre>
           </div>
 

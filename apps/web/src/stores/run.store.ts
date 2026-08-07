@@ -44,14 +44,20 @@ export const useRunStore = create<RunState>((set) => ({
         timestamp: (tc as ToolCall).timestamp || new Date().toISOString(),
       };
 
-      // De-duplicate by id or stepIndex+toolName
+      // W4 Fix: De-duplicate theo composite key runId+stepIndex+toolName
+      // Tránh trường hợp REST prefetch trả ToolCall (có .id thật) và SSE trả
+      // ToolCallEvent (không có .id) sinh key khác nhau cho cùng 1 record.
+      const compositeKey = `${formatted.runId}:${formatted.stepIndex}:${formatted.toolName}`;
       const exists = state.toolCalls.some(
-        (existing) => existing.id === formatted.id,
+        (existing) =>
+          `${existing.runId}:${existing.stepIndex}:${existing.toolName}` ===
+          compositeKey,
       );
       if (exists) return state;
 
       return { toolCalls: [...state.toolCalls, formatted] };
     }),
+
 
   appendThought: (thought) =>
     set((state) => {

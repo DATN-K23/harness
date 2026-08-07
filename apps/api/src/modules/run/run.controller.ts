@@ -8,6 +8,8 @@ import {
   Res,
   UsePipes,
   Header,
+  Headers,
+  BadRequestException,
 } from "@nestjs/common";
 import type { Response } from "express";
 import { CreateRunSchema } from "@audit-harness/contracts";
@@ -64,7 +66,17 @@ export class RunController {
   }
 
   @Post(":id/cancel")
-  async cancelRun(@Param("id") id: string) {
+  async cancelRun(
+    @Param("id") id: string,
+    @Headers("x-request-id") requestId?: string,
+  ) {
+    // W5 Fix: x-request-id bắt buộc cho idempotency trace theo spec
+    if (!requestId || requestId.trim() === "") {
+      throw new BadRequestException({
+        errorCode: "ERR_MISSING_REQUEST_ID",
+        message: "Header 'x-request-id' là bắt buộc cho endpoint cancel.",
+      });
+    }
     return this.runService.cancelRun(id);
   }
 
@@ -72,15 +84,27 @@ export class RunController {
   @SkipResponseTransform()
   @Header("Content-Type", "application/json")
   async exportRunData(@Param("id") id: string, @Res() res: Response) {
+    const EXPORT_LIMIT = 200;
     const run = await this.runService.getRun(id);
-    const toolCalls = await this.runService.getToolCalls(id, 0, 1000);
-    const modelEvents = await this.runService.getModelEvents(id, 0, 1000);
+    const toolCalls = await this.runService.getToolCalls(id, 0, EXPORT_LIMIT);
+    const modelEvents = await this.runService.getModelEvents(id, 0, EXPORT_LIMIT);
+
+    // W6 Fix: Cảnh báo rõ ràng khi data bị truncate thay vì âm thầm mất dữ liệu
+    const isTruncated =
+      toolCalls.length === EXPORT_LIMIT || modelEvents.length === EXPORT_LIMIT;
 
     const payload = {
       run,
       toolCalls,
       modelEvents,
       exportedAt: new Date().toISOString(),
+      meta: {
+        exportLimit: EXPORT_LIMIT,
+        isTruncated,
+        truncationWarning: isTruncated
+          ? `Dữ liệu bị giới hạn ở ${EXPORT_LIMIT} records. Sử dụng API pagination để lấy toàn bộ.`
+          : null,
+      },
     };
 
     res.setHeader(

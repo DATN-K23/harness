@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useReplayStore } from "../../stores/replay.store.js";
 import { Play, Pause, FastForward, RotateCcw } from "lucide-react";
 
@@ -14,21 +14,42 @@ export const ReplayController: React.FC = () => {
     tickStep,
   } = useReplayStore();
 
-  // Replay timer loop với timestamp-based drift compensation (Pitfall I2 fix)
+  /**
+   * W2 Fix: Drift compensation thực sự bằng cách track accumulated drift
+   * qua useRef và trừ khỏi delay của tick tiếp theo.
+   *
+   * Vấn đề gốc (Pitfall I2):
+   * - setTimeout(fn, 500) ở tốc độ 10x → baseDelay = 50ms
+   * - Mỗi lần setTimeout fire trễ 5ms → sau 100 tick: 500ms drift
+   *
+   * Giải pháp: Đo thực tế vs expected, trừ drift vào lần tiếp theo.
+   */
+  const driftRef = useRef<number>(0);
+  const expectedAtRef = useRef<number>(performance.now());
+
   useEffect(() => {
-    if (!isPlaying || currentStep >= events.length - 1) return;
+    if (!isPlaying || currentStep >= events.length - 1) {
+      // Reset drift khi dừng hoặc hết events
+      driftRef.current = 0;
+      return;
+    }
 
     const currentEvent = events[currentStep];
-    const baseDelay = (currentEvent?.delayMs ?? 500) / playbackSpeed;
-    const expectedAt = performance.now() + baseDelay;
+    const nominalDelay = (currentEvent?.delayMs ?? 500) / playbackSpeed;
 
-    const timerId = setTimeout(
-      () => {
-        const _drift = performance.now() - expectedAt; // Track drift if needed for high speeds
-        tickStep();
-      },
-      Math.max(0, baseDelay),
-    );
+    // Compensate: trừ accumulated drift từ tick trước
+    const compensatedDelay = Math.max(0, nominalDelay - driftRef.current);
+
+    const scheduledAt = performance.now();
+    const timerId = setTimeout(() => {
+      const actualAt = performance.now();
+      // Đo drift của tick này và cộng dồn cho tick tiếp theo
+      const thisDrift = actualAt - scheduledAt - compensatedDelay;
+      driftRef.current = Math.max(0, thisDrift); // Không bù trừ âm (không "tăng tốc")
+
+      expectedAtRef.current = actualAt + nominalDelay;
+      tickStep();
+    }, compensatedDelay);
 
     return () => clearTimeout(timerId);
   }, [isPlaying, currentStep, playbackSpeed, events]);
@@ -36,6 +57,8 @@ export const ReplayController: React.FC = () => {
   if (events.length === 0) return null;
 
   const currentEvent = events[currentStep];
+  const progress =
+    events.length > 1 ? (currentStep / (events.length - 1)) * 100 : 0;
 
   return (
     <div
@@ -52,11 +75,15 @@ export const ReplayController: React.FC = () => {
         gap: "20px",
         zIndex: 100,
         boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+        minWidth: "600px",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <button
-          onClick={() => jumpToStep(0)}
+          onClick={() => {
+            driftRef.current = 0;
+            jumpToStep(0);
+          }}
           style={{ color: "#9ca3af", padding: "6px" }}
           title="Reset to Start"
         >
@@ -86,6 +113,7 @@ export const ReplayController: React.FC = () => {
           display: "flex",
           alignItems: "center",
           gap: "8px",
+          flex: 1,
           minWidth: "200px",
         }}
       >
@@ -94,11 +122,14 @@ export const ReplayController: React.FC = () => {
           min={0}
           max={Math.max(0, events.length - 1)}
           value={currentStep}
-          onChange={(e) => jumpToStep(parseInt(e.target.value, 10))}
+          onChange={(e) => {
+            driftRef.current = 0; // Reset drift khi scrub thủ công
+            jumpToStep(parseInt(e.target.value, 10));
+          }}
           style={{ flex: 1, accentColor: "#06b6d4" }}
         />
         <span
-          style={{ fontSize: "0.85rem", color: "#9ca3af", minWidth: "50px" }}
+          style={{ fontSize: "0.85rem", color: "#9ca3af", minWidth: "60px" }}
         >
           {currentStep + 1} / {events.length}
         </span>
@@ -108,7 +139,10 @@ export const ReplayController: React.FC = () => {
         <FastForward size={16} style={{ color: "#9ca3af" }} />
         <select
           value={playbackSpeed}
-          onChange={(e) => setSpeed(parseFloat(e.target.value))}
+          onChange={(e) => {
+            driftRef.current = 0; // Reset drift khi đổi tốc độ
+            setSpeed(parseFloat(e.target.value));
+          }}
           style={{
             background: "#1f2937",
             color: "#f9fafb",
@@ -134,8 +168,13 @@ export const ReplayController: React.FC = () => {
           borderLeft: "1px solid #374151",
         }}
       >
-        Event:{" "}
-        <code style={{ color: "#a7f3d0" }}>{currentEvent?.type || "IDLE"}</code>
+        <div>
+          Event:{" "}
+          <code style={{ color: "#a7f3d0" }}>{currentEvent?.type || "IDLE"}</code>
+        </div>
+        <div style={{ color: "#4b5563", fontSize: "0.7rem", marginTop: "2px" }}>
+          {Math.round(progress)}% complete
+        </div>
       </div>
     </div>
   );

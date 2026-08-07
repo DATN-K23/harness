@@ -6,6 +6,7 @@ import type {
   ModelEvent,
   ApiSuccessResponse,
   ApiErrorResponse,
+  PaginationMeta,
 } from "@audit-harness/contracts";
 import type {
   AuditHarnessClientOptions,
@@ -16,6 +17,7 @@ import type {
   StatusChangedEvent,
   VerdictEvent,
   CompletedEvent,
+  PaginatedResult,
 } from "./types.js";
 import {
   HarnessSDKError,
@@ -79,17 +81,41 @@ export class AuditHarnessClient {
     return this.request<Run>(`/api/v1/runs/${runId}`);
   }
 
+  /**
+   * I3 Fix: Trả PaginatedResult thay vì Run[] thuần để pagination không bị mất.
+   * ResponseTransformInterceptor unwrap data nhưng pagination nằm trong meta.
+   */
   public async listRuns(query?: {
     page?: number;
     pageSize?: number;
     status?: string;
-  }): Promise<Run[]> {
+  }): Promise<PaginatedResult<Run>> {
     const params = new URLSearchParams();
     if (query?.page) params.set("page", String(query.page));
     if (query?.pageSize) params.set("pageSize", String(query.pageSize));
     if (query?.status) params.set("status", query.status);
     const qs = params.toString();
-    return this.request<Run[]>(`/api/v1/runs${qs ? `?${qs}` : ""}`);
+
+    const url = `${this.baseUrl}/api/v1/runs${qs ? `?${qs}` : ""}`;
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: this.defaultHeaders });
+    } catch (err) {
+      throw new NetworkDisconnectedError("Không thể kết nối đến API Server", err);
+    }
+    const body = (await res.json()) as ApiSuccessResponse<Run[]> | ApiErrorResponse;
+    if (!res.ok || !body.success) {
+      const errorBody = body as ApiErrorResponse;
+      throw new HarnessSDKError(
+        errorBody.error?.code || "ERR_API",
+        errorBody.error?.message || res.statusText,
+      );
+    }
+    const successBody = body as ApiSuccessResponse<Run[]>;
+    return {
+      items: successBody.data,
+      pagination: successBody.meta.pagination as PaginationMeta,
+    };
   }
 
   public async getToolCalls(
@@ -121,10 +147,12 @@ export class AuditHarnessClient {
   }
 
   public async cancelRun(runId: string): Promise<Run> {
+    // W5 Fix: x-request-id bắt buộc theo spec để đảm bảo idempotency trace
+    const requestId = `req_cancel_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     return this.request<Run>(`/api/v1/runs/${runId}/cancel`, {
       method: "POST",
       headers: {
-        "x-request-id": `req_cancel_${Date.now()}`,
+        "x-request-id": requestId,
       },
     });
   }
@@ -154,6 +182,9 @@ export class AuditHarnessClient {
             `SSE connection failed: HTTP ${response.status}`,
           );
         }
+        // C4 Fix: onopen gọi sau khi HTTP 200 xác nhận — đảm bảo
+        // không có race condition với onError
+        listener.onopen?.();
       },
       onmessage: (event) => {
         if (event.event === "heartbeat") return;

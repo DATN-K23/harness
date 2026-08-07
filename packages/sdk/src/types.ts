@@ -2,7 +2,13 @@ import type {
   RunStatus,
   VerdictStatus,
   SeverityLevel,
+  PaginationMeta,
 } from "@audit-harness/contracts";
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pagination: PaginationMeta;
+}
 
 export interface AuditHarnessClientOptions {
   baseUrl: string;
@@ -58,6 +64,8 @@ export interface CompletedEvent {
 }
 
 export interface RunStreamListener {
+  /** Gọi khi SSE connection mở thành công (HTTP 200) */
+  onopen?: () => void;
   onThought?: (data: ThoughtEvent) => void;
   onToolCall?: (data: ToolCallEvent) => void;
   onStatusChanged?: (data: StatusChangedEvent) => void;

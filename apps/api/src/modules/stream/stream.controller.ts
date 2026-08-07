@@ -1,6 +1,5 @@
 import {
   Controller,
-  Get,
   Param,
   Sse,
   Query,
@@ -15,8 +14,12 @@ import { SkipResponseTransform } from "../../common/decorators/skip-response-tra
 export class StreamController {
   constructor(private readonly streamService: StreamService) {}
 
-  @Get(":id/stream")
-  @Sse()
+  /**
+   * SSE Gateway — GET /api/v1/runs/:id/stream
+   * Dùng @Sse() standalone (không kết hợp với @Get()) theo NestJS docs.
+   * Hỗ trợ Last-Event-ID header và fromStep query param để resume connection.
+   */
+  @Sse(":id/stream")
   @SkipResponseTransform()
   streamRunEvents(
     @Param("id") runId: string,
@@ -28,14 +31,15 @@ export class StreamController {
       : lastEventId
         ? parseInt(lastEventId, 10)
         : undefined;
+
     const realEvents$ = this.streamService.getStreamForRun(runId, stepNumber);
 
-    // Heartbeat keep-alive mỗi 15 giây
+    // Heartbeat keep-alive mỗi 15 giây — dùng id "hb" để không bị distinct() lọc
     const heartbeat$ = interval(15000).pipe(
       map(
         () =>
           ({
-            id: "0",
+            id: "hb",
             type: "heartbeat",
             data: JSON.stringify({ timestamp: new Date().toISOString() }),
           }) as MessageEvent,

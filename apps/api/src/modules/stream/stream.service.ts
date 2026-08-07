@@ -1,5 +1,13 @@
-import { Injectable, MessageEvent } from "@nestjs/common";
-import { Subject, Observable, filter, map, merge, from } from "rxjs";
+import { Injectable, MessageEvent, OnModuleInit } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import {
+  Subject,
+  Observable,
+  filter,
+  map,
+  merge,
+  from,
+} from "rxjs";
 import { mergeMap, distinct } from "rxjs/operators";
 import { PrismaService } from "../prisma/prisma.service.js";
 
@@ -10,14 +18,46 @@ export interface HarnessStreamEvent {
   payload: Record<string, any>;
 }
 
+/**
+ * Tên event chuẩn cho EventEmitter2 internal bus.
+ * Worker (cùng process) emit event này → StreamService forward qua SSE.
+ *
+ * @note Kiến trúc extensible: khi Worker tách thành process riêng,
+ * thay LocalEventBusAdapter bằng RedisEventBusAdapter mà không cần
+ * sửa StreamService hay Controller.
+ */
+export const HARNESS_STREAM_EVENT = "harness.stream.event";
+
 @Injectable()
-export class StreamService {
-  private eventSubject$ = new Subject<HarnessStreamEvent>();
+export class StreamService implements OnModuleInit {
+  /**
+   * Internal Subject — nhận event từ EventEmitter2 (local bus)
+   * và broadcast đến tất cả SSE subscriber của cùng runId.
+   */
+  private readonly eventSubject$ = new Subject<HarnessStreamEvent>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
+  /**
+   * Bridge: EventEmitter2 → RxJS Subject.
+   * Đảm bảo mọi service trong cùng process đều có thể publish event
+   * mà không cần inject StreamService trực tiếp (tránh circular dependency).
+   */
+  onModuleInit() {
+    this.eventEmitter.on(HARNESS_STREAM_EVENT, (event: HarnessStreamEvent) => {
+      this.eventSubject$.next(event);
+    });
+  }
+
+  /**
+   * Publish event lên local bus. Dùng cho Demo mode và Worker (same-process).
+   * EventEmitter2 listener ở onModuleInit() sẽ forward vào Subject.
+   */
   public publishEvent(event: HarnessStreamEvent): void {
-    this.eventSubject$.next(event);
+    this.eventEmitter.emit(HARNESS_STREAM_EVENT, event);
   }
 
   public getStreamForRun(

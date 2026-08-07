@@ -76,7 +76,12 @@ export class StreamService implements OnModuleInit {
       filter(
         (event) => fromStep === undefined || (event.stepIndex ?? -1) > fromStep,
       ),
-      map(mapToMessageEvent),
+      map((event: HarnessStreamEvent): MessageEvent => ({
+        // NC2 Fix: composite id = eventType:stepIndex cho live events
+        id: `${event.eventType}:${event.stepIndex ?? Date.now()}`,
+        type: event.eventType,
+        data: JSON.stringify(event.payload),
+      }) as MessageEvent),
     );
 
     if (fromStep === undefined || fromStep < 0) {
@@ -88,7 +93,9 @@ export class StreamService implements OnModuleInit {
     ).pipe(mergeMap((events) => from(events)));
 
     return merge(historicalReplay$, liveStream$).pipe(
-      distinct((event: MessageEvent) => event.id),
+      // NC2 Fix: distinct theo composite key type:stepIndex
+      // Tránh drop event khi cùng 1 step có cả ModelEvent (THOUGHT) lẫn ToolCall
+      distinct((event: MessageEvent) => `${event.type}:${event.id}`),
     );
   }
 
@@ -111,7 +118,8 @@ export class StreamService implements OnModuleInit {
       ...modelEvents.map(
         (e) =>
           ({
-            id: String(e.stepIndex),
+            // NC2 Fix: composite id = type:stepIndex để không conflict với ToolCall cùng step
+            id: `${this.mapEventType(e.eventType)}:${e.stepIndex}`,
             type: this.mapEventType(e.eventType),
             data: JSON.stringify({
               runId,
@@ -123,7 +131,8 @@ export class StreamService implements OnModuleInit {
       ...toolCalls.map(
         (tc) =>
           ({
-            id: String(tc.stepIndex),
+            // NC2 Fix: composite id = step:tool_call:stepIndex
+            id: `step:tool_call:${tc.stepIndex}`,
             type: "step:tool_call",
             data: JSON.stringify({
               runId,
@@ -137,7 +146,12 @@ export class StreamService implements OnModuleInit {
             }),
           }) as MessageEvent,
       ),
-    ].sort((a, b) => parseInt(a.id!) - parseInt(b.id!));
+    ].sort((a, b) => {
+      // Sort by stepIndex (parse từ phần cuối composite id)
+      const stepA = parseInt(a.id!.split(":").pop()!, 10);
+      const stepB = parseInt(b.id!.split(":").pop()!, 10);
+      return stepA - stepB;
+    });
   }
 
   private mapEventType(dbEventType: string): string {

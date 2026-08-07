@@ -15,11 +15,21 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix("api/v1");
-  app.enableCors({
-    // Production: thay '*' bằng origin cụ thể (vd: process.env.FRONTEND_URL)
-    origin: process.env.CORS_ORIGIN || "*",
-    credentials: true,
-  });
+
+  /**
+   * NI4 Fix: credentials: true + origin: "*" là invalid CORS — browser block.
+   * - Development: origin "*", credentials false (dùng Vite proxy thay thế)
+   * - Production: origin từ CORS_ORIGIN env, credentials true nếu cần
+   */
+  const isProduction = process.env.NODE_ENV === "production";
+  const corsOrigin = process.env.CORS_ORIGIN;
+
+  if (isProduction && corsOrigin) {
+    app.enableCors({ origin: corsOrigin, credentials: true });
+  } else {
+    // Development: Vite proxy handle CORS, API chỉ cần allow localhost
+    app.enableCors({ origin: true, credentials: false });
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

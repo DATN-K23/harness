@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { EventEmitter2 } from "eventemitter2";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { StreamService } from "../../modules/stream/stream.service.js";
 
 describe("StreamService (Unit)", () => {

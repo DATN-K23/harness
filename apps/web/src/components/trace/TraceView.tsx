@@ -15,6 +15,7 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
     currentRun,
     toolCalls,
     setRun,
+    setRunStatus,
     appendToolCall,
     appendThought,
     setSseStatus,
@@ -59,7 +60,9 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
               onThought: (e) => appendThought(e),
               onToolCall: (e) => appendToolCall(e),
               onStatusChanged: (e) => {
-                setRun({ ...runData, status: e.status });
+                // NW3 Fix: Dùng setRunStatus (functional updater) thay vì spread stale runData
+                // Tránh ghi đè các field đã được cập nhật bởi Worker trong luúc đang subscribe
+                setRunStatus(e.status);
               },
               onVerdict: (_e) => {
                 // Re-hydrate từ DB để lấy verdict đầy đủ (Source of Truth)

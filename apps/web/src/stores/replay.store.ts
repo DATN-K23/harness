@@ -15,7 +15,10 @@ interface ReplayStore {
   setEvents: (events: DemoEvent[]) => void;
   setPlaying: (isPlaying: boolean) => void;
   setSpeed: (speed: number) => void;
+  /** Dừng play và nhảy đến step (dùng cho reset button) */
   jumpToStep: (step: number) => void;
+  /** NW5 Fix: Scrub đến step không dừng play (dùng cho slider) */
+  seekToStep: (step: number) => void;
   tickStep: () => void;
 }
 
@@ -28,7 +31,10 @@ export const useReplayStore = create<ReplayStore>((set) => ({
   setEvents: (events) => set({ events, currentStep: 0, isPlaying: false }),
   setPlaying: (isPlaying) => set({ isPlaying }),
   setSpeed: (playbackSpeed) => set({ playbackSpeed }),
+  // Dừng play và nhảy đến step (reset button)
   jumpToStep: (step) => set({ currentStep: step, isPlaying: false }),
+  // NW5 Fix: Seekto không đụng isPlaying (slider scrub khi đang play)
+  seekToStep: (step) => set({ currentStep: step }),
   tickStep: () =>
     set((state) => {
       const nextStep = state.currentStep + 1;

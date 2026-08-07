@@ -36,24 +36,43 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
 
     return next.handle().pipe(
       map((result) => {
-        const data = result && result.data !== undefined ? result.data : result;
-        const pagination =
-          result && result.pagination ? result.pagination : undefined;
+        /**
+         * NC3 Fix: Bỏ heuristic result.data detection — nguy hiểm vì bất kỳ
+         * DTO nào có field .data sẽ bị unwrap nhầm.
+         *
+         * Convention mới: Controller trả về object có shape { _paginated: true, items, pagination }
+         * để interceptor nhận biết pagination một cách explicit thay vì heuristic.
+         *
+         * Mặc định: wrap toàn bộ result vào data.
+         */
+        let data: T = result;
+        let pagination: import("@audit-harness/contracts").PaginationMeta | undefined;
         const message =
-          result && result.message ? result.message : "Operation successful";
+          result && typeof result === "object" && result.message
+            ? result.message
+            : "Operation successful";
 
-        return {
+        // Chỉ extract pagination khi controller dùng convention _paginated flag
+        if (result && typeof result === "object" && result._paginated === true) {
+          data = result.items as T;
+          pagination = result.pagination as import("@audit-harness/contracts").PaginationMeta;
+        }
+
+        const responsePayload: ApiSuccessResponse<T> = {
           success: true,
           code: response.statusCode,
           message,
           data,
           meta: {
-            requestId: request.headers["x-request-id"] || `req_${Date.now()}`,
+            requestId: (request.headers["x-request-id"] as string) || `req_${Date.now()}`,
             timestamp: new Date().toISOString(),
-            ...(pagination && { pagination }),
+            ...(pagination ? { pagination } : {}),
           },
         };
+
+        return responsePayload;
       }),
     );
   }
 }
+

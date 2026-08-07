@@ -1,0 +1,101 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum VerdictStatus {
+  VALID
+  INVALID
+  UNVERIFIED
+}
+
+model Run {
+  id               String             @id @default(uuid())
+  title            String
+  targetRepository String
+  findingId        String
+  status           RunStatus          @default(PENDING)
+  startedAt        DateTime           @default(now())
+  completedAt      DateTime?
+  totalDurationMs  Int                @default(0)
+  totalTokensUsed  Int                @default(0)
+  totalCostUsd     Float              @default(0.0)
+  
+  configSnapshot   RunConfigSnapshot?
+  toolCalls        ToolCall[]
+  modelEvents      ModelEvent[]
+  verdict          Verdict?
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model RunConfigSnapshot {
+  id                 String   @id @default(uuid())
+  runId              String   @unique
+  run                Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  modelProvider      String
+  modelName          String
+  temperature        Float    @default(0.0)
+  maxSteps           Int      @default(50)
+  tokenBudget        Int      @default(150000)
+  enableMemory       Boolean  @default(true)
+  enableCompaction   Boolean  @default(true)
+  enableVerification Boolean  @default(true)
+  promptVersion      String
+  configHash         String
+}
+
+model ToolCall {
+  id            String   @id @default(uuid())
+  runId         String
+  run           Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepIndex     Int
+  toolName      String
+  argumentsJson String
+  resultJson    String
+  isError       Boolean  @default(false)
+  durationMs    Int      @default(0)
+  tokensUsed    Int      @default(0)
+  timestamp     DateTime @default(now())
+
+  @@index([runId, stepIndex])
+}
+
+model ModelEvent {
+  id         String   @id @default(uuid())
+  runId      String
+  run        Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepIndex  Int
+  eventType  String
+  content    String
+  tokensUsed Int      @default(0)
+  timestamp  DateTime @default(now())
+
+  @@index([runId, stepIndex])
+}
+
+model Verdict {
+  id              String        @id @default(uuid())
+  runId           String        @unique
+  run             Run           @relation(fields: [runId], references: [id], onDelete: Cascade)
+  status          VerdictStatus
+  severity        String
+  confidenceScore Float
+  explanation     String
+  pocSourceCode   String?
+  pocResult       String?
+  timestamp       DateTime      @default(now())
+}

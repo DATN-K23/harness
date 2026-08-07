@@ -11,6 +11,7 @@ export const ReplayController: React.FC = () => {
     setPlaying,
     setSpeed,
     jumpToStep,
+    seekToStep,
     tickStep,
   } = useReplayStore();
 
@@ -123,8 +124,9 @@ export const ReplayController: React.FC = () => {
           max={Math.max(0, events.length - 1)}
           value={currentStep}
           onChange={(e) => {
-            driftRef.current = 0; // Reset drift khi scrub thủ công
-            jumpToStep(parseInt(e.target.value, 10));
+            driftRef.current = 0;
+            // NW5 Fix: seekToStep — không dừng play khi user scrub slider
+            seekToStep(parseInt(e.target.value, 10));
           }}
           style={{ flex: 1, accentColor: "#06b6d4" }}
         />

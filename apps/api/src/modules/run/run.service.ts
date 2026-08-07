@@ -74,26 +74,31 @@ export class RunService {
   }
 
   async listRuns(page = 1, pageSize = 10, status?: string) {
-    const skip = (page - 1) * pageSize;
+    // NW1 Fix: Cap pageSize theo spec 03-security-protocol.md (limit ≤ 100)
+    const safePageSize = Math.min(pageSize, 100);
+    const skip = (page - 1) * safePageSize;
     const where = status ? { status: status as any } : {};
 
     const [items, totalItems] = await Promise.all([
       this.prisma.run.findMany({
         where,
         skip,
-        take: pageSize,
+        take: safePageSize,
         orderBy: { createdAt: "desc" },
       }),
       this.prisma.run.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(totalItems / pageSize);
+    const totalPages = Math.ceil(totalItems / safePageSize);
 
+    // NC3 Fix: Dùng _paginated flag convention thay vì { data, pagination }
+    // để ResponseTransformInterceptor nhận biết explicit (không heuristic)
     return {
-      data: items,
+      _paginated: true as const,
+      items,
       pagination: {
         page,
-        pageSize,
+        pageSize: safePageSize,
         totalItems,
         totalPages,
         hasNextPage: page < totalPages,
@@ -121,24 +126,35 @@ export class RunService {
   }
 
   async cancelRun(runId: string) {
-    const run = await this.getRun(runId);
-    if (
-      run.status === "COMPLETED" ||
-      run.status === "FAILED" ||
-      run.status === "CANCELLED"
-    ) {
+    // NW6 Fix: Atomic updateMany với điều kiện where — tránh TOCTOU race
+    // Thay vì read-check-write (3 bước), dùng 1 operation nguyên tử:
+    // Chỉ update nếu run hiện tại KHÔNG ở terminal state
+    const result = await this.prisma.run.updateMany({
+      where: {
+        id: runId,
+        status: { notIn: ["COMPLETED", "FAILED", "CANCELLED"] },
+      },
+      data: {
+        status: "CANCELLED",
+        completedAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      // Run không tồn tại hoặc đã ở terminal state
+      const run = await this.prisma.run.findUnique({ where: { id: runId } });
+      if (!run) {
+        throw new NotFoundException(`Run with ID '${runId}' was not found`);
+      }
       throw new ConflictException({
         errorCode: "ERR_RUN_ALREADY_TERMINAL",
         message: `Run '${runId}' is already in a terminal state: ${run.status}`,
       });
     }
 
-    return this.prisma.run.update({
+    return this.prisma.run.findUnique({
       where: { id: runId },
-      data: {
-        status: "CANCELLED",
-        completedAt: new Date(),
-      },
+      include: { configSnapshot: true, verdict: true },
     });
   }
 }

@@ -11,6 +11,8 @@ interface RunState {
   sseStatus: SseStatus;
 
   setRun: (run: Run | null) => void;
+  /** NW3 Fix: Patch chỉ 1 field status mà không cần có snapshot của toàn bộ run */
+  setRunStatus: (status: string) => void;
   setSseStatus: (status: SseStatus) => void;
   appendToolCall: (tc: ToolCall | ToolCallEvent) => void;
   appendThought: (thought: ThoughtEvent) => void;
@@ -24,6 +26,13 @@ export const useRunStore = create<RunState>((set) => ({
   sseStatus: "offline",
 
   setRun: (run) => set({ currentRun: run }),
+  // NW3 Fix: Dùng functional updater — không phụ thuộc snapshot của run tại thời điểm subscribe
+  setRunStatus: (status) =>
+    set((state) => ({
+      currentRun: state.currentRun
+        ? { ...state.currentRun, status: status as Run["status"] }
+        : null,
+    })),
   setSseStatus: (sseStatus) => set({ sseStatus }),
 
   appendToolCall: (tc) =>
@@ -61,6 +70,12 @@ export const useRunStore = create<RunState>((set) => ({
 
   appendThought: (thought) =>
     set((state) => {
+      // NW2 Fix: De-duplicate theo runId+stepIndex (giống appendToolCall)
+      const exists = state.modelEvents.some(
+        (e) => e.runId === thought.runId && e.stepIndex === thought.stepIndex,
+      );
+      if (exists) return state;
+
       const formatted: ModelEvent = {
         id: `me_${thought.stepIndex}_${Date.now()}`,
         runId: thought.runId,

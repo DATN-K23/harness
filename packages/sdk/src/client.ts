@@ -82,8 +82,8 @@ export class AuditHarnessClient {
   }
 
   /**
-   * I3 Fix: Trả PaginatedResult thay vì Run[] thuần để pagination không bị mất.
-   * ResponseTransformInterceptor unwrap data nhưng pagination nằm trong meta.
+   * I3 + NC3 Fix: Trả PaginatedResult với đúng shape từ API.
+   * Server dùng _paginated flag → interceptor đưa items vào data, pagination vào meta.
    */
   public async listRuns(query?: {
     page?: number;
@@ -114,6 +114,7 @@ export class AuditHarnessClient {
     const successBody = body as ApiSuccessResponse<Run[]>;
     return {
       items: successBody.data,
+      // pagination nằm trong meta (do interceptor đưa vào sau khi thấy _paginated flag)
       pagination: successBody.meta.pagination as PaginationMeta,
     };
   }

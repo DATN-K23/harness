@@ -61,27 +61,23 @@ export class StreamService implements OnModuleInit {
     runId: string,
     fromStep?: number,
   ): Observable<MessageEvent> {
-    const mapToMessageEvent = (event: HarnessStreamEvent): MessageEvent =>
-      ({
-        id: String(event.stepIndex ?? Date.now()),
-        type: event.eventType,
-        data: JSON.stringify(event.payload),
-      }) as MessageEvent;
+    const mapToMessageEvent = (event: HarnessStreamEvent): MessageEvent => ({
+      id: String(event.stepIndex ?? Date.now()),
+      type: event.eventType,
+      data: JSON.stringify(event.payload),
+    });
 
     const liveStream$ = this.eventSubject$.asObservable().pipe(
       filter((event) => event.runId === runId),
       filter(
         (event) => fromStep === undefined || (event.stepIndex ?? -1) > fromStep,
       ),
-      map(
-        (event: HarnessStreamEvent): MessageEvent =>
-          ({
-            // NC2 Fix: composite id = eventType:stepIndex cho live events
-            id: `${event.eventType}:${event.stepIndex ?? Date.now()}`,
-            type: event.eventType,
-            data: JSON.stringify(event.payload),
-          }) as MessageEvent,
-      ),
+      map((event: HarnessStreamEvent): MessageEvent => ({
+        // NC2 Fix: composite id = eventType:stepIndex cho live events
+        id: `${event.eventType}:${event.stepIndex ?? Date.now()}`,
+        type: event.eventType,
+        data: JSON.stringify(event.payload),
+      })),
     );
 
     if (fromStep === undefined || fromStep < 0) {
@@ -115,41 +111,35 @@ export class StreamService implements OnModuleInit {
     ]);
 
     return [
-      ...modelEvents.map(
-        (e: any) =>
-          ({
-            // NC2 Fix: composite id = type:stepIndex để không conflict với ToolCall cùng step
-            id: `${this.mapEventType(e.eventType)}:${e.stepIndex}`,
-            type: this.mapEventType(e.eventType),
-            data: JSON.stringify({
-              runId,
-              stepIndex: e.stepIndex,
-              content: e.content,
-            }),
-          }) as MessageEvent,
-      ),
-      ...toolCalls.map(
-        (tc: any) =>
-          ({
-            // NC2 Fix: composite id = step:tool_call:stepIndex
-            id: `step:tool_call:${tc.stepIndex}`,
-            type: "step:tool_call",
-            data: JSON.stringify({
-              runId,
-              stepIndex: tc.stepIndex,
-              toolName: tc.toolName,
-              arguments: JSON.parse(tc.argumentsJson),
-              result: tc.resultJson,
-              isError: tc.isError,
-              durationMs: tc.durationMs,
-              tokensUsed: tc.tokensUsed,
-            }),
-          }) as MessageEvent,
-      ),
+      ...modelEvents.map((e: any) => ({
+        // NC2 Fix: composite id = type:stepIndex để không conflict với ToolCall cùng step
+        id: `${this.mapEventType(e.eventType)}:${e.stepIndex}`,
+        type: this.mapEventType(e.eventType),
+        data: JSON.stringify({
+          runId,
+          stepIndex: e.stepIndex,
+          content: e.content,
+        }),
+      })),
+      ...toolCalls.map((tc: any) => ({
+        // NC2 Fix: composite id = step:tool_call:stepIndex
+        id: `step:tool_call:${tc.stepIndex}`,
+        type: "step:tool_call",
+        data: JSON.stringify({
+          runId,
+          stepIndex: tc.stepIndex,
+          toolName: tc.toolName,
+          arguments: JSON.parse(tc.argumentsJson),
+          result: tc.resultJson,
+          isError: tc.isError,
+          durationMs: tc.durationMs,
+          tokensUsed: tc.tokensUsed,
+        }),
+      })),
     ].sort((a, b) => {
       // Sort by stepIndex (parse từ phần cuối composite id)
-      const stepA = parseInt(a.id!.split(":").pop()!, 10);
-      const stepB = parseInt(b.id!.split(":").pop()!, 10);
+      const stepA = parseInt(a.id.split(":").pop()!, 10);
+      const stepB = parseInt(b.id.split(":").pop()!, 10);
       return stepA - stepB;
     });
   }

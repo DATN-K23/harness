@@ -1,6 +1,6 @@
 import React from "react";
 import type { Run } from "@audit-harness/contracts";
-import { useRunStore, SseStatus } from "../../stores/run.store.js";
+import { useRunStore, type SseStatus } from "../../stores/run.store.js";
 import { useAuditHarnessClient } from "../../hooks/useAuditHarnessClient.js";
 
 interface TraceHeaderProps {

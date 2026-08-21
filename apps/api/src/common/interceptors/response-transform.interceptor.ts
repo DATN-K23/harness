@@ -7,7 +7,10 @@ import {
 import { Reflector } from "@nestjs/core";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
-import type { ApiSuccessResponse } from "@audit-harness/contracts";
+import type {
+  ApiSuccessResponse,
+  PaginationMeta,
+} from "@audit-harness/contracts";
 import { SKIP_RESPONSE_TRANSFORM_KEY } from "../decorators/skip-response-transform.decorator.js";
 
 @Injectable()
@@ -46,8 +49,7 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
          * Mặc định: wrap toàn bộ result vào data.
          */
         let data: T = result;
-        let pagination:
-          import("@audit-harness/contracts").PaginationMeta | undefined;
+        let pagination: PaginationMeta | undefined;
         const message =
           result && typeof result === "object" && result.message
             ? result.message
@@ -60,8 +62,7 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
           result._paginated === true
         ) {
           data = result.items as T;
-          pagination =
-            result.pagination as import("@audit-harness/contracts").PaginationMeta;
+          pagination = result.pagination as PaginationMeta;
         }
 
         const responsePayload: ApiSuccessResponse<T> = {

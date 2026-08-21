@@ -1,6 +1,0 @@
-dist
-**/dist
-node_modules
-**/node_modules
-.pnpm-store
-**/coverage

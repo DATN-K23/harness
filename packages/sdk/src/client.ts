@@ -67,7 +67,7 @@ export class AuditHarnessClient {
       throw new HarnessSDKError(code, message, errorBody.error?.details);
     }
 
-    return (body as ApiSuccessResponse<T>).data;
+    return body.data;
   }
 
   public async createRun(params: CreateRunDto): Promise<Run> {
@@ -115,7 +115,7 @@ export class AuditHarnessClient {
         errorBody.error?.message || res.statusText,
       );
     }
-    const successBody = body as ApiSuccessResponse<Run[]>;
+    const successBody = body;
     return {
       items: successBody.data,
       // pagination nằm trong meta (do interceptor đưa vào sau khi thấy _paginated flag)

@@ -36,14 +36,11 @@ export class StreamController {
 
     // Heartbeat keep-alive mỗi 15 giây — dùng id "hb" để không bị distinct() lọc
     const heartbeat$ = interval(15000).pipe(
-      map(
-        () =>
-          ({
-            id: "hb",
-            type: "heartbeat",
-            data: JSON.stringify({ timestamp: new Date().toISOString() }),
-          }) as MessageEvent,
-      ),
+      map(() => ({
+        id: "hb",
+        type: "heartbeat",
+        data: JSON.stringify({ timestamp: new Date().toISOString() }),
+      })),
     );
 
     return merge(realEvents$, heartbeat$);

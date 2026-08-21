@@ -4,15 +4,13 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      "**/.git/**",
-      "**/node_modules/**",
-      "**/.pnpm-store/**",
-      "**/dist/**",
-      "**/coverage/**",
-      "**/docs/**",
-      "**/tests/fixtures/**",
-      "**/blueprint/**",
-      "**/openspec/**",
+      ".git/**",
+      "node_modules/**",
+      ".pnpm-store/**",
+      "dist/**",
+      "coverage/**",
+      "docs/**",
+      "tests/fixtures/**",
     ],
   },
   eslint.configs.recommended,

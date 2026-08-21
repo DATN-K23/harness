@@ -18,7 +18,7 @@ describe("StreamService (Unit)", () => {
     };
     // C2 Fix: StreamService nhận EventEmitter2 làm dependency thứ 2
     eventEmitter = new EventEmitter2();
-    streamService = new StreamService(mockPrisma, eventEmitter as any);
+    streamService = new StreamService(mockPrisma, eventEmitter);
     // Simulate onModuleInit bridge setup
     streamService.onModuleInit();
   });

@@ -30,7 +30,7 @@ describe("AuditHarnessClient", () => {
         data: mockRun,
         meta: { requestId: "req_1", timestamp: new Date().toISOString() },
       }),
-    } as Response);
+    } as unknown as Response);
 
     const result = await client.createRun({
       title: "Reentrancy Verification",
@@ -62,7 +62,7 @@ describe("AuditHarnessClient", () => {
         data: mockCancelled,
         meta: { requestId: "req_2", timestamp: new Date().toISOString() },
       }),
-    } as Response);
+    } as unknown as Response);
 
     const result = await client.cancelRun("run-123");
 

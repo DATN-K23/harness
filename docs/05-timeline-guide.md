@@ -7,7 +7,7 @@ File [`timeline.csv`](timeline.csv) là timeline làm việc của nhóm. Mở b
 - Mỗi dòng là một chu kỳ **2 tuần**.
 - Mỗi cột TV1-TV6 mô tả tính năng hoặc kết quả mà thành viên đó chịu trách nhiệm trong chu kỳ.
 - Cột `Kết quả chung` cho biết đầu ra để cả nhóm kiểm tra tiến độ.
-- Cột `Trạng thái` dùng để theo dõi thực tế với các giá trị ngắn gọn: `Chưa bắt đầu`, `Đang làm`, `Hoàn thành`, hoặc `Chậm`.
+- Cột `Trạng thái` bắt đầu bằng một trong bốn giá trị: `Chưa bắt đầu`, `Đang làm`, `Hoàn thành`, hoặc `Chậm`. Khi rebaseline hoặc bị chậm, nối thêm mốc cập nhật, owner, blocker và bước tiếp theo sau dấu `—`; không ghi `Hoàn thành` nếu chưa có bằng chứng kiểm chứng.
 
 Timeline chỉ trả lời ba câu hỏi: ai làm gì, làm trong giai đoạn nào, và đầu ra là gì. Không liệt kê tên hàm, tên file, thư viện hoặc cách triển khai. Chi tiết kỹ thuật, rủi ro và phương án xử lý do từng track tự quản lý.
 

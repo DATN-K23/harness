@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/schemas/experiment-profile-v1.json",
+  "title": "RQ1 experiment profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "profile_version", "status", "research_question", "methodology", "provider_profile", "prompts", "contracts", "arms", "paired_design", "accounting", "timing", "primary_retry", "data_freeze", "inference", "gates", "execution_window", "approval", "execution_ready"],
+  "properties": {
+    "schema_version": {"const": "experiment-profile-v1"},
+    "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,95}$"},
+    "profile_version": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["Proposed", "Accepted", "Retired"]},
+    "research_question": {"const": "RQ1"},
+    "methodology": {"const": "adr-003-v2"},
+    "provider_profile": {"$ref": "#/$defs/artifactRef"},
+    "prompts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["judge_core", "direct_wrapper", "harness_wrapper"],
+      "properties": {
+        "judge_core": {"$ref": "#/$defs/artifactRef"},
+        "direct_wrapper": {"$ref": "#/$defs/artifactRef"},
+        "harness_wrapper": {"$ref": "#/$defs/artifactRef"}
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["verdict_schema", "flags_catalog", "source_bundle", "scorer_contract"],
+      "properties": {
+        "verdict_schema": {"$ref": "#/$defs/artifactRef"},
+        "flags_catalog": {"$ref": "#/$defs/artifactRef"},
+        "source_bundle": {"$ref": "#/$defs/artifactRef"},
+        "scorer_contract": {"$ref": "#/$defs/artifactRef"}
+      }
+    },
+    "arms": {
+      "type": "object", "additionalProperties": false,
+      "required": ["direct", "harness"],
+      "properties": {
+        "direct": {"$ref": "#/$defs/arm"},
+        "harness": {"$ref": "#/$defs/arm"}
+      }
+    },
+    "paired_design": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unit", "repeat_count", "schedule", "schedule_seed"],
+      "properties": {
+        "unit": {"const": "case_id+repeat_index"},
+        "repeat_count": {"type": ["integer", "null"], "minimum": 1},
+        "schedule": {"const": "deterministic-balanced-pairs"},
+        "schedule_seed": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "accounting": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logical_token_budget", "max_output_tokens_per_call", "estimator", "count_full_repeated_context", "count_cached_context_logically", "native_usage_retained"],
+      "properties": {
+        "logical_token_budget": {"type": ["integer", "null"], "minimum": 1},
+        "max_output_tokens_per_call": {"type": ["integer", "null"], "minimum": 1},
+        "estimator": {"type": ["string", "null"], "minLength": 1},
+        "count_full_repeated_context": {"const": true},
+        "count_cached_context_logically": {"const": true},
+        "native_usage_retained": {"const": true}
+      }
+    },
+    "timing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_wall_clock_ms", "report_provider_tool_queue_e2e_separately", "wall_clock_is_not_token_credit"],
+      "properties": {
+        "max_wall_clock_ms": {"type": ["integer", "null"], "minimum": 1},
+        "report_provider_tool_queue_e2e_separately": {"const": true},
+        "wall_clock_is_not_token_credit": {"const": true}
+      }
+    },
+    "primary_retry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "sdk_max_retries", "project_attempts_per_logical_call"],
+      "properties": {
+        "enabled": {"const": false},
+        "sdk_max_retries": {"const": 0},
+        "project_attempts_per_logical_call": {"const": 1}
+      }
+    },
+    "data_freeze": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifest", "case_list_digest", "split_policy", "frozen_test_adaptation_forbidden"],
+      "properties": {
+        "manifest": {"$ref": "#/$defs/artifactRef"},
+        "case_list_digest": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+        "split_policy": {"const": "whole-contest+source-family-v1"},
+        "frozen_test_adaptation_forbidden": {"const": true}
+      }
+    },
+    "gates": {
+      "type": "object", "additionalProperties": false,
+      "required": ["precision_gain_min", "recall_loss_max", "completion_rate_min", "classification_on_any_failure"],
+      "properties": {
+        "precision_gain_min": {"type": ["number", "null"], "minimum": -1, "maximum": 1},
+        "recall_loss_max": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "completion_rate_min": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "classification_on_any_failure": {"const": "mixed"}
+      }
+    },
+    "inference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cluster_unit", "method", "confidence_level", "resampling_seed", "iterations", "source_family_sensitivity"],
+      "properties": {
+        "cluster_unit": {"const": "contest"},
+        "method": {"type": ["string", "null"], "minLength": 1},
+        "confidence_level": {"type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "resampling_seed": {"type": ["integer", "null"], "minimum": 0},
+        "iterations": {"type": ["integer", "null"], "minimum": 1000},
+        "source_family_sensitivity": {"const": true}
+      }
+    },
+    "execution_window": {
+      "type": "object", "additionalProperties": false,
+      "required": ["starts_at", "ends_at"],
+      "properties": {
+        "starts_at": {"type": ["string", "null"], "format": "date-time"},
+        "ends_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "approval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["approvers", "approved_at", "artifact_digest", "paid_cost_ceiling", "currency"],
+      "properties": {
+        "approvers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "approved_at": {"type": ["string", "null"], "format": "date-time"},
+        "artifact_digest": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+        "paid_cost_ceiling": {"type": ["string", "null"], "pattern": "^[0-9]+(\\.[0-9]+)?$"},
+        "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"}
+      }
+    },
+    "execution_ready": {"type": "boolean"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "artifactRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "path", "digest"],
+      "properties": {
+        "id": {"type": ["string", "null"], "minLength": 1},
+        "version": {"type": ["string", "integer", "null"], "minLength": 1},
+        "path": {"type": ["string", "null"], "minLength": 1},
+        "digest": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "completeArtifactRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "path", "digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": ["string", "integer"], "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "arm": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prompt_order", "source_access", "flag_preset", "provider_calls"],
+      "properties": {
+        "prompt_order": {"type": "array", "minItems": 2, "items": {"enum": ["judge_core", "direct_wrapper", "harness_wrapper"]}, "uniqueItems": true},
+        "source_access": {"enum": ["source-bundle-v1", "local-source-tools-v1"]},
+        "flag_preset": {"enum": ["direct-primary-v1", "harness-primary-v1"]},
+        "provider_calls": {"enum": ["exactly-one", "bounded-agent-loop"]}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "Accepted"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "execution_ready": {"const": true},
+          "provider_profile": {"properties": {"id": {"type": "string"}, "version": {"type": ["string", "integer"]}, "path": {"type": "string"}, "digest": {"type": "string"}}},
+          "prompts": {"properties": {"judge_core": {"$ref": "#/$defs/completeArtifactRef"}, "direct_wrapper": {"$ref": "#/$defs/completeArtifactRef"}, "harness_wrapper": {"$ref": "#/$defs/completeArtifactRef"}}},
+          "contracts": {"properties": {"verdict_schema": {"$ref": "#/$defs/completeArtifactRef"}, "flags_catalog": {"$ref": "#/$defs/completeArtifactRef"}, "source_bundle": {"$ref": "#/$defs/completeArtifactRef"}, "scorer_contract": {"$ref": "#/$defs/completeArtifactRef"}}},
+          "paired_design": {"properties": {"repeat_count": {"type": "integer"}, "schedule_seed": {"type": "integer"}}},
+          "accounting": {"properties": {"logical_token_budget": {"type": "integer"}, "max_output_tokens_per_call": {"type": "integer"}, "estimator": {"type": "string"}}},
+          "timing": {"properties": {"max_wall_clock_ms": {"type": "integer"}}},
+          "data_freeze": {"properties": {"manifest": {"$ref": "#/$defs/completeArtifactRef"}, "case_list_digest": {"type": "string"}}},
+          "inference": {"properties": {"method": {"type": "string"}, "confidence_level": {"type": "number"}, "resampling_seed": {"type": "integer"}, "iterations": {"type": "integer"}}},
+          "gates": {"properties": {"precision_gain_min": {"type": "number"}, "recall_loss_max": {"type": "number"}, "completion_rate_min": {"type": "number"}}},
+          "execution_window": {"properties": {"starts_at": {"type": "string"}, "ends_at": {"type": "string"}}},
+          "approval": {"properties": {"approvers": {"minItems": 2}, "approved_at": {"type": "string"}, "artifact_digest": {"type": "string"}, "paid_cost_ceiling": {"type": "string"}, "currency": {"type": "string"}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"execution_ready": {"const": true}}, "required": ["execution_ready"]},
+      "then": {"properties": {"status": {"const": "Accepted"}}}
+    }
+  ]
+}

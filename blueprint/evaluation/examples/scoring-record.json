@@ -1,0 +1,14 @@
+{
+  "example_schema": "scorer-only-score-join-v1",
+  "classification": "synthetic-example",
+  "experiment_cell_id": "cell-synthetic-direct-0",
+  "case_id": "case-synthetic-alpha",
+  "run_id": "run-synthetic",
+  "ground_truth_label": { "validity": "invalid", "severity": "none" },
+  "predicted_validity": "invalid",
+  "score_class": "TN",
+  "scorer_version": "scorer-v1",
+  "agent_visible": false,
+  "trajectory_reference_contains_label": false,
+  "approved_public_output_ref": "approved-score.json"
+}

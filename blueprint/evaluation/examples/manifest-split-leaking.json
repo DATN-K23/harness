@@ -1,0 +1,21 @@
+{
+  "schema_version": "contest-manifest-v2",
+  "manifest_id": "synthetic-leaking",
+  "version": "synthetic-leaking-v2",
+  "frozen": true,
+  "created_at": "2026-08-10T00:00:00Z",
+  "label_normalization_version": "severity-v1",
+  "split_policy_version": "whole-contest+source-family-v1",
+  "provenance": [{"platform": "synthetic", "source_reference": "invalid-example", "retrieved_at": "2026-08-10T00:00:00Z"}],
+  "source_families": {"family:leak": {"split": "train", "basis": "synthetic lineage", "contest_ids": ["synthetic:leak"]}},
+  "contests": {
+    "synthetic:leak": {
+      "split": ["train", "test"], "source_family_id": "family:leak", "published_at": "2026-07-01T00:00:00Z",
+      "source": {"source_snapshot_id": "snapshot-leak", "revision": "synthetic-revision-1", "source_tree_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "case_ids": ["case-train", "case-test"],
+      "contamination": [{"model_id": "deterministic-v1", "knowledge_cutoff": null, "bucket": "unknown", "evidence_reference": "cutoff unavailable"}]
+    }
+  },
+  "content_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+}
+

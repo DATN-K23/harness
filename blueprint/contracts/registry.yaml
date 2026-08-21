@@ -1,0 +1,100 @@
+registry_version: contract-registry-v1
+normative: true
+owner: TV1
+canonical_root_future: contracts
+
+generation_policies:
+  python_runtime:
+    destination: runtime/src/harness/generated/contracts
+    allow_exposure: [runtime_public, evaluation_public, scorer_only]
+    manual_edits: forbidden
+  desktop_typescript:
+    source: contracts/openapi/local-runtime.v1.openapi.yaml
+    destination: apps/desktop/ui/src/generated/runtime-client
+    allow_exposure: [desktop_public]
+    deny_exposure: [runtime_internal, evaluation_internal, scorer_only]
+    manual_edits: forbidden
+    public_schema_allowlist: [RuntimeInfo, HealthView, SourceSnapshot, AcceptedRun, RunView, EventPage, CancelResponse, LifecycleResponse, Error]
+    drift_checks: [canonical_openapi_digest_matches_build, generated_tree_clean_after_regeneration, no_scorer_only_reachable_ref, no_manual_generated_diff]
+
+contracts:
+  - id: local-runtime-api
+    blueprint_source: contracts/async-api.openapi.yaml
+    future_source: contracts/openapi/local-runtime.v1.openapi.yaml
+    format: openapi-3.1
+    owner: run_control
+    exposure: desktop_public
+    consumers: [desktop]
+    includes: [health, runtime-info, source-registration, judge-runs, run-events, cancellation, explicit-shutdown, prepare-update]
+
+  - id: judge-verdict
+    blueprint_source: contracts/judge-verdict.schema.json
+    future_source: contracts/schemas/judge/v1/judge-verdict.schema.json
+    format: json-schema-2020-12
+    owner: judge
+    exposure: desktop_public
+    consumers: [run_control, judge, evaluation, desktop]
+
+  - id: trajectory-events
+    blueprint_source: contracts/trajectory-events.schema.json
+    future_source: contracts/schemas/run-control/v1/trajectory-events.schema.json
+    format: json-schema-2020-12
+    owner: run_control
+    exposure: desktop_public
+    consumers: [agent_runtime, judge, evaluation, desktop]
+
+  - id: provider-contract
+    blueprint_source: contracts/provider-contract.md
+    future_source: contracts/schemas/model-gateway/v1
+    format: normative-markdown-plus-json-schema
+    owner: model_gateway
+    exposure: runtime_public
+    consumers: [agent_runtime, evaluation]
+
+  - id: provider-profile
+    blueprint_source: providers/provider-profile.schema.json
+    future_source: contracts/schemas/model-gateway/v1/provider-profile.schema.json
+    format: json-schema-2020-12
+    owner: model_gateway
+    exposure: runtime_internal
+    consumers: [model_gateway, evaluation]
+
+  - id: contest-manifest
+    blueprint_source: evaluation/contest-manifest.schema.json
+    future_source: contracts/schemas/evaluation/v1/contest-manifest.schema.json
+    format: json-schema-2020-12
+    owner: evaluation
+    exposure: evaluation_internal
+    consumers: [evaluation, scorer]
+
+  - id: experiment-profile
+    blueprint_source: evaluation/experiment-profile.schema.json
+    future_source: contracts/schemas/evaluation/v1/experiment-profile.schema.json
+    format: json-schema-2020-12
+    owner: evaluation
+    exposure: evaluation_internal
+    consumers: [evaluation]
+
+  - id: ground-truth-label
+    blueprint_source: contracts/domain-model.md#groundtruthlabel-scorer-only
+    future_source: contracts/schemas/scorer-only/v1/ground-truth-label.schema.json
+    format: json-schema-2020-12
+    owner: scoring
+    exposure: scorer_only
+    consumers: [scorer]
+
+  - id: approved-score
+    blueprint_source: evaluation/scoring-and-reporting.md#approved-score-crossing
+    future_source: contracts/schemas/evaluation/v1/approved-score.schema.json
+    format: json-schema-2020-12
+    owner: evaluation
+    exposure: evaluation_public
+    producers: [scorer]
+    consumers: [evaluation]
+
+invariants:
+  - scorer_only contracts never enter the local-runtime OpenAPI graph.
+  - scorer_only contracts never enter desktop generation inputs or outputs.
+  - generated artifacts are reproducible projections and never canonical sources.
+  - changing a canonical shape requires a new version and contract-drift evidence.
+  - the selected raw path exists only in SourceRegistrationRequest and is unreachable from every response, run, event, provider, evaluator, scorer, and desktop persistence schema.

@@ -1,0 +1,20 @@
+{
+  "schema_version": "contest-manifest-v2",
+  "manifest_id": "synthetic-unknown-cutoff",
+  "version": "synthetic-unknown-cutoff-v2",
+  "frozen": true,
+  "created_at": "2026-08-10T00:00:00Z",
+  "label_normalization_version": "severity-v1",
+  "split_policy_version": "whole-contest+source-family-v1",
+  "provenance": [{"platform": "synthetic", "source_reference": "unknown-cutoff-example", "retrieved_at": "2026-08-10T00:00:00Z"}],
+  "source_families": {"family:unknown": {"split": "validation", "basis": "synthetic lineage", "contest_ids": ["synthetic:unknown"]}},
+  "contests": {
+    "synthetic:unknown": {
+      "split": "validation", "source_family_id": "family:unknown", "published_at": "2026-07-01T00:00:00Z",
+      "source": {"source_snapshot_id": "snapshot-unknown", "revision": "synthetic-revision-1", "source_tree_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+      "case_ids": ["case-unknown"],
+      "contamination": [{"model_id": "undocumented-cutoff-model", "knowledge_cutoff": null, "bucket": "unknown", "evidence_reference": "provider publishes no cutoff"}]
+    }
+  },
+  "content_digest": "sha256:fc536444cc0c6591ea04198a30773159e698e17d0d4bff78b12d8014ca921b67"
+}

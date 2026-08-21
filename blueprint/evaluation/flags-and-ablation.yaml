@@ -1,0 +1,204 @@
+schema_version: flags-and-ablation-v2
+catalog_version: judge-flags-v2
+canonicalization: lexical-key-canonical-json
+digest_algorithm: sha256
+presets:
+  direct-primary-v1:
+    agent_loop: false
+    source_tools: false
+    tool_result_truncation: false
+    no_progress_detection: false
+    verdict_schema_repair: false
+    provider_retry: false
+    tool_error_feedback: false
+    structured_output_mode: native
+    tool_description_profile: none
+  harness-primary-v1:
+    agent_loop: true
+    source_tools: true
+    tool_result_truncation: true
+    no_progress_detection: true
+    verdict_schema_repair: true
+    provider_retry: false
+    tool_error_feedback: true
+    structured_output_mode: native
+    tool_description_profile: source-tools-v1
+  direct-retry-research-v1:
+    inherits: direct-primary-v1
+    provider_retry: true
+    provider_retry_policy: paired-retry-v1
+  harness-retry-research-v1:
+    inherits: harness-primary-v1
+    provider_retry: true
+    provider_retry_policy: paired-retry-v1
+features:
+  - name: agent_loop
+    type: boolean
+    default: true
+    version: agent-loop-v1
+    result_effect: Enables multiple provider steps and tool-result feedback.
+    dependencies: []
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: agent_loop_enabled
+    run_snapshot: resolved_flags.agent_loop
+    acceptance_enabled: [ABL-LOOP-ON-001]
+    acceptance_disabled: [ABL-LOOP-OFF-001]
+  - name: source_tools
+    type: boolean
+    default: true
+    version: source-tools-v1
+    result_effect: Exposes the versioned safe read-only source tool registry.
+    dependencies: [agent_loop]
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: source_tools_enabled
+    run_snapshot: resolved_flags.source_tools
+    acceptance_enabled: [ABL-TOOLS-ON-001]
+    acceptance_disabled: [ABL-TOOLS-OFF-001]
+  - name: tool_result_truncation
+    type: boolean
+    default: true
+    version: tool-truncation-v1
+    result_effect: Applies deterministic byte/line truncation after redaction.
+    dependencies: [source_tools]
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: tool_result_truncation_applied
+    run_snapshot: resolved_flags.tool_result_truncation
+    acceptance_enabled: [ABL-TRUNCATE-ON-001]
+    acceptance_disabled: [ABL-TRUNCATE-OFF-001]
+  - name: no_progress_detection
+    type: boolean
+    default: true
+    version: no-progress-v1
+    result_effect: Terminates repeated normalized intent/tool signatures.
+    dependencies: [agent_loop]
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: no_progress_detection_enabled
+    run_snapshot: resolved_flags.no_progress_detection
+    acceptance_enabled: [ABL-NOPROGRESS-ON-001]
+    acceptance_disabled: [ABL-NOPROGRESS-OFF-001]
+  - name: verdict_schema_repair
+    type: boolean
+    default: true
+    version: verdict-repair-v1
+    result_effect: Allows bounded corrective model attempts after verdict validation failure.
+    dependencies: [agent_loop]
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: verdict_schema_repair_enabled
+    run_snapshot: resolved_flags.verdict_schema_repair
+    acceptance_enabled: [ABL-REPAIR-ON-001]
+    acceptance_disabled: [ABL-REPAIR-OFF-001]
+  - name: provider_retry
+    type: boolean
+    default: false
+    version: provider-retry-v2
+    result_effect: Enables project-owned transient retries only in a separately identified, symmetric retry research profile; primary RQ1 is false in both arms.
+    dependencies: []
+    arm_values: { direct-primary-v1: false, harness-primary-v1: false, direct-retry-research-v1: true, harness-retry-research-v1: true }
+    telemetry: provider_retry_enabled
+    run_snapshot: resolved_flags.provider_retry
+    immutable_identity_fields: [experiment_profile_digest, provider_retry_policy, sdk_max_retries, project_max_attempts]
+    acceptance_enabled: [ABL-RETRY-ON-001]
+    acceptance_disabled: [ABL-RETRY-OFF-001]
+  - name: tool_error_feedback
+    type: boolean
+    default: true
+    version: tool-error-feedback-v1
+    result_effect: Returns bounded model-actionable tool errors in later context.
+    dependencies: [agent_loop, source_tools]
+    arm_values: { direct-primary-v1: false, harness-primary-v1: true }
+    telemetry: tool_error_feedback_enabled
+    run_snapshot: resolved_flags.tool_error_feedback
+    acceptance_enabled: [ABL-TOOLERR-ON-001]
+    acceptance_disabled: [ABL-TOOLERR-OFF-001]
+  - name: structured_output_mode
+    type: enum
+    values: [native, prompted]
+    default: native
+    version: structured-output-mode-v1
+    result_effect: Selects provider-native schema enforcement or prompted JSON followed by independent validation.
+    dependencies: []
+    arm_values: { direct-primary-v1: native, harness-primary-v1: native }
+    telemetry: structured_output_mode
+    run_snapshot: resolved_flags.structured_output_mode
+    acceptance_enabled: [ABL-STRUCTURED-NATIVE-001]
+    acceptance_disabled: [ABL-STRUCTURED-PROMPTED-001]
+  - name: tool_description_profile
+    type: enum
+    values: [none, source-tools-v1]
+    default: source-tools-v1
+    version: tool-description-profile-v1
+    result_effect: Selects exact tool descriptions made model-visible.
+    dependencies: []
+    arm_values: { direct-primary-v1: none, harness-primary-v1: source-tools-v1 }
+    telemetry: tool_description_profile
+    run_snapshot: resolved_flags.tool_description_profile
+    acceptance_enabled: [ABL-TOOLDESC-SOURCE-001]
+    acceptance_disabled: [ABL-TOOLDESC-NONE-001]
+non_disableable_invariants:
+  - name: ground_truth_isolation
+    version: ground-truth-boundary-v1
+    telemetry: ground_truth_preflight_passed
+    run_snapshot: safety.ground_truth_isolation_version
+    acceptance: [PATH-008, PATH-009, GT-FLOW-001]
+    rationale: Disabling it invalidates evaluation rather than defining an ablation arm.
+  - name: contest_level_split
+    version: contest-split-v1
+    telemetry: manifest_split_validation_passed
+    run_snapshot: safety.manifest_digest
+    acceptance: [MANIFEST-SPLIT-001]
+    rationale: Finding-level splits are methodologically invalid.
+  - name: source_snapshot_integrity
+    version: source-tree-digest-v1
+    telemetry: source_snapshot_preflight_passed
+    run_snapshot: safety.source_tree_digest
+    acceptance: [SNAP-001, SNAP-002, SNAP-003]
+    rationale: A changed tree breaks identity and can expose prohibited files.
+  - name: path_authorization
+    version: workspace-policy-v1
+    telemetry: workspace_policy_version
+    run_snapshot: safety.workspace_policy_version
+    acceptance: [PATH-001, PATH-002, PATH-003, PATH-004, PATH-005, PATH-006, PATH-007]
+    rationale: Filesystem isolation is a security boundary.
+  - name: secret_and_prohibited_redaction
+    version: redaction-v1
+    telemetry: redaction_rule_version
+    run_snapshot: safety.redaction_rule_version
+    acceptance: [CONTENT-003, CONTENT-004, CONTENT-005, DISC-001, DISC-002]
+    rationale: Raw sensitive values must never enter provider traffic or persistence.
+  - name: context_preflight_and_output_reserve
+    version: context-budget-v1
+    telemetry: context_preflight_outcome
+    run_snapshot: safety.context_preflight_version
+    acceptance: [CTX-PREFLIGHT-001]
+    rationale: Provider calls must fit the declared model limit safely.
+  - name: verdict_and_evidence_validation
+    version: judge-verdict-v1
+    telemetry: verdict_validation_outcome
+    run_snapshot: safety.verdict_schema_digest
+    acceptance: [VERDICT-SCHEMA-001, EVIDENCE-001]
+    rationale: Completed means schema-valid and source-grounded.
+  - name: exact_sanitized_trajectory
+    version: trajectory-event-v1
+    telemetry: trajectory_schema_version
+    run_snapshot: safety.trajectory_schema_digest
+    acceptance: [TRAJECTORY-EXACT-001]
+    rationale: Reproduction and trajectory evaluation require exact model-visible records.
+result_affecting_parameters:
+  - experiment_profile_digest
+  - provider_profile
+  - model_id
+  - model_capability_version
+  - sampling
+  - seed
+  - budgets
+  - prompt_digest
+  - tool_definitions_digest
+  - verdict_schema_digest
+  - provider_retry
+  - retry_policy_version
+  - sdk_max_retries
+  - project_max_attempts
+  - logical_token_estimator_version
+  - pricing_version
+  - protocol_digest
+  - manifest_digest

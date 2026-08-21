@@ -1,0 +1,26 @@
+{
+  "example_version": "pre-network-rejection-v1",
+  "provider_profile": "real-primary@1",
+  "experiment_profile": "rq1-confirmatory-v1@1",
+  "outcome": "pre_network_experiment_rejected",
+  "reasons": [
+    "provider_profile.status_is_not_accepted",
+    "provider_profile.network_ready_is_false",
+    "experiment_profile.status_is_not_accepted",
+    "experiment_profile.execution_ready_is_false",
+    "experiment_profile.provider_profile.digest_is_null",
+    "experiment_profile.paired_design.repeat_count_is_null",
+    "experiment_profile.accounting.logical_token_budget_is_null",
+    "experiment_profile.data_freeze.manifest.digest_is_null",
+    "experiment_profile.inference.method_is_null",
+    "experiment_profile.gates.precision_gain_min_is_null",
+    "experiment_profile.execution_window.starts_at_is_null",
+    "experiment_profile.approval.artifact_digest_is_null"
+  ],
+  "credential_read": false,
+  "sdk_client_constructed": false,
+  "dns_attempted": false,
+  "network_request_attempted": false,
+  "provider_attempt_record_created": false,
+  "paid_cost": "0"
+}

@@ -1,0 +1,11 @@
+{
+  "example_version": "retry-asymmetry-rejection-v1",
+  "pair_id": "synthetic-pair-alpha-0",
+  "direct": {"provider_retry_enabled": false, "sdk_max_retries": 0, "project_max_attempts": 1, "acceptance_id": "ABL-RETRY-OFF-001"},
+  "harness": {"provider_retry_enabled": true, "sdk_max_retries": 0, "project_max_attempts": 2, "acceptance_id": "ABL-RETRY-ON-001"},
+  "outcome": "pre_network_experiment_rejected",
+  "reason": "primary_retry_asymmetry",
+  "network_request_attempted": false,
+  "repair": "use false/one in both primary arms or create a distinct symmetric retry experiment profile and digest"
+}
+

@@ -1,0 +1,10 @@
+{
+  "schema_version": "judge-verdict-v1",
+  "validity": "valid",
+  "severity": "medium",
+  "confidence": 0.5,
+  "rationale": "No evidence fixture.",
+  "evidence": [],
+  "verification_status": "unverified",
+  "label_normalization_version": "severity-v1"
+}

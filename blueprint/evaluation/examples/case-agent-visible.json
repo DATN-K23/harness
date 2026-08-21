@@ -1,0 +1,12 @@
+{
+  "candidate_finding": {
+    "schema_version": "candidate-finding-v1",
+    "title": "Authorization check may occur too late",
+    "description": "The external interaction appears before the privileged state update.",
+    "claimed_locations": [
+      { "path": "contracts/Vault.sol", "start_line": 1, "end_line": 5 }
+    ]
+  },
+  "source_snapshot_id": "snapshot-synthetic-alpha",
+  "source_tree_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+}

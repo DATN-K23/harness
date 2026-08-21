@@ -1,0 +1,13 @@
+[
+  {
+    "schema_version": "trajectory-event-v1",
+    "event_id": "evt-invalid",
+    "run_id": "run-example",
+    "sequence": 0,
+    "type": "provider.raw_response",
+    "occurred_at": "2026-08-10T01:00:00Z",
+    "payload": {
+      "credential": "must-never-be-accepted"
+    }
+  }
+]

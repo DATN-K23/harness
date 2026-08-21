@@ -1,0 +1,17 @@
+{
+  "schema_version": "ApprovedScoreV1",
+  "contract_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "approved_score_id": "approved-score-synthetic-direct-0",
+  "score_record_id": "score-synthetic-direct-0",
+  "experiment_cell_id": "cell-synthetic-direct-0",
+  "run_id": "run-synthetic",
+  "scorer_version": "scorer-v1",
+  "label_normalization_version": "severity-v1",
+  "completion_class": "completed_schema_valid",
+  "prediction_class": "negative",
+  "gate_ready": {"completed": true, "schema_valid": true},
+  "scored_at": "2026-08-14T00:00:00Z",
+  "ground_truth_present": false,
+  "adjudication_present": false,
+  "free_text_present": false
+}

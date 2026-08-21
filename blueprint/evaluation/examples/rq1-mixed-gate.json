@@ -1,0 +1,19 @@
+{
+  "example_version": "rq1-gate-example-v1",
+  "classification": "mixed",
+  "predeclared_gates": {
+    "precision_gain_min": 0.05,
+    "recall_loss_max": 0.02,
+    "completion_rate_min": 0.95
+  },
+  "observed": {
+    "precision_gain": 0.08,
+    "precision_gate": "pass",
+    "recall_loss": 0.04,
+    "recall_gate": "fail",
+    "completion_rate": 0.97,
+    "completion_gate": "pass"
+  },
+  "reason": "precision improved but the predeclared recall-loss gate failed"
+}
+

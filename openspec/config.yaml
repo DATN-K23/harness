@@ -1,0 +1,78 @@
+schema: spec-driven
+
+context: |
+  Project: a provider-neutral LLM harness for smart-contract security auditing.
+  Research thesis: with the same underlying model, measure the delta between a
+  direct-model baseline and the harness. Primary outcomes are precision, recall,
+  cost per run, and reproducibility/observed variability. RQ2 later compares
+  static analyzers and a general-purpose agent; RQ3 later compares at least three
+  real providers.
+
+  Required reading order before project work:
+  1. docs/idea.md
+  2. docs/00-START-HERE.md
+  3. docs/01-glossary.md
+  4. docs/02-roles.md
+  5. docs/04-working-rules.md
+  6. docs/05-timeline-guide.md and docs/timeline.csv
+
+  Non-negotiable research controls:
+  - The agent may receive canonical CandidateFinding data and an immutable
+    SourceSnapshot, but never GroundTruthLabel data, adjudication reports, or
+    scoring metadata. Enforce this outside prompts at workspace/tool/scorer
+    boundaries and prove it with adversarial tests.
+  - Split train/validation/test by whole contest, freeze a versioned manifest,
+    and report data-contamination buckets relative to model knowledge cutoff.
+  - Introduce every optional result-affecting behavior together with a config
+    flag, telemetry, immutable run-snapshot value, and enabled/disabled tests.
+    Ground-truth isolation and other safety invariants are never disableable.
+  - Persist exact sanitized model-visible trajectories and content-addressed
+    reproduction inputs; never claim byte-identical stochastic LLM output when
+    a provider cannot guarantee it.
+  - Verification layer, ablation study, trace view, and offline demo are never
+    removed from the full project, even when they are outside a particular MVP.
+
+  Current bootstrap-judge-mode-mvp scope:
+  - Modular monolith with an out-of-process worker and stable ports.
+  - Judge mode, safe read-only source tools, per-call context preflight,
+    structured unverified verdicts, persistence, asynchronous API, trace UI,
+    and a frozen direct-versus-harness evaluation protocol.
+  - One real provider adapter plus two deterministic provider profiles. The
+    remaining real adapters and cross-provider matrix stay at C11-C12.
+  - Audit mode, cross-run long-term memory, compaction, PoC execution,
+    production multi-tenancy, Kubernetes, and MCP are outside this MVP.
+  - No technology stack is selected yet. Do not scaffold implementation before
+    the stack and provider/baseline ADR readiness gates are approved.
+
+  Team ownership: TV1 agent loop/provider ports; TV2 context; TV3 tools/skills;
+  TV4 security/verification; TV5 data/evaluation; TV6 API/persistence/UI/demo.
+  Timeline dates and status are planning data, not proof of completion.
+
+rules:
+  proposal:
+    - State the research question served, scope, and explicit non-goals.
+    - Preserve non-negotiable project controls and distinguish MVP deferral from project descope.
+  specs:
+    - Use testable MUST or SHALL requirements with at least one Given/When/Then-style scenario each.
+    - Keep CandidateFinding, SourceSnapshot, and scorer-only GroundTruthLabel boundaries explicit.
+    - Specify failure, budget, security, reproducibility, and experiment-drift behavior where relevant.
+  design:
+    - Document trust boundaries, module ownership, alternatives, and result-validity trade-offs.
+    - Resolve decisions that alter requirements or task topology before implementation; use an explicit approval gate instead of guessing team choices.
+  tasks:
+    - Order tasks by dependency and include TV owner, target cycle or gate, verification evidence, and a one-session-sized outcome.
+    - Add flag, telemetry, run-snapshot value, and enabled/disabled tests in the same task as each optional result-affecting behavior.
+    - Mark a task complete only after its reproducible evidence exists; update timeline status as required by the project Definition of Done.
+
+operations:
+  apply:
+    guidance:
+      - Read the required project docs and all CLI-reported change context files before editing.
+      - Respect readiness and approval gates; stop for missing team decisions rather than selecting a stack, provider, dataset, budget, or schedule by guesswork.
+      - Keep ground truth outside agent workspaces, tools, provider requests, ordinary logs, and trajectories at every intermediate step.
+      - Preserve unrelated user changes and implement tasks in dependency order with focused tests.
+      - Mark each task complete immediately after its acceptance evidence passes, then re-check OpenSpec progress.
+  archive:
+    guidance:
+      - Archive only after every task and Definition of Done item has reproducible evidence and the change validates strictly.
+      - Summarize deferred full-project obligations, especially verification, cross-provider evaluation, RQ2 baselines, and offline demo.

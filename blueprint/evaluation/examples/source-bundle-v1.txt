@@ -1,0 +1,15 @@
+<<<SOURCE_FILE path="contracts/AccessManager.sol" sha256="sha256:a93413f62f48bbe55eb91d183f170b5b3cdd5828402b1b727473fbba7323a83f" bytes="75">>>
+contract AccessManager {
+    mapping(address => bool) public authorized;
+}
+<<<END_SOURCE_FILE>>>
+<<<SOURCE_FILE path="contracts/Vault.sol" sha256="sha256:0ecf5907aefdca3e12fe75b72524f366bdda7f382977dc9d229fc171cc09b874" bytes="98">>>
+contract Vault {
+    function withdraw() external {
+        require(msg.sender == owner);
+    }
+}
+<<<END_SOURCE_FILE>>>
+<<<OMITTED_SOURCE_FILES>>>
+contracts/ZHelper.sol	93	sha256:72aa85db91ce0ea2246814c387f195fba182b3ef848bc2ed835253a17c8cf3b7	input_budget
+<<<END_OMITTED_SOURCE_FILES>>>

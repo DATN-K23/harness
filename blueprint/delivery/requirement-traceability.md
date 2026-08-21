@@ -1,0 +1,73 @@
+# Requirement and Given/When/Then Traceability
+
+Normative: yes  
+Version: `requirement-traceability-v3`  
+Owner: TV1; collaborators: TV2–TV6
+
+Each row maps one OpenSpec scenario to exact blueprint evidence and a future acceptance package. Coverage is 56 requirements and 61 scenarios: API-04 has two scenarios, API-10 has two, PROV-01 has two, TOOL-01 has two and UI-06 has two.
+
+| Scenario ID | Requirement / scenario | Exact blueprint evidence | Owner | Blueprint validation | Future package/gate | Status |
+|---|---|---|---|---|---|---|
+| API-01/S1 | Complete asynchronous API / API blueprint reviewed | `contracts/async-api.openapi.yaml`; `architecture/end-to-end-sequences.md#submission-to-terminal-retrieval` | TV6 | YAML/ref/path/operation review | WP-07 | Validated |
+| API-02/S1 | Idempotency/error semantics / Duplicate submission | `persistence/consistency-and-idempotency.md#submission-idempotency`; OpenAPI common errors | TV6 | equal/different digest rules | WP-06/07 | Validated |
+| API-03/S1 | Partial state/cancellation / Non-terminal inspected | `architecture/judge-lifecycle.md#transition-table`; `desktop/terminal-states.md#run-state-matrix` | TV1/TV6 | terminal/partial/cancel cross-check | WP-02/07 | Validated |
+| API-04/S1 | Non-public local boundary / Deployment assumptions | OpenAPI security scheme; `desktop/local-runtime-connection.md#rendezvous-and-credential-custody`; `security/threat-model.md#deployment-assumptions` | TV4/TV6 | public bind/credential exclusion review | WP-07; ADR-006 | Validated |
+| API-04/S2 | Protected local credential / Secure backend unavailable | `desktop/local-runtime-connection.md#rendezvous-and-credential-custody`; `#tauri-command-and-permission-boundary`; OpenAPI `LocalRuntimeCredential`; native adversarial cases | TV4/TV6 | fail-closed/no-plaintext-fallback review | WP-07; ADR-007 readiness | Validated |
+| API-05/S1 | Durable handoff/polling/generated client / Disconnect after submit | `persistence/consistency-and-idempotency.md#ordered-events-and-finite-cursors`; `contracts/registry.yaml`; desktop recovery docs | TV6 | finite cursor/outbox/generation allowlist | WP-06/07 | Validated |
+| API-06/S1 | Discovery/compatibility / Incompatible daemon | `desktop/local-runtime-connection.md#required-handshake-response`; topology failure matrix; OpenAPI `/runtime-info` | TV6 | handshake fields/fail-closed matrix | WP-07; ADR-006 | Validated |
+| API-07/S1 | UI-independent lifecycle / Desktop closes | `architecture/desktop-runtime-topology.md#lifecycle-sequence`; `persistence/consistency-and-idempotency.md#desktop-independent-recovery` | TV6 | authority/recovery review | WP-06/07 | Validated |
+| API-08/S1 | Generated-client-only desktop / Direct authority requested | `desktop/information-architecture.md#product-boundary`; physical-layout composition deny matrix | TV6/TV4 | dependency/public-schema deny review | WP-07; ADR-007 | Validated |
+| API-09/S1 | Ephemeral source registration / Pick/register/submit | `security/source-registration-and-data-flow.md#registration-sequence`; OpenAPI `/source-snapshots`; submission wireflow | TV3/TV4/TV6 | selected-path-only schema check | WP-05/07 | Validated |
+| API-10/S1 | Native-host-independent supervision / Desktop exits after starting runtime | `architecture/end-to-end-sequences.md#tauri-discovery-protected-transport-and-host-exit`; `desktop/local-runtime-connection.md#runtime-supervision-invariant`; topology lifecycle sequence | TV6/TV1 | host-exit/runtime-survival/reconnect review | WP-07/10; ADR-007 readiness | Validated |
+| API-10/S2 | Coordinated signed update / Update requested while work is active | `architecture/end-to-end-sequences.md#coordinated-signed-update`; topology packaging/update boundary; OpenAPI `/runtime-lifecycle/prepare-update` | TV6/TV1/TV4 | compatibility/active-work/quiesce/rollback review | WP-07/10; ADR-007 readiness | Validated |
+| EVAL-01/S1 | Flag/ablation catalog / Behavior audited | `evaluation/flags-and-ablation.yaml`; `evaluation/validity-gates.md` | TV5 | fields/dependencies/telemetry/snapshot/acceptance audit | WP-08 | Validated |
+| EVAL-02/S1 | Frozen matched methodology / Arm fairness | `decisions/ADR-003-baseline-protocol.md`; `evaluation/baseline-protocol.md#matched-pair-fairness-matrix` | TV5 | shared/different field review | WP-08; concrete profile Accepted | Validated |
+| EVAL-03/S1 | Logical-token/prompt fairness / Multi-turn comparison | `evaluation/paired-logical-token-examples.md`; content-addressed `evaluation/prompts/`; experiment profile prompt refs | TV2/TV5 | digest and paired-accounting check | WP-04/08 | Validated |
+| EVAL-04/S1 | Primary retry symmetry/schedule / Transient error | primary presets/profile; `evaluation/examples/retry-asymmetry-rejected.json`; provider contract one-attempt semantics | TV1/TV5 | symmetric false/1 and pre-network reject | WP-03/08 | Validated |
+| EVAL-05/S1 | SourceBundle / Independent reproduction | `evaluation/source-bundle-v1.md#normative-algorithm`; exact text fixture/digest | TV5 | content digest check | WP-08 | Validated |
+| EVAL-06/S1 | Contest/family/cutoff manifest / Leaking manifest | manifest schema/semantics plus valid, split-leak, family-leak, tampered and unknown-cutoff examples | TV5/TV4 | schema, semantic split and integrity checks | WP-08 | Validated |
+| EVAL-07/S1 | Scoring/repeat/export / Interrupted experiment | `evaluation/scoring-and-reporting.md#identity-and-resumption`; `#repeats-and-inferential-unit` | TV5 | denominators/cluster/resume review | WP-08/09 | Validated |
+| EVAL-08/S1 | Predeclared RQ1 gate / Precision up, recall down | `evaluation/scoring-and-reporting.md#predeclared-rq1-gates`; `examples/rq1-mixed-gate.json` | TV5 | mixed decision-table example | WP-08; profile Accepted pre-test | Validated |
+| EVAL-09/S1 | Accepted method/gated profile / Incomplete profile | ADR-003 Accepted; profile schema; Proposed profile; complete/incomplete/pre-network examples | TV5 | schema + readiness semantic gate | WP-08; profile Accepted | Validated |
+| EVAL-10/S1 | Scorer-only ground truth / Flow inspected | `security/ground-truth-flow-audit.md#sole-authorized-flow`; data classification | TV4/TV5 | forbidden-edge audit | WP-09 | Validated |
+| EVAL-11/S1 | Physical scorer isolation / Worker environment audited | `architecture/scorer-isolation-boundary.md`; registry/ERD/grant/import check plans | TV4/TV5 | OpenAPI/generator/import/grant matrix | WP-09 | Validated |
+| ORCH-01/S1 | Explicit lifecycle / State table validated | `architecture/judge-lifecycle.md#transition-table` | TV1 | legal-state-pair review | WP-02 | Validated |
+| ORCH-02/S1 | Multi-step loop / Tool failure traced | `architecture/end-to-end-sequences.md#provider-and-tool-iteration`; `#tool-failure-and-recovery` | TV1/TV3 | sequence/commit boundary review | WP-02/05 | Validated |
+| ORCH-03/S1 | Run budgets/stops / Exhaustion | `contracts/context-and-budget.md#stop-precedence`; Judge lifecycle budget section | TV1/TV2 | multi-limit precedence review | WP-02/04 | Validated |
+| ORCH-04/S1 | Per-call context / Cannot fit | `contracts/context-and-budget.md#preflight-algorithm`; paired accounting examples | TV2 | reserve/fail-before-provider review | WP-04 | Validated |
+| ORCH-05/S1 | Explicit single-turn ownership / Hidden continuation rejected | `architecture/agent-runtime-boundaries.md#one-logical-step`; provider explicit-history semantics | TV1 | no provider-owned state/loop review | WP-02/03; ADR-002 | Validated |
+| ORCH-06/S1 | Stable physical modular monolith / Placement reviewed | `architecture/physical-repository-layout.md#target-implementation-tree`; ADR-005 | TV1 | tree/import/owner matrices | WP-01 | Validated |
+| ORCH-07/S1 | Capability-owned shallow hex / Dependency audited | physical layout capability shape/allowed graph/architecture checks | TV1 | public-only import/cycle check plan | WP-01/10 | Validated |
+| ORCH-08/S1 | Multi-process single release / Deployment split | desktop runtime topology; component process composition; ADR-006 | TV1/TV6 | one release/process authority review | WP-01/06/07 | Validated |
+| PROV-01/S1 | Normalized provider port / Adapter design | `contracts/provider-contract.md#public-project-port`; `providers/conformance-matrix.md` | TV1 | normalized mapping review | WP-03; ADR-002 | Validated |
+| PROV-01/S2 | Normalized provider port / Dependency placement | agent-runtime boundary; physical allowed graph; OpenAI private adapter path in ADR-002 | TV1 | provider SDK closure review | WP-01/03 | Validated |
+| PROV-02/S1 | Identity/usage/latency/cost / Reproduction metadata | provider contract response; `persistence/field-dictionary.md#provider_attempt` | TV1/TV6 | field parity review | WP-03/06 | Validated |
+| PROV-03/S1 | Error/retry normalization / Permanent error | provider contract error table; lifecycle/sequence failure path | TV1 | error/one-attempt mapping review | WP-03 | Validated |
+| PROV-04/S1 | Conformance/expansion / Provider scope | deterministic profiles; PC-01–PC-12; extension roadmap | TV1/TV5 | real/deterministic/multi-provider seam review | WP-03 | Validated |
+| PROV-05/S1 | Versioned real profile/gate / Incomplete profile | provider profile schema, Proposed `real-primary`, pre-network rejection example | TV1/TV5 | schema-valid incomplete + readiness reject | WP-03; profile Accepted | Validated |
+| PROV-06/S1 | Observable single attempt / SDK retry inspected | ADR-002 accepted behavior; provider contract; profile execution constants | TV1 | SDK=0/project=1/non-stream review | WP-03 | Validated |
+| PROV-07/S1 | Local tool custody / Hosted tool returned | agent/provider boundaries; tool excluded capabilities; conformance PC-11 | TV1/TV3/TV4 | no auto/hosted execution review | WP-03/05 | Validated |
+| TOOL-01/S1 | Immutable source workspace / Contents reviewed | `security/workspace-policy.md#per-run-workspace-assembly`; container boundaries | TV3/TV4 | managed snapshot/exclusion review | WP-05 | Validated |
+| TOOL-01/S2 | Immutable source workspace / Desktop registers path | source registration sequence/raw-path matrix; desktop submission | TV3/TV4/TV6 | ephemeral selected-path review | WP-05/07 | Validated |
+| TOOL-02/S1 | Bounded tool contracts / Catalog validated | `contracts/tool-contracts.md#tool-catalog` | TV3 | four-tool limits/errors review | WP-05 | Validated |
+| TOOL-03/S1 | Path/ground-truth denial / Escape modeled | workspace relative authorization; adversarial PATH/SNAP cases | TV4 | reject-before-I/O coverage | WP-05 | Validated |
+| TOOL-04/S1 | Redaction/untrusted data / Sensitive result | data-classification transformation order; CONTENT cases; trajectory examples | TV4 | redact→delimit→truncate→digest audit | WP-05/06 | Validated |
+| TOOL-05/S1 | Structural excluded capabilities / Approval cannot widen | tool excluded capabilities; source-flow Judge authority; CAP cases | TV3/TV4 | immutable registry/no fallback plan | WP-05 | Validated |
+| VER-01/S1 | Canonical verdict / Examples checked | verdict JSON Schema/semantics and valid/invalid fixtures | TV1 | JSON Schema checks | WP-02 | Validated |
+| VER-02/S1 | Source evidence / Cannot resolve | verdict evidence contract; workspace evidence resolution; invalid fixtures | TV1/TV4 | path/range/digest semantic review | WP-02/05 | Validated |
+| VER-03/S1 | Explicit unverified/future seam / Reasoning-only shown | verdict schema const; desktop completed state; VerificationRunner roadmap | TV1/TV6 | schema/desktop parity | WP-02/07; future change for verifier | Validated |
+| UI-01/S1 | Submission/asynchronous wireframe / Long-running flow | `desktop/submission-and-status.md#wireflow` | TV6 | submit/poll/cancel/close review | WP-07 | Validated |
+| UI-02/S1 | Ordered trace / Blocked/transformed rendered | `desktop/trace-view.md#event-components`; disclosure review | TV6/TV4 | sequence/security rendering review | WP-07 | Validated |
+| UI-03/S1 | Verdict/evidence / Terminal compared | `desktop/terminal-states.md#run-state-matrix`; trace evidence layout | TV6 | terminal/partial/unverified review | WP-07 | Validated |
+| UI-04/S1 | Runtime recovery / Restart while trace open | local connection state machine/reconnect; topology failure matrix | TV6 | stale/cursor/full-refresh review | WP-07 | Validated |
+| UI-05/S1 | Thin desktop security / Registered repo displayed | desktop IA source view; submission safe snapshot; disclosure matrix | TV4/TV6 | no raw path/DB/provider/scorer view | WP-07 | Validated |
+| UI-06/S1 | Least-authority native bridge / Untrusted rendered content requests native execution | `desktop/trace-view.md#security-rendering`; Tauri permission matrix; `security/adversarial-acceptance-catalog.md#tauri-native-host-and-lifecycle-cases` | TV4/TV6 | no content-to-command conversion/generic permission review | WP-07/10; ADR-007 readiness | Validated |
+| UI-06/S2 | Least-authority native bridge / Repository selected through narrow command | `desktop/information-architecture.md#native-interaction-surfaces`; `security/source-registration-and-data-flow.md`; physical `src-tauri` ownership | TV3/TV4/TV6 | typed picker/ephemeral raw-path/no renderer custody review | WP-05/07; ADR-007 readiness | Validated |
+| DATA-01/S1 | Relational model/ownership / End-to-end model reviewed | `persistence/erd.md`; field dictionary; physical table-owner matrix | TV6/TV1 | cardinality/owner/grant review | WP-06/09 | Validated |
+| DATA-02/S1 | Reproduction snapshot / Global config changes | persistence reproduction snapshot; run_config/provider/tool fields | TV6 | model/prompt/flags/token/latency/cost/tool version audit | WP-06 | Validated |
+| DATA-03/S1 | Append-only trajectory / Duplicate delivery | PostgreSQL consistency work/claim/event rules; redelivery sequence | TV6 | CAS/sequence/ambiguity review | WP-06 | Validated |
+| DATA-04/S1 | Exact sanitized content / Oversized sensitive result | field dictionary step/tool; transformation order; trajectory fixtures | TV4/TV6 | prohibited-original absence review | WP-05/06 | Validated |
+| DATA-05/S1 | Database-owned work / Daemon-worker restart | consistency authority/work/outbox/lease/recovery sections; ERD | TV6 | restart-from-PostgreSQL review | WP-06 | Validated |
+| DATA-06/S1 | Desktop-independent projection / Missing stale cache | desktop connection cursor recovery; IA navigation; consistency recovery | TV6 | de-dup/full-refresh/no-cache-authority review | WP-06/07 | Validated |
+
+Coverage: `56/56 requirements`, `61/61 Given/When/Then scenarios`. All evidence is blueprint/design evidence; future package columns are implementation obligations, not completed code.

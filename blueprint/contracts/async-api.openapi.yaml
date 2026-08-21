@@ -1,0 +1,523 @@
+openapi: 3.1.0
+info:
+  title: Harness Local Runtime API Blueprint
+  version: local-runtime-api-v3
+  description: >-
+    Documentation-only contract for one protected local desktop/runtime installation.
+    Transport is loopback HTTP or an OS-IPC equivalent with installation-scoped
+    access control. The generated renderer client uses an allowlisted Tauri native
+    transport that derives endpoint and credential; it cannot select an arbitrary
+    URL or receive the raw credential. LAN/public exposure and remote multi-tenancy
+    are outside MVP.
+x-later-canonical-source: contracts/openapi/local-runtime.v1.openapi.yaml
+x-generated-desktop-client: apps/desktop/ui/src/generated/runtime-client/
+x-public-schema-allowlist: [RuntimeInfo, HealthView, SourceSnapshot, AcceptedRun, RunView, EventPage, CancelResponse, LifecycleResponse, Error]
+x-forbidden-run-event-field-names: [selected_path, raw_path, raw_host_path, host_path, source_root, authorized_root_ref, credential, ground_truth_label]
+servers:
+  - url: http://127.0.0.1:8080
+    description: Loopback example only; Tauri derives the actual endpoint from protected installation metadata and renderer input cannot override it
+security:
+  - LocalRuntimeCredential: []
+tags:
+  - name: Runtime
+  - name: Sources
+  - name: JudgeRuns
+  - name: Lifecycle
+paths:
+  /health:
+    get:
+      tags: [Runtime]
+      operationId: getRuntimeHealth
+      summary: Retrieve bounded local-runtime health
+      responses:
+        '200':
+          description: Runtime can answer the local control plane
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthView'}
+              example:
+                health: healthy
+                runtime_instance_id: runtime-local-example
+                checked_at: '2026-08-14T00:00:00Z'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /runtime-info:
+    get:
+      tags: [Runtime]
+      operationId: getRuntimeInfo
+      summary: Perform health, identity, version, contract-digest, and capability handshake
+      responses:
+        '200':
+          description: Current runtime identity and compatibility inputs
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeInfo'}
+              examples:
+                ready:
+                  value:
+                    runtime_instance_id: runtime-local-example
+                    runtime_version: 1.0.0
+                    api_version: local-runtime-api-v3
+                    contract_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    build_version: build-example
+                    capabilities: [source-registration-v1, judge-runs-v1, finite-event-cursor-v1, lifecycle-v1, coordinated-update-v1]
+                    health: healthy
+                    recovery_action: null
+                degraded:
+                  value:
+                    runtime_instance_id: runtime-local-example
+                    runtime_version: 1.0.0
+                    api_version: local-runtime-api-v3
+                    contract_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    build_version: build-example
+                    capabilities: [source-registration-v1, judge-runs-v1, finite-event-cursor-v1, lifecycle-v1, coordinated-update-v1]
+                    health: degraded
+                    recovery_action: restart
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /source-snapshots:
+    post:
+      tags: [Sources]
+      operationId: registerSourceSnapshot
+      summary: Import a native-picker selection as a managed immutable snapshot
+      parameters:
+        - {$ref: '#/components/parameters/ClientContractDigest'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SourceRegistrationRequest'}
+            example:
+              selected_path: '<ephemeral-native-picker-value>'
+      responses:
+        '201':
+          description: Source imported; the selected raw path is discarded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SourceSnapshot'}
+              example:
+                source_snapshot_id: snapshot-example
+                revision: revision-example
+                source_tree_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                inventory_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                created_at: '2026-08-14T00:00:00Z'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/IncompatibleOrConflict'}
+        '422':
+          description: Selection failed canonicalization, authorization, inventory, type, race, or volume policy
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              examples:
+                denied:
+                  value: {error: {code: source_registration_denied, message: The selected source cannot be registered under the active policy., details: {category: path_type_or_policy}, request_id: req-example}}
+                changed:
+                  value: {error: {code: source_changed_during_registration, message: The selected source changed before snapshot import completed., details: {}, request_id: req-example}}
+  /judge-runs:
+    post:
+      tags: [JudgeRuns]
+      operationId: createJudgeRun
+      summary: Accept a Judge run without waiting for execution
+      parameters:
+        - {$ref: '#/components/parameters/ClientContractDigest'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/JudgeRunSubmission'}
+            examples:
+              deterministic:
+                value:
+                  candidate_finding:
+                    schema_version: candidate-finding-v1
+                    title: Authorization check may occur too late
+                    description: The external interaction appears before the privileged state update.
+                    claimed_locations: [{path: contracts/Vault.sol, start_line: 41, end_line: 58}]
+                  source_snapshot_id: snapshot-example
+                  configuration:
+                    provider_profile_ref: {id: deterministic-scripted-v1, version: '1', digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+                    flags_preset: harness-primary-v1
+                    flags: {agent_loop: true, source_tools: true, provider_retry: false}
+                    budgets: {max_steps: 20, logical_tokens: 12000, wall_clock_ms: 300000, max_cost: {amount: '0', currency: USD}, max_output_tokens_per_call: 1200}
+      responses:
+        '202':
+          description: New or identically reused accepted run
+          headers:
+            Location: {description: Relative run resource, schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AcceptedRun'}
+              example: {run_id: run-example, state: accepted, status_url: /runs/run-example, events_url: /runs/run-example/events, reused: false}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/IncompatibleOrConflict'}
+        '422':
+          description: Source/config/profile/flags/budgets are invalid or not accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {error: {code: pre_network_profile_rejected, message: The selected provider or experiment profile is not execution-ready., details: {field: configuration.provider_profile_ref}, request_id: req-example}}
+  /runs/{run_id}:
+    get:
+      tags: [JudgeRuns]
+      operationId: getJudgeRun
+      summary: Retrieve current committed state and terminal verdict when available
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+      responses:
+        '200':
+          description: PostgreSQL-authoritative safe run projection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunView'}
+              examples:
+                running:
+                  value:
+                    run_id: run-example
+                    state: running
+                    state_version: 3
+                    created_at: '2026-08-14T00:00:00Z'
+                    updated_at: '2026-08-14T00:00:05Z'
+                    candidate_finding_id: candidate-example
+                    source_snapshot_id: snapshot-example
+                    config_digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+                    aggregate_usage: {logical_input_tokens: 1200, output_tokens: 80, total_logical_tokens: 1280}
+                    aggregate_cost: {amount: '0', currency: USD}
+                    verdict: null
+                    terminal_reason: null
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /runs/{run_id}/events:
+    get:
+      tags: [JudgeRuns]
+      operationId: listJudgeRunEvents
+      summary: Retrieve one finite committed event page in sequence order
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+        - {name: cursor, in: query, required: false, description: Opaque finite-page cursor bound to run and last sequence, schema: {type: string, maxLength: 1024}}
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Bounded page; null next_cursor means no later committed event now
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EventPage'}
+              example:
+                run_id: run-example
+                events: [{schema_version: trajectory-event-v1, event_id: event-1, run_id: run-example, sequence: 1, type: run.accepted, occurred_at: '2026-08-14T00:00:00Z', payload: {state: accepted, state_version: 1}}]
+                next_cursor: null
+        '400':
+          description: Invalid, expired, cross-run, non-finite, or discontinuous cursor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {error: {code: invalid_cursor, message: The event cursor is invalid for this run., details: {}, request_id: req-example}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /runs/{run_id}/cancel:
+    post:
+      tags: [JudgeRuns]
+      operationId: cancelJudgeRun
+      summary: Request idempotent cooperative cancellation
+      parameters:
+        - {$ref: '#/components/parameters/RunId'}
+        - {$ref: '#/components/parameters/ClientContractDigest'}
+      requestBody:
+        required: false
+        content: {application/json: {schema: {$ref: '#/components/schemas/CancelRequest'}}}
+      responses:
+        '202':
+          description: Cancellation request durably recorded
+          content: {application/json: {schema: {$ref: '#/components/schemas/CancelResponse'}, example: {run_id: run-example, state: running, cancellation_requested: true, terminal: false}}}
+        '200':
+          description: Run was already terminal and remains immutable
+          content: {application/json: {schema: {$ref: '#/components/schemas/CancelResponse'}, example: {run_id: run-example, state: completed, cancellation_requested: false, terminal: true}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/IncompatibleOrConflict'}
+  /runtime-lifecycle/shutdown:
+    post:
+      tags: [Lifecycle]
+      operationId: requestRuntimeShutdown
+      summary: Explicitly request quiesce and runtime shutdown; window close never calls this implicitly
+      parameters:
+        - {$ref: '#/components/parameters/ClientContractDigest'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/ShutdownRequest'}, example: {policy: reject_if_active}}}
+      responses:
+        '202':
+          description: Lifecycle operation accepted
+          content: {application/json: {schema: {$ref: '#/components/schemas/LifecycleResponse'}, example: {operation_id: lifecycle-example, operation: shutdown, state: accepted, active_runs: 0, ambiguous_attempts: 0, quiesce_state: none, compatibility_manifest_digest: null, recovery_action: null}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/IncompatibleOrConflict'}
+  /runtime-lifecycle/prepare-update:
+    post:
+      tags: [Lifecycle]
+      operationId: prepareRuntimeUpdate
+      summary: Preflight active work and coordinated compatibility before the Tauri update coordinator changes release
+      parameters:
+        - {$ref: '#/components/parameters/ClientContractDigest'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PrepareUpdateRequest'}
+            example:
+              policy: reject_if_active
+              release_channel: stable
+              target_desktop_version: 1.1.0
+              target_runtime_version: 1.1.0
+              target_api_version: local-runtime-api-v3
+              target_contract_digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+              target_database_schema_version: '17'
+              compatibility_manifest_digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+      responses:
+        '202':
+          description: Update preparation accepted; this endpoint does not download or install software
+          content: {application/json: {schema: {$ref: '#/components/schemas/LifecycleResponse'}, example: {operation_id: lifecycle-update-example, operation: prepare_update, state: accepted, active_runs: 0, ambiguous_attempts: 0, quiesce_state: quiesced, compatibility_manifest_digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee, recovery_action: update}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/IncompatibleOrConflict'}
+components:
+  securitySchemes:
+    LocalRuntimeCredential:
+      type: apiKey
+      in: header
+      name: X-Harness-Local-Credential
+      description: >-
+        Installation-scoped rotatable secret held by the Tauri host/OS store and
+        omitted from URLs, renderer persistence, logs, traces, and exports. With
+        OS IPC, an equivalent peer-identity/ACL mechanism replaces this header.
+        If no approved protected backend exists, the native transport fails before
+        sending a request and never creates a plaintext or anonymous fallback.
+  parameters:
+    RunId: {name: run_id, in: path, required: true, schema: {type: string, minLength: 1, maxLength: 128}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, description: Opaque key bound to canonical request digest, schema: {type: string, minLength: 8, maxLength: 255}}
+    ClientContractDigest: {name: X-Harness-Client-Contract-Digest, in: header, required: true, description: Digest learned from the compatibility handshake; mutation fails closed on incompatibility, schema: {$ref: '#/components/schemas/Digest'}}
+  responses:
+    BadRequest:
+      description: Invalid transport/body
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}, example: {error: {code: invalid_request, message: The request body is not valid., details: {}, request_id: req-example}}}}
+    Unauthorized:
+      description: Local installation access control rejected the request
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}, example: {error: {code: unauthorized_local, message: Local runtime authorization failed., details: {recovery_action: restart_or_rotate}, request_id: req-example}}}}
+    IncompatibleOrConflict:
+      description: Contract/version incompatibility, idempotency conflict, active-run lifecycle conflict, or stale request
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}, examples: {incompatible: {value: {error: {code: incompatible_version, message: Desktop and runtime contracts are incompatible., details: {recovery_action: update}, request_id: req-example}}}, idempotency: {value: {error: {code: idempotency_conflict, message: The key is bound to different canonical input., details: {}, request_id: req-example}}}, active_work: {value: {error: {code: active_work_conflict, message: Runtime update is rejected while recoverable or ambiguous work remains., details: {active_runs: 2, ambiguous_attempts: 1, allowed_policies: [reject_if_active, quiesce_then_stop]}, request_id: req-example}}}}}}
+    NotFound:
+      description: Resource does not exist
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}, example: {error: {code: resource_not_found, message: No resource exists for the supplied identifier., details: {}, request_id: req-example}}}}
+  schemas:
+    Digest: {type: string, pattern: '^sha256:[0-9a-f]{64}$'}
+    Health: {type: string, enum: [healthy, degraded, unavailable]}
+    HealthView:
+      type: object
+      additionalProperties: false
+      required: [health, runtime_instance_id, checked_at]
+      properties: {health: {$ref: '#/components/schemas/Health'}, runtime_instance_id: {type: string}, checked_at: {type: string, format: date-time}}
+    RuntimeInfo:
+      type: object
+      additionalProperties: false
+      required: [runtime_instance_id, runtime_version, api_version, contract_digest, build_version, capabilities, health, recovery_action]
+      properties:
+        runtime_instance_id: {type: string}
+        runtime_version: {type: string}
+        api_version: {type: string}
+        contract_digest: {$ref: '#/components/schemas/Digest'}
+        build_version: {type: string}
+        capabilities: {type: array, uniqueItems: true, items: {type: string}}
+        health: {$ref: '#/components/schemas/Health'}
+        recovery_action: {type: [string, 'null'], enum: [null, retry, restart, update, contact_owner]}
+    SourceRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [selected_path]
+      properties:
+        selected_path:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          writeOnly: true
+          x-data-classification: EPHEMERAL_SENSITIVE
+          description: Native-picker input for this operation only; discarded after managed snapshot import/rejection and forbidden from logs or all response/run/event schemas.
+    SourceSnapshot:
+      type: object
+      additionalProperties: false
+      required: [source_snapshot_id, revision, source_tree_digest, inventory_digest, created_at]
+      properties:
+        source_snapshot_id: {type: string, minLength: 1, maxLength: 128}
+        revision: {type: string, minLength: 1, maxLength: 256}
+        source_tree_digest: {$ref: '#/components/schemas/Digest'}
+        inventory_digest: {$ref: '#/components/schemas/Digest'}
+        created_at: {type: string, format: date-time}
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount, currency]
+      properties: {amount: {type: string, pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'}, currency: {type: string, pattern: '^[A-Z]{3}$'}}
+    ArtifactRef:
+      type: object
+      additionalProperties: false
+      required: [id, version, digest]
+      properties: {id: {type: string}, version: {type: string}, digest: {$ref: '#/components/schemas/Digest'}}
+    CandidateLocation:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties: {path: {type: string, minLength: 1, maxLength: 1024, description: Normalized source-relative path only}, start_line: {type: integer, minimum: 1}, end_line: {type: integer, minimum: 1}}
+    CandidateFinding:
+      type: object
+      additionalProperties: false
+      required: [schema_version, title, description]
+      properties:
+        schema_version: {const: candidate-finding-v1}
+        title: {type: string, minLength: 1, maxLength: 500}
+        description: {type: string, minLength: 1, maxLength: 30000}
+        claimed_locations: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/CandidateLocation'}}
+    Budgets:
+      type: object
+      additionalProperties: false
+      required: [max_steps, logical_tokens, wall_clock_ms, max_cost, max_output_tokens_per_call]
+      properties:
+        max_steps: {type: integer, minimum: 1, maximum: 1000}
+        logical_tokens: {type: integer, minimum: 1}
+        wall_clock_ms: {type: integer, minimum: 1}
+        max_cost: {$ref: '#/components/schemas/Money'}
+        max_output_tokens_per_call: {type: integer, minimum: 1}
+    RunConfiguration:
+      type: object
+      additionalProperties: false
+      required: [provider_profile_ref, flags_preset, flags, budgets]
+      properties:
+        provider_profile_ref: {$ref: '#/components/schemas/ArtifactRef'}
+        experiment_profile_ref: {oneOf: [{$ref: '#/components/schemas/ArtifactRef'}, {type: 'null'}]}
+        flags_preset: {type: string, minLength: 1, maxLength: 128}
+        flags: {type: object}
+        budgets: {$ref: '#/components/schemas/Budgets'}
+    JudgeRunSubmission:
+      type: object
+      additionalProperties: false
+      required: [candidate_finding, source_snapshot_id, configuration]
+      properties:
+        candidate_finding: {$ref: '#/components/schemas/CandidateFinding'}
+        source_snapshot_id: {type: string, minLength: 1, maxLength: 128}
+        configuration: {$ref: '#/components/schemas/RunConfiguration'}
+    RunState: {type: string, enum: [accepted, queued, running, completed, failed, cancelled, budget_exhausted]}
+    AcceptedRun:
+      type: object
+      additionalProperties: false
+      required: [run_id, state, status_url, events_url, reused]
+      properties: {run_id: {type: string}, state: {$ref: '#/components/schemas/RunState'}, status_url: {type: string}, events_url: {type: string}, reused: {type: boolean}}
+    Usage:
+      type: object
+      additionalProperties: false
+      required: [logical_input_tokens, output_tokens, total_logical_tokens]
+      properties: {logical_input_tokens: {type: integer, minimum: 0}, output_tokens: {type: integer, minimum: 0}, total_logical_tokens: {type: integer, minimum: 0}}
+    Evidence:
+      type: object
+      additionalProperties: false
+      required: [path, start_line, end_line, content_digest]
+      properties: {path: {type: string, description: Normalized source-relative path only}, start_line: {type: integer, minimum: 1}, end_line: {type: integer, minimum: 1}, content_digest: {$ref: '#/components/schemas/Digest'}}
+    Verdict:
+      type: object
+      additionalProperties: false
+      required: [schema_version, validity, severity, confidence, rationale, evidence, verification_status, label_normalization_version]
+      properties:
+        schema_version: {const: judge-verdict-v1}
+        validity: {enum: [valid, invalid]}
+        severity: {enum: [none, low, medium, high, critical]}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        rationale: {type: string, minLength: 1}
+        evidence: {type: array, minItems: 1, items: {$ref: '#/components/schemas/Evidence'}}
+        verification_status: {const: unverified}
+        label_normalization_version: {type: string, minLength: 1}
+    RunView:
+      type: object
+      additionalProperties: false
+      required: [run_id, state, state_version, created_at, updated_at, candidate_finding_id, source_snapshot_id, config_digest, aggregate_usage, aggregate_cost, verdict, terminal_reason]
+      properties:
+        run_id: {type: string}
+        state: {$ref: '#/components/schemas/RunState'}
+        state_version: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        candidate_finding_id: {type: string}
+        source_snapshot_id: {type: string}
+        config_digest: {$ref: '#/components/schemas/Digest'}
+        aggregate_usage: {$ref: '#/components/schemas/Usage'}
+        aggregate_cost: {$ref: '#/components/schemas/Money'}
+        verdict: {oneOf: [{$ref: '#/components/schemas/Verdict'}, {type: 'null'}]}
+        terminal_reason: {type: [string, 'null']}
+    TrajectoryEvent:
+      type: object
+      additionalProperties: false
+      required: [schema_version, event_id, run_id, sequence, type, occurred_at, payload]
+      properties:
+        schema_version: {const: trajectory-event-v1}
+        event_id: {type: string}
+        run_id: {type: string}
+        sequence: {type: integer, minimum: 1}
+        type: {type: string}
+        occurred_at: {type: string, format: date-time}
+        payload:
+          type: object
+          propertyNames: {not: {pattern: '^(selected_path|raw_path|raw_host_path|host_path|source_root|authorized_root_ref|credential|ground_truth_label)$'}}
+          description: Safe contract projection; forbidden field names are also rejected recursively by the canonical event-schema gate before persistence/API.
+    EventPage:
+      type: object
+      additionalProperties: false
+      required: [run_id, events, next_cursor]
+      properties: {run_id: {type: string}, events: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/TrajectoryEvent'}}, next_cursor: {type: [string, 'null']}}
+    CancelRequest:
+      type: object
+      additionalProperties: false
+      properties: {reason: {type: string, maxLength: 500}}
+    CancelResponse:
+      type: object
+      additionalProperties: false
+      required: [run_id, state, cancellation_requested, terminal]
+      properties: {run_id: {type: string}, state: {$ref: '#/components/schemas/RunState'}, cancellation_requested: {type: boolean}, terminal: {type: boolean}}
+    ShutdownRequest:
+      type: object
+      additionalProperties: false
+      required: [policy]
+      properties: {policy: {enum: [reject_if_active, quiesce_then_stop]}}
+    PrepareUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [policy, release_channel, target_desktop_version, target_runtime_version, target_api_version, target_contract_digest, target_database_schema_version, compatibility_manifest_digest]
+      properties:
+        policy: {enum: [reject_if_active, quiesce_then_stop]}
+        release_channel: {type: string, minLength: 1, maxLength: 64}
+        target_desktop_version: {type: string, minLength: 1}
+        target_runtime_version: {type: string, minLength: 1}
+        target_api_version: {type: string, minLength: 1}
+        target_contract_digest: {$ref: '#/components/schemas/Digest'}
+        target_database_schema_version: {type: string, minLength: 1}
+        compatibility_manifest_digest: {$ref: '#/components/schemas/Digest'}
+    LifecycleResponse:
+      type: object
+      additionalProperties: false
+      required: [operation_id, operation, state, active_runs, ambiguous_attempts, quiesce_state, compatibility_manifest_digest, recovery_action]
+      properties:
+        operation_id: {type: string}
+        operation: {enum: [shutdown, prepare_update]}
+        state: {enum: [accepted, rejected, completed]}
+        active_runs: {type: integer, minimum: 0}
+        ambiguous_attempts: {type: integer, minimum: 0}
+        quiesce_state: {enum: [none, requested, quiescing, quiesced]}
+        compatibility_manifest_digest: {anyOf: [{$ref: '#/components/schemas/Digest'}, {type: 'null'}]}
+        recovery_action: {type: [string, 'null'], enum: [null, retry, restart, update, contact_owner]}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, details, request_id]
+          properties: {code: {type: string, minLength: 1}, message: {type: string, minLength: 1}, details: {type: object}, request_id: {type: string, minLength: 1}}

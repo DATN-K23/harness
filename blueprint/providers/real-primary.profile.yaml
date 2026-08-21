@@ -1,0 +1,50 @@
+schema_version: provider-profile-v1
+profile_id: real-primary
+profile_version: 1
+status: Proposed
+adapter: openai-responses-official-async
+provider: openai
+model:
+  requested_snapshot: null
+  floating_alias_forbidden: true
+  identity_evidence: null
+sdk:
+  package: openai
+  exact_version: null
+  official_evidence: null
+capabilities:
+  context_limit: null
+  context_limit_evidence: null
+  structured_outputs: null
+  custom_functions: null
+  non_streaming: true
+  capability_evidence: null
+knowledge_cutoff:
+  value: null
+  evidence: null
+  verified_at: null
+pricing:
+  currency: null
+  version: null
+  source: null
+  verified_at: null
+credential_owner: null
+paid_call_ceiling:
+  max_calls: null
+  max_cost: null
+  currency: null
+approval:
+  approvers: []
+  approved_at: null
+  artifact_digest: null
+execution:
+  api: responses
+  async_sdk: true
+  stream: false
+  sdk_max_retries: 0
+  project_max_attempts: 1
+  automatic_tool_execution: false
+  hosted_tools: false
+  provider_conversation_state: false
+network_ready: false
+

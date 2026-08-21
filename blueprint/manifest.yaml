@@ -1,0 +1,597 @@
+schema_version: blueprint-manifest-v2
+blueprint_id: bootstrap-judge-mode-mvp
+blueprint_version: judge-blueprint-v3
+scope: documentation-only
+status: Validated
+generated_at: '2026-08-19T08:34:11Z'
+self:
+  path: manifest.yaml
+  digest: self-excluded
+  rationale: self is inventoried without a recursive content digest
+artifact_count: 96
+artifacts:
+  - path: README.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:480e52d8b6685825d745c5d61f2c380abecc4b2136fd44fd501c5249d99f1e12
+  - path: architecture/agent-runtime-boundaries.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:a1e125477b2ac2ee6ec6a2ca456b62bd7c14c02d32444d43aba44174dc94bd9b
+  - path: architecture/components-and-ownership.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:4c1f8d455f04064273aae39b7fec552aa23e7d4f95ba02246615cd47d7abcb29
+  - path: architecture/containers-and-trust-boundaries.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:3d4c4712d55bf1dab6765f44ad890ebad70d568a7b99ba5ab831ebaadfc0d666
+  - path: architecture/desktop-runtime-topology.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:4fe9206009d974d16e5ad01e45e8a81fb7aa9764b06ee3d9836a17cf2a4353bf
+  - path: architecture/end-to-end-sequences.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:f3cf1bfb0b5f580fa3275a214ba39ee50dd6b9c3d61f4d7d3f04b126a32d4461
+  - path: architecture/judge-lifecycle.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:bad96addea7ba0b32a14179c9a02c72e22f28f69b8b4f78d87dd4e847f1bf694
+  - path: architecture/physical-repository-layout.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:5ebe989aa6e4d685c66d21114dcf0c2ab97eea3559699af9f96bfcfe4914de8d
+  - path: architecture/scorer-isolation-boundary.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:4486b4c42395ee98dfed6f57d56103d461dc8e0850b91bf38a420d3c6ab05880
+  - path: architecture/system-context.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:0f916e6051d0f44ff4c39db49d31e61216d2bb7ff48c268e77657a3a039784ff
+  - path: contracts/async-api.openapi.yaml
+    kind: yaml-contract
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:18f652ef4015757e7f8c12f0eb299f4b99c7689fa3c135de416925512f2a5491
+  - path: contracts/context-and-budget.md
+    kind: markdown
+    normative: true
+    owner: TV2
+    status: Validated
+    digest: sha256:3b160939efa77bd305b203353a89c8130e7b24cf9ca9d3e26f4b1b8f2904e7c8
+  - path: contracts/domain-model.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:72c542e29b91b53a801432c978b83a0cfdf6ecb33ae56c96c208082f93e2340a
+  - path: contracts/examples/trajectory-events-invalid.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:efac67563851dad27a473a48a1b2b87040c849ba2ec6ff809a770d69a970f275
+  - path: contracts/examples/trajectory-events.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:018cb4306a9864fe4049ba058bb73e718616c70ccf35a02149990224a9458946
+  - path: contracts/examples/verdict-confidence-one.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:ea88c3686c035e6de390cc3a0b091121975efc96176c457db248404538b196c4
+  - path: contracts/examples/verdict-confidence-out-of-range.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:9e6c0bb3364e93d15e02d677fe3ee64d416ba5dd727177122066cec212759042
+  - path: contracts/examples/verdict-confidence-zero.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:2886d826420ddb3d7833979e835fe380c85da6cf474dbf3c0a34eb77bded4227
+  - path: contracts/examples/verdict-invalid-severity.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:f5d98016b0ff2c1037e1c699150edf9ccde3192e145a03a5ae0a5b9e8d665f13
+  - path: contracts/examples/verdict-invalid.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:22af2bc0041653c10dbe585d05e89f4628e1d31eeb7e5669ff3a24744271d9fc
+  - path: contracts/examples/verdict-missing-evidence.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:c8dc61d0ff4bbb512a3bb66065b7346081c13dd0e0a85f8975f2aa776a1cb87b
+  - path: contracts/examples/verdict-path-traversal.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:67e1ddcdf1b4b997cc17db826b2708ae0110e9805cf5d0af57a616617ffceda4
+  - path: contracts/examples/verdict-valid.json
+    kind: json-example
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:3c3740476af12bd23e6d620192a44677863402f588081042f42db37c19b20955
+  - path: contracts/judge-verdict.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:368401e53cc81ffe441330b7672f3034beebdaf9c8b79e5da19d97508910373c
+  - path: contracts/judge-verdict.schema.json
+    kind: json-schema
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:c462340046fd3a0822c1408fe9aa40a9dfe22e81f4c02bddb80d8aa59fd331e7
+  - path: contracts/provider-contract.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:70b8d7b35e7192c79662f1972d6adc7d798b075f8c0abb9a0788ceeeff049061
+  - path: contracts/registry.yaml
+    kind: yaml-contract
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:d7b7a3d71af7da692b2a69dc272a8241541c0ab93e9fbd60bb7cd1d7907bad8f
+  - path: contracts/tool-contracts.md
+    kind: markdown
+    normative: true
+    owner: TV3
+    status: Validated
+    digest: sha256:3152b909b2bf495f0f0f0b609aae94d096039654a9e6b719b17d800090eb00b8
+  - path: contracts/trajectory-events.schema.json
+    kind: json-schema
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:bdeac3ce7210f9d23c7da68d9efa84892ff3971febc94a531159a9dfa751732d
+  - path: decisions/ADR-000-template.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:d83741b50fa0655895a9575b2e3dab2565e2f9898ea2f386e14dc724bf0a913f
+  - path: decisions/ADR-001-technology-stack.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:62a062745ac727213641977f79c70d89103a1d07fb441bffdba479b6461d7d6d
+    decision_status: Accepted
+  - path: decisions/ADR-002-provider-contract.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:3ee77e3708fd0765481a46350f5c54064f2db5928cd48180fc70ea7bd9c825a2
+    decision_status: Accepted
+  - path: decisions/ADR-003-baseline-protocol.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:57c8a0a701fee5cd69b86703bc5a96b07b6c859e29e7336ed96eba701739ca8b
+    decision_status: Accepted
+  - path: decisions/ADR-004-opencode-reference.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:0045b9e556b2b9db541da6346aa3742d6d9f1734d4435ae36a49064d231c37dc
+    decision_status: Accepted
+  - path: decisions/ADR-005-capability-first-modular-monolith.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:7e179544a399f7e2bb74997dae5a9e8fd1ec106ed3b0b16017c7f9702fb2641b
+    decision_status: Accepted
+  - path: decisions/ADR-006-desktop-local-runtime.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:6df9d82b48f0c2e52a3113e07b9d081e2f912cc5cba186f5e7afab701926b98f
+    decision_status: Accepted
+  - path: decisions/ADR-007-desktop-shell.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:7a08f9f745f70e3359f1ed7969143d9abb5d9f98cc1bba8a566788f068348953
+    decision_status: Accepted
+  - path: decisions/README.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:577b73a7005e6189a06473d85ef0d6c8c9ed91a0e3c3ef21c230aa0a4f1e9192
+  - path: delivery/dependency-and-ownership.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:1fd380ed52efd7698ec9588504dcf245c69887246586d96a0066383a0878109f
+  - path: delivery/extension-roadmap.md
+    kind: markdown
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:373e6625d8eeb6042b6117997af0d9ef95ccda284974a309c20db981a20507bf
+  - path: delivery/implementation-work-packages.md
+    kind: markdown
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:361fe61c3512502f4496d27340e35736cca114bd46c4d274e1724adcdedf5572
+  - path: delivery/normative-backreferences.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:9e7e40b635bb10323fe4e04714952f0c6ab919e31dc3c5e862527b2cee287996
+  - path: delivery/requirement-traceability.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:5ec38545e35724c0607f6fb61a6be8c54dd5565ee05854cfb454cc9e42bb352c
+  - path: delivery/scope-audit.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:569ddb703889ad86042f25de1b39791c67191e43d2cddfecab0c5a7795909761
+  - path: delivery/tv1-tv6-timeline.md
+    kind: markdown
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:aaefae1035f9ee93907c0db0f9500f9b2644aae94ac791c24b73d9adec9d48d2
+  - path: delivery/validation-report.md
+    kind: markdown
+    normative: false
+    owner: TV1
+    status: Validated
+    digest: sha256:ed8062965df96e35796ef0f1eab3ce6e89e1bab4e04926f9b05b1523c3e30a4e
+  - path: desktop/disclosure-review.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:050f0f4d7f239e69dfe234a552ba6eafa1c1a82c3142c5b55eb19c2fa1444172
+  - path: desktop/information-architecture.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:d2845c78b72b609f175067c67f3879e3fe4a3db8778b3bddb2e9342a24a29e8d
+  - path: desktop/local-runtime-connection.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:2304de1c84a12291cae2d2114917a32aab94269074467a79044b035ae1f04e90
+  - path: desktop/submission-and-status.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:cbb609feaaa2d30479e55abd85cc49144cd2b16a153d50fa8b23c456a7f1dda3
+  - path: desktop/terminal-states.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:40cb073ce66a67c8e68cb3cb999372af9e03c7ce7fc66cef50216168c0a47251
+  - path: desktop/trace-view.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:2349b09cb3659a2385417c23ccd363a748586d747f0eebfe24711551f645f9e0
+  - path: evaluation/baseline-protocol.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:5d0389c03ea3b9d063f4448c4da36c010aac653e724253b9cbb855ab04be7b9d
+  - path: evaluation/contest-manifest.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:4b99558e8c766dcea7776a15b7fad62d5166ff81a31bdb11b5b297c846912efa
+  - path: evaluation/contest-manifest.schema.json
+    kind: json-schema
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:da803a869f40498bb3f984987cd0f24373ceb102fe5f82d02db2ab1d189d11bc
+  - path: evaluation/examples/approved-score.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:bc025fc624d4c3e2ec320e2b9e37fcf4b39d5e3270ff1d8bde0b6786e1c8ea70
+  - path: evaluation/examples/case-agent-visible.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:7119439f39f93b26255b041d50c1df8ecd0dedd8ce9ccbc8a16ad8855fadf1f7
+  - path: evaluation/examples/direct-request.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:03ea528cf49d755201174c9d4ba6e1784ded41a8505e9de16163a3b11ce5cf1d
+  - path: evaluation/examples/experiment-profile-complete.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:2d25f0bec46ff5d9db96200761616b64dd35a35c0d9df67fd90364daed2b02a9
+  - path: evaluation/examples/experiment-profile-incomplete.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:c44c626668f8708726c6be3c20eb84e28504cf2c5274b5eee8d30ae3062482fa
+  - path: evaluation/examples/harness-request.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:cb2d4cb1cbecb7ea7af62b67b1c7b8958f3beac3981ae6da429b1666ea0d1862
+  - path: evaluation/examples/manifest-missing-cutoff.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:09ad1342fa0d7565597632359cff012dea3aefd86487bc7bfe872464307aed77
+  - path: evaluation/examples/manifest-source-family-leaking.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:b65934d6aee4b93edf1ff04fe0cc347b127a6e2f2a6dc71ef99bee3c7191516e
+  - path: evaluation/examples/manifest-split-leaking.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:de4975703a06fdfd74ba3c4f9946529bfdb6f3d9b6bd54944816731093a92716
+  - path: evaluation/examples/manifest-tampered.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:6cb9e2e00d55b733e1222f4129d11b413a2e420fa83dba9cc37e93e96cba8f75
+  - path: evaluation/examples/manifest-valid.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:c4f7a55a9054096baaddfba61f96b90a2ff1c49c3380c4a6a6dc4e0e3c752e73
+  - path: evaluation/examples/pre-network-rejection.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:c993f4ceb5dcc8e73a76e877f6eb9e1fb8e70c202bd9256ba624666193d8f93a
+  - path: evaluation/examples/retry-asymmetry-rejected.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:97416c04e59153e37dce68d9f9d1f52a04eb9731cc24ab4c9f9b2db17cbe0d04
+  - path: evaluation/examples/rq1-mixed-gate.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:89c57572478a72c099dd2b3e598459f93ebb017593d72e82c723ec538297fc12
+  - path: evaluation/examples/scoring-record.json
+    kind: json-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:f647e35c8a861ac30e12be79853c7ff372c2e140376d1891d40f4ad8671b14ec
+  - path: evaluation/examples/source-bundle-v1.txt
+    kind: text-example
+    normative: false
+    owner: TV5
+    status: Validated
+    digest: sha256:fc1891d18a46130af218bb8bd7eb01355661804028a02b43bbb8cbffc0d24c6a
+  - path: evaluation/experiment-profile.schema.json
+    kind: json-schema
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:03ec227310ebe81517ae449a6551c87aa6bed912fca7b7478a8e147024415f88
+  - path: evaluation/flags-and-ablation.yaml
+    kind: yaml-catalog
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:95eca9e6271cc028d7612a55169c7541903cfd9b988fb2f70a79ea97ce809356
+  - path: evaluation/paired-logical-token-examples.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:64d01ff8f073b5e85f31077f26cbee667d0dc94c1058b94f6adf27692c77ab94
+  - path: evaluation/prompts/direct-wrapper.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:d392eaf14821ccd66e8ba5208a7ee2d870649993257adbeec2569fac5ddd0607
+  - path: evaluation/prompts/harness-wrapper.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:f272b2c814797f2a03188f4665962e6eff0d73db75e7a5d50fb57efc70ea4d58
+  - path: evaluation/prompts/judge-core.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:594b5f80a7a1e6c278572aa12569d06b6a4b6708a9df256b4337f39032a83a8b
+  - path: evaluation/rq1-confirmatory-v1.profile.yaml
+    kind: yaml-profile
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:98adcd529520ee4dac0b62e1a14d1b67ca1d19eabd55c5d85d2b29e532b8b07c
+    decision_status: Proposed
+  - path: evaluation/scoring-and-reporting.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:ad9dd4836f2091b4793532800750119cf09caeb3192960e80e3aa2aff8abe159
+  - path: evaluation/source-bundle-v1.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:e5bf849baa667d9ba2659582454d17ed9618906cc6bc82be2f1a8e3570fb8360
+  - path: evaluation/validity-gates.md
+    kind: markdown
+    normative: true
+    owner: TV5
+    status: Validated
+    digest: sha256:882c4be96043210bfee68b84b55896cb2305cf9567af34cd832791415b8cadf7
+  - path: manifest-format.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:3d1c7358518fa4e7e530da1b393f287b619199e13f905f98bcd907865994910f
+  - path: persistence/consistency-and-idempotency.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:b0f83a3ed94338d710fc8ea94c50083caf2471d027f0cb66febdb151e91bd7b9
+  - path: persistence/erd.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:b9e780ec60cb3ba91aa64a9486c54a4173faa52f87ddbf78d0fe5aaf5faca23e
+  - path: persistence/field-dictionary.md
+    kind: markdown
+    normative: true
+    owner: TV6
+    status: Validated
+    digest: sha256:0e317653595b1f7fc71102d27ae2472df54119121947df622f13819b172820cc
+  - path: providers/conformance-matrix.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:71920d0c0e4d1365478583f37a1c3be0c78b36eea2eefa9edcfefde9886affb5
+  - path: providers/deterministic-profiles.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:6d4af68ab824584f660dfd5f134643d41574843f3aac439866535f6275d96029
+  - path: providers/provider-profile.schema.json
+    kind: json-schema
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:0f378455bc64fefdbc90cb1275fdf20ebfce895d10bfcdd85251acd45dc7d9f9
+  - path: providers/real-primary.profile.yaml
+    kind: yaml-profile
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:c60d9a61cfea881fcb9c814964b85510306bf63482077070615c0776c0132f4a
+    decision_status: Proposed
+  - path: security/adversarial-acceptance-catalog.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:219a55fbd4dd5d717d8ed5f47c51ac593db9351d0b6ab347e3eddc3bce397888
+  - path: security/data-classification.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:f0d1d4d24012e6820f367e51f300c97f2c890d19ab6a8031f0022131736210f0
+  - path: security/ground-truth-flow-audit.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:513c8bb23191b854947219bd4201be1c6ec872755641a21a20ae1efdac9de47c
+  - path: security/source-registration-and-data-flow.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:ed9c53b3b2f2fe29c894bf86195d725ba42341c39e4a6dc375243edfdcba692b
+  - path: security/threat-model.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:8e46557f9794f16c82899be40760521a0aeed27ead74dd5d760e4529cc9ef1f2
+  - path: security/workspace-policy.md
+    kind: markdown
+    normative: true
+    owner: TV4
+    status: Validated
+    digest: sha256:7c5b7af3fbd6581e16b4df04346464e84f8ac7077a34fa3ec2dc2498dda939b8
+  - path: vocabulary.md
+    kind: markdown
+    normative: true
+    owner: TV1
+    status: Validated
+    digest: sha256:14ded1aa92c8db0e4947fe7d30c590aef38d0d353ffd9a0a19fa07cc87f11499

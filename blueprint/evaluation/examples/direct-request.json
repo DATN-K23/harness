@@ -1,0 +1,27 @@
+{
+  "example_schema": "paired-request-v2",
+  "classification": "synthetic-blueprint-only",
+  "experiment_profile": {"id": "synthetic-complete-v1", "version": 1, "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"},
+  "case_id": "case-alpha-1",
+  "contest_id": "synthetic:alpha",
+  "source_family_id": "family:alpha",
+  "split": "test",
+  "repeat_index": 0,
+  "arm": "direct",
+  "provider_profile": {"id": "deterministic-scripted-v1", "version": 1, "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+  "source_snapshot": {"source_snapshot_id": "snapshot-alpha", "revision": "synthetic-revision-1", "source_tree_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+  "sampling": {"temperature": 0, "top_p": 1, "seed": 17},
+  "logical_token_accounting": {"total_budget": 12000, "estimator": "synthetic-estimator-v1", "count_full_repeated_context": true, "count_cached_context_logically": true, "max_output_tokens_per_call": 1200},
+  "max_wall_clock_ms": 300000,
+  "verdict_schema_digest": "sha256:c462340046fd3a0822c1408fe9aa40a9dfe22e81f4c02bddb80d8aa59fd331e7",
+  "prompts": [
+    {"id": "judge-core", "digest": "sha256:594b5f80a7a1e6c278572aa12569d06b6a4b6708a9df256b4337f39032a83a8b"},
+    {"id": "direct-wrapper", "digest": "sha256:d392eaf14821ccd66e8ba5208a7ee2d870649993257adbeec2569fac5ddd0607"}
+  ],
+  "source_access": {"mode": "source-bundle-v1", "bundle_ref": "source-bundle-v1.txt", "bundle_digest": "sha256:fc1891d18a46130af218bb8bd7eb01355661804028a02b43bbb8cbffc0d24c6a"},
+  "flags_preset": "direct-primary-v1",
+  "retry_snapshot": {"provider_retry_enabled": false, "sdk_max_retries": 0, "project_attempts_per_logical_call": 1, "telemetry_field": "provider_retry_enabled", "acceptance_id": "ABL-RETRY-OFF-001"},
+  "ground_truth_present": false,
+  "raw_host_path_present": false
+}
+

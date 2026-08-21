@@ -1,0 +1,24 @@
+{
+  "schema_version": "contest-manifest-v2",
+  "manifest_id": "synthetic-manifest",
+  "version": "synthetic-manifest-v2",
+  "frozen": true,
+  "created_at": "2026-08-10T00:00:00Z",
+  "label_normalization_version": "severity-v1",
+  "split_policy_version": "whole-contest+source-family-v1",
+  "provenance": [{"platform": "synthetic", "source_reference": "blueprint-only-example", "retrieved_at": "2026-08-10T00:00:00Z"}],
+  "source_families": {
+    "family:alpha": {"split": "test", "basis": "synthetic shared protocol lineage", "contest_ids": ["synthetic:alpha"]}
+  },
+  "contests": {
+    "synthetic:alpha": {
+      "split": "test",
+      "source_family_id": "family:alpha",
+      "published_at": "2026-07-01T00:00:00Z",
+      "source": {"source_snapshot_id": "snapshot-alpha", "revision": "synthetic-revision-1", "source_tree_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "case_ids": ["case-alpha-1", "case-alpha-2"],
+      "contamination": [{"model_id": "deterministic-v1", "knowledge_cutoff": "2026-01-01T00:00:00Z", "bucket": "post_cutoff", "evidence_reference": "synthetic capability record"}]
+    }
+  },
+  "content_digest": "sha256:a764405426a2d44e08b42183b9033306da35298dd47f6b4850a58ac3db7d6c03"
+}

@@ -1,8 +1,10 @@
 # Technical Specification — TV6: Offline Demo & Quality Verification Plan
+
 ## Document Identifier: SPEC-TV6-05-DEMO-TESTING
+
 **Standard Compliance:** ISO/IEC/IEEE 29148:2018 / IEEE 829 (Software Test Documentation)  
 **Status:** Approved Architectural Specification  
-**Track:** TV6 — Application & Demo  
+**Track:** TV6 — Application & Demo
 
 ---
 
@@ -39,24 +41,25 @@
 ## 1.2 Kiến trúc Offline Demo Replay — Client-Driven Model
 
 > **Đổi Mới Kiến trúc**: Phiên bản trước sử dụng `DemoReplayService` phía Backend với `setTimeout` để giả lập nhịp độ phát sự kiện. Mô hình này có nhiều điểm yếu nghiêm trọng:
+>
 > - **Không phản hồi tức thì**: Server cần phải chờ `setTimeout` mới có thể phản hồi lệnh Pause/Jump từ UI → độ trễ tối thiểu 500-2000ms.
 > - **Phục tạp không cần thiết**: Server cần quản lý trạng thái phát lại (Replay State) — việc này thuộc về UI concern.
 
 ### Mô hình Mới: Client-Driven Replay
 
-| Yếu tố | Mô hình Cũ (Server-Driven) | Mô hình Mới (Client-Driven) |
-| :--- | :--- | :--- |
-| Timer quản lý | Backend `setTimeout` | Frontend `setInterval` |
-| Điều khiển Pause/Jump | HTTP request mới + chờ timer | Cập nhật Zustand Store tức thì (0ms) |
-| Điều kiện offline | Cần server chạy (local) | Hoàn toàn tự trị sau 1 REST call |
-| API Demo | `GET /demo/runs/:id/stream` (SSE) | `GET /api/v1/demo/runs/:id/timeline` (REST JSON) |
-| Cơ chế | Server push event từng cái | Client tự phát event từng bước |
+| Yếu tố                | Mô hình Cũ (Server-Driven)        | Mô hình Mới (Client-Driven)                      |
+| :-------------------- | :-------------------------------- | :----------------------------------------------- |
+| Timer quản lý         | Backend `setTimeout`              | Frontend `setInterval`                           |
+| Điều khiển Pause/Jump | HTTP request mới + chờ timer      | Cập nhật Zustand Store tức thì (0ms)             |
+| Điều kiện offline     | Cần server chạy (local)           | Hoàn toàn tự trị sau 1 REST call                 |
+| API Demo              | `GET /demo/runs/:id/stream` (SSE) | `GET /api/v1/demo/runs/:id/timeline` (REST JSON) |
+| Cơ chế                | Server push event từng cái        | Client tự phát event từng bước                   |
 
 ### `ReplayController` Store (Zustand)
 
 ```typescript
 // file: apps/web/src/stores/replay.store.ts
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface DemoEvent {
   type: string;
@@ -69,7 +72,7 @@ interface ReplayStore {
   currentStep: number;
   isPlaying: boolean;
   playbackSpeed: number; // 0.5 | 1 | 2 | 5 | 10
-  
+
   // Actions
   setEvents: (events: DemoEvent[]) => void;
   setPlaying: (isPlaying: boolean) => void;
@@ -120,18 +123,22 @@ useEffect(() => {
 > **⚠️ PITFALL — Tick Drift (I2)**: Chuỗi `setTimeout` lồng nhau (mỗi lần render tạo 1 timer mới) sẽ cộng dồn thêm thời gian render component + re-run Effect vào `delayMs` thực tế. Kết quả: replay **chậm dần** càng lâu chạy (drift). Ảnh hưởng demo experience khi playbackSpeed cao (5x/10x).
 >
 > **Cách fix khi implement**: Thay vì dùng `delayMs` tuyệt đối, tính `nextTick` dựa trên **wall-clock timestamp** để compensation:
+>
 > ```typescript
 > // Pattern đúng: bù trừ thời gian render
 > const expectedAt = performance.now() + delayMs;
-> const timerId = setTimeout(() => {
->   const drift = performance.now() - expectedAt; // > 0 nếu bị trễ
->   dispatchEventToUI(currentEvent);
->   tickStep();
->   // Truyền `drift` sang step tiếp theo để trừ vào delayMs kế tiếp
-> }, Math.max(0, delayMs));
+> const timerId = setTimeout(
+>   () => {
+>     const drift = performance.now() - expectedAt; // > 0 nếu bị trễ
+>     dispatchEventToUI(currentEvent);
+>     tickStep();
+>     // Truyền `drift` sang step tiếp theo để trừ vào delayMs kế tiếp
+>   },
+>   Math.max(0, delayMs),
+> );
 > ```
+>
 > Với demo tốc độ 1x, drift là chấp nhận được. Bắt buộc xử lý khi `playbackSpeed >= 5`.
-
 
 ---
 
@@ -193,12 +200,15 @@ corepack pnpm run verify
 
 ```typescript
 // file: apps/web/src/__tests__/e2e/offline-failover.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Offline Demo Failover', () => {
-  test('ReplayController vẫn hoạt động sau khi ngắt mạng hoàn toàn', async ({ page, context }) => {
+test.describe("Offline Demo Failover", () => {
+  test("ReplayController vẫn hoạt động sau khi ngắt mạng hoàn toàn", async ({
+    page,
+    context,
+  }) => {
     // 1. Truy cập trang Demo khi có mạng
-    await page.goto('http://localhost:5173/demo');
+    await page.goto("http://localhost:5173/demo");
     await page.waitForSelector('[data-testid="demo-case-reentrancy"]');
     await page.click('[data-testid="demo-case-reentrancy"]');
 
@@ -211,37 +221,51 @@ test.describe('Offline Demo Failover', () => {
 
     // 4. Nhấn Play — ReplayController phải phản hồi tức khắc (client timer)
     await page.click('[data-testid="play-button"]');
-    await expect(page.locator('[data-testid="step-card"]')).toHaveCount({ min: 1 });
+    await expect(page.locator('[data-testid="step-card"]')).toHaveCount({
+      min: 1,
+    });
 
     // 5. Kiểm tra Pause hoạt động ngay lập tức (0ms)
-    const stepBeforePause = await page.locator('[data-testid="current-step"]').textContent();
+    const stepBeforePause = await page
+      .locator('[data-testid="current-step"]')
+      .textContent();
     await page.click('[data-testid="pause-button"]');
     await page.waitForTimeout(500); // Chờ 500ms để kiểm tra step không tiến thêm
-    const stepAfterPause = await page.locator('[data-testid="current-step"]').textContent();
+    const stepAfterPause = await page
+      .locator('[data-testid="current-step"]')
+      .textContent();
     expect(stepBeforePause).toBe(stepAfterPause); // Step không đổi sau Pause
 
     // 6. Kiểm tra Jump to Step
-    await page.fill('[data-testid="step-slider"]', '5');
-    await expect(page.locator('[data-testid="current-step"]')).toHaveText('5');
+    await page.fill('[data-testid="step-slider"]', "5");
+    await expect(page.locator('[data-testid="current-step"]')).toHaveText("5");
 
     // 7. Kiểm tra Speed change (5x)
-    await page.selectOption('[data-testid="speed-selector"]', '5');
+    await page.selectOption('[data-testid="speed-selector"]', "5");
     await page.click('[data-testid="play-button"]');
     await page.waitForTimeout(1000); // 1 giây — tốc độ 5x nên đã tiến khá nhiều bước
-    const stepAfterSpeed = await page.locator('[data-testid="current-step"]').textContent();
+    const stepAfterSpeed = await page
+      .locator('[data-testid="current-step"]')
+      .textContent();
     expect(Number(stepAfterSpeed)).toBeGreaterThan(5);
 
     // 8. Phục hồi mạng và kiểm tra không có crash
     await context.setOffline(false);
-    await expect(page.locator('[data-testid="replay-controller"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="replay-controller"]'),
+    ).toBeVisible();
   });
 
-  test('Khởi động lại (F5) trên TraceView khôi phục được lịch sử', async ({ page }) => {
+  test("Khởi động lại (F5) trên TraceView khôi phục được lịch sử", async ({
+    page,
+  }) => {
     // Giả lập: Run đang chạy với 10 tool calls đã ghi
-    await page.goto('http://localhost:5173/runs/run-demo-01');
+    await page.goto("http://localhost:5173/runs/run-demo-01");
     await page.waitForSelector('[data-testid="tool-call-card"]');
 
-    const initialCount = await page.locator('[data-testid="tool-call-card"]').count();
+    const initialCount = await page
+      .locator('[data-testid="tool-call-card"]')
+      .count();
     expect(initialCount).toBeGreaterThanOrEqual(10);
 
     // F5 reload
@@ -249,11 +273,15 @@ test.describe('Offline Demo Failover', () => {
     await page.waitForSelector('[data-testid="tool-call-card"]');
 
     // Sau reload, phải vẫn có được ít nhất số lượng tool calls ban đầu
-    const afterReloadCount = await page.locator('[data-testid="tool-call-card"]').count();
+    const afterReloadCount = await page
+      .locator('[data-testid="tool-call-card"]')
+      .count();
     expect(afterReloadCount).toBeGreaterThanOrEqual(initialCount);
 
     // Badge SSE phải hiển Connected hoặc Offline (không phải blank)
-    await expect(page.locator('[data-testid="sse-status-badge"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="sse-status-badge"]'),
+    ).toBeVisible();
   });
 });
 ```

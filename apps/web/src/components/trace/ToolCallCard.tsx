@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import type { ToolCall } from "@audit-harness/contracts";
-import {
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle,
-  Clock,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Clock } from "lucide-react";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -31,7 +26,8 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
   const formatArgumentsJson = (jsonStr: string): string => {
     if (!jsonStr) return "{}";
     try {
-      const parsed = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+      const parsed =
+        typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
       return JSON.stringify(parsed, null, 2);
     } catch {
       return jsonStr; // Trả về raw string nếu parse lỗi thay vì crash

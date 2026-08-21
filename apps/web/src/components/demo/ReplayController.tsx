@@ -172,7 +172,9 @@ export const ReplayController: React.FC = () => {
       >
         <div>
           Event:{" "}
-          <code style={{ color: "#a7f3d0" }}>{currentEvent?.type || "IDLE"}</code>
+          <code style={{ color: "#a7f3d0" }}>
+            {currentEvent?.type || "IDLE"}
+          </code>
         </div>
         <div style={{ color: "#4b5563", fontSize: "0.7rem", marginTop: "2px" }}>
           {Math.round(progress)}% complete

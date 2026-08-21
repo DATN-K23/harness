@@ -110,7 +110,9 @@ export const App: React.FC = () => {
               borderRadius: "50%",
             }}
           />
-          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f9fafb" }}>
+          <span
+            style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f9fafb" }}
+          >
             Audit Harness
           </span>
           <span
@@ -138,7 +140,11 @@ export const App: React.FC = () => {
         >
           <label
             htmlFor="run-id-input"
-            style={{ fontSize: "0.8rem", color: "#9ca3af", whiteSpace: "nowrap" }}
+            style={{
+              fontSize: "0.8rem",
+              color: "#9ca3af",
+              whiteSpace: "nowrap",
+            }}
           >
             Run ID:
           </label>

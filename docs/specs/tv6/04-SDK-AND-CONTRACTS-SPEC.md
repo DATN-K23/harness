@@ -1,8 +1,10 @@
 # Technical Specification — TV6: SDK & Contracts Specification (`packages/sdk`)
+
 ## Document Identifier: SPEC-TV6-04-SDK-CONTRACTS
+
 **Standard Compliance:** ISO/IEC/IEEE 29148:2018 / ECMAScript 2026 Type Standards  
 **Status:** Approved Architectural Specification  
-**Track:** TV6 — Application & Demo  
+**Track:** TV6 — Application & Demo
 
 ---
 
@@ -23,6 +25,7 @@ packages/sdk/
 ```
 
 > **Lựa chọn Thư viện**: SDK sử dụng `@microsoft/fetch-event-source` thay vì `EventSource` của trình duyệt goc vì:
+>
 > - `EventSource` không cho phép gửi custom HTTP headers (như `Authorization`, `x-request-id`).
 > - `EventSource` không hoạt động tốt trong môi trường CLI Node.js.
 > - `@microsoft/fetch-event-source` hỗ trợ exponential backoff retry khi mất kết nối và tích hợp sẵn `Last-Event-ID`.
@@ -34,8 +37,8 @@ packages/sdk/
 ```typescript
 // file: packages/sdk/src/client.ts
 
-import { Run, Verdict, ToolCall, ModelEvent } from '@audit-harness/contracts';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { Run, Verdict, ToolCall, ModelEvent } from "@audit-harness/contracts";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 // StreamConnectionOptions và RunStreamListener được định nghĩa trong file này
 
 export interface ApiSuccessResponse<T> {
@@ -127,7 +130,7 @@ export interface ToolCallEvent {
 /** Typed payload cho SSE event `run:status_changed` */
 export interface StatusChangedEvent {
   runId: string;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   timestamp: string;
 }
 
@@ -135,7 +138,7 @@ export interface StatusChangedEvent {
 export interface VerdictEvent {
   runId: string;
   verdict: {
-    status: 'VALID' | 'INVALID' | 'UNVERIFIED';
+    status: "VALID" | "INVALID" | "UNVERIFIED";
     severity: string;
     confidenceScore: number;
     explanation: string;
@@ -169,15 +172,15 @@ export class AuditHarnessClient {
   private readonly defaultHeaders: Record<string, string>;
 
   constructor(options: AuditHarnessClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.defaultHeaders = {
-      'Content-Type': 'application/json',
-      ...(options.apiKey && { 'Authorization': `Bearer ${options.apiKey}` }),
+      "Content-Type": "application/json",
+      ...(options.apiKey && { Authorization: `Bearer ${options.apiKey}` }),
     };
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
     const res = await fetch(url, {
       ...init,
       headers: {
@@ -191,7 +194,7 @@ export class AuditHarnessClient {
     if (!res.ok || !body.success) {
       const errorBody = body as ApiErrorResponse;
       throw new Error(
-        `[${errorBody.error?.code || 'ERR_API'}] ${errorBody.error?.message || res.statusText}`
+        `[${errorBody.error?.code || "ERR_API"}] ${errorBody.error?.message || res.statusText}`,
       );
     }
 
@@ -200,8 +203,8 @@ export class AuditHarnessClient {
 
   // REST Method: Create a new Audit Run
   public async createRun(params: CreateRunParams): Promise<Run> {
-    return this.request<Run>('/api/v1/runs', {
-      method: 'POST',
+    return this.request<Run>("/api/v1/runs", {
+      method: "POST",
       body: JSON.stringify(params),
     });
   }
@@ -212,7 +215,11 @@ export class AuditHarnessClient {
   }
 
   // REST Method: List runs with pagination
-  public async listRuns(query?: { page?: number; pageSize?: number; status?: string }): Promise<Run[]> {
+  public async listRuns(query?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+  }): Promise<Run[]> {
     const searchParams = new URLSearchParams(query as any).toString();
     return this.request<Run[]>(`/api/v1/runs?${searchParams}`);
   }
@@ -223,10 +230,13 @@ export class AuditHarnessClient {
     query?: { fromStep?: number; limit?: number },
   ): Promise<ToolCall[]> {
     const params = new URLSearchParams();
-    if (query?.fromStep !== undefined) params.set('fromStep', String(query.fromStep));
-    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.fromStep !== undefined)
+      params.set("fromStep", String(query.fromStep));
+    if (query?.limit !== undefined) params.set("limit", String(query.limit));
     const qs = params.toString();
-    return this.request<ToolCall[]>(`/api/v1/runs/${runId}/tool-calls${qs ? `?${qs}` : ''}`);
+    return this.request<ToolCall[]>(
+      `/api/v1/runs/${runId}/tool-calls${qs ? `?${qs}` : ""}`,
+    );
   }
 
   // REST Method: Lấy lịch sử Model Events (THOUGHT) của một Run (dùng cho Page Recovery)
@@ -235,18 +245,21 @@ export class AuditHarnessClient {
     query?: { fromStep?: number; limit?: number },
   ): Promise<ModelEvent[]> {
     const params = new URLSearchParams();
-    if (query?.fromStep !== undefined) params.set('fromStep', String(query.fromStep));
-    if (query?.limit !== undefined) params.set('limit', String(query.limit));
+    if (query?.fromStep !== undefined)
+      params.set("fromStep", String(query.fromStep));
+    if (query?.limit !== undefined) params.set("limit", String(query.limit));
     const qs = params.toString();
-    return this.request<ModelEvent[]>(`/api/v1/runs/${runId}/model-events${qs ? `?${qs}` : ''}`);
+    return this.request<ModelEvent[]>(
+      `/api/v1/runs/${runId}/model-events${qs ? `?${qs}` : ""}`,
+    );
   }
 
   // REST Method: Hủy bỏ một Audit Run đang chạy
   public async cancelRun(runId: string): Promise<Run> {
     return this.request<Run>(`/api/v1/runs/${runId}/cancel`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'x-request-id': `req_cancel_${Date.now()}`,
+        "x-request-id": `req_cancel_${Date.now()}`,
       },
     });
   }
@@ -264,65 +277,65 @@ export class AuditHarnessClient {
   public subscribeRunStream(
     runId: string,
     listener: RunStreamListener,
-    options?: StreamConnectionOptions
+    options?: StreamConnectionOptions,
   ): () => void {
     const abortController = new AbortController();
 
     // Xây dựng URL với fromStep nếu có
     const url = new URL(`${this.baseUrl}/api/v1/runs/${runId}/stream`);
     if (options?.fromStep !== undefined) {
-      url.searchParams.set('fromStep', String(options.fromStep));
+      url.searchParams.set("fromStep", String(options.fromStep));
     }
 
     // Static import (khai báo ở đầu file) — đảm bảo AbortController hoạt động ngay cả khi unsubscribe() được gọi trước khi kết nối mở
     void fetchEventSource(url.toString(), {
-        headers: {
-          ...this.defaultHeaders,
-          // Cho phép client gửi `Last-Event-ID` tự động và manual
-          ...(options?.fromStep !== undefined && {
-            'Last-Event-ID': String(options.fromStep),
-          }),
-        },
-        signal: abortController.signal,
-        onopen: async (response) => {
-          if (!response.ok) {
-            throw new Error(`SSE connection failed: HTTP ${response.status}`);
+      headers: {
+        ...this.defaultHeaders,
+        // Cho phép client gửi `Last-Event-ID` tự động và manual
+        ...(options?.fromStep !== undefined && {
+          "Last-Event-ID": String(options.fromStep),
+        }),
+      },
+      signal: abortController.signal,
+      onopen: async (response) => {
+        if (!response.ok) {
+          throw new Error(`SSE connection failed: HTTP ${response.status}`);
+        }
+      },
+      onmessage: (event) => {
+        if (event.event === "heartbeat") return; // Bỏ qua heartbeat keep-alive
+        try {
+          const data = JSON.parse(event.data);
+          switch (event.event) {
+            case "step:thought":
+              listener.onThought?.(data as ThoughtEvent);
+              break;
+            case "step:tool_call":
+              listener.onToolCall?.(data as ToolCallEvent);
+              break;
+            case "run:status_changed":
+              listener.onStatusChanged?.(data as StatusChangedEvent);
+              break;
+            case "run:verdict":
+              listener.onVerdict?.(data as VerdictEvent);
+              break;
+            case "run:completed":
+              listener.onCompleted?.(data as CompletedEvent);
+              abortController.abort(); // Đóng kết nối sau khi hoàn tất
+              break;
           }
-        },
-        onmessage: (event) => {
-          if (event.event === 'heartbeat') return; // Bỏ qua heartbeat keep-alive
-          try {
-            const data = JSON.parse(event.data);
-            switch (event.event) {
-              case 'step:thought':
-                listener.onThought?.(data as ThoughtEvent);
-                break;
-              case 'step:tool_call':
-                listener.onToolCall?.(data as ToolCallEvent);
-                break;
-              case 'run:status_changed':
-                listener.onStatusChanged?.(data as StatusChangedEvent);
-                break;
-              case 'run:verdict':
-                listener.onVerdict?.(data as VerdictEvent);
-                break;
-              case 'run:completed':
-                listener.onCompleted?.(data as CompletedEvent);
-                abortController.abort(); // Đóng kết nối sau khi hoàn tất
-                break;
-            }
-          } catch (e) {
-            listener.onError?.(e);
-          }
-        },
-        onerror: (err) => {
-          listener.onError?.(err);
-          // fetchEventSource tự động retry với exponential backoff.
-          // Ném lỗi để dừng retry nếu muốn:
-          // throw err;
-        },
-        openWhenHidden: true, // Tiếp tục kết nối kể cả khi tab bị ẩn
-      });
+        } catch (e) {
+          listener.onError?.(e);
+        }
+      },
+      onerror: (err) => {
+        listener.onError?.(err);
+        // fetchEventSource tự động retry với exponential backoff.
+        // Ném lỗi để dừng retry nếu muốn:
+        // throw err;
+      },
+      openWhenHidden: true, // Tiếp tục kết nối kể cả khi tab bị ẩn
+    });
 
     return () => {
       abortController.abort();
@@ -337,9 +350,9 @@ export class AuditHarnessClient {
 
 Mọi lỗi trả về từ SDK đều thuộc lớp `HarnessSDKError` và được phân loại theo mã lỗi định danh cụ thể:
 
-| Error Code | Class Name | Description |
-| :--- | :--- | :--- |
-| `ERR_NETWORK_DISCONNECTED` | `NetworkDisconnectedError` | Mất kết nối HTTP hoặc SSE stream rớt |
-| `ERR_RUN_NOT_FOUND` | `RunNotFoundError` | `runId` truyền vào không tồn tại trong hệ thống |
-| `ERR_STREAM_TIMEOUT` | `StreamTimeoutError` | Mất tín hiệu heartbeat từ SSE stream quá 30 giây |
-| `ERR_INVALID_PAYLOAD` | `InvalidPayloadError` | Response DTO không thỏa mãn Zod Schema của SDK |
+| Error Code                 | Class Name                 | Description                                      |
+| :------------------------- | :------------------------- | :----------------------------------------------- |
+| `ERR_NETWORK_DISCONNECTED` | `NetworkDisconnectedError` | Mất kết nối HTTP hoặc SSE stream rớt             |
+| `ERR_RUN_NOT_FOUND`        | `RunNotFoundError`         | `runId` truyền vào không tồn tại trong hệ thống  |
+| `ERR_STREAM_TIMEOUT`       | `StreamTimeoutError`       | Mất tín hiệu heartbeat từ SSE stream quá 30 giây |
+| `ERR_INVALID_PAYLOAD`      | `InvalidPayloadError`      | Response DTO không thỏa mãn Zod Schema của SDK   |

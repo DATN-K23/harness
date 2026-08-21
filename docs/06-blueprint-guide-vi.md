@@ -99,15 +99,15 @@ Tài liệu bạn đang đọc nằm ở tầng giải thích. Nó giúp hiểu 
 
 Stack family cho tương lai đã được `Accepted`:
 
-| Phần                          | Công nghệ đã chọn                    |
-| ------------------------------ | ----------------------------------------- |
-| Runtime/backend                | Python 3.12                               |
-| Local API và validation       | FastAPI, Pydantic v2                      |
-| Persistence                    | PostgreSQL, SQLAlchemy 2.x, Alembic       |
+| Phần                           | Công nghệ đã chọn                        |
+| ------------------------------ | ---------------------------------------- |
+| Runtime/backend                | Python 3.12                              |
+| Local API và validation        | FastAPI, Pydantic v2                     |
+| Persistence                    | PostgreSQL, SQLAlchemy 2.x, Alembic      |
 | Desktop renderer               | React, TypeScript, Vite trên Node.js LTS |
-| Python dependency workflow     | `uv` và lockfile                       |
-| JavaScript dependency workflow | `pnpm` và lockfile                     |
-| Local development/delivery     | Docker Compose                            |
+| Python dependency workflow     | `uv` và lockfile                         |
+| JavaScript dependency workflow | `pnpm` và lockfile                       |
+| Local development/delivery     | Docker Compose                           |
 
 Không được tự đổi sang NestJS, Redis/BullMQ, Celery, Bun/Effect/Solid, Kubernetes hoặc microservices chỉ vì một thành viên thích công nghệ đó. Nếu stack family thật sự không đáp ứng được, phải có ADR thay thế kèm bằng chứng.
 
@@ -194,9 +194,9 @@ ADR-007 Accepted không có nghĩa distribution đã sẵn sàng. WP-01/WP-10 v�
 
 ### 4.8 Hai profile quan trọng vẫn đang khóa
 
-| Profile                   | Trạng thái                             | Ý nghĩa                                                                       |
-| ------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
-| `real-primary@1`        | `Proposed`, `network_ready: false`   | Không được tạo provider client, đọc credential hoặc gọi mạng.         |
+| Profile                 | Trạng thái                           | Ý nghĩa                                                            |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------------------ |
+| `real-primary@1`        | `Proposed`, `network_ready: false`   | Không được tạo provider client, đọc credential hoặc gọi mạng.      |
 | `rq1-confirmatory-v1@1` | `Proposed`, `execution_ready: false` | Không được mở frozen test hoặc chạy thí nghiệm có kết quả/chi phí. |
 
 Đây không phải thiếu sót. Đây là gate an toàn có chủ đích.
@@ -246,12 +246,12 @@ Renderer chỉ gọi generated TypeScript client được sinh từ OpenAPI. Nó
 
 ### 6.2 Local runtime gồm những process nào?
 
-| Process       | Trách nhiệm chính                                                           |
-| ------------- | ------------------------------------------------------------------------------ |
-| `daemon`    | local API, handshake, source registration, run/status/event projection         |
-| `worker`    | claim công việc và thực thi Judge agent loop                               |
-| `evaluator` | lập lịch thí nghiệm, quản lý matched cells, aggregate kết quả an toàn |
-| `scorer`    | đọc ground truth sau terminal và tạo score được phép công bố         |
+| Process     | Trách nhiệm chính                                                      |
+| ----------- | ---------------------------------------------------------------------- |
+| `daemon`    | local API, handshake, source registration, run/status/event projection |
+| `worker`    | claim công việc và thực thi Judge agent loop                           |
+| `evaluator` | lập lịch thí nghiệm, quản lý matched cells, aggregate kết quả an toàn  |
+| `scorer`    | đọc ground truth sau terminal và tạo score được phép công bố           |
 
 Bốn process dùng chung một Python runtime codebase, dependency lock và compatibility version. Chúng không phải bốn microservice phát hành độc lập.
 
@@ -322,15 +322,15 @@ Ví dụ `source_access` là capability vì nó sở hữu toàn bộ nghiệp v
 
 ### 7.1 Bảy capability của runtime
 
-| Capability        | Sở hữu                                                                            | Không sở hữu                                     |
-| ----------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `run_control`   | lifecycle, idempotency, jobs/outbox, claim/lease, ordered event                     | provider mapping, source I/O, label                 |
-| `model_gateway` | provider contract/profile, adapter, identity, usage, cost, error                    | agent continuation, tool execution, verdict meaning |
+| Capability      | Sở hữu                                                                             | Không sở hữu                                        |
+| --------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `run_control`   | lifecycle, idempotency, jobs/outbox, claim/lease, ordered event                    | provider mapping, source I/O, label                 |
+| `model_gateway` | provider contract/profile, adapter, identity, usage, cost, error                   | agent continuation, tool execution, verdict meaning |
 | `source_access` | source registration, immutable snapshot, workspace, bốn source tool, path security | repository-picker UI, Judge policy, ground truth    |
-| `agent_runtime` | turn loop, committed history, context allocation, budget, stop/continuation         | `valid/invalid` semantics, label                  |
+| `agent_runtime` | turn loop, committed history, context allocation, budget, stop/continuation        | `valid/invalid` semantics, label                    |
 | `judge`         | candidate semantics, Judge prompt/policy, verdict và evidence validation           | provider SDK, raw filesystem, ground truth          |
-| `evaluation`    | protocol/profile, direct-versus-harness schedule, manifest, aggregation/export      | label resolution, scorer credential                 |
-| `scoring`       | label/adjudication, post-terminal join, score computation                           | agent context, provider, tool, desktop              |
+| `evaluation`    | protocol/profile, direct-versus-harness schedule, manifest, aggregation/export     | label resolution, scorer credential                 |
+| `scoring`       | label/adjudication, post-terminal join, score computation                          | agent context, provider, tool, desktop              |
 
 ### 7.2 Quan hệ dependency được phép
 
@@ -382,12 +382,12 @@ Không phải capability nào cũng phải có đủ sáu folder. Chỉ tạo fo
 
 ### 7.4 Các vùng nằm ngoài capability
 
-| Vùng             | Được chứa                                                            | Không được chứa                               |
-| ----------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| `shared_kernel` | ID, time, money,`Result`, base error                                   | business model/service                             |
-| `platform`      | DB engine, config loader, observability, secret store, process mechanics | business repository hoặc policy                   |
-| `entrypoints`   | wiring và process startup/shutdown                                      | business decision                                  |
-| `generated`     | projection sinh từ canonical contract                                   | model viết tay hoặc scorer type lộ sang desktop |
+| Vùng            | Được chứa                                                                | Không được chứa                                 |
+| --------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| `shared_kernel` | ID, time, money,`Result`, base error                                     | business model/service                          |
+| `platform`      | DB engine, config loader, observability, secret store, process mechanics | business repository hoặc policy                 |
+| `entrypoints`   | wiring và process startup/shutdown                                       | business decision                               |
+| `generated`     | projection sinh từ canonical contract                                    | model viết tay hoặc scorer type lộ sang desktop |
 
 Không có global `adapters/` chứa business adapter. Provider adapter thuộc `model_gateway`; filesystem adapter thuộc `source_access`; persistence adapter thuộc capability sở hữu table.
 
@@ -780,10 +780,10 @@ Verdict bắt buộc có:
 
 Cross-field rules:
 
-| Validity    | Severity hợp lệ                           |
-| ----------- | ------------------------------------------- |
+| Validity  | Severity hợp lệ                     |
+| --------- | ----------------------------------- |
 | `valid`   | `low`, `medium`, `high`, `critical` |
-| `invalid` | `none`                                    |
+| `invalid` | `none`                              |
 
 `confidence` nằm trong `[0,1]` nhưng không được tuyên bố là calibrated probability.
 
@@ -956,17 +956,17 @@ Nếu process crash sau khi provider đã xử lý nhưng trước khi response 
 
 OpenAPI hiện định nghĩa chín đường dẫn:
 
-| Method và path                            | Mục đích                                     |
-| ------------------------------------------ | ----------------------------------------------- |
-| `GET /health`                            | runtime health                                  |
-| `GET /runtime-info`                      | version/contract/capability handshake           |
+| Method và path                           | Mục đích                                   |
+| ---------------------------------------- | ------------------------------------------ |
+| `GET /health`                            | runtime health                             |
+| `GET /runtime-info`                      | version/contract/capability handshake      |
 | `POST /source-snapshots`                 | đăng ký repository và tạo managed snapshot |
-| `POST /judge-runs`                       | submit async Judge run                          |
-| `GET /runs/{run_id}`                     | đọc state và terminal projection             |
-| `GET /runs/{run_id}/events`              | đọc finite ordered event page                 |
-| `POST /runs/{run_id}/cancel`             | yêu cầu cancellation idempotent               |
-| `POST /runtime-lifecycle/shutdown`       | explicit runtime shutdown                       |
-| `POST /runtime-lifecycle/prepare-update` | quiesce/update preparation                      |
+| `POST /judge-runs`                       | submit async Judge run                     |
+| `GET /runs/{run_id}`                     | đọc state và terminal projection           |
+| `GET /runs/{run_id}/events`              | đọc finite ordered event page              |
+| `POST /runs/{run_id}/cancel`             | yêu cầu cancellation idempotent            |
+| `POST /runtime-lifecycle/shutdown`       | explicit runtime shutdown                  |
+| `POST /runtime-lifecycle/prepare-update` | quiesce/update preparation                 |
 
 Toàn API được bảo vệ bằng local runtime credential hoặc OS-equivalent access control.
 
@@ -1052,13 +1052,13 @@ Mỗi pair có cùng:
 
 ### 21.2 Khác biệt có chủ đích giữa hai arm
 
-| Direct                             | Harness                               |
-| ---------------------------------- | ------------------------------------- |
-| Judge core + direct wrapper        | cùng Judge core + harness wrapper    |
-| một deterministic`SourceBundle` | bốn local source tools               |
-| đúng một model call             | bounded multi-turn agent loop         |
-| không tool feedback/repair/loop   | có thể bật theo frozen flag preset |
-| không memory/PoC                  | cũng không memory/PoC trong MVP     |
+| Direct                          | Harness                            |
+| ------------------------------- | ---------------------------------- |
+| Judge core + direct wrapper     | cùng Judge core + harness wrapper  |
+| một deterministic`SourceBundle` | bốn local source tools             |
+| đúng một model call             | bounded multi-turn agent loop      |
+| không tool feedback/repair/loop | có thể bật theo frozen flag preset |
+| không memory/PoC                | cũng không memory/PoC trong MVP    |
 
 Wrapper không giống nhau hoàn toàn, vì source access chính là treatment. Nhưng exact byte/digest và khác biệt phải được công khai.
 
@@ -1186,12 +1186,12 @@ Trước khi xem frozen test, profile phải chốt:
 
 Kết luận:
 
-| Precision | Recall   | Completion | Kết luận                                               |
-| --------- | -------- | ---------- | -------------------------------------------------------- |
-| pass      | pass     | pass       | `positive`                                             |
-| fail      | pass     | pass       | `negative` hoặc `inconclusive` theo rule đã chốt |
-| bất kỳ  | fail     | bất kỳ   | `mixed`                                                |
-| bất kỳ  | bất kỳ | fail       | `mixed`                                                |
+| Precision | Recall | Completion | Kết luận                                         |
+| --------- | ------ | ---------- | ------------------------------------------------ |
+| pass      | pass   | pass       | `positive`                                       |
+| fail      | pass   | pass       | `negative` hoặc `inconclusive` theo rule đã chốt |
+| bất kỳ    | fail   | bất kỳ     | `mixed`                                          |
+| bất kỳ    | bất kỳ | fail       | `mixed`                                          |
 
 Precision tăng không được che giấu việc recall sụp hoặc hệ thống không hoàn thành run.
 
@@ -1236,15 +1236,15 @@ Tắt safety invariant không tạo một ablation hợp lệ; nó làm thí ngh
 
 Các lớp chính:
 
-| Class                   | Ví dụ                                    |
-| ----------------------- | ------------------------------------------ |
-| `PUBLIC_SAFE`         | safe local API projection                  |
-| `AGENT_UNTRUSTED`     | candidate, source, model/tool content      |
-| `CONTROL_INTERNAL`    | config, manifest/profile metadata          |
-| `EPHEMERAL_SENSITIVE` | native selected raw path                   |
-| `SCORER_ONLY`         | label, adjudication, score detail          |
-| `EVALUATION_PUBLIC`   | label-free approved aggregate              |
-| `SECRET`              | credential/token                           |
+| Class                 | Ví dụ                                 |
+| --------------------- | ------------------------------------- |
+| `PUBLIC_SAFE`         | safe local API projection             |
+| `AGENT_UNTRUSTED`     | candidate, source, model/tool content |
+| `CONTROL_INTERNAL`    | config, manifest/profile metadata     |
+| `EPHEMERAL_SENSITIVE` | native selected raw path              |
+| `SCORER_ONLY`         | label, adjudication, score detail     |
+| `EVALUATION_PUBLIC`   | label-free approved aggregate         |
+| `SECRET`              | credential/token                      |
 | `PROHIBITED`          | ground truth/original không được phép |
 
 Thứ tự bắt buộc:
@@ -1264,14 +1264,14 @@ Ordinary log chỉ giữ correlation ID, safe category, duration, count và rule
 
 ## 26. Ownership của sáu thành viên
 
-| Track | Trách nhiệm chính                                                                         |
-| ----- | -------------------------------------------------------------------------------------------- |
-| TV1   | kiến trúc,`run_control`, `agent_runtime`, `judge`, `model_gateway`, worker closure |
-| TV2   | context allocation, token accounting, budget/stop mechanics trong`agent_runtime`           |
-| TV3   | source-tool contract và registry trong`source_access`                                     |
-| TV4   | source/workspace security, redaction, threat model, scorer isolation                         |
-| TV5   | evaluation protocol/profile, statistics, scoring methodology                                 |
-| TV6   | PostgreSQL mechanics, daemon/local API, generated client, desktop và release integration    |
+| Track | Trách nhiệm chính                                                                        |
+| ----- | ---------------------------------------------------------------------------------------- |
+| TV1   | kiến trúc,`run_control`, `agent_runtime`, `judge`, `model_gateway`, worker closure       |
+| TV2   | context allocation, token accounting, budget/stop mechanics trong`agent_runtime`         |
+| TV3   | source-tool contract và registry trong`source_access`                                    |
+| TV4   | source/workspace security, redaction, threat model, scorer isolation                     |
+| TV5   | evaluation protocol/profile, statistics, scoring methodology                             |
+| TV6   | PostgreSQL mechanics, daemon/local API, generated client, desktop và release integration |
 
 Owner không có nghĩa làm một mình. Contract đổi phải có consumer review; data/security cần TV4; behavior ảnh hưởng kết quả cần TV5.
 

@@ -6,14 +6,14 @@ Phân công theo track. Đọc kỹ phần của mình, đọc lướt phần c�
 
 ## Tổng quan
 
-| | Track | Phạm vi | Sản phẩm cuối |
-|---|---|---|---|
-| **TV1** | Agent loop | Chu trình điều khiển trung tâm của harness | Core loop ổn định, 100 run liên tiếp không crash |
-| **TV2** | Context & Memory | Quản lý context budget, compaction, memory | Compaction và memory có flag bật/tắt |
-| **TV3** | Tools & Skills | Tool layer và skill catalog | Tool registry đầy đủ, ba skill mẫu |
-| **TV4** | Security & Verification | Sandbox, guardrail, môi trường thực thi test | Adversarial test suite, verification layer |
-| **TV5** | Data & Evaluation | Corpus, eval runner, phân tích số liệu | Ablation study, cross-provider matrix |
-| **TV6** | Application & Demo | FE/BE, trace view, kịch bản demo | Ứng dụng hai mode, offline demo |
+|         | Track                   | Phạm vi                                      | Sản phẩm cuối                                    |
+| ------- | ----------------------- | -------------------------------------------- | ------------------------------------------------ |
+| **TV1** | Agent loop              | Chu trình điều khiển trung tâm của harness   | Core loop ổn định, 100 run liên tiếp không crash |
+| **TV2** | Context & Memory        | Quản lý context budget, compaction, memory   | Compaction và memory có flag bật/tắt             |
+| **TV3** | Tools & Skills          | Tool layer và skill catalog                  | Tool registry đầy đủ, ba skill mẫu               |
+| **TV4** | Security & Verification | Sandbox, guardrail, môi trường thực thi test | Adversarial test suite, verification layer       |
+| **TV5** | Data & Evaluation       | Corpus, eval runner, phân tích số liệu       | Ablation study, cross-provider matrix            |
+| **TV6** | Application & Demo      | FE/BE, trace view, kịch bản demo             | Ứng dụng hai mode, offline demo                  |
 
 ---
 

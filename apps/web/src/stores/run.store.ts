@@ -67,7 +67,6 @@ export const useRunStore = create<RunState>((set) => ({
       return { toolCalls: [...state.toolCalls, formatted] };
     }),
 
-
   appendThought: (thought) =>
     set((state) => {
       // NW2 Fix: De-duplicate theo runId+stepIndex (giống appendToolCall)

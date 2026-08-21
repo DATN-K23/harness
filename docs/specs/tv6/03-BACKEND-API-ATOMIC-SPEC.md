@@ -1,8 +1,10 @@
 # Technical Specification — TV6: Backend API Atomic Specification (`apps/api`)
+
 ## Document Identifier: SPEC-TV6-03-BACKEND-API-ATOMIC
+
 **Standard Compliance:** ISO/IEC/IEEE 29148:2018 / OpenAPI 3.0 / RFC 7807 (Problem Details for HTTP APIs)  
 **Status:** Approved Architectural Specification  
-**Track:** TV6 — Application & Demo  
+**Track:** TV6 — Application & Demo
 
 ---
 
@@ -47,13 +49,14 @@ Toàn bộ các API HTTP REST của hệ thống bắt buộc tuân theo cấu t
 ```typescript
 export interface ApiSuccessResponse<T> {
   success: true;
-  code: number;          // HTTP Status Code (200, 201)
-  message: string;        // Human-readable summary message
-  data: T;                // Main payload typed object or array
+  code: number; // HTTP Status Code (200, 201)
+  message: string; // Human-readable summary message
+  data: T; // Main payload typed object or array
   meta: {
-    requestId: string;    // Unique UUID tracing per HTTP request
-    timestamp: string;    // ISO 8601 UTC timestamp
-    pagination?: {        // Conditional pagination metadata for list endpoints
+    requestId: string; // Unique UUID tracing per HTTP request
+    timestamp: string; // ISO 8601 UTC timestamp
+    pagination?: {
+      // Conditional pagination metadata for list endpoints
       page: number;
       pageSize: number;
       totalItems: number;
@@ -69,22 +72,22 @@ export interface ApiSuccessResponse<T> {
 
 ```typescript
 export interface ApiErrorDetail {
-  field?: string;         // Name of the invalid property/field
-  issue: string;          // Specific validation issue or error reason
+  field?: string; // Name of the invalid property/field
+  issue: string; // Specific validation issue or error reason
 }
 
 export interface ApiErrorResponse {
   success: false;
-  code: number;           // HTTP Error Status Code (400, 404, 422, 500)
+  code: number; // HTTP Error Status Code (400, 404, 422, 500)
   error: {
-    code: string;         // Machine-readable Error Code (e.g. ERR_RUN_NOT_FOUND)
-    message: string;      // Human-readable summary error description
+    code: string; // Machine-readable Error Code (e.g. ERR_RUN_NOT_FOUND)
+    message: string; // Human-readable summary error description
     details?: ApiErrorDetail[]; // Optional array of field-level validation errors
   };
   meta: {
-    requestId: string;    // Unique UUID tracing per HTTP request
-    timestamp: string;    // ISO 8601 UTC timestamp
-    path: string;         // Endpoint URI path requested
+    requestId: string; // Unique UUID tracing per HTTP request
+    timestamp: string; // ISO 8601 UTC timestamp
+    path: string; // Endpoint URI path requested
   };
 }
 ```
@@ -96,6 +99,7 @@ export interface ApiErrorResponse {
 Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
 
 ### 3.1 Endpoint: Khởi tạo Audit Run Mới
+
 - **Route**: `POST /api/v1/runs`
 - **Request Headers**: `Content-Type: application/json`
 - **Request Body (JSON)**:
@@ -158,6 +162,7 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
   ```
 
 ### 3.2 Endpoint: Lấy Danh sách Audit Runs (Có Phân trang & Lọc)
+
 - **Route**: `GET /api/v1/runs?page=1&pageSize=10&status=COMPLETED&search=Vault`
 - **Response Success (200 OK)**:
   ```json
@@ -193,6 +198,7 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
   ```
 
 ### 3.3 Endpoint: Chi tiết Một Audit Run
+
 - **Route**: `GET /api/v1/runs/:id`
 - **Response Success (200 OK)**:
   ```json
@@ -249,6 +255,7 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
   ```
 
 ### 3.4 Endpoint: Lấy Danh sách Tool Calls của 1 Run
+
 - **Route**: `GET /api/v1/runs/:id/tool-calls?fromStep=0&limit=50`
 - **Query Params**: `fromStep` (số bước bắt đầu, inclusive, mặc định 0), `limit` (số kết quả tối đa, mặc định 50, max 200)
 - **Response Success (200 OK)**:
@@ -286,6 +293,7 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
   ```
 
 ### 3.4b Endpoint: Lấy Danh sách Model Events (THOUGHT) của 1 Run
+
 - **Route**: `GET /api/v1/runs/:id/model-events?fromStep=0&limit=50`
 - **Mục đích**: Dùng cho Page Recovery — sau F5, `TraceView` cần lấy lịch sử `THOUGHT` (được lưu trong bảng `ModelEvent`, không phải `ToolCall`).
 - **Response Success (200 OK)**:
@@ -312,10 +320,12 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
   ```
 
 ### 3.5 Endpoint: Export Dữ liệu Trajectory
+
 - **Route**: `GET /api/v1/runs/:id/export?format=json`
 - **Response (200 OK)**: Trả về tập tin đính kèm `Header: Content-Disposition: attachment; filename="run-c7a9f82d-export.json"`.
 
 ### 3.6 Endpoint: Hủy Bỏ Audit Run đang Chạy (Cancel Run)
+
 - **Route**: `POST /api/v1/runs/:id/cancel`
 - **Request Headers**: `x-request-id: req_<uuid>` (bắt buộc để trace idempotency).
 - **Response Success (200 OK)**: Trả về Run object đã được cập nhật:
@@ -360,13 +370,14 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
 > [!WARNING]
 > **⚠️ PITFALL — Race Condition giữa Cancel và Completed (I3)**:
 > Khi API nhận request Cancel đúng thời điểm Worker đang hoàn thành bước suy luận cuối cùng:
+>
 > 1. Nếu Worker ghi `COMPLETED` vào DB trước khi API ghi `CANCELLED`, `cancelRun()` của API sẽ trả về `409 Conflict` (Run already terminal).
 > 2. Nếu API ghi `CANCELLED` vào DB trong khi Worker vừa đọc xong status `RUNNING` ở đầu bước cuối, Worker có thể phát event `run:completed` lên Redis trước khi dừng process.
 >
 > **Quy tắc Eventual Consistency**: Client SDK phải xem `status: CANCELLED` trong DB là nguồn sự thật cuối cùng (source of truth). Nếu nhận `run:completed` qua SSE nhưng state trong DB là `CANCELLED`, UI giữ nguyên trạng thái `CANCELLED`.
 
-
 ### 3.7 Endpoint: Health Check Hệ thống
+
 - **Route**: `GET /api/v1/health`
 - **Response Success (200 OK)**:
   ```json
@@ -397,6 +408,7 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
 ### 4.1 Global Response Envelope Interceptor (`ResponseTransformInterceptor`)
 
 > **Vấn đề cần xử lý**: Nếu interceptor bao bọc mọi response bằng JSON envelope `{ success: true, data: ... }`, nó sẽ **phá vỡ** (break) 2 loại endpoint:
+>
 > - **SSE Stream** (`@Sse()`): Cần giữ nguyên HTTP 200 Keep-Alive `text/event-stream`, không được bọ lớp envelope JSON.
 > - **File Download** (`export` CSV/JSON): Cần giữ nguyên `Content-Disposition` header và binary stream.
 >
@@ -405,9 +417,9 @@ Tất cả các API route đều có tiền tố phiên bản: `/api/v1`.
 ```typescript
 // file: apps/api/src/common/decorators/skip-response-transform.decorator.ts
 
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const SKIP_RESPONSE_TRANSFORM_KEY = 'skipResponseTransform';
+export const SKIP_RESPONSE_TRANSFORM_KEY = "skipResponseTransform";
 
 /**
  * Gắn decorator này vào bất kỳ endpoint nào cần bypass ResponseTransformInterceptor.
@@ -425,22 +437,23 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
- import { Reflector } from '@nestjs/core';
- import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { ApiSuccessResponse } from '../interfaces/api-response.interface';
-import { SKIP_RESPONSE_TRANSFORM_KEY } from '../decorators/skip-response-transform.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
+import { ApiSuccessResponse } from "../interfaces/api-response.interface";
+import { SKIP_RESPONSE_TRANSFORM_KEY } from "../decorators/skip-response-transform.decorator";
 
 @Injectable()
-export class ResponseTransformInterceptor<T>
-  implements NestInterceptor<T, ApiSuccessResponse<T> | T>
-{
+export class ResponseTransformInterceptor<T> implements NestInterceptor<
+  T,
+  ApiSuccessResponse<T> | T
+> {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(
     context: ExecutionContext,
-    next: CallHandler
+    next: CallHandler,
   ): Observable<ApiSuccessResponse<T> | T> {
     // Kiểm tra xem endpoint có gắn @SkipResponseTransform() không
     const shouldSkip = this.reflector.getAllAndOverride<boolean>(
@@ -461,8 +474,10 @@ export class ResponseTransformInterceptor<T>
       map((result) => {
         // Separate data and metadata if returned from service
         const data = result && result.data !== undefined ? result.data : result;
-        const pagination = result && result.pagination ? result.pagination : undefined;
-        const message = result && result.message ? result.message : 'Operation successful';
+        const pagination =
+          result && result.pagination ? result.pagination : undefined;
+        const message =
+          result && result.message ? result.message : "Operation successful";
 
         return {
           success: true,
@@ -470,40 +485,48 @@ export class ResponseTransformInterceptor<T>
           message,
           data,
           meta: {
-            requestId: request.headers['x-request-id'] || `req_${Date.now()}`,
+            requestId: request.headers["x-request-id"] || `req_${Date.now()}`,
             timestamp: new Date().toISOString(),
             ...(pagination && { pagination }),
           },
         };
-      })
+      }),
     );
   }
 }
 ```
 
 **Ví dụ sử dụng `@SkipResponseTransform()` trong controller**:
+
 ```typescript
 // file: apps/api/src/modules/stream/stream.controller.ts
-import { Controller, Param, Sse, MessageEvent, Headers, Query } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { SkipResponseTransform } from '../../common/decorators/skip-response-transform.decorator';
+import {
+  Controller,
+  Param,
+  Sse,
+  MessageEvent,
+  Headers,
+  Query,
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { SkipResponseTransform } from "../../common/decorators/skip-response-transform.decorator";
 
-@Controller('runs')
+@Controller("runs")
 export class StreamController {
-  @Get(':id/stream')
+  @Get(":id/stream")
   @Sse()
   @SkipResponseTransform() // Bắt buộc: Tránh interceptor bao bọc dữ liệu SSE stream
   streamRunEvents(
-    @Param('id') runId: string,
-    @Query('fromStep') fromStep?: string,
-    @Headers('last-event-id') lastEventId?: string,
+    @Param("id") runId: string,
+    @Query("fromStep") fromStep?: string,
+    @Headers("last-event-id") lastEventId?: string,
   ): Observable<MessageEvent> {
     // ... (xem mục 5)
   }
 
-  @Get(':id/export')
+  @Get(":id/export")
   @SkipResponseTransform() // Bắt buộc: Tránh interceptor wrap file CSV/JSON download
-  exportRunData(@Param('id') runId: string, @Query('format') format: string) {
+  exportRunData(@Param("id") runId: string, @Query("format") format: string) {
     // ...
   }
 }
@@ -520,8 +543,8 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-} from '@nestjs/common';
-import { ApiErrorResponse } from '../interfaces/api-response.interface';
+} from "@nestjs/common";
+import { ApiErrorResponse } from "../interfaces/api-response.interface";
 
 @Catch()
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
@@ -538,7 +561,10 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse: any =
       exception instanceof HttpException
         ? exception.getResponse()
-        : { message: 'Internal server error', errorCode: 'ERR_INTERNAL_SERVER' };
+        : {
+            message: "Internal server error",
+            errorCode: "ERR_INTERNAL_SERVER",
+          };
 
     const errorPayload: ApiErrorResponse = {
       success: false,
@@ -546,13 +572,13 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       error: {
         code: exceptionResponse.errorCode || `ERR_HTTP_${status}`,
         message:
-          typeof exceptionResponse === 'string'
+          typeof exceptionResponse === "string"
             ? exceptionResponse
-            : exceptionResponse.message || 'An error occurred',
+            : exceptionResponse.message || "An error occurred",
         details: exceptionResponse.details || undefined,
       },
       meta: {
-        requestId: request.headers['x-request-id'] || `req_${Date.now()}`,
+        requestId: request.headers["x-request-id"] || `req_${Date.now()}`,
         timestamp: new Date().toISOString(),
         path: request.url,
       },
@@ -570,10 +596,12 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
 ### 5.1 Cơ chế Phục hồi Trạng thái SSE (Resumability)
 
 Khi client bị đứt kết nối (mất mạng, reload tab), client có thể yêu cầu tiếp nối từ bước đã nhận được gần nhất bằng cách:
+
 - **Query Param**: `GET /api/v1/runs/:id/stream?fromStep=12`
 - **HTTP Header**: `Last-Event-ID: 12` (chuẩn SSE RFC 8895, trình duyệt gửi tự động khi reconnect)
 
 API sẽ:
+
 1. Lấy giá trị `fromStep` từ query param hoặc `Last-Event-ID` header (query param ưu tiên).
 2. Subscribe `liveStream$` **ngay lập tức** (trước khi query DB) để không miss event nào.
 3. Song song query SQLite lấy `ModelEvent` và `ToolCall` có `stepIndex > fromStep` để replay lịch sử.
@@ -584,10 +612,10 @@ API sẽ:
 ```typescript
 // file: apps/api/src/modules/stream/stream.service.ts
 
-import { Injectable, MessageEvent } from '@nestjs/common';
-import { Subject, Observable, filter, map, merge, from } from 'rxjs';
-import { mergeMap, distinct } from 'rxjs/operators';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, MessageEvent } from "@nestjs/common";
+import { Subject, Observable, filter, map, merge, from } from "rxjs";
+import { mergeMap, distinct } from "rxjs/operators";
+import { PrismaService } from "../prisma/prisma.service";
 
 export interface HarnessStreamEvent {
   runId: string;
@@ -618,16 +646,19 @@ export class StreamService {
     runId: string,
     fromStep?: number,
   ): Observable<MessageEvent> {
-    const mapToMessageEvent = (event: HarnessStreamEvent): MessageEvent => ({
-      id: String(event.stepIndex ?? Date.now()),
-      type: event.eventType,
-      data: JSON.stringify(event.payload),
-    } as MessageEvent);
+    const mapToMessageEvent = (event: HarnessStreamEvent): MessageEvent =>
+      ({
+        id: String(event.stepIndex ?? Date.now()),
+        type: event.eventType,
+        data: JSON.stringify(event.payload),
+      }) as MessageEvent;
 
     // liveStream$ bắt đầu capture event NGAY LẬP TỨC (trước khi query DB)
     const liveStream$ = this.eventSubject$.asObservable().pipe(
       filter((event) => event.runId === runId),
-      filter((event) => fromStep === undefined || (event.stepIndex ?? -1) > fromStep),
+      filter(
+        (event) => fromStep === undefined || (event.stepIndex ?? -1) > fromStep,
+      ),
       map(mapToMessageEvent),
     );
 
@@ -657,43 +688,53 @@ export class StreamService {
     const [modelEvents, toolCalls] = await Promise.all([
       this.prisma.modelEvent.findMany({
         where: { runId, stepIndex: { gt: fromStep } },
-        orderBy: { stepIndex: 'asc' },
+        orderBy: { stepIndex: "asc" },
       }),
       this.prisma.toolCall.findMany({
         where: { runId, stepIndex: { gt: fromStep } },
-        orderBy: { stepIndex: 'asc' },
+        orderBy: { stepIndex: "asc" },
       }),
     ]);
 
     // Gộp và sắp xếp theo stepIndex, map sang MessageEvent format
     return [
-      ...modelEvents.map((e) => ({
-        id: String(e.stepIndex),
-        type: this.mapEventType(e.eventType),
-        data: JSON.stringify({ runId, stepIndex: e.stepIndex, content: e.content }),
-      } as MessageEvent)),
-      ...toolCalls.map((tc) => ({
-        id: String(tc.stepIndex),
-        type: 'step:tool_call',
-        data: JSON.stringify({
-          runId,
-          stepIndex: tc.stepIndex,
-          toolName: tc.toolName,
-          isError: tc.isError,
-        }),
-      } as MessageEvent)),
+      ...modelEvents.map(
+        (e) =>
+          ({
+            id: String(e.stepIndex),
+            type: this.mapEventType(e.eventType),
+            data: JSON.stringify({
+              runId,
+              stepIndex: e.stepIndex,
+              content: e.content,
+            }),
+          }) as MessageEvent,
+      ),
+      ...toolCalls.map(
+        (tc) =>
+          ({
+            id: String(tc.stepIndex),
+            type: "step:tool_call",
+            data: JSON.stringify({
+              runId,
+              stepIndex: tc.stepIndex,
+              toolName: tc.toolName,
+              isError: tc.isError,
+            }),
+          }) as MessageEvent,
+      ),
     ].sort((a, b) => parseInt(a.id!) - parseInt(b.id!));
   }
 
   /** Ánh xạ eventType từ DB sang tên event SSE (xem bảng ánh xạ tại SPEC-TV6-01) */
   private mapEventType(dbEventType: string): string {
     const mapping: Record<string, string> = {
-      'THOUGHT': 'step:thought',
-      'TOOL_REQUEST': 'step:tool_call',
-      'SYSTEM_PROMPT': 'run:status_changed',
-      'ERROR': 'run:status_changed',
+      THOUGHT: "step:thought",
+      TOOL_REQUEST: "step:tool_call",
+      SYSTEM_PROMPT: "run:status_changed",
+      ERROR: "run:status_changed",
     };
-    return mapping[dbEventType] ?? 'run:status_changed';
+    return mapping[dbEventType] ?? "run:status_changed";
   }
 }
 ```
@@ -706,24 +747,28 @@ Chỉ rõ trường nào là do **người dùng gửi** (user-provided) và tr�
 
 ```typescript
 // file: apps/api/src/modules/run/dto/create-run.dto.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Phần người dùng gửi qua request body (user-provided)
 export const CreateRunSchema = z.object({
   title: z.string().min(3).max(200),
-  targetRepository: z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Phải đúng định dạng owner/repo'),
+  targetRepository: z
+    .string()
+    .regex(/^[\w.-]+\/[\w.-]+$/, "Phải đúng định dạng owner/repo"),
   findingId: z.string().min(1),
-  config: z.object({
-    // USER-PROVIDED: người dùng lựa chọn
-    modelProvider: z.enum(['anthropic', 'openai', 'fake']).default('fake'),
-    modelName: z.string().default('claude-3-5-sonnet'),
-    temperature: z.number().min(0).max(2).default(0.0),
-    maxSteps: z.number().int().min(1).max(200).default(50),
-    // Agent behavior flags (user-provided, có default)
-    enableMemory: z.boolean().default(true),
-    enableCompaction: z.boolean().default(true),
-    enableVerification: z.boolean().default(true),
-  }).optional(),
+  config: z
+    .object({
+      // USER-PROVIDED: người dùng lựa chọn
+      modelProvider: z.enum(["anthropic", "openai", "fake"]).default("fake"),
+      modelName: z.string().default("claude-3-5-sonnet"),
+      temperature: z.number().min(0).max(2).default(0.0),
+      maxSteps: z.number().int().min(1).max(200).default(50),
+      // Agent behavior flags (user-provided, có default)
+      enableMemory: z.boolean().default(true),
+      enableCompaction: z.boolean().default(true),
+      enableVerification: z.boolean().default(true),
+    })
+    .optional(),
 });
 
 export type CreateRunDto = z.infer<typeof CreateRunSchema>;
@@ -761,18 +806,18 @@ async buildConfigSnapshot(dto: CreateRunDto): Promise<Omit<RunConfigSnapshot, 'i
 }
 ```
 
-| Trường | Nguồn | Mô tả |
-| :--- | :--- | :--- |
-| `modelProvider` | User-Provided | Provider LLM do người dùng chọn |
-| `modelName` | User-Provided | Model cụ thể (vd: `claude-3-5-sonnet`) |
-| `temperature` | User-Provided | Độ ngẫu nhiên của LLM (0.0 – 2.0) |
-| `maxSteps` | User-Provided | Số bước Agent tối đa cho phép |
-| `enableMemory` | User-Provided | Bật/tắt Memory layer |
-| `enableCompaction` | User-Provided | Bật/tắt Context Compaction |
-| `enableVerification` | User-Provided | Bật/tắt bước xác minh PoC cuối cùng |
-| `promptVersion` | System-Generated | Phương án prompt đang dùng (lấy từ env `PROMPT_VERSION`) |
-| `tokenBudget` | System-Generated | Tổng ngân sách token tính toán từ `maxSteps` |
-| `configHash` | System-Generated | SHA-256 fingerprint 128-bit của config để so sánh nhanh |
+| Trường               | Nguồn            | Mô tả                                                    |
+| :------------------- | :--------------- | :------------------------------------------------------- |
+| `modelProvider`      | User-Provided    | Provider LLM do người dùng chọn                          |
+| `modelName`          | User-Provided    | Model cụ thể (vd: `claude-3-5-sonnet`)                   |
+| `temperature`        | User-Provided    | Độ ngẫu nhiên của LLM (0.0 – 2.0)                        |
+| `maxSteps`           | User-Provided    | Số bước Agent tối đa cho phép                            |
+| `enableMemory`       | User-Provided    | Bật/tắt Memory layer                                     |
+| `enableCompaction`   | User-Provided    | Bật/tắt Context Compaction                               |
+| `enableVerification` | User-Provided    | Bật/tắt bước xác minh PoC cuối cùng                      |
+| `promptVersion`      | System-Generated | Phương án prompt đang dùng (lấy từ env `PROMPT_VERSION`) |
+| `tokenBudget`        | System-Generated | Tổng ngân sách token tính toán từ `maxSteps`             |
+| `configHash`         | System-Generated | SHA-256 fingerprint 128-bit của config để so sánh nhanh  |
 
 ---
 
@@ -782,11 +827,11 @@ Khi ứng dụng NestJS chạy ở cờ `DEMO_MODE=true`, `DemoController` cung 
 
 ```typescript
 // file: apps/api/src/modules/demo/demo.controller.ts
-import { Controller, Get, Param } from '@nestjs/common';
-import { DemoService } from './demo.service';
-import { SkipResponseTransform } from '../../common/decorators/skip-response-transform.decorator';
+import { Controller, Get, Param } from "@nestjs/common";
+import { DemoService } from "./demo.service";
+import { SkipResponseTransform } from "../../common/decorators/skip-response-transform.decorator";
 
-@Controller('demo/runs')
+@Controller("demo/runs")
 export class DemoController {
   constructor(private readonly demoService: DemoService) {}
 
@@ -794,28 +839,32 @@ export class DemoController {
    * Endpoint này trả về toàn bộ timeline JSON (không phải SSE).
    * Frontend tự quản lý nhịp độ phát qua ReplayController (Client-Driven).
    */
-  @Get(':id/timeline')
+  @Get(":id/timeline")
   @SkipResponseTransform() // Bắt buộc: trả về plain `{ events: [...] }`, không bọc lại envelope JSON
-  async getDemoTimeline(@Param('id') runId: string) {
+  async getDemoTimeline(@Param("id") runId: string) {
     return this.demoService.loadDemoFixture(runId);
   }
 }
 
 // file: apps/api/src/modules/demo/demo.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { z } from 'zod';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import { z } from "zod";
 
 // Zod Schema validate cấu trúc Demo Fixture tại runtime
 const DemoEventSchema = z.object({
   type: z.enum([
-    'step:thought',
-    'step:tool_call',
-    'run:verdict',
-    'run:completed',
-    'run:status_changed',
-    'heartbeat',
+    "step:thought",
+    "step:tool_call",
+    "run:verdict",
+    "run:completed",
+    "run:status_changed",
+    "heartbeat",
   ]),
   payload: z.record(z.unknown()),
   delayMs: z.number().optional(),
@@ -831,9 +880,9 @@ export type DemoFixture = z.infer<typeof DemoFixtureSchema>;
 @Injectable()
 export class DemoService {
   async loadDemoFixture(runId: string): Promise<DemoFixture> {
-    const fixturePath = join(process.cwd(), 'demo-fixtures', `${runId}.json`);
+    const fixturePath = join(process.cwd(), "demo-fixtures", `${runId}.json`);
     try {
-      const raw = await readFile(fixturePath, 'utf-8');
+      const raw = await readFile(fixturePath, "utf-8");
       const parsed = JSON.parse(raw);
       // Validate fixture schema ngay khi load — phát hiện lỗi sớm, không để crash lúc replay
       return DemoFixtureSchema.parse(parsed);

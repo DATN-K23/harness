@@ -1,9 +1,11 @@
 # Technical Specification — TV6: Application & Demo Track
+
 ## Document Identifier: SPEC-TV6-00-OVERVIEW
+
 **Project:** Audit Harness (Smart Contract LLM Verification & Evaluation Platform)  
 **Standard Compliance:** ISO/IEC/IEEE 29148:2018 / IEEE 830-1998  
 **Status:** Approved Architectural Specification  
-**Track:** TV6 — Application & Demo  
+**Track:** TV6 — Application & Demo
 
 ---
 
@@ -59,6 +61,7 @@ flowchart TB
 ```
 
 ### 2.1 Component 1: `apps/web` (Frontend Single Page Application)
+
 - **Công nghệ**: React 19, Vite, TypeScript, Tailwind CSS, shadcn/ui, Lucide Icons, Monospace JSON Viewer.
 - **Vai trò nguyên tử**:
   1. **Presentation Layer**: Đảm nhận toàn bộ việc hiển thị dữ liệu Audit Run, Trace View, Tool Call Logs, và Verdict Reports. Không chứa bất kỳ business logic kiểm định hay prompt logic nào.
@@ -67,6 +70,7 @@ flowchart TB
   4. **Replay Control Panel**: Cung cấp bộ điều khiển phát lại video/log giả lập (Play, Pause, Speed 1x/2x/5x, Step Forward, Step Back, Jump to Step) trong chế độ Offline Demo.
 
 ### 2.2 Component 2: `apps/api` (Backend API Service)
+
 - **Công nghệ**: NestJS, TypeScript, RxJS (cho SSE Streams), Prisma ORM, BullMQ + Redis (Job Queue).
 - **Vai trò nguyên tử**:
   1. **HTTP/REST Controller Layer**: Nhận yêu cầu tạo run mới (`POST /api/v1/runs`), truy vấn chi tiết (`GET /api/v1/runs/:id`), danh sách lượt chạy (`GET /api/v1/runs`), hủy run (`POST /api/v1/runs/:id/cancel`), và xuất báo cáo CSV/JSON (`GET /api/v1/runs/:id/export`).
@@ -79,6 +83,7 @@ flowchart TB
   6. **SQLite WAL Mode**: Bắt buộc khởi tạo `PRAGMA journal_mode = WAL` và `PRAGMA busy_timeout = 5000` khi khởi động để cho phép Worker ghi log đồng thời với API đọc dữ liệu mà không gây `SQLITE_BUSY`.
 
 ### 2.3 Component 3: `packages/sdk` (TypeScript Audit Harness Client SDK)
+
 - **Công nghệ**: TypeScript Strict, Fetch API, `@microsoft/fetch-event-source`.
 - **Vai trò nguyên tử**:
   1. **Abstracted API Client**: Đóng gói toàn bộ các API call HTTP và luồng SSE vào một class `AuditHarnessClient`, bao gồm các phương thức: `createRun()`, `getRun()`, `listRuns()`, **`cancelRun()`**, và `subscribeRunStream()`.
@@ -86,6 +91,7 @@ flowchart TB
   3. **Connection Lifecycle & Reconnection**: Sử dụng `@microsoft/fetch-event-source` thay vì `EventSource` goc: hỗ trợ gửi custom headers (Authorization, x-request-id), tự động exponential backoff retry, và hỗ trợ `Last-Event-ID` để phục hồi từ bước đầu tiên gở bỏ.
 
 ### 2.4 Component 4: `packages/contracts` & Prisma Schema (Data Storage Layer)
+
 - **Công nghệ**: SQLite, Prisma ORM, TypeScript Zod Schemas.
 - **Vai trò nguyên tử**:
   1. **Persistence Schema**: Định nghĩa cấu trúc bảng dữ liệu nguyên tử cho `Run`, `RunConfigSnapshot`, `ToolCall`, `ModelEvent`, và `Verdict`.
@@ -107,8 +113,8 @@ flowchart TB
 
 ## 4. Bảng Ma trận Phụ thuộc & Giao tiếp Inter-Track
 
-| Track Phụ thuộc | Đầu vào TV6 nhận | Đầu ra TV6 cung cấp |
-| :--- | :--- | :--- |
-| **TV1 (Agent Loop)** | Event `StepStarted`, `StepCompleted`, `VerdictGenerated` | Giao diện hiển thị trạng thái Agent Loop real-time |
+| Track Phụ thuộc          | Đầu vào TV6 nhận                                                    | Đầu ra TV6 cung cấp                                   |
+| :----------------------- | :------------------------------------------------------------------ | :---------------------------------------------------- |
+| **TV1 (Agent Loop)**     | Event `StepStarted`, `StepCompleted`, `VerdictGenerated`            | Giao diện hiển thị trạng thái Agent Loop real-time    |
 | **TV3 (Tools & Skills)** | Payload `ToolCall` (`tool_name`, `arguments`, `result`, `is_error`) | Component `ToolCallViewer` render theo từng dạng tool |
-| **TV5 (Data & Eval)** | Yêu cầu bộ lọc so sánh Multi-run (Baseline vs Harness) | Màn hình so sánh Delta & Tính năng Export CSV/JSON |
+| **TV5 (Data & Eval)**    | Yêu cầu bộ lọc so sánh Multi-run (Baseline vs Harness)              | Màn hình so sánh Delta & Tính năng Export CSV/JSON    |

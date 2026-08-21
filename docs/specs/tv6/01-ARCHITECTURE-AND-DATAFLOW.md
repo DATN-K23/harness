@@ -1,8 +1,10 @@
 # Technical Specification — TV6: Architecture & Data Flow
+
 ## Document Identifier: SPEC-TV6-01-ARCH-DATAFLOW
+
 **Standard Compliance:** ISO/IEC/IEEE 29148:2018 / RFC 8895 (Server-Sent Events)  
 **Status:** Approved Architectural Specification  
-**Track:** TV6 — Application & Demo  
+**Track:** TV6 — Application & Demo
 
 ---
 
@@ -63,30 +65,32 @@ Khi client gọi `POST /api/v1/runs`, `apps/api` **KHÔNG** thực thi Agent Loo
 
 ```typescript
 // file: apps/api/src/modules/run/run.service.ts
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 
 @Injectable()
 export class RunService {
   constructor(
-    @InjectQueue('audit-runs') private readonly auditQueue: Queue,
+    @InjectQueue("audit-runs") private readonly auditQueue: Queue,
     private readonly prisma: PrismaService,
   ) {}
 
   async createAndDispatchRun(dto: CreateRunDto): Promise<Run> {
     // 1. Ghi Run vào DB với status PENDING
-    const run = await this.prisma.run.create({ data: { ...dto, status: 'PENDING' } });
+    const run = await this.prisma.run.create({
+      data: { ...dto, status: "PENDING" },
+    });
 
     // 2. Dispatch job sang Worker qua BullMQ (Redis)
     await this.auditQueue.add(
-      'execute-run',
+      "execute-run",
       { runId: run.id },
       {
         jobId: run.id, // Idempotent: mỗi run chỉ có 1 job
-        attempts: 1,  // Không tự retry để tránh lặp suy luận vô hạn
+        attempts: 1, // Không tự retry để tránh lặp suy luận vô hạn
         removeOnComplete: true,
         removeOnFail: false, // Giữ lại job lỗi để debug
-      }
+      },
     );
 
     return run;
@@ -97,7 +101,7 @@ export class RunService {
     const job = await this.auditQueue.getJob(runId);
     if (job) {
       const state = await job.getState();
-      if (state === 'waiting' || state === 'delayed') {
+      if (state === "waiting" || state === "delayed") {
         // Job chưa chạy → xoà hoàn toàn khỏi queue
         await job.remove();
       }
@@ -109,13 +113,14 @@ export class RunService {
     // Cập nhật DB trước — Worker sẽ dừng ở lần polling kế tiếp
     return this.prisma.run.update({
       where: { id: runId },
-      data: { status: 'CANCELLED', completedAt: new Date() },
+      data: { status: "CANCELLED", completedAt: new Date() },
     });
   }
 }
 ```
 
 > **Cấu hình Môi trường Local Slim (Không có Redis)**:
+>
 > - **Module Switching**: Set env `USE_REDIS=false`. `RunModule` dùng `ConditionalModule` của NestJS tải `LocalEventEmitterAdapter` thay vì `BullMQAdapter`.
 > - **Process**: `apps/api` và `apps/worker` chạy trong cùng 1 Node.js process (monolith). `WorkerModule` được import trực tiếp vào `AppModule` ở slim mode.
 > - **Event Flow**: `RunService` emit `'run.execute'` qua `EventEmitter2` → `AgentLoop` handler trong cùng process lắng nghe và thực thi. `RedisEventSubscriber` được thay bằng `EventEmitter2` subscription trực tiếp vào `StreamService`.
@@ -136,6 +141,7 @@ Sau khi Worker hoàn thành mỗi bước suy luận, nó cần **push sự ki�
 ```
 
 **Luồng phát sự kiện chi tiết**:
+
 1. `apps/worker`: Sau mỗi bước Agent Loop, gọi `redis.publish('harness:events:{runId}', eventPayload)`.
 2. `apps/api`: `RedisEventSubscriber` lắng nghe channel Redis → nhận event → gọi `streamService.publishEvent(event)`.
 3. `StreamService`: RxJS `Subject` emit event → `getStreamForRun(runId)` filter → SSE HTTP/1.1 Keep-Alive → client.
@@ -152,17 +158,20 @@ Do `apps/worker` ghi log ở cường độ cao (nhiều INSERT đồng thời) 
 
 ```typescript
 // file: apps/api/src/modules/prisma/prisma.service.ts
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { PrismaClient } from "@prisma/client";
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   async onModuleInit(): Promise<void> {
     await this.$connect();
     // BẮT BUỘC: Bật WAL mode để writer (Worker) và reader (API) không block lẫn nhau
-    await this.$executeRawUnsafe('PRAGMA journal_mode = WAL;');
+    await this.$executeRawUnsafe("PRAGMA journal_mode = WAL;");
     // BẮT BUỘC: Nếu DB bận, chờ tối đa 5000ms thay vì throw SQLITE_BUSY ngay lập tức
-    await this.$executeRawUnsafe('PRAGMA busy_timeout = 5000;');
+    await this.$executeRawUnsafe("PRAGMA busy_timeout = 5000;");
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -215,7 +224,7 @@ model Run {
   totalDurationMs Int                @default(0)
   totalTokensUsed Int                @default(0)
   totalCostUsd    Float              @default(0.0)
-  
+
   // Relations
   configSnapshot  RunConfigSnapshot?
   toolCalls       ToolCall[]
@@ -295,21 +304,23 @@ Endpoint stream real-time: `GET /api/v1/runs/:id/stream`
 
 Bảng dưới đây quy định tương quan bắt buộc giữa giá trị `eventType` lưu trong SQLite (`ModelEvent.eventType`) và tên event SSE được phát ra cho client:
 
-| `ModelEvent.eventType` (SQLite) | SSE Event Name | Mô tả |
-| :--- | :--- | :--- |
-| `"THOUGHT"` | `step:thought` | Agent đã hoàn thành 1 bước suy luận (Chain-of-Thought) |
-| `"TOOL_REQUEST"` | `step:tool_call` | Agent yêu cầu thực thi 1 công cụ và nhận kết quả |
-| `"SYSTEM_PROMPT"` | `run:status_changed` | Hệ thống thay đổi trạng thái Run (PENDING → RUNNING → COMPLETED) |
-| `"ERROR"` | `run:status_changed` | Lỗi nghiêm trọng, đồng thời cập nhật `status: "FAILED"` vào DB |
-| *(N/A — generated by Worker)* | `run:verdict` | Phán quyết cuối cùng đã được ghi vào bảng `Verdict` |
-| *(N/A — terminal event)* | `run:completed` | Run kết thúc hoàn toàn, client nên đóng kết nối SSE |
+| `ModelEvent.eventType` (SQLite) | SSE Event Name       | Mô tả                                                            |
+| :------------------------------ | :------------------- | :--------------------------------------------------------------- |
+| `"THOUGHT"`                     | `step:thought`       | Agent đã hoàn thành 1 bước suy luận (Chain-of-Thought)           |
+| `"TOOL_REQUEST"`                | `step:tool_call`     | Agent yêu cầu thực thi 1 công cụ và nhận kết quả                 |
+| `"SYSTEM_PROMPT"`               | `run:status_changed` | Hệ thống thay đổi trạng thái Run (PENDING → RUNNING → COMPLETED) |
+| `"ERROR"`                       | `run:status_changed` | Lỗi nghiêm trọng, đồng thời cập nhật `status: "FAILED"` vào DB   |
+| _(N/A — generated by Worker)_   | `run:verdict`        | Phán quyết cuối cùng đã được ghi vào bảng `Verdict`              |
+| _(N/A — terminal event)_        | `run:completed`      | Run kết thúc hoàn toàn, client nên đóng kết nối SSE              |
 
 > **Quy tắc ánh xạ**: `apps/worker` chỉ ghi `ModelEvent` với các `eventType` cột trái. `apps/api` (qua `RedisEventSubscriber`) chịu trách nhiệm **dịch** sang tên event SSE cột phải trước khi phát ra cho client qua `StreamService`.
 
 ### 4.2 Event Format Standards
+
 Dữ liệu gửi qua SSE tuân theo MIME type `text/event-stream`. Mỗi sự kiện gồm 3 dòng: `id`, `event`, và `data` (JSON-encoded payload).
 
 #### 1. Event: `run:status_changed`
+
 ```text
 id: 101
 event: run:status_changed
@@ -317,6 +328,7 @@ data: {"runId":"uuid-123","status":"RUNNING","timestamp":"2026-07-31T23:00:00.00
 ```
 
 #### 2. Event: `step:thought`
+
 ```text
 id: 102
 event: step:thought
@@ -324,6 +336,7 @@ data: {"runId":"uuid-123","stepIndex":3,"thought":"Analyzing Reentrancy vulnerab
 ```
 
 #### 3. Event: `step:tool_call`
+
 ```text
 id: 103
 event: step:tool_call
@@ -331,6 +344,7 @@ data: {"runId":"uuid-123","stepIndex":3,"toolName":"read_file","arguments":{"pat
 ```
 
 #### 4. Event: `run:verdict`
+
 ```text
 id: 104
 event: run:verdict
@@ -338,6 +352,7 @@ data: {"runId":"uuid-123","verdict":{"status":"VALID","severity":"HIGH","confide
 ```
 
 #### 5. Event: `run:completed`
+
 ```text
 id: 105
 event: run:completed
@@ -345,6 +360,7 @@ data: {"runId":"uuid-123","totalDurationMs":125000,"totalTokensUsed":45200,"tota
 ```
 
 #### 6. Event: `heartbeat` (Keep-Alive — Tránh Proxy Timeout)
+
 ```text
 id: 0
 event: heartbeat

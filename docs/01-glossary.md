@@ -35,6 +35,7 @@ Một phiên làm việc trọn vẹn từ input tới kết luận. Định dan
 
 **Trajectory**
 Toàn bộ chuỗi step của một run, ghi lại đầy đủ tool name, tham số, kết quả, thời gian và token tiêu thụ.
+
 > Trajectory là cơ sở để phân biệt kết luận đúng do suy luận với kết luận đúng do ngẫu nhiên. Nếu agent
 > không hề mở file chứa lỗ hổng mà vẫn kết luận đúng, trajectory sẽ cho thấy điều đó.
 
@@ -65,6 +66,7 @@ Cắt bớt tool output quá dài trước khi đưa vào context, giữ phần 
 
 **Long-term memory**
 Ghi chú agent lưu lại và nạp sang các run sau.
+
 > Cần chính sách reset rõ ràng: chỉ nạp memory sinh ra từ contest thuộc train/validation. Contest thuộc test
 > set luôn chạy trên trạng thái sạch. Vi phạm điểm này làm hỏng toàn bộ số liệu.
 
@@ -129,6 +131,7 @@ File ghi lại kết quả phân chia. Tạo một lần rồi cố định vĩn
 
 **Ablation study**
 Đo đóng góp của từng thành phần bằng cách tắt lần lượt từng cái và ghi nhận mức suy giảm kết quả.
+
 > Đây là đóng góp khoa học chính của đồ án và là câu trả lời trực tiếp cho chất vấn về đóng góp khi không
 > huấn luyện model.
 
@@ -193,6 +196,7 @@ cao hơn đáng kể.
 Thành phần trọng tâm. Agent nêu nghi vấn → sinh PoC test khai thác → thực thi trong sandbox → PASS thì báo
 cáo kèm bằng chứng, FAIL thì loại bỏ, không sinh được test thì đánh dấu `unverified` và tách riêng khỏi nhóm
 FAIL.
+
 > Số liệu quan trọng nhất của đồ án: trong N nghi vấn có M được xác minh và K bị loại. K là bằng chứng định
 > lượng cho giá trị của lớp này. Model gọi trực tiếp không thực hiện được quy trình này.
 

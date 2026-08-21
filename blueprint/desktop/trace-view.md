@@ -17,15 +17,15 @@ Connection READY | seq cursor 6 | [All] [Model] [Provider] [Tools] [Security]
 
 ## Event components
 
-| Family | Always visible | Safe expandable detail | Never visible |
-|---|---|---|---|
-| lifecycle | sequence/type/time/state/version | terminal reason/observed limits | stack/SQL/internal exception |
-| context | buckets/reserve/estimator/outcome | transformation IDs/digests | prohibited pre-redaction content |
-| provider | profile/model/attempt/latency/usage/cost/status | safe request ID/region/native usage/error | credential/header/raw unsafe error |
-| model | step/finish/schema/tokens | exact sanitized bounded model-visible response | unredacted provider payload |
-| tool | name/version/status/duration | bounded sanitized argument/result/error | host root, escaped target, prohibited original |
-| security | blocked/redacted/truncated/rule/category | safe explanation and transformation order | matched secret/raw blocked argument |
-| scoring | approved aggregate/reference only in authorized evaluation view | no label in run trace | ground truth/adjudication/scorer schema |
+| Family    | Always visible                                                  | Safe expandable detail                         | Never visible                                  |
+| --------- | --------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| lifecycle | sequence/type/time/state/version                                | terminal reason/observed limits                | stack/SQL/internal exception                   |
+| context   | buckets/reserve/estimator/outcome                               | transformation IDs/digests                     | prohibited pre-redaction content               |
+| provider  | profile/model/attempt/latency/usage/cost/status                 | safe request ID/region/native usage/error      | credential/header/raw unsafe error             |
+| model     | step/finish/schema/tokens                                       | exact sanitized bounded model-visible response | unredacted provider payload                    |
+| tool      | name/version/status/duration                                    | bounded sanitized argument/result/error        | host root, escaped target, prohibited original |
+| security  | blocked/redacted/truncated/rule/category                        | safe explanation and transformation order      | matched secret/raw blocked argument            |
+| scoring   | approved aggregate/reference only in authorized evaluation view | no label in run trace                          | ground truth/adjudication/scorer schema        |
 
 ## Ordering, partial data and reconnect
 
@@ -42,11 +42,11 @@ Render by integer sequence, never timestamp. Cursor pages must continue the same
 
 ## Component state matrix
 
-| Component | Loading/empty | Success | Error/security/reconnect |
-|---|---|---|---|
-| runtime banner | starting skeleton | compatible identity/digest | unavailable, unauthorized, incompatible, reconnecting |
-| event page | skeleton/no committed events | ordered cards/next cursor | preserve prior page; safe error; gap requires refresh |
-| tool card | requested/empty result | bounded result/duration | failed and blocked are distinct |
-| provider card | attempt started/unknown usage | usage/cost/identity | transient/permanent and explicit retry decision |
-| context card | preflight pending | buckets/reserve/decision | `context_budget`; no provider call |
-| native bridge diagnostic | absent by default | approved command family/state only | undeclared command denied; no raw argument, credential or Judge-state mutation |
+| Component                | Loading/empty                 | Success                            | Error/security/reconnect                                                       |
+| ------------------------ | ----------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| runtime banner           | starting skeleton             | compatible identity/digest         | unavailable, unauthorized, incompatible, reconnecting                          |
+| event page               | skeleton/no committed events  | ordered cards/next cursor          | preserve prior page; safe error; gap requires refresh                          |
+| tool card                | requested/empty result        | bounded result/duration            | failed and blocked are distinct                                                |
+| provider card            | attempt started/unknown usage | usage/cost/identity                | transient/permanent and explicit retry decision                                |
+| context card             | preflight pending             | buckets/reserve/decision           | `context_budget`; no provider call                                             |
+| native bridge diagnostic | absent by default             | approved command family/state only | undeclared command denied; no raw argument, credential or Judge-state mutation |

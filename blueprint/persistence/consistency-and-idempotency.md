@@ -60,4 +60,3 @@ Daemon, worker, evaluator and scorer restart from PostgreSQL state without a des
 Before queueing, immutable configuration or content-addressed references retain canonical candidate/source digests; runtime/build/dependency lock; exact prompts/tool/schema digests; accepted provider/model/capability/cutoff/pricing profile; experiment/manifest/split/source-family; sampling; logical-token estimator/budgets; wall-clock; retry flag/attempt limits; all result-affecting flags and security/transformation versions. Every provider attempt records model/prompt/profile/flags, native/logical token categories, latency, cost and tool-call correlations.
 
 Redaction/classification occurs before relational/blob/event/log/API/export persistence. Raw host paths, credentials, labels and prohibited originals are neither stored nor hashed into run-visible records.
-

@@ -14,9 +14,9 @@ Describe the decision pressure, constraints, and evidence available. Separate kn
 
 ## Decision criteria
 
-| Criterion | Weight or priority | Evidence method |
-|---|---|---|
-| Example | Required | Reproducible comparison |
+| Criterion | Weight or priority | Evidence method         |
+| --------- | ------------------ | ----------------------- |
+| Example   | Required           | Reproducible comparison |
 
 ## Options considered
 

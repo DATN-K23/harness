@@ -18,12 +18,12 @@ RQ1 compares matched `(case_id, repeat_index)` pairs using the same immutable ca
 
 The arms intentionally differ only where the treatment requires it:
 
-| Direct arm | Harness arm |
-|---|---|
-| shared Judge core + direct wrapper | same Judge core + harness wrapper |
-| one request containing deterministic `SourceBundle` | explicit agent loop using local read-only source tools |
-| loop/tools/tool feedback/schema repair disabled | versioned flags may enable them |
-| one provider call | one or more logical calls within the same total logical-token budget |
+| Direct arm                                          | Harness arm                                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| shared Judge core + direct wrapper                  | same Judge core + harness wrapper                                    |
+| one request containing deterministic `SourceBundle` | explicit agent loop using local read-only source tools               |
+| loop/tools/tool feedback/schema repair disabled     | versioned flags may enable them                                      |
+| one provider call                                   | one or more logical calls within the same total logical-token budget |
 
 Prompt wrappers are not claimed identical. Their exact bytes and digests are frozen as treatment definitions. The Judge meaning, verdict schema and provider profile are shared.
 

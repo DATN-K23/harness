@@ -87,7 +87,11 @@ export class RunController {
     const EXPORT_LIMIT = 200;
     const run = await this.runService.getRun(id);
     const toolCalls = await this.runService.getToolCalls(id, 0, EXPORT_LIMIT);
-    const modelEvents = await this.runService.getModelEvents(id, 0, EXPORT_LIMIT);
+    const modelEvents = await this.runService.getModelEvents(
+      id,
+      0,
+      EXPORT_LIMIT,
+    );
 
     // W6 Fix: Cảnh báo rõ ràng khi data bị truncate thay vì âm thầm mất dữ liệu
     const isTruncated =

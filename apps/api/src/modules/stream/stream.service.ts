@@ -1,13 +1,10 @@
-import { Injectable, MessageEvent, OnModuleInit } from "@nestjs/common";
-import { EventEmitter2 } from "@nestjs/event-emitter";
 import {
-  Subject,
-  Observable,
-  filter,
-  map,
-  merge,
-  from,
-} from "rxjs";
+  Injectable,
+  type MessageEvent,
+  type OnModuleInit,
+} from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { Subject, Observable, filter, map, merge, from } from "rxjs";
 import { mergeMap, distinct } from "rxjs/operators";
 import { PrismaService } from "../prisma/prisma.service.js";
 
@@ -76,12 +73,15 @@ export class StreamService implements OnModuleInit {
       filter(
         (event) => fromStep === undefined || (event.stepIndex ?? -1) > fromStep,
       ),
-      map((event: HarnessStreamEvent): MessageEvent => ({
-        // NC2 Fix: composite id = eventType:stepIndex cho live events
-        id: `${event.eventType}:${event.stepIndex ?? Date.now()}`,
-        type: event.eventType,
-        data: JSON.stringify(event.payload),
-      }) as MessageEvent),
+      map(
+        (event: HarnessStreamEvent): MessageEvent =>
+          ({
+            // NC2 Fix: composite id = eventType:stepIndex cho live events
+            id: `${event.eventType}:${event.stepIndex ?? Date.now()}`,
+            type: event.eventType,
+            data: JSON.stringify(event.payload),
+          }) as MessageEvent,
+      ),
     );
 
     if (fromStep === undefined || fromStep < 0) {
@@ -116,7 +116,7 @@ export class StreamService implements OnModuleInit {
 
     return [
       ...modelEvents.map(
-        (e) =>
+        (e: any) =>
           ({
             // NC2 Fix: composite id = type:stepIndex để không conflict với ToolCall cùng step
             id: `${this.mapEventType(e.eventType)}:${e.stepIndex}`,
@@ -129,7 +129,7 @@ export class StreamService implements OnModuleInit {
           }) as MessageEvent,
       ),
       ...toolCalls.map(
-        (tc) =>
+        (tc: any) =>
           ({
             // NC2 Fix: composite id = step:tool_call:stepIndex
             id: `step:tool_call:${tc.stepIndex}`,

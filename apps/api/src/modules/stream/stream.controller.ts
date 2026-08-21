@@ -4,7 +4,7 @@ import {
   Sse,
   Query,
   Headers,
-  MessageEvent,
+  type MessageEvent,
 } from "@nestjs/common";
 import { Observable, interval, map, merge } from "rxjs";
 import { StreamService } from "./stream.service.js";

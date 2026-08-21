@@ -1,8 +1,8 @@
 import {
   Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
+  type NestInterceptor,
+  type ExecutionContext,
+  type CallHandler,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Observable } from "rxjs";
@@ -46,16 +46,22 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
          * Mặc định: wrap toàn bộ result vào data.
          */
         let data: T = result;
-        let pagination: import("@audit-harness/contracts").PaginationMeta | undefined;
+        let pagination:
+          import("@audit-harness/contracts").PaginationMeta | undefined;
         const message =
           result && typeof result === "object" && result.message
             ? result.message
             : "Operation successful";
 
         // Chỉ extract pagination khi controller dùng convention _paginated flag
-        if (result && typeof result === "object" && result._paginated === true) {
+        if (
+          result &&
+          typeof result === "object" &&
+          result._paginated === true
+        ) {
           data = result.items as T;
-          pagination = result.pagination as import("@audit-harness/contracts").PaginationMeta;
+          pagination =
+            result.pagination as import("@audit-harness/contracts").PaginationMeta;
         }
 
         const responsePayload: ApiSuccessResponse<T> = {
@@ -64,7 +70,9 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
           message,
           data,
           meta: {
-            requestId: (request.headers["x-request-id"] as string) || `req_${Date.now()}`,
+            requestId:
+              (request.headers["x-request-id"] as string) ||
+              `req_${Date.now()}`,
             timestamp: new Date().toISOString(),
             ...(pagination ? { pagination } : {}),
           },
@@ -75,4 +83,3 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
     );
   }
 }
-

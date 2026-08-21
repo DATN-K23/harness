@@ -93,10 +93,22 @@ features:
     version: provider-retry-v2
     result_effect: Enables project-owned transient retries only in a separately identified, symmetric retry research profile; primary RQ1 is false in both arms.
     dependencies: []
-    arm_values: { direct-primary-v1: false, harness-primary-v1: false, direct-retry-research-v1: true, harness-retry-research-v1: true }
+    arm_values:
+      {
+        direct-primary-v1: false,
+        harness-primary-v1: false,
+        direct-retry-research-v1: true,
+        harness-retry-research-v1: true,
+      }
     telemetry: provider_retry_enabled
     run_snapshot: resolved_flags.provider_retry
-    immutable_identity_fields: [experiment_profile_digest, provider_retry_policy, sdk_max_retries, project_max_attempts]
+    immutable_identity_fields:
+      [
+        experiment_profile_digest,
+        provider_retry_policy,
+        sdk_max_retries,
+        project_max_attempts,
+      ]
     acceptance_enabled: [ABL-RETRY-ON-001]
     acceptance_disabled: [ABL-RETRY-OFF-001]
   - name: tool_error_feedback
@@ -157,7 +169,8 @@ non_disableable_invariants:
     version: workspace-policy-v1
     telemetry: workspace_policy_version
     run_snapshot: safety.workspace_policy_version
-    acceptance: [PATH-001, PATH-002, PATH-003, PATH-004, PATH-005, PATH-006, PATH-007]
+    acceptance:
+      [PATH-001, PATH-002, PATH-003, PATH-004, PATH-005, PATH-006, PATH-007]
     rationale: Filesystem isolation is a security boundary.
   - name: secret_and_prohibited_redaction
     version: redaction-v1

@@ -10,39 +10,39 @@ Scope: documentation-only `bootstrap-judge-mode-mvp`
 
 `PASS — internally coherent implementation blueprint; ADR-007 architecture accepted; packaged readiness unproven; no implementation evidence.`
 
-| Gate | Result | Evidence summary |
-|---|---|---|
-| OpenSpec strict conformance | PASS | `openspec validate bootstrap-judge-mode-mvp --strict`: change valid |
-| Requirements/scenarios | PASS | 56 requirements and 61 Given/When/Then scenarios; 61 unique exact traceability rows including API-04/S2, API-10/S1–S2 and UI-06/S1–S2 |
-| JSON/YAML/OpenAPI structure | PASS | 30 JSON and 6 YAML files parsed; 5 JSON Schemas meta-valid; 80 local OpenAPI refs resolved; 9 required paths and unique operations present |
-| Schema examples | PASS | 19 expected pass/reject checks across verdict, trajectory, provider, experiment and contest-manifest fixtures |
-| Content digests | PASS | 3 prompt refs, 4 experiment contract refs, SourceBundle and valid/unknown-cutoff manifest digests match exact bytes |
-| Markdown links | PASS | every explicit local Markdown target and anchor exists |
-| Source/evaluation validity | PASS | whole-contest/family leak rejection, test adaptation ban, primary retry symmetry/rejection, cluster/gate rules and `mixed` example |
-| Raw-path/security boundary | PASS | `selected_path` only in registration input; absent from RunView/EventPage; managed snapshot-only later flow; four-tool immutable registry |
-| Tauri native authority | PASS | per-window allowlists and typed project commands; generic filesystem/shell/process/environment/URL/secret/direct-updater authority denied |
-| Generated-client Judge flow | PASS | renderer → injected Tauri transport → protected daemon API; no Python/DB/provider/tool/scorer bypass |
-| Runtime/window lifecycle | PASS | independently supervised runtime survives renderer/Tauri close or crash; reconnect reads PostgreSQL-authoritative state |
-| Credential custody | PASS | OS-protected adapter, rotation and fail-before-request behavior; no plaintext, renderer-storage or anonymous fallback |
-| Coordinated update/rollback | PASS | signed artifact/OS signing, compatibility manifest, active/ambiguous work, reject/quiesce policy, DB compatibility, health and rollback modeled |
-| Ground-truth/scorer isolation | PASS | no scoring run event/API route/desktop schema; one-way `scoring -> evaluation.public`; import/grant/generator negative plans |
-| Capability/persistence topology | PASS | public-only dependency/table-owner matrices; PostgreSQL work/outbox/lease/CAS authority; no SQLite/Redis/cache/memory authority |
-| OpenCode provenance/scope | PASS | pinned clean snapshot, evidence-only matrix, no dependency/copy/submodule/sync authorization |
-| Manifest/scope | PASS | 97 blueprint files: 96 exact content digests plus self-excluded manifest; allowed documentation extensions; no symlink or implementation root |
+| Gate                            | Result | Evidence summary                                                                                                                                |
+| ------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenSpec strict conformance     | PASS   | `openspec validate bootstrap-judge-mode-mvp --strict`: change valid                                                                             |
+| Requirements/scenarios          | PASS   | 56 requirements and 61 Given/When/Then scenarios; 61 unique exact traceability rows including API-04/S2, API-10/S1–S2 and UI-06/S1–S2           |
+| JSON/YAML/OpenAPI structure     | PASS   | 30 JSON and 6 YAML files parsed; 5 JSON Schemas meta-valid; 80 local OpenAPI refs resolved; 9 required paths and unique operations present      |
+| Schema examples                 | PASS   | 19 expected pass/reject checks across verdict, trajectory, provider, experiment and contest-manifest fixtures                                   |
+| Content digests                 | PASS   | 3 prompt refs, 4 experiment contract refs, SourceBundle and valid/unknown-cutoff manifest digests match exact bytes                             |
+| Markdown links                  | PASS   | every explicit local Markdown target and anchor exists                                                                                          |
+| Source/evaluation validity      | PASS   | whole-contest/family leak rejection, test adaptation ban, primary retry symmetry/rejection, cluster/gate rules and `mixed` example              |
+| Raw-path/security boundary      | PASS   | `selected_path` only in registration input; absent from RunView/EventPage; managed snapshot-only later flow; four-tool immutable registry       |
+| Tauri native authority          | PASS   | per-window allowlists and typed project commands; generic filesystem/shell/process/environment/URL/secret/direct-updater authority denied       |
+| Generated-client Judge flow     | PASS   | renderer → injected Tauri transport → protected daemon API; no Python/DB/provider/tool/scorer bypass                                            |
+| Runtime/window lifecycle        | PASS   | independently supervised runtime survives renderer/Tauri close or crash; reconnect reads PostgreSQL-authoritative state                         |
+| Credential custody              | PASS   | OS-protected adapter, rotation and fail-before-request behavior; no plaintext, renderer-storage or anonymous fallback                           |
+| Coordinated update/rollback     | PASS   | signed artifact/OS signing, compatibility manifest, active/ambiguous work, reject/quiesce policy, DB compatibility, health and rollback modeled |
+| Ground-truth/scorer isolation   | PASS   | no scoring run event/API route/desktop schema; one-way `scoring -> evaluation.public`; import/grant/generator negative plans                    |
+| Capability/persistence topology | PASS   | public-only dependency/table-owner matrices; PostgreSQL work/outbox/lease/CAS authority; no SQLite/Redis/cache/memory authority                 |
+| OpenCode provenance/scope       | PASS   | pinned clean snapshot, evidence-only matrix, no dependency/copy/submodule/sync authorization                                                    |
+| Manifest/scope                  | PASS   | 97 blueprint files: 96 exact content digests plus self-excluded manifest; allowed documentation extensions; no symlink or implementation root   |
 
 ## ADR and profile gate audit
 
-| Artifact | Status | Validation conclusion |
-|---|---|---|
-| ADR-001 stack family | Accepted | Python runtime/PostgreSQL + React/TS/Vite renderer; blueprint only |
-| ADR-002 integration strategy | Accepted | official async OpenAI Responses adapter behind project port; no gateway/hosted/provider loop |
-| `real-primary@1` | Proposed, `network_ready: false` | schema-valid incomplete profile; rejected before client/credential/network |
-| ADR-003 methodology | Accepted | matched logical-token/retry/split/inference methodology only |
-| `rq1-confirmatory-v1@1` | Proposed, `execution_ready: false` | schema-valid incomplete profile; rejected before network/cost/frozen test |
-| ADR-004 OpenCode reference | Accepted | reference/provenance only; no source/dependency reuse |
-| ADR-005 capability-first monolith | Accepted | exact module/public/table/composition rules recorded |
-| ADR-006 desktop/local runtime | Accepted | thin generated-client desktop; independent PostgreSQL runtime |
-| ADR-007 native shell | Accepted (`adr-007-v2`) | Tauri 2 and least-authority boundary selected; ten-case WP-01/WP-10 three-OS readiness evidence remains unimplemented |
+| Artifact                          | Status                             | Validation conclusion                                                                                                 |
+| --------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 stack family              | Accepted                           | Python runtime/PostgreSQL + React/TS/Vite renderer; blueprint only                                                    |
+| ADR-002 integration strategy      | Accepted                           | official async OpenAI Responses adapter behind project port; no gateway/hosted/provider loop                          |
+| `real-primary@1`                  | Proposed, `network_ready: false`   | schema-valid incomplete profile; rejected before client/credential/network                                            |
+| ADR-003 methodology               | Accepted                           | matched logical-token/retry/split/inference methodology only                                                          |
+| `rq1-confirmatory-v1@1`           | Proposed, `execution_ready: false` | schema-valid incomplete profile; rejected before network/cost/frozen test                                             |
+| ADR-004 OpenCode reference        | Accepted                           | reference/provenance only; no source/dependency reuse                                                                 |
+| ADR-005 capability-first monolith | Accepted                           | exact module/public/table/composition rules recorded                                                                  |
+| ADR-006 desktop/local runtime     | Accepted                           | thin generated-client desktop; independent PostgreSQL runtime                                                         |
+| ADR-007 native shell              | Accepted (`adr-007-v2`)            | Tauri 2 and least-authority boundary selected; ten-case WP-01/WP-10 three-OS readiness evidence remains unimplemented |
 
 ADR-002/003 acceptance and concrete profile status are deliberately independent. ADR-007 acceptance also selects architecture only: it neither authorizes implementation in this change nor proves packaging, credential-backend, lifecycle, signing, updater or rollback readiness. A change to model/pricing/cutoff/experiment values versions a profile; a change to integration/methodology or native-host family requires a superseding ADR.
 

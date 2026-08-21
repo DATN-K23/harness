@@ -51,12 +51,12 @@ The MVP does not promise a single-file, database-free installer. PostgreSQL is n
 
 ## Options considered
 
-| Option | Disposition | Rationale |
-|---|---|---|
-| Public/browser-hosted web application | Rejected for MVP | Conflicts with downloadable local-first product and expands auth/multi-tenancy threat scope. |
-| Desktop embeds and owns the agent loop | Rejected | Window lifecycle would become execution authority and weaken crash recovery. |
-| Desktop thin client + independent local runtime | **Accepted** | Preserves durable async execution, local repository UX and contract-first separation. |
-| Independently deployed backend services | Rejected | Adds distributed release/version/failure ownership without evidence. |
+| Option                                          | Disposition      | Rationale                                                                                    |
+| ----------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| Public/browser-hosted web application           | Rejected for MVP | Conflicts with downloadable local-first product and expands auth/multi-tenancy threat scope. |
+| Desktop embeds and owns the agent loop          | Rejected         | Window lifecycle would become execution authority and weaken crash recovery.                 |
+| Desktop thin client + independent local runtime | **Accepted**     | Preserves durable async execution, local repository UX and contract-first separation.        |
+| Independently deployed backend services         | Rejected         | Adds distributed release/version/failure ownership without evidence.                         |
 
 ## Consequences
 

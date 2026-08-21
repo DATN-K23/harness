@@ -41,26 +41,26 @@ The daemon, worker, evaluator and scorer are separate composition roots over the
 
 ## Allowed capability graph
 
-| Importer | Allowed capability imports |
-|---|---|
-| `run_control` | none |
-| `model_gateway` | none |
-| `source_access` | none |
-| `agent_runtime` | `run_control.public`, `model_gateway.public`, `source_access.public` |
-| `judge` | `run_control.public`, `agent_runtime.public`, `source_access.public` |
-| `evaluation` | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
-| `scoring` | `evaluation.public` only |
+| Importer        | Allowed capability imports                                                           |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `run_control`   | none                                                                                 |
+| `model_gateway` | none                                                                                 |
+| `source_access` | none                                                                                 |
+| `agent_runtime` | `run_control.public`, `model_gateway.public`, `source_access.public`                 |
+| `judge`         | `run_control.public`, `agent_runtime.public`, `source_access.public`                 |
+| `evaluation`    | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
+| `scoring`       | `evaluation.public` only                                                             |
 
 The graph is acyclic. A direct `judge -> model_gateway`, `evaluation -> scoring`, or any undeclared edge requires a blueprint/ADR revision.
 
 ## Options considered
 
-| Option | Disposition | Reason |
-|---|---|---|
-| Repository-wide layer-first tree | Rejected | Technical folders become coupling hubs and obscure capability/table ownership. |
-| Capability-first with full clean-architecture ceremony in every module | Rejected | Empty layers increase navigation and false abstraction without stronger boundaries. |
-| Capability-first with shallow hexagonal roles | **Accepted** | Keeps business ownership local while preserving ports/adapters where they matter. |
-| Independently deployed service per capability | Rejected for MVP | Adds distributed versioning/failure modes without scale or ownership evidence. |
+| Option                                                                 | Disposition      | Reason                                                                              |
+| ---------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| Repository-wide layer-first tree                                       | Rejected         | Technical folders become coupling hubs and obscure capability/table ownership.      |
+| Capability-first with full clean-architecture ceremony in every module | Rejected         | Empty layers increase navigation and false abstraction without stronger boundaries. |
+| Capability-first with shallow hexagonal roles                          | **Accepted**     | Keeps business ownership local while preserving ports/adapters where they matter.   |
+| Independently deployed service per capability                          | Rejected for MVP | Adds distributed versioning/failure modes without scale or ownership evidence.      |
 
 ## Scoring exception and isolation
 

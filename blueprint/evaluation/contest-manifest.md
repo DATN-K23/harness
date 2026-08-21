@@ -32,11 +32,10 @@ Classification is per immutable model snapshot. Contest publication strictly aft
 
 ## Example expectations
 
-| File | Shape | Semantic/integrity expectation |
-|---|---|---|
-| `manifest-valid.json` | pass | Family membership/split valid; recomputed digest matches. |
-| `manifest-split-leaking.json` | fail | Contest attempts multiple splits. |
-| `manifest-source-family-leaking.json` | pass shape | Family and contest splits disagree; semantic rejection. |
-| `manifest-tampered.json` | pass shape | Recomputed digest differs; integrity rejection. |
-| `manifest-missing-cutoff.json` | pass | Null cutoff is explicitly `unknown`. |
-
+| File                                  | Shape      | Semantic/integrity expectation                            |
+| ------------------------------------- | ---------- | --------------------------------------------------------- |
+| `manifest-valid.json`                 | pass       | Family membership/split valid; recomputed digest matches. |
+| `manifest-split-leaking.json`         | fail       | Contest attempts multiple splits.                         |
+| `manifest-source-family-leaking.json` | pass shape | Family and contest splits disagree; semantic rejection.   |
+| `manifest-tampered.json`              | pass shape | Recomputed digest differs; integrity rejection.           |
+| `manifest-missing-cutoff.json`        | pass       | Null cutoff is explicitly `unknown`.                      |

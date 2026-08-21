@@ -25,7 +25,7 @@ export class RunService {
 
     const TOKEN_PER_STEP_ESTIMATE = 3000;
     const systemGenerated = {
-      promptVersion: process.env.PROMPT_VERSION ?? "v1.0.0",
+      promptVersion: process.env["PROMPT_VERSION"] ?? "v1.0.0",
       tokenBudget: Math.min(
         userProvided.maxSteps * TOKEN_PER_STEP_ESTIMATE,
         200000,

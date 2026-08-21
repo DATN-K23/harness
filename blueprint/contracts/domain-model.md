@@ -7,30 +7,30 @@ Requirements: ORCH-01–ORCH-04, VER-01–VER-03, DATA-01–DATA-04
 
 ## Aggregate boundaries
 
-| Aggregate/value | Identity | Required semantics | Boundary |
-|---|---|---|---|
-| `CandidateFinding` | `candidate_finding_id` + `content_digest` | Title, description, optional claimed paths/lines, normalized source platform reference | Agent-visible, untrusted; never contains official label |
-| `SourceSnapshot` | `source_snapshot_id` | Safe source identity, immutable revision, canonical inventory/tree digest, managed content reference | Imported by `source_access`; original host path is discarded and never supplied by run/model |
-| `JudgeRun` | `run_id` | Mode, lifecycle state/version, candidate/snapshot refs, timestamps, terminal reason | Aggregate root; transition authority is `RunApplication` |
-| `RunConfiguration` | one-to-one `run_id` | Exact resolved flags, budgets, prompts, tools, schemas, provider/model, pricing, manifest/split, runtime/build refs | Immutable after accepted state |
-| `TrajectoryEvent` | `event_id`; order `(run_id, sequence)` | Versioned type, exact sanitized model-visible content or safe metadata | Append-only; no cross-run reads |
-| `Verdict` | one-to-one completed run | Validity/severity/confidence/rationale/unverified status | Exists only after schema and evidence validation |
-| `Evidence` | verdict-local ID | Authorized relative path, one-based inclusive lines, content digest | Resolved against the run's snapshot |
-| `Experiment` | `experiment_id` | Frozen protocol/manifest/scorer/pricing versions and digests | Evaluation control plane |
-| `ExperimentCell` | `experiment_cell_id` | Case, arm, repeat, run reference, terminal accounting, score reference | Label joins only after terminal run |
-| `GroundTruthLabel` | scorer-only `case_id` | Official validity/severity/adjudication source | Never part of run aggregate or trajectory |
+| Aggregate/value    | Identity                                  | Required semantics                                                                                                  | Boundary                                                                                     |
+| ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `CandidateFinding` | `candidate_finding_id` + `content_digest` | Title, description, optional claimed paths/lines, normalized source platform reference                              | Agent-visible, untrusted; never contains official label                                      |
+| `SourceSnapshot`   | `source_snapshot_id`                      | Safe source identity, immutable revision, canonical inventory/tree digest, managed content reference                | Imported by `source_access`; original host path is discarded and never supplied by run/model |
+| `JudgeRun`         | `run_id`                                  | Mode, lifecycle state/version, candidate/snapshot refs, timestamps, terminal reason                                 | Aggregate root; transition authority is `RunApplication`                                     |
+| `RunConfiguration` | one-to-one `run_id`                       | Exact resolved flags, budgets, prompts, tools, schemas, provider/model, pricing, manifest/split, runtime/build refs | Immutable after accepted state                                                               |
+| `TrajectoryEvent`  | `event_id`; order `(run_id, sequence)`    | Versioned type, exact sanitized model-visible content or safe metadata                                              | Append-only; no cross-run reads                                                              |
+| `Verdict`          | one-to-one completed run                  | Validity/severity/confidence/rationale/unverified status                                                            | Exists only after schema and evidence validation                                             |
+| `Evidence`         | verdict-local ID                          | Authorized relative path, one-based inclusive lines, content digest                                                 | Resolved against the run's snapshot                                                          |
+| `Experiment`       | `experiment_id`                           | Frozen protocol/manifest/scorer/pricing versions and digests                                                        | Evaluation control plane                                                                     |
+| `ExperimentCell`   | `experiment_cell_id`                      | Case, arm, repeat, run reference, terminal accounting, score reference                                              | Label joins only after terminal run                                                          |
+| `GroundTruthLabel` | scorer-only `case_id`                     | Official validity/severity/adjudication source                                                                      | Never part of run aggregate or trajectory                                                    |
 
 ## Commands
 
-| Command | Input | Success | Failure categories |
-|---|---|---|---|
-| `CreateJudgeRun` | canonical finding, snapshot ID, config, idempotency key | Accepted run + immutable snapshot | invalid input, source/config unresolved, key conflict, persistence/enqueue failure |
-| `ClaimJudgeRun` | run ID, worker/claim identity, expected version | Running run and claim token | terminal, cancelled, stale, unavailable |
-| `AdvanceJudgeRun` | run ID, claim, next action/events | Appended events and updated aggregates | stale claim, terminal, budget/cancel stop |
-| `CompleteJudgeRun` | valid verdict/evidence, usage/cost, expected version | Atomic completed aggregate | schema/evidence invalid, stale, cancelled, budget exhausted |
-| `FailJudgeRun` | normalized reason, aggregates, expected version | Atomic failed aggregate | stale or already terminal |
-| `CancelJudgeRun` | run ID, requester, expected/current state | Request recorded or terminal cancelled | unknown run; existing terminal returned unchanged |
-| `ScoreExperimentCell` | terminal run ID, scorer credential | Separate score record | non-terminal, missing label, protocol mismatch |
+| Command               | Input                                                   | Success                                | Failure categories                                                                 |
+| --------------------- | ------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
+| `CreateJudgeRun`      | canonical finding, snapshot ID, config, idempotency key | Accepted run + immutable snapshot      | invalid input, source/config unresolved, key conflict, persistence/enqueue failure |
+| `ClaimJudgeRun`       | run ID, worker/claim identity, expected version         | Running run and claim token            | terminal, cancelled, stale, unavailable                                            |
+| `AdvanceJudgeRun`     | run ID, claim, next action/events                       | Appended events and updated aggregates | stale claim, terminal, budget/cancel stop                                          |
+| `CompleteJudgeRun`    | valid verdict/evidence, usage/cost, expected version    | Atomic completed aggregate             | schema/evidence invalid, stale, cancelled, budget exhausted                        |
+| `FailJudgeRun`        | normalized reason, aggregates, expected version         | Atomic failed aggregate                | stale or already terminal                                                          |
+| `CancelJudgeRun`      | run ID, requester, expected/current state               | Request recorded or terminal cancelled | unknown run; existing terminal returned unchanged                                  |
+| `ScoreExperimentCell` | terminal run ID, scorer credential                      | Separate score record                  | non-terminal, missing label, protocol mismatch                                     |
 
 ## Canonical states and outcomes
 
@@ -52,10 +52,10 @@ States and reasons are defined in `vocabulary.md` and `architecture/judge-lifecy
 
 The machine schema is `judge-verdict.schema.json`. Cross-field semantics are:
 
-| Validity | Allowed severity | Evidence | Verification |
-|---|---|---|---|
-| `valid` | `low`, `medium`, `high`, `critical` | At least one resolvable item | `unverified` |
-| `invalid` | `none` | At least one resolvable item explaining rejection | `unverified` |
+| Validity  | Allowed severity                    | Evidence                                          | Verification |
+| --------- | ----------------------------------- | ------------------------------------------------- | ------------ |
+| `valid`   | `low`, `medium`, `high`, `critical` | At least one resolvable item                      | `unverified` |
+| `invalid` | `none`                              | At least one resolvable item explaining rejection | `unverified` |
 
 Confidence is an analysis signal in `[0,1]`, not a calibrated probability claim.
 
@@ -91,11 +91,11 @@ source_tree_digest = sha256(entry_1 || LF || ... || entry_n)
 
 ## Boundary examples
 
-| Input | Outcome |
-|---|---|
-| Same object with reordered JSON keys | Same canonical digest. |
-| Same user text with CRLF versus LF | Same candidate digest after declared normalization. |
-| Source file differing by one byte | Different tree and evidence digest. |
-| Same case/arm but different repeat | Different `experiment_cell_id`. |
-| Same idempotency key, different canonical request digest | Conflict; never reuse run. |
-| Changed global flag after acceptance | Original run configuration and digest remain unchanged. |
+| Input                                                    | Outcome                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| Same object with reordered JSON keys                     | Same canonical digest.                                  |
+| Same user text with CRLF versus LF                       | Same candidate digest after declared normalization.     |
+| Source file differing by one byte                        | Different tree and evidence digest.                     |
+| Same case/arm but different repeat                       | Different `experiment_cell_id`.                         |
+| Same idempotency key, different canonical request digest | Conflict; never reuse run.                              |
+| Changed global flag after acceptance                     | Original run configuration and digest remain unchanged. |

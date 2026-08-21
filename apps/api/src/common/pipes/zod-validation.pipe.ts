@@ -1,6 +1,6 @@
 import {
-  PipeTransform,
-  ArgumentMetadata,
+  type PipeTransform,
+  type ArgumentMetadata,
   BadRequestException,
 } from "@nestjs/common";
 import { ZodSchema, ZodError } from "zod";

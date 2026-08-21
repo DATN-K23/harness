@@ -18,25 +18,25 @@ Acceptance evidence is the approved OpenSpec design `sha256:5aea91ad544a46cc6462
 
 ## Decision criteria
 
-| Criterion | Decision consequence |
-|---|---|
-| Team proficiency | Python and TypeScript are both acceptable implementation languages. |
-| Contract fidelity | OpenAPI 3.1 and JSON Schema 2020-12 remain canonical; generated types conform to them. |
-| Async/recovery maturity | HTTP lifecycle is separate from PostgreSQL-backed work claims and worker execution. |
-| Relational consistency | PostgreSQL supports transactions, outbox/jobs, CAS transitions and scorer role/schema isolation. |
-| Provider ecosystem | Official asynchronous Python SDKs stay behind `model_gateway` adapters. |
-| Desktop delivery | React/TypeScript/Vite provides the renderer; ADR-007 selects Tauri 2 with a narrow Rust host. |
-| Reproducibility | `uv`, `pnpm`, committed lockfiles and Docker Compose define the packaging family. |
-| Operational simplicity | No Redis, Kubernetes, external LLM gateway or independently deployed microservices in MVP. |
+| Criterion               | Decision consequence                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Team proficiency        | Python and TypeScript are both acceptable implementation languages.                              |
+| Contract fidelity       | OpenAPI 3.1 and JSON Schema 2020-12 remain canonical; generated types conform to them.           |
+| Async/recovery maturity | HTTP lifecycle is separate from PostgreSQL-backed work claims and worker execution.              |
+| Relational consistency  | PostgreSQL supports transactions, outbox/jobs, CAS transitions and scorer role/schema isolation. |
+| Provider ecosystem      | Official asynchronous Python SDKs stay behind `model_gateway` adapters.                          |
+| Desktop delivery        | React/TypeScript/Vite provides the renderer; ADR-007 selects Tauri 2 with a narrow Rust host.    |
+| Reproducibility         | `uv`, `pnpm`, committed lockfiles and Docker Compose define the packaging family.                |
+| Operational simplicity  | No Redis, Kubernetes, external LLM gateway or independently deployed microservices in MVP.       |
 
 ## Options considered
 
-| Option | Disposition | Rationale |
-|---|---|---|
-| Python runtime + PostgreSQL work table + React/TypeScript desktop renderer | **Accepted** | Best fit for provider/data tooling, typed async boundaries, one durable datastore and team proficiency. |
-| TypeScript/NestJS runtime + Redis/BullMQ + React | Rejected for MVP | Adds Redis and a second execution authority without evidence that it improves the research harness. |
-| Python runtime + dedicated Redis/Celery-style queue | Rejected for MVP | Adds infrastructure and retry ambiguity around paid attempts; PostgreSQL claims are sufficient for MVP. |
-| OpenCode's Bun/Effect/Solid stack | Rejected | The stack and compatibility surface are not required by Judge methodology; see ADR-004. |
+| Option                                                                     | Disposition      | Rationale                                                                                               |
+| -------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
+| Python runtime + PostgreSQL work table + React/TypeScript desktop renderer | **Accepted**     | Best fit for provider/data tooling, typed async boundaries, one durable datastore and team proficiency. |
+| TypeScript/NestJS runtime + Redis/BullMQ + React                           | Rejected for MVP | Adds Redis and a second execution authority without evidence that it improves the research harness.     |
+| Python runtime + dedicated Redis/Celery-style queue                        | Rejected for MVP | Adds infrastructure and retry ambiguity around paid attempts; PostgreSQL claims are sufficient for MVP. |
+| OpenCode's Bun/Effect/Solid stack                                          | Rejected         | The stack and compatibility surface are not required by Judge methodology; see ADR-004.                 |
 
 ## Accepted stack family
 

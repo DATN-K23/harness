@@ -29,13 +29,13 @@ The adapter translates project-owned requests and responses at the boundary. No 
 
 ## Rejected MVP options
 
-| Option | Disposition | Reason |
-|---|---|---|
-| LiteLLM or another in-process gateway | Rejected for MVP | Adds a semantic/retry layer before native fidelity is established. |
-| external provider proxy | Rejected for MVP | Adds trust, logging, latency and failure boundaries without an MVP need. |
-| OpenAI Agents SDK orchestration | Rejected for MVP | Provider/library loop ownership conflicts with the project-owned agent state machine and ablation controls. |
-| hosted web/file/computer tools | Rejected for MVP | Expands network and execution authority beyond read-only registered source. |
-| provider-owned conversation/thread state | Rejected for MVP | Prevents exact committed-history replay and symmetric accounting. |
+| Option                                   | Disposition      | Reason                                                                                                      |
+| ---------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| LiteLLM or another in-process gateway    | Rejected for MVP | Adds a semantic/retry layer before native fidelity is established.                                          |
+| external provider proxy                  | Rejected for MVP | Adds trust, logging, latency and failure boundaries without an MVP need.                                    |
+| OpenAI Agents SDK orchestration          | Rejected for MVP | Provider/library loop ownership conflicts with the project-owned agent state machine and ablation controls. |
+| hosted web/file/computer tools           | Rejected for MVP | Expands network and execution authority beyond read-only registered source.                                 |
+| provider-owned conversation/thread state | Rejected for MVP | Prevents exact committed-history replay and symmetric accounting.                                           |
 
 Multiple providers remain supported by the port and profile schemas. Adding a second adapter does not require changing the agent loop.
 
@@ -57,4 +57,3 @@ Direct and harness arms reference the same accepted provider-profile identifier 
 ## Acceptance evidence
 
 Accepted by TV1/TV5 on `2026-08-14` against this `adr-002-v2` content and the project-port boundary in `architecture/agent-runtime-boundaries.md`. Acceptance authorizes blueprint architecture only. It does not approve a credential, model, price, network call, dependency installation or experiment.
-

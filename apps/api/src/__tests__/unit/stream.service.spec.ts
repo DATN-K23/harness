@@ -57,4 +57,3 @@ describe("StreamService (Unit)", () => {
     expect(events.length).toBe(0);
   });
 });
-

@@ -54,4 +54,3 @@ Candidate/source/tool content is untrusted data. Authorization/classification pr
 ## Failure and teardown
 
 Registration failure creates no snapshot/run and discloses only a safe category. Workspace identity failure before execution is `failed/workspace_preflight`. Teardown failure is an infrastructure/security event but cannot mutate terminal result or reveal the original path.
-

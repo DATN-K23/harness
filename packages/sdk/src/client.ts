@@ -101,9 +101,13 @@ export class AuditHarnessClient {
     try {
       res = await fetch(url, { headers: this.defaultHeaders });
     } catch (err) {
-      throw new NetworkDisconnectedError("Không thể kết nối đến API Server", err);
+      throw new NetworkDisconnectedError(
+        "Không thể kết nối đến API Server",
+        err,
+      );
     }
-    const body = (await res.json()) as ApiSuccessResponse<Run[]> | ApiErrorResponse;
+    const body = (await res.json()) as
+      ApiSuccessResponse<Run[]> | ApiErrorResponse;
     if (!res.ok || !body.success) {
       const errorBody = body as ApiErrorResponse;
       throw new HarnessSDKError(

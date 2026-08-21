@@ -40,15 +40,15 @@ There is no desktop-to-DB/provider/tool/scorer edge and no ground-truth edge to 
 
 ## Process authority
 
-| Process | Owns | Does not own |
-|---|---|---|
+| Process    | Owns                                                                                                                               | Does not own                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Tauri host | windows, allowlisted generated-client transport, endpoint discovery, protected credential, picker, notification/update integration | run state, Judge policy, tool/provider/scorer behavior, ordinary-child runtime ownership |
-| renderer | presentation, generated-client calls, local form state, cursor/cache projection | authoritative events, credentials, source authorization, generic native authority |
-| daemon | handshake, local API, source-registration/run/evaluation projections | agent continuation, labels |
-| worker | work claim, Judge execution, provider/tool settlement | desktop lifecycle, labels |
-| evaluator | frozen schedule and safe aggregation | label resolution, scoring module import |
-| scorer | post-terminal ground-truth join and approved score | provider/tools/run-event mutation |
-| PostgreSQL | durable run/work/outbox/claim/lease/event/evaluation/scorer records under roles/schemas | presentation state |
+| renderer   | presentation, generated-client calls, local form state, cursor/cache projection                                                    | authoritative events, credentials, source authorization, generic native authority        |
+| daemon     | handshake, local API, source-registration/run/evaluation projections                                                               | agent continuation, labels                                                               |
+| worker     | work claim, Judge execution, provider/tool settlement                                                                              | desktop lifecycle, labels                                                                |
+| evaluator  | frozen schedule and safe aggregation                                                                                               | label resolution, scoring module import                                                  |
+| scorer     | post-terminal ground-truth join and approved score                                                                                 | provider/tools/run-event mutation                                                        |
+| PostgreSQL | durable run/work/outbox/claim/lease/event/evaluation/scorer records under roles/schemas                                            | presentation state                                                                       |
 
 ## Lifecycle sequence
 
@@ -96,13 +96,13 @@ Handshake fields are `runtime_instance_id`, `runtime_version`, `api_version`, `c
 
 ## Renderer-to-native permission matrix
 
-| Command family | Renderer-visible purpose | Native owner | Scope/denial |
-|---|---|---|---|
-| runtime discover/start-or-attach/status | establish a compatible local runtime | `runtime_supervision` | no arbitrary executable, PID, signal or endpoint input |
-| generated runtime transport | execute a canonical generated-client operation | `commands` + credential store | allowlisted operation IDs only; derived endpoint; no raw credential |
-| repository picker | explicit operator selection before registration | `repository_picker` | short-lived result; no generic read/list/write authority |
-| safe notification | show bounded local run projection | `notifications` | no untrusted HTML/URL/action execution |
-| update check/prepare | expose availability, active-work and confirmation state | `update_coordinator` | no renderer direct install, artifact URL, signer or bypass |
+| Command family                          | Renderer-visible purpose                                | Native owner                  | Scope/denial                                                        |
+| --------------------------------------- | ------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------- |
+| runtime discover/start-or-attach/status | establish a compatible local runtime                    | `runtime_supervision`         | no arbitrary executable, PID, signal or endpoint input              |
+| generated runtime transport             | execute a canonical generated-client operation          | `commands` + credential store | allowlisted operation IDs only; derived endpoint; no raw credential |
+| repository picker                       | explicit operator selection before registration         | `repository_picker`           | short-lived result; no generic read/list/write authority            |
+| safe notification                       | show bounded local run projection                       | `notifications`               | no untrusted HTML/URL/action execution                              |
+| update check/prepare                    | expose availability, active-work and confirmation state | `update_coordinator`          | no renderer direct install, artifact URL, signer or bypass          |
 
 Generic filesystem, shell, process, environment, opener/arbitrary URL, raw credential and direct updater plugins/commands are absent from the main-window capability. Effective merged Tauri capabilities and custom-command defaults require release review.
 
@@ -114,12 +114,12 @@ PostgreSQL is the only MVP work/state authority. Renderer cache, daemon/worker m
 
 ## Failure-state matrix
 
-| Condition | Desktop state | Runtime/run behavior |
-|---|---|---|
-| daemon starting | `runtime_starting` | no submission; committed runs unchanged |
-| endpoint unavailable | `runtime_unavailable` | worker may continue; retry discovery |
-| local credential rejected | `unauthorized_local` | no fallback/direct access; rotate/restart action |
-| protected credential backend unavailable | `unauthorized_local` | fail closed; no plaintext or anonymous fallback |
-| contract incompatible | `incompatible_version` | mutations disabled; coordinated update action |
-| connection lost with open trace | `reconnecting` | run continues from PostgreSQL authority |
-| compatible reconnect | `ready` | resume cursor; de-duplicate `(run_id, sequence)` |
+| Condition                                | Desktop state          | Runtime/run behavior                             |
+| ---------------------------------------- | ---------------------- | ------------------------------------------------ |
+| daemon starting                          | `runtime_starting`     | no submission; committed runs unchanged          |
+| endpoint unavailable                     | `runtime_unavailable`  | worker may continue; retry discovery             |
+| local credential rejected                | `unauthorized_local`   | no fallback/direct access; rotate/restart action |
+| protected credential backend unavailable | `unauthorized_local`   | fail closed; no plaintext or anonymous fallback  |
+| contract incompatible                    | `incompatible_version` | mutations disabled; coordinated update action    |
+| connection lost with open trace          | `reconnecting`         | run continues from PostgreSQL authority          |
+| compatible reconnect                     | `ready`                | resume cursor; de-duplicate `(run_id, sequence)` |

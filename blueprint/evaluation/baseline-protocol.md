@@ -15,22 +15,22 @@ Any changed value creates a new experiment profile version and experiment identi
 
 ## Matched-pair fairness matrix
 
-| Dimension | Direct | Harness | Rule |
-|---|---|---|---|
-| Case/repeat | same `case_id`, `repeat_index` | same | atomic matched-pair scheduling unit |
-| Candidate | same canonical bytes/digest | same | required equality |
-| Source snapshot | same ID/revision/tree digest | same | required equality |
-| Provider profile/model | same Accepted ID/version/digest | same | no floating alias |
-| Sampling/seed support | same | same | unsupported explicit |
-| Logical-token budget | same total | same total | full repeated/cached model-visible input counts |
-| Output reserve/accounting | same formula | same formula | every call preflighted |
-| Wall-clock ceiling | same | same | latency components reported separately, no token credit |
-| Verdict schema/Judge core | same exact bytes/digest | same | independent validation |
-| Wrapper | direct wrapper | harness wrapper | intentional frozen treatment difference |
-| Source access | deterministic SourceBundle | local safe source tools | intentional treatment difference |
-| Loop/tool feedback/repair | disabled by direct primary preset | explicit harness primary flags | frozen treatment definition |
-| Primary provider retry | SDK 0/project 1 | SDK 0/project 1 per logical call | asymmetry rejects pair |
-| Memory/PoC/Audit | disabled | disabled | outside MVP |
+| Dimension                 | Direct                            | Harness                          | Rule                                                    |
+| ------------------------- | --------------------------------- | -------------------------------- | ------------------------------------------------------- |
+| Case/repeat               | same `case_id`, `repeat_index`    | same                             | atomic matched-pair scheduling unit                     |
+| Candidate                 | same canonical bytes/digest       | same                             | required equality                                       |
+| Source snapshot           | same ID/revision/tree digest      | same                             | required equality                                       |
+| Provider profile/model    | same Accepted ID/version/digest   | same                             | no floating alias                                       |
+| Sampling/seed support     | same                              | same                             | unsupported explicit                                    |
+| Logical-token budget      | same total                        | same total                       | full repeated/cached model-visible input counts         |
+| Output reserve/accounting | same formula                      | same formula                     | every call preflighted                                  |
+| Wall-clock ceiling        | same                              | same                             | latency components reported separately, no token credit |
+| Verdict schema/Judge core | same exact bytes/digest           | same                             | independent validation                                  |
+| Wrapper                   | direct wrapper                    | harness wrapper                  | intentional frozen treatment difference                 |
+| Source access             | deterministic SourceBundle        | local safe source tools          | intentional treatment difference                        |
+| Loop/tool feedback/repair | disabled by direct primary preset | explicit harness primary flags   | frozen treatment definition                             |
+| Primary provider retry    | SDK 0/project 1                   | SDK 0/project 1 per logical call | asymmetry rejects pair                                  |
+| Memory/PoC/Audit          | disabled                          | disabled                         | outside MVP                                             |
 
 ## Arm construction
 

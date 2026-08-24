@@ -58,9 +58,8 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
       if (runData.status === "RUNNING") {
         setSseStatus("connecting");
 
-        const maxStepIndex =
-          historicalToolCalls.length > 0
-            ? Math.max(...historicalToolCalls.map((tc) => tc.stepIndex))
+        const maxStep = historicalToolCalls.length > 0 
+            ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
             : 0;
 
         const unsubscribe = client.subscribeRunStream(
@@ -69,16 +68,16 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
             onopen: () => {
               if (!isCancelled()) setSseStatus("connected");
             },
-            onThought: (e) => {
+            onThought: (e: any) => {
               if (!isCancelled()) appendThought(e);
             },
-            onToolCall: (e) => {
+            onToolCall: (e: any) => {
               if (!isCancelled()) appendToolCall(e);
             },
-            onStatusChanged: (e) => {
+            onStatusChanged: (e: any) => {
               if (!isCancelled()) setRunStatus(e.status);
             },
-            onVerdict: () => {
+            onVerdict: (e: any) => {
               if (!isCancelled()) {
                 client
                   .getRun(runId)
@@ -103,7 +102,7 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
               if (!isCancelled()) setSseStatus("reconnecting");
             },
           },
-          { fromStep: maxStepIndex },
+          { fromStep: maxStep },
         );
 
         if (!isCancelled()) {

@@ -1,0 +1,377 @@
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/__tests__/unit/response-transform.interceptor.spec.ts
+   6:49  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+   7:22  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+   8:29  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+   9:24  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  23:52  warning  Unsafe argument of type `any` assigned to a parameter of type `Reflector`         @typescript-eslint/no-unsafe-argument
+  26:61  warning  Async arrow function has no 'await' expression                                    @typescript-eslint/require-await
+  32:7   warning  Unsafe argument of type `any` assigned to a parameter of type `ExecutionContext`  @typescript-eslint/no-unsafe-argument
+  33:7   warning  Unsafe argument of type `any` assigned to a parameter of type `CallHandler<any>`  @typescript-eslint/no-unsafe-argument
+  36:33  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  37:18  warning  Unsafe member access .success on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+  38:18  warning  Unsafe member access .code on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  39:18  warning  Unsafe member access .data on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  40:18  warning  Unsafe member access .meta on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  44:72  warning  Async arrow function has no 'await' expression                                    @typescript-eslint/require-await
+  63:7   warning  Unsafe argument of type `any` assigned to a parameter of type `ExecutionContext`  @typescript-eslint/no-unsafe-argument
+  64:7   warning  Unsafe argument of type `any` assigned to a parameter of type `CallHandler<any>`  @typescript-eslint/no-unsafe-argument
+  67:33  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  68:18  warning  Unsafe member access .success on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+  69:18  warning  Unsafe member access .data on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  70:18  warning  Unsafe member access .meta on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  74:75  warning  Async arrow function has no 'await' expression                                    @typescript-eslint/require-await
+  75:5   warning  Unsafe call of an `any` typed value                                               @typescript-eslint/no-unsafe-call
+  75:19  warning  Unsafe member access .getAllAndOverride on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  82:7   warning  Unsafe argument of type `any` assigned to a parameter of type `ExecutionContext`  @typescript-eslint/no-unsafe-argument
+  83:7   warning  Unsafe argument of type `any` assigned to a parameter of type `CallHandler<any>`  @typescript-eslint/no-unsafe-argument
+  86:33  error    Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/__tests__/unit/run.service.spec.ts
+    7:19  error    Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+   25:33  warning  Unsafe argument of type `any` assigned to a parameter of type `PrismaService`  @typescript-eslint/no-unsafe-argument
+   36:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   36:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   36:65  error    Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+   36:70  warning  Async arrow function has no 'await' expression                                 @typescript-eslint/require-await
+   36:74  warning  Unsafe return of a value of type `any`                                         @typescript-eslint/no-unsafe-return
+   43:25  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   50:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   50:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   57:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   57:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   67:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   67:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   68:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   68:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   78:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   78:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   79:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   79:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   88:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   88:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   89:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+   89:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   96:25  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+  103:11  warning  Unsafe assignment of an `any` value                                            @typescript-eslint/no-unsafe-assignment
+  109:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+  109:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+  110:7   warning  Unsafe call of an `any` typed value                                            @typescript-eslint/no-unsafe-call
+  110:18  warning  Unsafe member access .run on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/__tests__/unit/stream.service.spec.ts
+   7:19  error    Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  21:39  warning  Unsafe argument of type `any` assigned to a parameter of type `PrismaService`  @typescript-eslint/no-unsafe-argument
+  28:19  error    Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  40:22  warning  Unsafe member access .type on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+  45:19  error    Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/common/filters/http-exception.filter.ts
+  33:12  warning  This assertion is unnecessary since the receiver accepts the original type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/common/interceptors/response-transform.interceptor.ts
+  19:3   warning  'ApiSuccessResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  26:17  warning  'ApiSuccessResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  37:11  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  38:11  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  51:13  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  52:25  warning  'PaginationMeta' is an 'error' type that acts as 'any' and overrides all other types in this union type      @typescript-eslint/no-redundant-type-constituents
+  53:15  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  54:58  warning  Unsafe member access .message on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  55:22  warning  Unsafe member access .message on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  62:18  warning  Unsafe member access ._paginated on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  64:25  warning  Unsafe member access .items on an `any` value                                                                @typescript-eslint/no-unsafe-member-access
+  65:11  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  65:31  warning  Unsafe member access .pagination on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  70:11  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  70:26  warning  Unsafe member access .statusCode on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+  71:11  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+  75:24  warning  Unsafe member access .headers on an `any` value                                                              @typescript-eslint/no-unsafe-member-access
+  78:32  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  82:9   warning  Unsafe return of a value of type error                                                                       @typescript-eslint/no-unsafe-return
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/common/pipes/zod-validation.pipe.ts
+   3:8  error    'ArgumentMetadata' is defined but never used  @typescript-eslint/no-unused-vars
+  13:7  warning  Unsafe return of a value of type `any`        @typescript-eslint/no-unsafe-return
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/main.ts
+  41:1  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/modules/demo/demo.service.ts
+  36:13  warning  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/modules/run/run.controller.ts
+  25:35  warning  Unsafe argument of type error typed assigned to a parameter of type `ZodType<any, ZodTypeDef, any>`  @typescript-eslint/no-unsafe-argument
+  26:32  error    Unexpected any. Specify a different type                                                             @typescript-eslint/no-explicit-any
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/modules/run/run.service.ts
+  15:11  warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  15:25  warning  Unsafe member access .config on a type that cannot be resolved            @typescript-eslint/no-unsafe-member-access
+  15:35  error    Unexpected any. Specify a different type                                  @typescript-eslint/no-explicit-any
+  17:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  17:29  warning  Unsafe member access .modelProvider on an `any` value                     @typescript-eslint/no-unsafe-member-access
+  18:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  18:25  warning  Unsafe member access .modelName on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  19:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  19:27  warning  Unsafe member access .temperature on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  20:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  20:24  warning  Unsafe member access .maxSteps on an `any` value                          @typescript-eslint/no-unsafe-member-access
+  21:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  21:28  warning  Unsafe member access .enableMemory on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  22:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  22:32  warning  Unsafe member access .enableCompaction on an `any` value                  @typescript-eslint/no-unsafe-member-access
+  23:7   warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  23:34  warning  Unsafe member access .enableVerification on an `any` value                @typescript-eslint/no-unsafe-member-access
+  46:9   warning  Unsafe assignment of an error typed value                                 @typescript-eslint/no-unsafe-assignment
+  46:20  warning  Unsafe member access .title on a type that cannot be resolved             @typescript-eslint/no-unsafe-member-access
+  47:9   warning  Unsafe assignment of an error typed value                                 @typescript-eslint/no-unsafe-assignment
+  47:31  warning  Unsafe member access .targetRepository on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+  48:9   warning  Unsafe assignment of an error typed value                                 @typescript-eslint/no-unsafe-assignment
+  48:24  warning  Unsafe member access .findingId on a type that cannot be resolved         @typescript-eslint/no-unsafe-member-access
+  80:30  warning  Unsafe assignment of an `any` value                                       @typescript-eslint/no-unsafe-assignment
+  80:48  error    Unexpected any. Specify a different type                                  @typescript-eslint/no-explicit-any
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/api/src/modules/stream/stream.service.ts
+   15:27  error    Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+   64:11  error    'mapToMessageEvent' is assigned a value but never used                  @typescript-eslint/no-unused-vars
+  114:30  error    Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  116:34  warning  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  116:36  warning  Unsafe member access .eventType on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  116:52  warning  Unsafe member access .stepIndex on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  117:33  warning  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  117:35  warning  Unsafe member access .eventType on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  120:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  120:24  warning  Unsafe member access .stepIndex on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  121:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  121:22  warning  Unsafe member access .content on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  124:29  error    Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  126:34  warning  Unsafe member access .stepIndex on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  130:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  130:25  warning  Unsafe member access .stepIndex on an `any` value                       @typescript-eslint/no-unsafe-member-access
+  131:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  131:24  warning  Unsafe member access .toolName on an `any` value                        @typescript-eslint/no-unsafe-member-access
+  132:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  132:33  warning  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  132:36  warning  Unsafe member access .argumentsJson on an `any` value                   @typescript-eslint/no-unsafe-member-access
+  133:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  133:22  warning  Unsafe member access .resultJson on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  134:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  134:23  warning  Unsafe member access .isError on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  135:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  135:26  warning  Unsafe member access .durationMs on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  136:11  warning  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  136:26  warning  Unsafe member access .tokensUsed on an `any` value                      @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/App.tsx
+   74:15  warning  Unsafe assignment of an `any` value                                                @typescript-eslint/no-unsafe-assignment
+   75:19  warning  Unsafe argument of type `any` assigned to a parameter of type `DemoEvent[]`        @typescript-eslint/no-unsafe-argument
+   75:24  warning  Unsafe member access .events on an `any` value                                     @typescript-eslint/no-unsafe-member-access
+  199:21  error    Promise-returning function provided to attribute where a void return was expected  @typescript-eslint/no-misused-promises
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/components/trace/ToolCallCard.tsx
+   29:13  warning  Unsafe assignment of an `any` value                                           @typescript-eslint/no-unsafe-assignment
+   42:26  warning  Unsafe member access .isError on a type that cannot be resolved               @typescript-eslint/no-unsafe-member-access
+   65:26  warning  Unsafe argument of type error typed assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+   65:35  warning  Unsafe member access .toolName on a type that cannot be resolved              @typescript-eslint/no-unsafe-member-access
+   76:33  warning  Unsafe member access .stepIndex on a type that cannot be resolved             @typescript-eslint/no-unsafe-member-access
+   76:55  warning  Unsafe member access .toolName on a type that cannot be resolved              @typescript-eslint/no-unsafe-member-access
+   78:25  warning  Unsafe member access .isError on a type that cannot be resolved               @typescript-eslint/no-unsafe-member-access
+  105:43  warning  Unsafe member access .durationMs on a type that cannot be resolved            @typescript-eslint/no-unsafe-member-access
+  108:23  warning  Unsafe member access .tokensUsed on a type that cannot be resolved            @typescript-eslint/no-unsafe-member-access
+  145:36  warning  Unsafe argument of type error typed assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  145:45  warning  Unsafe member access .argumentsJson on a type that cannot be resolved         @typescript-eslint/no-unsafe-member-access
+  166:33  warning  Unsafe member access .isError on a type that cannot be resolved               @typescript-eslint/no-unsafe-member-access
+  171:25  warning  Unsafe member access .resultJson on a type that cannot be resolved            @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/components/trace/TraceHeader.tsx
+    7:8   warning  'Run' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+   12:9   warning  Unsafe assignment of an error typed value                                                     @typescript-eslint/no-unsafe-assignment
+   80:13  warning  Unsafe assignment of an error typed value                                                     @typescript-eslint/no-unsafe-assignment
+   80:29  warning  Unsafe call of a type that could not be resolved                                              @typescript-eslint/no-unsafe-call
+   80:36  warning  Unsafe member access .cancelRun on a type that cannot be resolved                             @typescript-eslint/no-unsafe-member-access
+   80:50  warning  Unsafe member access .id on a type that cannot be resolved                                    @typescript-eslint/no-unsafe-member-access
+   82:19  error    Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   83:42  warning  Unsafe member access .message on an `any` value                                               @typescript-eslint/no-unsafe-member-access
+  107:19  warning  Unsafe member access .title on a type that cannot be resolved                                 @typescript-eslint/no-unsafe-member-access
+  114:21  warning  Unsafe member access .targetRepository on a type that cannot be resolved                      @typescript-eslint/no-unsafe-member-access
+  117:54  warning  Unsafe member access .findingId on a type that cannot be resolved                             @typescript-eslint/no-unsafe-member-access
+  133:17  warning  Unsafe member access .status on a type that cannot be resolved                                @typescript-eslint/no-unsafe-member-access
+  135:23  error    Promise-returning function provided to attribute where a void return was expected             @typescript-eslint/no-misused-promises
+  153:22  warning  Unsafe member access .status on a type that cannot be resolved                                @typescript-eslint/no-unsafe-member-access
+  156:27  warning  Unsafe member access .status on a type that cannot be resolved                                @typescript-eslint/no-unsafe-member-access
+  162:19  warning  Unsafe member access .status on a type that cannot be resolved                                @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/components/trace/TraceView.tsx
+   14:9   warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+   16:5   warning  Unsafe object destructuring of a property with an error typed value                                                                                                 @typescript-eslint/no-unsafe-assignment
+   43:13  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+   43:29  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   43:36  warning  Unsafe member access .getRun on a type that cannot be resolved                                                                                                      @typescript-eslint/no-unsafe-member-access
+   48:13  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+   48:41  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   48:48  warning  Unsafe member access .getToolCalls on a type that cannot be resolved                                                                                                @typescript-eslint/no-unsafe-member-access
+   53:7   warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   53:27  warning  Unsafe member access .forEach on a type that cannot be resolved                                                                                                     @typescript-eslint/no-unsafe-member-access
+   58:19  warning  Unsafe member access .status on a type that cannot be resolved                                                                                                      @typescript-eslint/no-unsafe-member-access
+   62:31  warning  Unsafe member access .length on a type that cannot be resolved                                                                                                      @typescript-eslint/no-unsafe-member-access
+   63:24  warning  Unsafe spread of an error typed type                                                                                                                                @typescript-eslint/no-unsafe-argument
+   63:27  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   63:47  warning  Unsafe member access .map on a type that cannot be resolved                                                                                                         @typescript-eslint/no-unsafe-member-access
+   63:59  warning  Unsafe return of a value of type `any`                                                                                                                              @typescript-eslint/no-unsafe-return
+   63:62  warning  Unsafe member access .stepIndex on an `any` value                                                                                                                   @typescript-eslint/no-unsafe-member-access
+   66:15  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+   66:29  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   66:36  warning  Unsafe member access .subscribeRunStream on a type that cannot be resolved                                                                                          @typescript-eslint/no-unsafe-member-access
+   79:48  warning  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                                              @typescript-eslint/no-unsafe-argument
+   79:50  warning  Unsafe member access .status on an `any` value                                                                                                                      @typescript-eslint/no-unsafe-member-access
+   81:25  error    '_e' is defined but never used                                                                                                                                      @typescript-eslint/no-unused-vars
+   83:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   83:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   83:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   84:20  warning  Unsafe member access .getRun on a type that cannot be resolved                                                                                                      @typescript-eslint/no-unsafe-member-access
+   85:20  warning  Unsafe member access .then on a type that cannot be resolved                                                                                                        @typescript-eslint/no-unsafe-member-access
+   88:20  warning  Unsafe member access .catch on a type that cannot be resolved                                                                                                       @typescript-eslint/no-unsafe-member-access
+   94:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   94:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   94:17  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+   95:20  warning  Unsafe member access .getRun on a type that cannot be resolved                                                                                                      @typescript-eslint/no-unsafe-member-access
+   96:20  warning  Unsafe member access .then on a type that cannot be resolved                                                                                                        @typescript-eslint/no-unsafe-member-access
+   99:20  warning  Unsafe member access .catch on a type that cannot be resolved                                                                                                       @typescript-eslint/no-unsafe-member-access
+  110:11  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+  112:11  warning  Unsafe call of a type that could not be resolved                                                                                                                    @typescript-eslint/no-unsafe-call
+  117:19  error    Unexpected any. Specify a different type                                                                                                                            @typescript-eslint/no-explicit-any
+  120:16  warning  Unsafe argument of type `any` assigned to a parameter of type `SetStateAction<string | null>`                                                                       @typescript-eslint/no-unsafe-argument
+  120:21  warning  Unsafe member access .message on an `any` value                                                                                                                     @typescript-eslint/no-unsafe-member-access
+  130:5   error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  143:25  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+  145:20  warning  Unsafe member access .verdict on a type that cannot be resolved                                                                                                     @typescript-eslint/no-unsafe-member-access
+  145:55  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+  145:66  warning  Unsafe member access .verdict on a type that cannot be resolved                                                                                                     @typescript-eslint/no-unsafe-member-access
+  169:21  error    Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+  232:34  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+  232:37  warning  Unsafe member access .id on a type that cannot be resolved                                                                                                          @typescript-eslint/no-unsafe-member-access
+  232:51  warning  Unsafe assignment of an error typed value                                                                                                                           @typescript-eslint/no-unsafe-assignment
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/components/trace/VerdictBanner.tsx
+   5:12  warning  'Verdict' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  11:29  warning  Unsafe member access .status on a type that cannot be resolved                                    @typescript-eslint/no-unsafe-member-access
+  40:35  warning  Unsafe member access .status on a type that cannot be resolved                                    @typescript-eslint/no-unsafe-member-access
+  40:53  warning  Unsafe member access .severity on a type that cannot be resolved                                  @typescript-eslint/no-unsafe-member-access
+  43:43  warning  Unsafe member access .confidenceScore on a type that cannot be resolved                           @typescript-eslint/no-unsafe-member-access
+  47:18  warning  Unsafe member access .explanation on a type that cannot be resolved                               @typescript-eslint/no-unsafe-member-access
+  49:16  warning  Unsafe member access .pocSourceCode on a type that cannot be resolved                             @typescript-eslint/no-unsafe-member-access
+  70:22  warning  Unsafe member access .pocSourceCode on a type that cannot be resolved                             @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/hooks/useAuditHarnessClient.tsx
+   8:49  warning  'AuditHarnessClient' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  17:9   warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  18:11  warning  Unsafe construction of a type that could not be resolved                                                     @typescript-eslint/no-unsafe-call
+  18:11  warning  Unsafe return of a value of type error                                                                       @typescript-eslint/no-unsafe-return
+  23:48  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  30:9   warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/stores/replay.store.ts
+  5:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/apps/web/src/stores/run.store.ts
+   8:15  warning  'Run' is an 'error' type that acts as 'any' and overrides all other types in this union type            @typescript-eslint/no-redundant-type-constituents
+  13:17  warning  'Run' is an 'error' type that acts as 'any' and overrides all other types in this union type            @typescript-eslint/no-redundant-type-constituents
+  17:24  warning  'ToolCall' is an 'error' type that acts as 'any' and overrides all other types in this union type       @typescript-eslint/no-redundant-type-constituents
+  17:35  warning  'ToolCallEvent' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  28:26  warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  32:7   warning  Unsafe assignment of an `any` value                                                                     @typescript-eslint/no-unsafe-assignment
+  33:34  warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  41:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  41:30  warning  Unsafe member access .id on a type that cannot be resolved                                              @typescript-eslint/no-unsafe-member-access
+  41:45  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  42:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  42:19  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  43:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  43:23  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  44:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  44:22  warning  Unsafe member access .toolName on a type that cannot be resolved                                        @typescript-eslint/no-unsafe-member-access
+  45:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  46:28  warning  Unsafe member access .argumentsJson on a type that cannot be resolved                                   @typescript-eslint/no-unsafe-member-access
+  47:48  warning  Unsafe member access .arguments on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  48:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  49:28  warning  Unsafe member access .resultJson on a type that cannot be resolved                                      @typescript-eslint/no-unsafe-member-access
+  49:64  warning  Unsafe member access .result on a type that cannot be resolved                                          @typescript-eslint/no-unsafe-member-access
+  50:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  50:21  warning  Unsafe member access .isError on a type that cannot be resolved                                         @typescript-eslint/no-unsafe-member-access
+  51:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  51:24  warning  Unsafe member access .durationMs on a type that cannot be resolved                                      @typescript-eslint/no-unsafe-member-access
+  52:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  52:24  warning  Unsafe member access .tokensUsed on a type that cannot be resolved                                      @typescript-eslint/no-unsafe-member-access
+  53:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  53:37  warning  Unsafe member access .timestamp on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  59:41  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  59:60  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  59:83  warning  Unsafe member access .toolName on a type that cannot be resolved                                        @typescript-eslint/no-unsafe-member-access
+  62:23  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  62:41  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  62:63  warning  Unsafe member access .toolName on a type that cannot be resolved                                        @typescript-eslint/no-unsafe-member-access
+  67:28  warning  Unsafe spread of an `any` value in an array                                                             @typescript-eslint/no-unsafe-assignment
+  74:18  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  74:36  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  74:47  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  74:69  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  79:27  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  80:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  80:24  warning  Unsafe member access .runId on a type that cannot be resolved                                           @typescript-eslint/no-unsafe-member-access
+  81:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  81:28  warning  Unsafe member access .stepIndex on a type that cannot be resolved                                       @typescript-eslint/no-unsafe-member-access
+  83:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  83:26  warning  Unsafe member access .thought on a type that cannot be resolved                                         @typescript-eslint/no-unsafe-member-access
+  84:9   warning  Unsafe assignment of an error typed value                                                               @typescript-eslint/no-unsafe-assignment
+  84:29  warning  Unsafe member access .tokensUsed on a type that cannot be resolved                                      @typescript-eslint/no-unsafe-member-access
+  87:30  warning  Unsafe spread of an `any` value in an array                                                             @typescript-eslint/no-unsafe-assignment
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/packages/sdk/src/__tests__/client.spec.ts
+  24:5   warning  Unsafe call of a type that could not be resolved                                              @typescript-eslint/no-unsafe-call
+  24:31  warning  Unsafe member access .mockResolvedValueOnce on a type that cannot be resolved                 @typescript-eslint/no-unsafe-member-access
+  24:53  warning  This assertion is unnecessary since the receiver accepts the original type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  26:7   warning  Async method 'json' has no 'await' expression                                                 @typescript-eslint/require-await
+  35:11  warning  Unsafe assignment of an error typed value                                                     @typescript-eslint/no-unsafe-assignment
+  42:19  warning  Unsafe member access .fetch on a type that cannot be resolved                                 @typescript-eslint/no-unsafe-member-access
+  56:5   warning  Unsafe call of a type that could not be resolved                                              @typescript-eslint/no-unsafe-call
+  56:31  warning  Unsafe member access .mockResolvedValueOnce on a type that cannot be resolved                 @typescript-eslint/no-unsafe-member-access
+  56:53  warning  This assertion is unnecessary since the receiver accepts the original type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  58:7   warning  Async method 'json' has no 'await' expression                                                 @typescript-eslint/require-await
+  67:11  warning  Unsafe assignment of an error typed value                                                     @typescript-eslint/no-unsafe-assignment
+  70:19  warning  Unsafe member access .fetch on a type that cannot be resolved                                 @typescript-eslint/no-unsafe-member-access
+
+/mnt/Data/Backup_Nguyen/Workspaces/DATNK23/harness/packages/sdk/src/client.ts
+   58:11  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+   58:40  warning  'ApiSuccessResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+   58:64  warning  'ApiErrorResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type    @typescript-eslint/no-redundant-type-constituents
+   60:26  warning  Unsafe member access .success on a type that cannot be resolved                                              @typescript-eslint/no-unsafe-member-access
+   61:13  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+   62:13  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+   62:30  warning  Unsafe member access .error on a type that cannot be resolved                                                @typescript-eslint/no-unsafe-member-access
+   63:13  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+   63:33  warning  Unsafe member access .error on a type that cannot be resolved                                                @typescript-eslint/no-unsafe-member-access
+   67:33  warning  Unsafe argument of type error typed assigned to a parameter of type `string`                                 @typescript-eslint/no-unsafe-argument
+   67:39  warning  Unsafe argument of type error typed assigned to a parameter of type `string`                                 @typescript-eslint/no-unsafe-argument
+   67:58  warning  Unsafe member access .error on a type that cannot be resolved                                                @typescript-eslint/no-unsafe-member-access
+   70:5   warning  Unsafe return of a value of type error                                                                       @typescript-eslint/no-unsafe-return
+   70:17  warning  Unsafe member access .data on a type that cannot be resolved                                                 @typescript-eslint/no-unsafe-member-access
+  109:11  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  110:7   warning  'ApiSuccessResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type  @typescript-eslint/no-redundant-type-constituents
+  110:35  warning  'ApiErrorResponse' is an 'error' type that acts as 'any' and overrides all other types in this union type    @typescript-eslint/no-redundant-type-constituents
+  111:26  warning  Unsafe member access .success on a type that cannot be resolved                                              @typescript-eslint/no-unsafe-member-access
+  112:13  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  114:9   warning  Unsafe argument of type error typed assigned to a parameter of type `string`                                 @typescript-eslint/no-unsafe-argument
+  114:19  warning  Unsafe member access .error on a type that cannot be resolved                                                @typescript-eslint/no-unsafe-member-access
+  115:9   warning  Unsafe argument of type error typed assigned to a parameter of type `string`                                 @typescript-eslint/no-unsafe-argument
+  115:19  warning  Unsafe member access .error on a type that cannot be resolved                                                @typescript-eslint/no-unsafe-member-access
+  118:11  warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  120:7   warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  120:26  warning  Unsafe member access .data on a type that cannot be resolved                                                 @typescript-eslint/no-unsafe-member-access
+  122:7   warning  Unsafe assignment of an error typed value                                                                    @typescript-eslint/no-unsafe-assignment
+  122:31  warning  Unsafe member access .meta on a type that cannot be resolved                                                 @typescript-eslint/no-unsafe-member-access
+  184:7   warning  Async method 'onopen' has no 'await' expression                                                              @typescript-eslint/require-await
+  197:17  warning  Unsafe assignment of an `any` value                                                                          @typescript-eslint/no-unsafe-assignment
+
+✖ 331 problems (29 errors, 302 warnings)
+  0 errors and 3 warnings potentially fixable with the `--fix` option.
+

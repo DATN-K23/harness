@@ -1,5 +1,5 @@
 import React from "react";
-import type { Verdict } from "@audit-harness/contracts";
+import type { VerdictSchema as Verdict } from "../../generated/api/index.js";
 
 interface VerdictBannerProps {
   verdict: Verdict | null | undefined;

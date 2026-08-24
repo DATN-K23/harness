@@ -1,96 +1,93 @@
 import { create } from "zustand";
-import type { Run, ToolCall, ModelEvent } from "@audit-harness/contracts";
-import type { ThoughtEvent, ToolCallEvent } from "@audit-harness/sdk";
+import type { RunSchema as Run, ToolCallSchema } from "../generated/api/index.js";
+type ThoughtEvent = any;
+type ToolCallEvent = any;
+
+type ToolCall = ToolCallSchema;
+interface ModelEvent {
+  id: string;
+  stepIndex: number;
+  eventType: string;
+  content: string;
+  runId?: string;
+}
 
 export type SseStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
-interface RunState {
+export interface RunState {
   currentRun: Run | null;
-  toolCalls: ToolCall[];
-  modelEvents: ModelEvent[];
+  runStatus: string;
   sseStatus: SseStatus;
+  
+  // Trace Data
+  toolCalls: ToolCall[];
+  thoughts: ThoughtEvent[];
+  modelEvents: ModelEvent[];
 
+  // Actions
   setRun: (run: Run | null) => void;
-  /** NW3 Fix: Patch chỉ 1 field status mà không cần có snapshot của toàn bộ run */
   setRunStatus: (status: string) => void;
   setSseStatus: (status: SseStatus) => void;
-  appendToolCall: (tc: ToolCall | ToolCallEvent) => void;
-  appendThought: (thought: ThoughtEvent) => void;
+  appendToolCall: (tc: any) => void;
+  appendThought: (thought: any) => void;
+  appendModelEvent: (event: any) => void;
   reset: () => void;
 }
 
 export const useRunStore = create<RunState>((set) => ({
   currentRun: null,
-  toolCalls: [],
-  modelEvents: [],
+  runStatus: "PENDING",
   sseStatus: "offline",
+  toolCalls: [],
+  thoughts: [],
+  modelEvents: [],
 
   setRun: (run) => set({ currentRun: run }),
-  // NW3 Fix: Dùng functional updater — không phụ thuộc snapshot của run tại thời điểm subscribe
+  
   setRunStatus: (status) =>
     set((state) => ({
       currentRun: state.currentRun
-        ? { ...state.currentRun, status: status as Run["status"] }
+        ? { ...state.currentRun, status: status }
         : null,
+      runStatus: status,
     })),
+
   setSseStatus: (sseStatus) => set({ sseStatus }),
 
   appendToolCall: (tc) =>
     set((state) => {
-      const formatted: ToolCall = {
-        id: (tc as ToolCall).id || `tc_${tc.stepIndex}_${Date.now()}`,
-        runId: tc.runId,
-        stepIndex: tc.stepIndex,
-        toolName: tc.toolName,
-        argumentsJson:
-          (tc as ToolCall).argumentsJson ||
-          JSON.stringify((tc as ToolCallEvent).arguments || {}),
-        resultJson:
-          (tc as ToolCall).resultJson || (tc as ToolCallEvent).result || "",
-        isError: tc.isError,
-        durationMs: tc.durationMs,
-        tokensUsed: tc.tokensUsed,
-        timestamp: (tc as ToolCall).timestamp || new Date().toISOString(),
-      };
-
-      // W4 Fix: De-duplicate theo composite key runId+stepIndex+toolName
-      // Tránh trường hợp REST prefetch trả ToolCall (có .id thật) và SSE trả
-      // ToolCallEvent (không có .id) sinh key khác nhau cho cùng 1 record.
-      const compositeKey = `${formatted.runId}:${formatted.stepIndex}:${formatted.toolName}`;
-      const exists = state.toolCalls.some(
-        (existing) =>
-          `${existing.runId}:${existing.stepIndex}:${existing.toolName}` ===
-          compositeKey,
-      );
-      if (exists) return state;
-
-      return { toolCalls: [...state.toolCalls, formatted] };
+      // Deduplicate by ID
+      if (state.toolCalls.some((existing) => existing.id === tc.id)) {
+        return state;
+      }
+      return { toolCalls: [...state.toolCalls, tc] };
     }),
 
   appendThought: (thought) =>
     set((state) => {
-      // NW2 Fix: De-duplicate theo runId+stepIndex (giống appendToolCall)
       const exists = state.modelEvents.some(
         (e) => e.runId === thought.runId && e.stepIndex === thought.stepIndex,
       );
       if (exists) return state;
 
-      const formatted: ModelEvent = {
-        id: `me_${thought.stepIndex}_${Date.now()}`,
+      const newEvent: ModelEvent = {
+        id: thought.id || `thought_${thought.stepIndex}_${Date.now()}`,
         runId: thought.runId,
         stepIndex: thought.stepIndex,
         eventType: "THOUGHT",
-        content: thought.thought,
-        tokensUsed: thought.tokensUsed,
-        timestamp: new Date().toISOString(),
+        content: thought.thought || thought.content || "",
       };
-      return { modelEvents: [...state.modelEvents, formatted] };
+      return { modelEvents: [...state.modelEvents, newEvent] };
     }),
+
+  appendModelEvent: (event) =>
+    set((state) => ({ modelEvents: [...state.modelEvents, event] })),
 
   reset: () =>
     set({
       currentRun: null,
       toolCalls: [],
+      thoughts: [],
       modelEvents: [],
       sseStatus: "offline",
     }),

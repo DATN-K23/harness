@@ -1,5 +1,5 @@
 import React from "react";
-import type { Run } from "@audit-harness/contracts";
+import type { RunSchema as Run } from "../../generated/api/index.js";
 import { useRunStore, type SseStatus } from "../../stores/run.store.js";
 import { useAuditHarnessClient } from "../../hooks/useAuditHarnessClient.js";
 
@@ -78,7 +78,9 @@ export const TraceHeader: React.FC<TraceHeaderProps> = ({ run }) => {
 
     try {
       const updated = await client.cancelRun(run.id);
-      setRun(updated);
+      if (updated.success) {
+        setRun({ ...run, status: "CANCELLED" });
+      }
     } catch (err: unknown) {
       alert(
         "Không thể hủy run: " +

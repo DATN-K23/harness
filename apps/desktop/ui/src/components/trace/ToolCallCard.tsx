@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { ToolCall } from "@audit-harness/contracts";
+import type { ToolCallSchema as ToolCall } from "../../generated/api/index.js";
 import { ChevronDown, ChevronUp, AlertTriangle, Clock } from "lucide-react";
 
 interface ToolCallCardProps {

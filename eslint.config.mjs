@@ -4,13 +4,15 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      ".git/**",
-      "node_modules/**",
-      ".pnpm-store/**",
-      "dist/**",
-      "coverage/**",
-      "docs/**",
-      "tests/fixtures/**",
+      "**/.git/**",
+      "**/node_modules/**",
+      "**/.pnpm-store/**",
+      "**/dist/**",
+      "**/coverage/**",
+      "**/docs/**",
+      "**/tests/fixtures/**",
+      "**/blueprint/**",
+      "**/openspec/**",
     ],
   },
   eslint.configs.recommended,
@@ -35,6 +37,16 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/no-explicit-any": "error",
+      // Preset recommendedTypeChecked rules — downgrade to warn
+      // until Prisma types and NestJS decorators are fully typed
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-return": "warn",
+      "@typescript-eslint/require-await": "warn",
+      "@typescript-eslint/no-redundant-type-constituents": "warn",
+      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
     },
   },
   {

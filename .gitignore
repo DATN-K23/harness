@@ -1,4 +1,26 @@
+# Agent/AI tool configs
 .agent/
 .claude/
 .codex/
 .agents
+
+# Build outputs
+dist/
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.db-journal
+
+# Coverage
+coverage/
+
+# OS files
+.DS_Store

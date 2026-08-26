@@ -38,26 +38,34 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
     <div
       className="glass-panel"
       style={{
-        borderRadius: "10px",
+        borderRadius: "var(--border-radius-lg, 16px)",
         border: toolCall.isError
-          ? "1px dashed #f43f5e"
-          : "1px solid rgba(255, 255, 255, 0.08)",
-        marginBottom: "12px",
+          ? "1px solid var(--accent-rose)"
+          : "1px solid var(--glass-border)",
+        marginBottom: "16px",
         overflow: "hidden",
-        transition: "all 0.2s ease",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        animation: "slideUp 0.4s ease-out forwards",
+        boxShadow: toolCall.isError ? "0 0 15px rgba(244, 63, 94, 0.15)" : "0 4px 20px rgba(0, 0, 0, 0.2)",
       }}
     >
-      {/* Header Preview Mode: Fixed ~64px Height per Spec 3.2 */}
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      {/* Header Preview Mode */}
       <div
         onClick={() => setIsExpanded(!isExpanded)}
         style={{
-          height: "64px",
-          padding: "0 16px",
+          minHeight: "64px",
+          padding: "12px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           cursor: "pointer",
-          background: isExpanded ? "rgba(31, 41, 55, 0.8)" : "transparent",
+          background: isExpanded ? "rgba(255, 255, 255, 0.03)" : "transparent",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -69,8 +77,8 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
               <span
                 style={{
                   fontWeight: 600,
-                  color: "#f9fafb",
-                  fontSize: "0.95rem",
+                  color: toolCall.isError ? "var(--accent-rose)" : "var(--accent-cyan)",
+                  fontSize: "1rem",
                 }}
               >
                 Step #{toolCall.stepIndex}: {toolCall.toolName}
@@ -125,21 +133,23 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
           <div style={{ marginBottom: "12px" }}>
             <h5
               style={{
-                fontSize: "0.8rem",
-                color: "#9ca3af",
-                marginBottom: "6px",
+                fontSize: "0.75rem",
+                color: "var(--text-muted)",
+                marginBottom: "8px",
                 textTransform: "uppercase",
+                letterSpacing: "1px",
               }}
             >
-              Arguments:
+              Arguments
             </h5>
             <pre
               style={{
-                background: "#090d16",
-                padding: "10px",
-                borderRadius: "6px",
+                background: "rgba(0, 0, 0, 0.3)",
+                padding: "16px",
+                borderRadius: "8px",
                 fontSize: "0.85rem",
-                color: "#38bdf8",
+                color: "var(--accent-cyan)",
+                border: "1px solid rgba(6, 182, 212, 0.1)",
               }}
             >
               {formatArgumentsJson(toolCall.argumentsJson)}
@@ -149,23 +159,27 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
           <div>
             <h5
               style={{
-                fontSize: "0.8rem",
-                color: "#9ca3af",
-                marginBottom: "6px",
+                fontSize: "0.75rem",
+                color: "var(--text-muted)",
+                marginBottom: "8px",
                 textTransform: "uppercase",
+                letterSpacing: "1px",
               }}
             >
-              Result Output:
+              Result Output
             </h5>
             <pre
               style={{
-                background: "#090d16",
-                padding: "10px",
-                borderRadius: "6px",
+                background: "rgba(0, 0, 0, 0.3)",
+                padding: "16px",
+                borderRadius: "8px",
                 fontSize: "0.85rem",
-                color: toolCall.isError ? "#f43f5e" : "#a7f3d0",
-                maxHeight: "300px",
+                color: toolCall.isError ? "var(--accent-rose)" : "var(--accent-emerald)",
+                border: toolCall.isError ? "1px solid rgba(244, 63, 94, 0.1)" : "1px solid rgba(16, 185, 129, 0.1)",
+                maxHeight: "350px",
                 overflowY: "auto",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all"
               }}
             >
               {toolCall.resultJson}

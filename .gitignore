@@ -5,10 +5,10 @@
 .agents
 
 # Build outputs
-dist/
+dist
 
 # Dependencies
-node_modules/
+node_modules
 
 # Environment
 .env
@@ -24,3 +24,4 @@ coverage/
 
 # OS files
 .DS_Store
+audit_harness.db

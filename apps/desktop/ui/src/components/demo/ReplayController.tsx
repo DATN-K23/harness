@@ -66,17 +66,20 @@ export const ReplayController: React.FC = () => {
       className="glass-panel"
       style={{
         position: "fixed",
-        bottom: "24px",
+        bottom: "40px",
         left: "50%",
         transform: "translateX(-50%)",
-        padding: "12px 24px",
-        borderRadius: "16px",
+        padding: "16px 32px",
+        borderRadius: "40px", /* Pill shape */
         display: "flex",
         alignItems: "center",
-        gap: "20px",
+        gap: "24px",
         zIndex: 100,
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
-        minWidth: "600px",
+        boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.5)",
+        border: "1px solid var(--glass-border)",
+        background: "rgba(11, 17, 32, 0.7)", /* Darker glass for player */
+        backdropFilter: "blur(40px) saturate(200%)",
+        minWidth: "650px",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -85,27 +88,33 @@ export const ReplayController: React.FC = () => {
             driftRef.current = 0;
             jumpToStep(0);
           }}
-          style={{ color: "#9ca3af", padding: "6px" }}
+          style={{ color: "var(--text-secondary)", padding: "8px", borderRadius: "50%", transition: "all 0.2s", display: "flex", alignItems: "center" }}
+          onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+          onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
           title="Reset to Start"
         >
-          <RotateCcw size={18} />
+          <RotateCcw size={20} />
         </button>
 
         <button
           onClick={() => setPlaying(!isPlaying)}
           style={{
-            background: isPlaying ? "#f43f5e" : "#10b981",
-            color: "#fff",
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontWeight: 600,
+            background: isPlaying ? "var(--bg-card-hover)" : "var(--accent-cyan)",
+            color: isPlaying ? "var(--text-primary)" : "#fff",
+            padding: "12px 24px",
+            borderRadius: "30px",
+            fontWeight: 700,
             display: "flex",
             alignItems: "center",
-            gap: "6px",
+            gap: "8px",
+            boxShadow: isPlaying ? "none" : "0 4px 12px rgba(6, 182, 212, 0.3)",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
+          onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+          onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
         >
-          {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-          {isPlaying ? "Pause" : "Play Replay"}
+          {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+          {isPlaying ? "Pause" : "Play"}
         </button>
       </div>
 
@@ -128,17 +137,17 @@ export const ReplayController: React.FC = () => {
             // NW5 Fix: seekToStep — không dừng play khi user scrub slider
             seekToStep(parseInt(e.target.value, 10));
           }}
-          style={{ flex: 1, accentColor: "#06b6d4" }}
+          style={{ flex: 1, accentColor: "var(--accent-cyan)", cursor: "pointer" }}
         />
         <span
-          style={{ fontSize: "0.85rem", color: "#9ca3af", minWidth: "60px" }}
+          style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "60px", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
         >
           {currentStep + 1} / {events.length}
         </span>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <FastForward size={16} style={{ color: "#9ca3af" }} />
+        <FastForward size={18} style={{ color: "var(--text-muted)" }} />
         <select
           value={playbackSpeed}
           onChange={(e) => {
@@ -146,12 +155,14 @@ export const ReplayController: React.FC = () => {
             setSpeed(parseFloat(e.target.value));
           }}
           style={{
-            background: "#1f2937",
-            color: "#f9fafb",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            padding: "4px 8px",
+            background: "rgba(255, 255, 255, 0.05)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "8px",
+            padding: "6px 10px",
             fontSize: "0.85rem",
+            outline: "none",
+            cursor: "pointer",
           }}
         >
           <option value={0.5}>0.5x</option>
@@ -164,19 +175,22 @@ export const ReplayController: React.FC = () => {
 
       <div
         style={{
-          fontSize: "0.8rem",
-          color: "#06b6d4",
-          paddingLeft: "8px",
-          borderLeft: "1px solid #374151",
+          fontSize: "0.75rem",
+          color: "var(--accent-cyan)",
+          paddingLeft: "16px",
+          borderLeft: "1px solid var(--border-color)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center"
         }}
       >
-        <div>
+        <div style={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
           Event:{" "}
-          <code style={{ color: "#a7f3d0" }}>
+          <code style={{ color: "var(--text-primary)", background: "rgba(0,0,0,0.3)", padding: "2px 6px", borderRadius: "4px" }}>
             {currentEvent?.type || "IDLE"}
           </code>
         </div>
-        <div style={{ color: "#4b5563", fontSize: "0.7rem", marginTop: "2px" }}>
+        <div style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginTop: "4px", fontVariantNumeric: "tabular-nums" }}>
           {Math.round(progress)}% complete
         </div>
       </div>

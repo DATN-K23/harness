@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from harness.entrypoints.daemon.routers import runs
+from harness.entrypoints.daemon.routers import runs, demo
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "service": "harness-daemon", "version": "0.1.0"}
     
     app.include_router(runs.router)
+    app.include_router(demo.router)
     return app
 
 app = create_app()

@@ -14,4 +14,5 @@ export type { ValidationError } from './models/ValidationError';
 export type { VerdictSchema } from './models/VerdictSchema';
 
 export { DefaultService } from './services/DefaultService';
+export { DemoService } from './services/DemoService';
 export { RunsService } from './services/RunsService';

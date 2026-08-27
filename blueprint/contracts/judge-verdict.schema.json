@@ -65,7 +65,7 @@
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "start_line", "end_line", "content_digest"],
+      "required": ["path", "start_line", "end_line"],
       "properties": {
         "path": { "$ref": "#/$defs/relative_path" },
         "start_line": { "type": "integer", "minimum": 1 },

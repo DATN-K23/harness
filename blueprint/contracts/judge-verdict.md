@@ -10,7 +10,7 @@ Owner: TV1; collaborators: TV4, TV5
 2. `validity=invalid` requires severity `none`.
 3. Confidence is finite and within inclusive `[0,1]`; it is not a calibrated probability claim.
 4. At least one evidence item is required for either validity value.
-5. JSON Schema path syntax is only a first check. Workspace authorization, line ordering/range, symlink resolution, and content digest are validated against the run's immutable source snapshot.
+5. JSON Schema path syntax is only a first check. Workspace authorization, line ordering/range, and symlink resolution are validated against the run's immutable source snapshot. The `content_digest` is computed independently by the Orchestrator during this evidence resolution phase, rather than expected from the LLM.
 6. `verification_status` is fixed to `unverified`. No provider response can override it.
 7. A valid JSON object that fails evidence resolution cannot complete the run.
 

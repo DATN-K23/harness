@@ -787,14 +787,15 @@ Cross-field rules:
 
 `confidence` nằm trong `[0,1]` nhưng không được tuyên bố là calibrated probability.
 
-Evidence phải có:
+Evidence do Agent trả về phải có:
 
 - authorized relative source path;
 - one-based inclusive start/end line;
-- digest của exact source span;
 - optional note.
 
-Evidence missing, outside root, symlink escape, reversed range, stale file hoặc digest mismatch đều ngăn `completed`.
+Lưu ý: `content_digest` (digest của exact source span) sẽ do Orchestrator tự động tính toán và gắn vào verdict cuối cùng dựa trên snapshot bất biến. Schema không yêu cầu agent sinh digest để tránh rủi ro hallucination.
+
+Evidence missing, outside root, symlink escape, reversed range hoặc không thể resolve range hợp lệ đều ngăn `completed`.
 
 Mọi verdict Judge MVP có:
 

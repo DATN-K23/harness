@@ -2,7 +2,12 @@ import React, { useState } from "react";
 import { Play, Settings, ShieldAlert, Cpu } from "lucide-react";
 
 interface JudgeFormProps {
-  onStartRun: (config: any) => void;
+  onStartRun: (config: {
+    repo: string;
+    findingId: string;
+    modelName: string;
+    tokenBudget: number;
+  }) => void;
   isStarting: boolean;
 }
 

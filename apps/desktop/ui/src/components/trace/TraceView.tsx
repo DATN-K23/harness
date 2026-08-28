@@ -55,8 +55,8 @@ export const TraceView: React.FC<TraceViewProps> = ({
         severity: (p.severity as string) || "none",
         confidence: (p.confidence as number) ?? 0,
         rationale: (p.rationale as string) || "",
-        evidence: (p.evidence as any[]) || [],
-        verification_status: (p.verification_status as string) || "unverified",
+        evidence: p.evidence || [],
+        verificationStatus: (p.verificationStatus as string) || "unverified",
         label_normalization_version:
           (p.label_normalization_version as string) || "v1.0",
         pocSourceCode: (p.pocSourceCode as string) ?? null,
@@ -120,7 +120,7 @@ export const TraceView: React.FC<TraceViewProps> = ({
 
         const maxStep =
           historicalToolCalls.length > 0
-            ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
+            ? Math.max(...historicalToolCalls.map((tc) => tc.stepIndex ?? 0))
             : 0;
 
         const unsubscribe = client.subscribeRunStream(
@@ -129,16 +129,16 @@ export const TraceView: React.FC<TraceViewProps> = ({
             onopen: () => {
               if (!isCancelled()) setSseStatus("connected");
             },
-            onThought: (e: any) => {
+            onThought: (e) => {
               if (!isCancelled()) appendThought(e);
             },
-            onToolCall: (e: any) => {
+            onToolCall: (e) => {
               if (!isCancelled()) appendToolCall(e);
             },
-            onStatusChanged: (e: any) => {
+            onStatusChanged: (e) => {
               if (!isCancelled()) setRunStatus(e.status);
             },
-            onVerdict: (e: any) => {
+            onVerdict: () => {
               if (!isCancelled()) {
                 client
                   .getRun(runId)

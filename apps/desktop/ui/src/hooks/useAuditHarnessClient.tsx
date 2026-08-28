@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo } from "react";
-import { OpenAPI, RunsService } from "../generated/api/index.js";
+import { OpenAPI, RunsService, type VerdictSchema, type ToolCallSchema } from "../generated/api/index.js";
+import type { ThoughtEvent } from "../stores/run.store.js";
 
 /**
  * AuditHarnessClientContext wraps the generated openapi client configuration
@@ -24,9 +25,10 @@ export class CustomAuditClient {
     );
   }
 
-  public async cancelRun(runId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public cancelRun(_runId: string) {
     // Mock implementation for cancelRun
-    return { success: true };
+    return Promise.resolve({ success: true });
   }
 
   public subscribeRunStream(
@@ -34,11 +36,11 @@ export class CustomAuditClient {
     callbacks: {
       onopen?: (e: Event) => void;
       onError?: (e: Event) => void;
-      onThought?: (data: unknown) => void;
-      onToolCall?: (data: unknown) => void;
-      onStatusChanged?: (data: unknown) => void;
-      onVerdict?: (data: unknown) => void;
-      onCompleted?: (data: unknown) => void;
+      onThought?: (data: ThoughtEvent) => void;
+      onToolCall?: (data: ToolCallSchema) => void;
+      onStatusChanged?: (data: { status: string }) => void;
+      onVerdict?: (data: VerdictSchema) => void;
+      onCompleted?: (data: { totalDurationMs?: number }) => void;
     },
     options: { fromStep: number },
   ) {
@@ -50,23 +52,23 @@ export class CustomAuditClient {
     if (callbacks.onError) eventSource.onerror = callbacks.onError;
 
     eventSource.addEventListener("thought", (e: MessageEvent<string>) => {
-      if (callbacks.onThought) callbacks.onThought(JSON.parse(e.data));
+      if (callbacks.onThought) callbacks.onThought(JSON.parse(e.data) as ThoughtEvent);
     });
     eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
-      if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data));
+      if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data) as ToolCallSchema);
     });
     eventSource.addEventListener(
       "status_changed",
       (e: MessageEvent<string>) => {
         if (callbacks.onStatusChanged)
-          callbacks.onStatusChanged(JSON.parse(e.data));
+          callbacks.onStatusChanged(JSON.parse(e.data) as { status: string });
       },
     );
     eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
-      if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data));
+      if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data) as VerdictSchema);
     });
     eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
-      if (callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data));
+      if (callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data) as { totalDurationMs?: number });
       eventSource.close();
     });
 

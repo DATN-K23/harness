@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import { TraceView } from "./components/trace/TraceView.js";
 import { JudgeForm } from "./components/judge/JudgeForm.js";
 import { ReplayController } from "./components/demo/ReplayController.js";
-import { useReplayStore } from "./stores/replay.store.js";
+import { useReplayStore, type DemoEvent } from "./stores/replay.store.js";
 import { DemoService } from "./generated/api/index.js";
 // OpenAPI.BASE được cấu hình tập trung tại useAuditHarnessClient.tsx (port 3000)
 
-const DEFAULT_DEMO_FIXTURE = [
+const DEFAULT_DEMO_FIXTURE: DemoEvent[] = [
   { type: "run:status_changed", payload: { status: "RUNNING" }, delayMs: 500 },
   {
     type: "step:thought",
@@ -50,7 +50,13 @@ export const App: React.FC = () => {
 
   const { setEvents } = useReplayStore();
 
-  const handleStartRun = (config: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleStartRun = (_config: {
+    repo: string;
+    findingId: string;
+    modelName: string;
+    tokenBudget: number;
+  }) => {
     // TODO: Connect to RunsService to start a real run. For now, simulate delay and go to trace.
     setIsStarting(true);
     setTimeout(() => {
@@ -69,11 +75,10 @@ export const App: React.FC = () => {
         await DemoService.getDemoTimelineApiV1DemoRunsRunIdTimelineGet(
           "demo-run-01",
         );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setEvents((data.events as any[]) || []);
+      setEvents((data.events as DemoEvent[]) || []);
     } catch {
       // Fallback: dùng fixture tĩnh nếu backend không sẵn sàng (offline)
-      setEvents(DEFAULT_DEMO_FIXTURE as any);
+      setEvents(DEFAULT_DEMO_FIXTURE);
     }
   };
 
@@ -167,7 +172,7 @@ export const App: React.FC = () => {
             Live Mode
           </button>
           <button
-            onClick={handleStartDemo}
+            onClick={() => void handleStartDemo()}
             style={{
               padding: "8px 16px",
               borderRadius: "8px",

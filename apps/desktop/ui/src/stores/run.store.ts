@@ -4,7 +4,7 @@ import type {
   ToolCallSchema,
 } from "../generated/api/index.js";
 
-type ThoughtEvent = {
+export type ThoughtEvent = {
   id?: string;
   runId?: string;
   stepIndex: number;

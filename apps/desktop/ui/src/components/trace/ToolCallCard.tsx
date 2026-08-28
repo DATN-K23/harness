@@ -26,6 +26,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
   const formatArgumentsJson = (jsonStr: string): string => {
     if (!jsonStr) return "{}";
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsed =
         typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
       return JSON.stringify(parsed, null, 2);

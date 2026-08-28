@@ -14,14 +14,11 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
     confidence,
     rationale,
     evidence,
-    verification_status,
-    pocSourceCode,
+    verificationStatus,
   } = verdict;
 
   const isVulnerable = validity === "valid";
   const isHighSeverity = severity === "high" || severity === "critical";
-  const isWarning =
-    isVulnerable && (severity === "low" || severity === "medium");
 
   const confidencePct = Math.round(confidence * 100);
 
@@ -107,7 +104,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
               {severity}
             </span>
             {/* Unverified tag */}
-            {verification_status === "unverified" && (
+            {verificationStatus === "unverified" && (
               <span
                 style={{
                   padding: "3px 10px",
@@ -180,7 +177,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
           color: "#d1d5db",
           fontSize: "0.95rem",
           lineHeight: "1.6",
-          marginBottom: evidence?.length || pocSourceCode ? "20px" : "0",
+          marginBottom: evidence?.length ? "20px" : "0",
         }}
       >
         {rationale}
@@ -188,7 +185,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
 
       {/* Evidence Cards */}
       {evidence && evidence.length > 0 && (
-        <div style={{ marginBottom: pocSourceCode ? "20px" : "0" }}>
+        <div>
           <div
             style={{
               fontSize: "0.75rem",
@@ -235,7 +232,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
                       marginLeft: "8px",
                     }}
                   >
-                    L{ev.start_line}-L{ev.end_line}
+                    L{ev.startLine}-L{ev.endLine}
                   </span>
                 </div>
                 {ev.note && (
@@ -251,47 +248,6 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* PoC Source Code */}
-      {pocSourceCode && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "8px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--accent-rose)",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "1px",
-              }}
-            >
-              🧪 Verification PoC
-            </span>
-          </div>
-          <pre
-            style={{
-              background: "rgba(0, 0, 0, 0.4)",
-              padding: "16px",
-              borderRadius: "10px",
-              overflowX: "auto",
-              fontSize: "0.85rem",
-              color: "#fca5a5",
-              border: "1px solid rgba(244, 63, 94, 0.2)",
-              fontFamily: "var(--font-mono)",
-              lineHeight: "1.6",
-            }}
-          >
-            {pocSourceCode}
-          </pre>
         </div>
       )}
     </div>

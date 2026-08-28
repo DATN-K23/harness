@@ -8,10 +8,37 @@ import { DemoService } from "./generated/api/index.js";
 
 const DEFAULT_DEMO_FIXTURE = [
   { type: "run:status_changed", payload: { status: "RUNNING" }, delayMs: 500 },
-  { type: "step:thought", payload: { stepIndex: 1, thought: "Analyzing Vault.sol reentrancy vectors..." }, delayMs: 1000 },
-  { type: "step:tool_call", payload: { stepIndex: 1, toolName: "read_file", isError: false, durationMs: 45 }, delayMs: 1200 },
-  { type: "step:thought", payload: { stepIndex: 2, thought: "Found state update after external transfer — CEI violation." }, delayMs: 1000 },
-  { type: "run:verdict", payload: { status: "VALID", severity: "HIGH", confidenceScore: 0.95 }, delayMs: 1500 },
+  {
+    type: "step:thought",
+    payload: {
+      stepIndex: 1,
+      thought: "Analyzing Vault.sol reentrancy vectors...",
+    },
+    delayMs: 1000,
+  },
+  {
+    type: "step:tool_call",
+    payload: {
+      stepIndex: 1,
+      toolName: "read_file",
+      isError: false,
+      durationMs: 45,
+    },
+    delayMs: 1200,
+  },
+  {
+    type: "step:thought",
+    payload: {
+      stepIndex: 2,
+      thought: "Found state update after external transfer — CEI violation.",
+    },
+    delayMs: 1000,
+  },
+  {
+    type: "run:verdict",
+    payload: { status: "VALID", severity: "HIGH", confidenceScore: 0.95 },
+    delayMs: 1500,
+  },
   { type: "run:completed", payload: { totalDurationMs: 5200 }, delayMs: 500 },
 ];
 
@@ -20,7 +47,7 @@ export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<"judge" | "trace">("judge");
   const [committedRunId, setCommittedRunId] = useState("");
   const [isStarting, setIsStarting] = useState(false);
-  
+
   const { setEvents } = useReplayStore();
 
   const handleStartRun = (config: any) => {
@@ -38,7 +65,10 @@ export const App: React.FC = () => {
     setActiveView("trace");
     setCommittedRunId("demo-run-01");
     try {
-      const data = await DemoService.getDemoTimelineApiV1DemoRunsRunIdTimelineGet("demo-run-01");
+      const data =
+        await DemoService.getDemoTimelineApiV1DemoRunsRunIdTimelineGet(
+          "demo-run-01",
+        );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setEvents((data.events as any[]) || []);
     } catch {
@@ -65,14 +95,24 @@ export const App: React.FC = () => {
           alignItems: "center",
           gap: "16px",
           borderBottom: "1px solid var(--border-color)",
-          borderTop: "none", borderLeft: "none", borderRight: "none",
+          borderTop: "none",
+          borderLeft: "none",
+          borderRight: "none",
           borderRadius: 0,
         }}
       >
         {/* Logo */}
-        <div 
-          style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}
-          onClick={() => { setActiveView("judge"); setActiveMode("live"); }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            cursor: "pointer",
+          }}
+          onClick={() => {
+            setActiveView("judge");
+            setActiveMode("live");
+          }}
         >
           <div
             style={{
@@ -80,27 +120,48 @@ export const App: React.FC = () => {
               height: "14px",
               background: "var(--judge-accent)",
               borderRadius: "50%",
-              boxShadow: "0 0 10px var(--accent-cyan)"
+              boxShadow: "0 0 10px var(--accent-cyan)",
             }}
           />
           <span
-            style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.5px" }}
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              letterSpacing: "0.5px",
+            }}
           >
             Audit Harness
           </span>
         </div>
 
         {/* Mode Switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "rgba(0,0,0,0.3)", padding: "4px", borderRadius: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            background: "rgba(0,0,0,0.3)",
+            padding: "4px",
+            borderRadius: "12px",
+          }}
+        >
           <button
-            onClick={() => { setActiveMode("live"); setActiveView("judge"); }}
+            onClick={() => {
+              setActiveMode("live");
+              setActiveView("judge");
+            }}
             style={{
               padding: "8px 16px",
               borderRadius: "8px",
               fontWeight: 600,
-              background: activeMode === "live" ? "var(--bg-card-hover)" : "transparent",
-              color: activeMode === "live" ? "var(--text-primary)" : "var(--text-secondary)",
-              transition: "all 0.2s"
+              background:
+                activeMode === "live" ? "var(--bg-card-hover)" : "transparent",
+              color:
+                activeMode === "live"
+                  ? "var(--text-primary)"
+                  : "var(--text-secondary)",
+              transition: "all 0.2s",
             }}
           >
             Live Mode
@@ -111,9 +172,15 @@ export const App: React.FC = () => {
               padding: "8px 16px",
               borderRadius: "8px",
               fontWeight: 600,
-              background: activeMode === "demo" ? "rgba(16, 185, 129, 0.2)" : "transparent",
-              color: activeMode === "demo" ? "var(--accent-emerald)" : "var(--text-secondary)",
-              transition: "all 0.2s"
+              background:
+                activeMode === "demo"
+                  ? "rgba(16, 185, 129, 0.2)"
+                  : "transparent",
+              color:
+                activeMode === "demo"
+                  ? "var(--accent-emerald)"
+                  : "var(--text-secondary)",
+              transition: "all 0.2s",
             }}
           >
             Demo Mode
@@ -126,7 +193,7 @@ export const App: React.FC = () => {
         {activeView === "judge" && activeMode === "live" && (
           <JudgeForm onStartRun={handleStartRun} isStarting={isStarting} />
         )}
-        
+
         {activeView === "trace" && (
           <TraceView runId={committedRunId} mode={activeMode} />
         )}

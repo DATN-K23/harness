@@ -70,14 +70,14 @@ export const ReplayController: React.FC = () => {
         left: "50%",
         transform: "translateX(-50%)",
         padding: "16px 32px",
-        borderRadius: "40px", /* Pill shape */
+        borderRadius: "40px" /* Pill shape */,
         display: "flex",
         alignItems: "center",
         gap: "24px",
         zIndex: 100,
         boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.5)",
         border: "1px solid var(--glass-border)",
-        background: "rgba(11, 17, 32, 0.7)", /* Darker glass for player */
+        background: "rgba(11, 17, 32, 0.7)" /* Darker glass for player */,
         backdropFilter: "blur(40px) saturate(200%)",
         minWidth: "650px",
       }}
@@ -88,9 +88,18 @@ export const ReplayController: React.FC = () => {
             driftRef.current = 0;
             jumpToStep(0);
           }}
-          style={{ color: "var(--text-secondary)", padding: "8px", borderRadius: "50%", transition: "all 0.2s", display: "flex", alignItems: "center" }}
-          onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-          onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+          style={{
+            color: "var(--text-secondary)",
+            padding: "8px",
+            borderRadius: "50%",
+            transition: "all 0.2s",
+            display: "flex",
+            alignItems: "center",
+          }}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.background = "rgba(255,255,255,0.1)")
+          }
+          onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
           title="Reset to Start"
         >
           <RotateCcw size={20} />
@@ -99,7 +108,9 @@ export const ReplayController: React.FC = () => {
         <button
           onClick={() => setPlaying(!isPlaying)}
           style={{
-            background: isPlaying ? "var(--bg-card-hover)" : "var(--accent-cyan)",
+            background: isPlaying
+              ? "var(--bg-card-hover)"
+              : "var(--accent-cyan)",
             color: isPlaying ? "var(--text-primary)" : "#fff",
             padding: "12px 24px",
             borderRadius: "30px",
@@ -110,10 +121,14 @@ export const ReplayController: React.FC = () => {
             boxShadow: isPlaying ? "none" : "0 4px 12px rgba(6, 182, 212, 0.3)",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
-          onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-          onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+          onMouseOver={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+          onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+          {isPlaying ? (
+            <Pause size={18} />
+          ) : (
+            <Play size={18} fill="currentColor" />
+          )}
           {isPlaying ? "Pause" : "Play"}
         </button>
       </div>
@@ -137,10 +152,20 @@ export const ReplayController: React.FC = () => {
             // NW5 Fix: seekToStep — không dừng play khi user scrub slider
             seekToStep(parseInt(e.target.value, 10));
           }}
-          style={{ flex: 1, accentColor: "var(--accent-cyan)", cursor: "pointer" }}
+          style={{
+            flex: 1,
+            accentColor: "var(--accent-cyan)",
+            cursor: "pointer",
+          }}
         />
         <span
-          style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "60px", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+          style={{
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+            minWidth: "60px",
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+          }}
         >
           {currentStep + 1} / {events.length}
         </span>
@@ -181,16 +206,36 @@ export const ReplayController: React.FC = () => {
           borderLeft: "1px solid var(--border-color)",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center"
+          justifyContent: "center",
         }}
       >
-        <div style={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        <div
+          style={{
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
           Event:{" "}
-          <code style={{ color: "var(--text-primary)", background: "rgba(0,0,0,0.3)", padding: "2px 6px", borderRadius: "4px" }}>
+          <code
+            style={{
+              color: "var(--text-primary)",
+              background: "rgba(0,0,0,0.3)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+            }}
+          >
             {currentEvent?.type || "IDLE"}
           </code>
         </div>
-        <div style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginTop: "4px", fontVariantNumeric: "tabular-nums" }}>
+        <div
+          style={{
+            color: "var(--text-muted)",
+            fontSize: "0.7rem",
+            marginTop: "4px",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
           {Math.round(progress)}% complete
         </div>
       </div>

@@ -13,8 +13,15 @@ export class CustomAuditClient {
     return RunsService.getRunApiV1RunsRunIdGet(runId);
   }
 
-  public async getToolCalls(runId: string, options: { fromStep: number; limit: number }) {
-    return RunsService.getToolCallsApiV1RunsRunIdToolCallsGet(runId, options.fromStep, options.limit);
+  public async getToolCalls(
+    runId: string,
+    options: { fromStep: number; limit: number },
+  ) {
+    return RunsService.getToolCallsApiV1RunsRunIdToolCallsGet(
+      runId,
+      options.fromStep,
+      options.limit,
+    );
   }
 
   public async cancelRun(runId: string) {
@@ -22,28 +29,33 @@ export class CustomAuditClient {
     return { success: true };
   }
 
-  public subscribeRunStream(runId: string, callbacks: any, options: { fromStep: number }) {
+  public subscribeRunStream(
+    runId: string,
+    callbacks: any,
+    options: { fromStep: number },
+  ) {
     const url = new URL(`${OpenAPI.BASE}/api/v1/runs/${runId}/stream`);
     url.searchParams.set("from_step", options.fromStep.toString());
     const eventSource = new EventSource(url.toString());
 
     eventSource.onopen = callbacks.onopen;
     eventSource.onerror = callbacks.onError;
-    
+
     eventSource.addEventListener("thought", (e: any) => {
-      if(callbacks.onThought) callbacks.onThought(JSON.parse(e.data));
+      if (callbacks.onThought) callbacks.onThought(JSON.parse(e.data));
     });
     eventSource.addEventListener("tool_call", (e: any) => {
-      if(callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data));
+      if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data));
     });
     eventSource.addEventListener("status_changed", (e: any) => {
-      if(callbacks.onStatusChanged) callbacks.onStatusChanged(JSON.parse(e.data));
+      if (callbacks.onStatusChanged)
+        callbacks.onStatusChanged(JSON.parse(e.data));
     });
     eventSource.addEventListener("verdict", (e: any) => {
-      if(callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data));
+      if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data));
     });
     eventSource.addEventListener("completed", (e: any) => {
-      if(callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data));
+      if (callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data));
       eventSource.close();
     });
 

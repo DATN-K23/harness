@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import type { RunSchema as Run, ToolCallSchema } from "../generated/api/index.js";
+import type {
+  RunSchema as Run,
+  ToolCallSchema,
+} from "../generated/api/index.js";
 type ThoughtEvent = any;
 type ToolCallEvent = any;
 
@@ -18,7 +21,7 @@ export interface RunState {
   currentRun: Run | null;
   runStatus: string;
   sseStatus: SseStatus;
-  
+
   // Trace Data
   toolCalls: ToolCall[];
   thoughts: ThoughtEvent[];
@@ -43,7 +46,7 @@ export const useRunStore = create<RunState>((set) => ({
   modelEvents: [],
 
   setRun: (run) => set({ currentRun: run }),
-  
+
   setRunStatus: (status) =>
     set((state) => ({
       currentRun: state.currentRun

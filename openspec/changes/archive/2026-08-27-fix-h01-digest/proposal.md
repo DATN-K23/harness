@@ -11,9 +11,11 @@ Currently, the `judge-verdict.schema.json` requires the LLM to output a `content
 ## Capabilities
 
 ### New Capabilities
+
 None.
 
 ### Modified Capabilities
+
 - `structured-judge-verdict`: Remove the requirement for the LLM to provide `content_digest` in evidence items; shift the responsibility of computing `content_digest` to the Orchestrator.
 
 ## Impact

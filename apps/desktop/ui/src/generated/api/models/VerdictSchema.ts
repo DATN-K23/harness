@@ -2,11 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { EvidenceSchema } from "./EvidenceSchema";
 export type VerdictSchema = {
-    status: string;
-    severity: string;
-    confidenceScore: number;
-    explanation: string;
-    pocSourceCode?: (string | null);
+  schemaVersion?: string;
+  validity: string;
+  severity: string;
+  confidence: number;
+  rationale: string;
+  evidence?: Array<EvidenceSchema>;
+  verificationStatus?: string;
+  labelNormalizationVersion?: string;
 };
-

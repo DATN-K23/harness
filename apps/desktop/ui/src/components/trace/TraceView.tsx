@@ -14,7 +14,10 @@ interface TraceViewProps {
   mode?: "live" | "demo";
 }
 
-export const TraceView: React.FC<TraceViewProps> = ({ runId, mode = "live" }) => {
+export const TraceView: React.FC<TraceViewProps> = ({
+  runId,
+  mode = "live",
+}) => {
   const client = useAuditHarnessClient();
   const {
     currentRun,
@@ -40,17 +43,22 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId, mode = "live" }) =>
     if (mode !== "demo") return;
 
     // Scan từ đầu đến currentStep tìm event run:verdict
-    const verdictEvent = events.slice(0, currentStep + 1).find(
-      (e) => e.type === "run:verdict"
-    );
+    const verdictEvent = events
+      .slice(0, currentStep + 1)
+      .find((e) => e.type === "run:verdict");
 
     if (verdictEvent) {
       const p = verdictEvent.payload;
       setDemoVerdict({
-        status: (p.status as string) || "UNVERIFIED",
-        severity: (p.severity as string) || "UNKNOWN",
-        confidenceScore: (p.confidenceScore as number) ?? 0,
-        explanation: (p.explanation as string) || "",
+        schema_version: (p.schema_version as string) || "judge-verdict-v1",
+        validity: (p.validity as string) || "invalid",
+        severity: (p.severity as string) || "none",
+        confidence: (p.confidence as number) ?? 0,
+        rationale: (p.rationale as string) || "",
+        evidence: (p.evidence as any[]) || [],
+        verification_status: (p.verification_status as string) || "unverified",
+        label_normalization_version:
+          (p.label_normalization_version as string) || "v1.0",
         pocSourceCode: (p.pocSourceCode as string) ?? null,
       });
     } else {
@@ -110,9 +118,10 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId, mode = "live" }) =>
       if (runData.status === "RUNNING") {
         setSseStatus("connecting");
 
-        const maxStep = historicalToolCalls.length > 0
-          ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
-          : 0;
+        const maxStep =
+          historicalToolCalls.length > 0
+            ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
+            : 0;
 
         const unsubscribe = client.subscribeRunStream(
           runId,

@@ -46,7 +46,9 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
         overflow: "hidden",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         animation: "slideUp 0.4s ease-out forwards",
-        boxShadow: toolCall.isError ? "0 0 15px rgba(244, 63, 94, 0.15)" : "0 4px 20px rgba(0, 0, 0, 0.2)",
+        boxShadow: toolCall.isError
+          ? "0 0 15px rgba(244, 63, 94, 0.15)"
+          : "0 4px 20px rgba(0, 0, 0, 0.2)",
       }}
     >
       <style>{`
@@ -77,7 +79,9 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
               <span
                 style={{
                   fontWeight: 600,
-                  color: toolCall.isError ? "var(--accent-rose)" : "var(--accent-cyan)",
+                  color: toolCall.isError
+                    ? "var(--accent-rose)"
+                    : "var(--accent-cyan)",
                   fontSize: "1rem",
                 }}
               >
@@ -174,12 +178,16 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
                 padding: "16px",
                 borderRadius: "8px",
                 fontSize: "0.85rem",
-                color: toolCall.isError ? "var(--accent-rose)" : "var(--accent-emerald)",
-                border: toolCall.isError ? "1px solid rgba(244, 63, 94, 0.1)" : "1px solid rgba(16, 185, 129, 0.1)",
+                color: toolCall.isError
+                  ? "var(--accent-rose)"
+                  : "var(--accent-emerald)",
+                border: toolCall.isError
+                  ? "1px solid rgba(244, 63, 94, 0.1)"
+                  : "1px solid rgba(16, 185, 129, 0.1)",
                 maxHeight: "350px",
                 overflowY: "auto",
                 whiteSpace: "pre-wrap",
-                wordBreak: "break-all"
+                wordBreak: "break-all",
               }}
             >
               {toolCall.resultJson}

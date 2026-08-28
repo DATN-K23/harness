@@ -1,1 +1,313 @@
-{"openapi":"3.1.0","info":{"title":"Audit Harness Local Daemon API","description":"Local runtime API complying with ADR-006 (Python Monolith)","version":"0.1.0"},"paths":{"/api/v1/health":{"get":{"summary":"Health Check","operationId":"health_check_api_v1_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/v1/runs/{run_id}":{"get":{"tags":["Runs"],"summary":"Get Run","description":"Lấy thông tin của một phiên Audit","operationId":"get_run_api_v1_runs__run_id__get","parameters":[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","title":"Run Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/RunSchema"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/runs/{run_id}/tool-calls":{"get":{"tags":["Runs"],"summary":"Get Tool Calls","description":"Lấy lịch sử gọi công cụ","operationId":"get_tool_calls_api_v1_runs__run_id__tool_calls_get","parameters":[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","title":"Run Id"}},{"name":"from_step","in":"query","required":false,"schema":{"type":"integer","default":0,"title":"From Step"}},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","default":500,"title":"Limit"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ToolCallSchema"},"title":"Response Get Tool Calls Api V1 Runs  Run Id  Tool Calls Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/runs/{run_id}/stream":{"get":{"tags":["Runs"],"summary":"Stream Run","description":"SSE endpoint cho live timeline","operationId":"stream_run_api_v1_runs__run_id__stream_get","parameters":[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","title":"Run Id"}},{"name":"from_step","in":"query","required":false,"schema":{"type":"integer","default":0,"title":"From Step"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/demo/runs/{run_id}/timeline":{"get":{"tags":["Demo"],"summary":"Get Demo Timeline","description":"Lấy danh sách các sự kiện (timeline) cho Offline Demo Mode","operationId":"get_demo_timeline_api_v1_demo_runs__run_id__timeline_get","parameters":[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","title":"Run Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Response Get Demo Timeline Api V1 Demo Runs  Run Id  Timeline Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}}},"components":{"schemas":{"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"RunSchema":{"properties":{"id":{"type":"string","title":"Id"},"title":{"type":"string","title":"Title"},"targetRepository":{"type":"string","title":"Targetrepository"},"findingId":{"type":"string","title":"Findingid"},"status":{"type":"string","title":"Status"},"totalDurationMs":{"type":"integer","title":"Totaldurationms"},"verdict":{"anyOf":[{"$ref":"#/components/schemas/VerdictSchema"},{"type":"null"}]}},"type":"object","required":["id","title","targetRepository","findingId","status","totalDurationMs"],"title":"RunSchema"},"ToolCallSchema":{"properties":{"id":{"type":"string","title":"Id"},"stepIndex":{"type":"integer","title":"Stepindex"},"toolName":{"type":"string","title":"Toolname"},"argumentsJson":{"type":"string","title":"Argumentsjson"},"resultJson":{"type":"string","title":"Resultjson"},"isError":{"type":"boolean","title":"Iserror"},"durationMs":{"type":"integer","title":"Durationms"},"tokensUsed":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Tokensused","default":0}},"type":"object","required":["id","stepIndex","toolName","argumentsJson","resultJson","isError","durationMs"],"title":"ToolCallSchema"},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"VerdictSchema":{"properties":{"status":{"type":"string","title":"Status"},"severity":{"type":"string","title":"Severity"},"confidenceScore":{"type":"number","title":"Confidencescore"},"explanation":{"type":"string","title":"Explanation"},"pocSourceCode":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Pocsourcecode"}},"type":"object","required":["status","severity","confidenceScore","explanation"],"title":"VerdictSchema"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Audit Harness Local Daemon API",
+    "description": "Local runtime API complying with ADR-006 (Python Monolith)",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Get Run",
+        "description": "Lấy thông tin của một phiên Audit",
+        "operationId": "get_run_api_v1_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Run Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RunSchema" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/tool-calls": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Get Tool Calls",
+        "description": "Lấy lịch sử gọi công cụ",
+        "operationId": "get_tool_calls_api_v1_runs__run_id__tool_calls_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Run Id" }
+          },
+          {
+            "name": "from_step",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0, "title": "From Step" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 500, "title": "Limit" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ToolCallSchema" },
+                  "title": "Response Get Tool Calls Api V1 Runs  Run Id  Tool Calls Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/stream": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Stream Run",
+        "description": "SSE endpoint cho live timeline",
+        "operationId": "stream_run_api_v1_runs__run_id__stream_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Run Id" }
+          },
+          {
+            "name": "from_step",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0, "title": "From Step" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/runs/{run_id}/timeline": {
+      "get": {
+        "tags": ["Demo"],
+        "summary": "Get Demo Timeline",
+        "description": "Lấy danh sách các sự kiện (timeline) cho Offline Demo Mode",
+        "operationId": "get_demo_timeline_api_v1_demo_runs__run_id__timeline_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Run Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Demo Timeline Api V1 Demo Runs  Run Id  Timeline Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EvidenceSchema": {
+        "properties": {
+          "path": { "type": "string", "title": "Path" },
+          "start_line": { "type": "integer", "title": "Start Line" },
+          "end_line": { "type": "integer", "title": "End Line" },
+          "content_digest": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Content Digest"
+          },
+          "note": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": ["path", "start_line", "end_line"],
+        "title": "EvidenceSchema"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "RunSchema": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "title": { "type": "string", "title": "Title" },
+          "targetRepository": { "type": "string", "title": "Targetrepository" },
+          "findingId": { "type": "string", "title": "Findingid" },
+          "status": { "type": "string", "title": "Status" },
+          "totalDurationMs": { "type": "integer", "title": "Totaldurationms" },
+          "verdict": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/VerdictSchema" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "targetRepository",
+          "findingId",
+          "status",
+          "totalDurationMs"
+        ],
+        "title": "RunSchema"
+      },
+      "ToolCallSchema": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "stepIndex": { "type": "integer", "title": "Stepindex" },
+          "toolName": { "type": "string", "title": "Toolname" },
+          "argumentsJson": { "type": "string", "title": "Argumentsjson" },
+          "resultJson": { "type": "string", "title": "Resultjson" },
+          "isError": { "type": "boolean", "title": "Iserror" },
+          "durationMs": { "type": "integer", "title": "Durationms" },
+          "tokensUsed": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Tokensused",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stepIndex",
+          "toolName",
+          "argumentsJson",
+          "resultJson",
+          "isError",
+          "durationMs"
+        ],
+        "title": "ToolCallSchema"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" },
+          "input": { "title": "Input" },
+          "ctx": { "type": "object", "title": "Context" }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      },
+      "VerdictSchema": {
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "title": "Schemaversion",
+            "default": "judge-verdict-v1"
+          },
+          "validity": { "type": "string", "title": "Validity" },
+          "severity": { "type": "string", "title": "Severity" },
+          "confidence": { "type": "number", "title": "Confidence" },
+          "rationale": { "type": "string", "title": "Rationale" },
+          "evidence": {
+            "items": { "$ref": "#/components/schemas/EvidenceSchema" },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "verificationStatus": {
+            "type": "string",
+            "title": "Verificationstatus",
+            "default": "unverified"
+          },
+          "labelNormalizationVersion": {
+            "type": "string",
+            "title": "Labelnormalizationversion",
+            "default": "v1"
+          }
+        },
+        "type": "object",
+        "required": ["validity", "severity", "confidence", "rationale"],
+        "title": "VerdictSchema"
+      }
+    }
+  }
+}

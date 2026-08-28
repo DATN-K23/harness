@@ -10,12 +10,22 @@ router = APIRouter(prefix="/api/v1/runs", tags=["Runs"])
 from pydantic.alias_generators import to_camel
 
 # --- Pydantic Schemas ---
+class EvidenceSchema(BaseModel):
+    path: str
+    start_line: int
+    end_line: int
+    content_digest: Optional[str] = None
+    note: Optional[str] = None
+
 class VerdictSchema(BaseModel):
-    status: str
+    schema_version: str = "judge-verdict-v1"
+    validity: str
     severity: str
-    confidence_score: float
-    explanation: str
-    poc_source_code: Optional[str] = None
+    confidence: float
+    rationale: str
+    evidence: List[EvidenceSchema] = Field(default_factory=list)
+    verification_status: str = "unverified"
+    label_normalization_version: str = "v1"
     
     class Config:
         alias_generator = to_camel
@@ -67,10 +77,21 @@ MOCK_RUN = RunSchema(
     status="COMPLETED",
     total_duration_ms=5200,
     verdict=VerdictSchema(
-        status="VALID",
-        severity="HIGH",
-        confidence_score=0.95,
-        explanation="Found CEI violation."
+        schema_version="judge-verdict-v1",
+        validity="valid",
+        severity="high",
+        confidence=0.95,
+        rationale="Found CEI violation in Vault.sol. The state variable is updated after external call.",
+        evidence=[
+            EvidenceSchema(
+                path="src/Vault.sol",
+                start_line=14,
+                end_line=15,
+                note="External call made before state update"
+            )
+        ],
+        verification_status="unverified",
+        label_normalization_version="v1"
     )
 )
 

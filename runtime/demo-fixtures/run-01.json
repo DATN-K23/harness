@@ -88,10 +88,21 @@
     {
       "type": "run:verdict",
       "payload": {
-        "status": "VALID",
-        "severity": "HIGH",
-        "confidenceScore": 0.97,
-        "explanation": "Confirmed reentrancy vulnerability in Vault.withdraw(). The function transfers ETH via msg.sender.call{value: amount}() BEFORE updating balances[msg.sender] = 0, violating the Checks-Effects-Interactions pattern. A malicious contract can recursively call withdraw() during the ETH transfer to drain all funds. PoC exploit confirmed: 10 ETH vault drained in a single transaction.",
+        "schema_version": "judge-verdict-v1",
+        "validity": "valid",
+        "severity": "high",
+        "confidence": 0.97,
+        "rationale": "Confirmed reentrancy vulnerability in Vault.withdraw(). The function transfers ETH via msg.sender.call{value: amount}() BEFORE updating balances[msg.sender] = 0, violating the Checks-Effects-Interactions pattern. A malicious contract can recursively call withdraw() during the ETH transfer to drain all funds. PoC exploit confirmed: 10 ETH vault drained in a single transaction.",
+        "evidence": [
+          {
+            "path": "src/Vault.sol",
+            "start_line": 14,
+            "end_line": 15,
+            "note": "State variable updated after external call"
+          }
+        ],
+        "verification_status": "unverified",
+        "label_normalization_version": "v1.0",
         "pocSourceCode": "receive() external payable {\n  if (attackCount < 5 && address(vault).balance > 0) {\n    attackCount++;\n    vault.withdraw(); // recursive reentry\n  }\n}"
       },
       "delayMs": 1200

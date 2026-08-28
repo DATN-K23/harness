@@ -9,7 +9,10 @@ interface TraceHeaderProps {
   mode?: "live" | "demo";
 }
 
-export const TraceHeader: React.FC<TraceHeaderProps> = ({ run, mode = "live" }) => {
+export const TraceHeader: React.FC<TraceHeaderProps> = ({
+  run,
+  mode = "live",
+}) => {
   const { sseStatus, setRun } = useRunStore();
   const client = useAuditHarnessClient();
 

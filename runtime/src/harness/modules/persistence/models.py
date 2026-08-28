@@ -30,10 +30,7 @@ class RunStatus(enum.StrEnum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
-class VerdictStatus(enum.StrEnum):
-    VALID = "VALID"
-    INVALID = "INVALID"
-    UNVERIFIED = "UNVERIFIED"
+
 
 class Run(Base):
     __tablename__ = "runs"
@@ -111,17 +108,29 @@ class ModelEvent(Base):
 
     run = relationship("Run", back_populates="model_events")
 
+class VerdictValidity(enum.StrEnum):
+    VALID = "valid"
+    INVALID = "invalid"
+
 class Verdict(Base):
     __tablename__ = "verdicts"
 
     id = Column(String, primary_key=True, default=generate_uuid)
     run_id = Column(String, ForeignKey("runs.id", ondelete="CASCADE"), unique=True, nullable=False)
-    status = Column(Enum(VerdictStatus), nullable=False)
+    
+    schema_version = Column(String, default="judge-verdict-v1", nullable=False)
+    validity = Column(Enum(VerdictValidity), nullable=False)
     severity = Column(String, nullable=False)
-    confidence_score = Column(Float, nullable=False)
-    explanation = Column(Text, nullable=False)
-    poc_source_code = Column(Text, nullable=True)
-    poc_result = Column(Text, nullable=True)
+    confidence = Column(Float, nullable=False)
+    rationale = Column(Text, nullable=False)
+    
+    # Store evidence array as JSON
+    from sqlalchemy import JSON
+    evidence = Column(JSON, nullable=True)
+    
+    verification_status = Column(String, nullable=False)
+    label_normalization_version = Column(String, nullable=False)
+    
     timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     run = relationship("Run", back_populates="verdict")

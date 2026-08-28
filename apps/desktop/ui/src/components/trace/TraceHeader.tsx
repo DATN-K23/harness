@@ -5,9 +5,11 @@ import { useAuditHarnessClient } from "../../hooks/useAuditHarnessClient.js";
 
 interface TraceHeaderProps {
   run: Run | null;
+  /** "live" | "demo" — hiển thị badge phân biệt mode */
+  mode?: "live" | "demo";
 }
 
-export const TraceHeader: React.FC<TraceHeaderProps> = ({ run }) => {
+export const TraceHeader: React.FC<TraceHeaderProps> = ({ run, mode = "live" }) => {
   const { sseStatus, setRun } = useRunStore();
   const client = useAuditHarnessClient();
 
@@ -135,7 +137,26 @@ export const TraceHeader: React.FC<TraceHeaderProps> = ({ run }) => {
             {getSseBadge(sseStatus)}
           </div>
 
-          {run?.status === "RUNNING" && (
+          {/* Demo Mode badge */}
+          {mode === "demo" && (
+            <span
+              style={{
+                padding: "5px 12px",
+                background: "rgba(16, 185, 129, 0.15)",
+                border: "1px solid rgba(16, 185, 129, 0.35)",
+                color: "#10b981",
+                borderRadius: "20px",
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}
+            >
+              🎬 Demo Mode
+            </span>
+          )}
+
+          {run?.status === "RUNNING" && mode === "live" && (
             <button
               onClick={() => {
                 void handleAbortRun();

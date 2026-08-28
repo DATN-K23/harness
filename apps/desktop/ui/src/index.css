@@ -81,3 +81,36 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2); 
 }
+
+/* ===== Animation Utilities ===== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes verdictGlowValid {
+  0%, 100% { box-shadow: 0 0 10px rgba(244, 63, 94, 0.3); }
+  50%       { box-shadow: 0 0 25px rgba(244, 63, 94, 0.7), 0 0 50px rgba(244, 63, 94, 0.2); }
+}
+
+@keyframes verdictGlowInvalid {
+  0%, 100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+  50%       { box-shadow: 0 0 25px rgba(16, 185, 129, 0.6), 0 0 50px rgba(16, 185, 129, 0.2); }
+}
+
+.animate-spin  { animation: spin 1s linear infinite; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-fade-in-up { animation: fadeInUp 0.35s ease-out forwards; }
+.verdict-glow-danger  { animation: verdictGlowValid 2.5s ease-in-out infinite; }
+.verdict-glow-success { animation: verdictGlowInvalid 2.5s ease-in-out infinite; }
+

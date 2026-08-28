@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAuditHarnessClient } from "../../hooks/useAuditHarnessClient.js";
 import { useRunStore } from "../../stores/run.store.js";
+import { useReplayStore } from "../../stores/replay.store.js";
 import { TraceHeader } from "./TraceHeader.js";
 import { VerdictBanner } from "./VerdictBanner.js";
 import { ToolCallCard } from "./ToolCallCard.js";
 import { RefreshCw, AlertCircle } from "lucide-react";
+import type { VerdictSchema } from "../../generated/api/index.js";
 
 interface TraceViewProps {
   runId: string;
+  /** "live" = kết nối REST+SSE thật | "demo" = replay từ fixture store */
+  mode?: "live" | "demo";
 }
 
-export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
+export const TraceView: React.FC<TraceViewProps> = ({ runId, mode = "live" }) => {
   const client = useAuditHarnessClient();
   const {
     currentRun,
@@ -23,10 +27,58 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
     reset,
   } = useRunStore();
 
+  const { events, currentStep } = useReplayStore();
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
+  // ---------- DEMO MODE: Đọc verdict từ replay events (bridge) ----------
+  const [demoVerdict, setDemoVerdict] = useState<VerdictSchema | null>(null);
+
+  useEffect(() => {
+    if (mode !== "demo") return;
+
+    // Scan từ đầu đến currentStep tìm event run:verdict
+    const verdictEvent = events.slice(0, currentStep + 1).find(
+      (e) => e.type === "run:verdict"
+    );
+
+    if (verdictEvent) {
+      const p = verdictEvent.payload;
+      setDemoVerdict({
+        status: (p.status as string) || "UNVERIFIED",
+        severity: (p.severity as string) || "UNKNOWN",
+        confidenceScore: (p.confidenceScore as number) ?? 0,
+        explanation: (p.explanation as string) || "",
+        pocSourceCode: (p.pocSourceCode as string) ?? null,
+      });
+    } else {
+      setDemoVerdict(null);
+    }
+  }, [mode, currentStep, events]);
+
+  // ---------- DEMO MODE: Đọc tool calls từ replay events (bridge) ----------
+  const demoToolCalls = events
+    .slice(0, currentStep + 1)
+    .filter((e) => e.type === "step:tool_call")
+    .map((e, idx) => {
+      const p = e.payload;
+      return {
+        id: `demo-tc-${idx}`,
+        runId: "demo-run-01",
+        stepIndex: (p.stepIndex as number) ?? idx + 1,
+        toolName: (p.toolName as string) || "unknown_tool",
+        argumentsJson: (p.argumentsJson as string) || "{}",
+        resultJson: (p.resultJson as string) || "{}",
+        isError: Boolean(p.isError),
+        durationMs: (p.durationMs as number) ?? 0,
+        tokensUsed: (p.tokensUsed as number) ?? 0,
+        timestamp: new Date().toISOString(),
+      };
+    });
+
+  // ---------- LIVE MODE: Fetch & Subscribe ----------
   const fetchAndSubscribe = async (isCancelled: () => boolean) => {
     setIsLoading(true);
     setError(null);
@@ -58,9 +110,9 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
       if (runData.status === "RUNNING") {
         setSseStatus("connecting");
 
-        const maxStep = historicalToolCalls.length > 0 
-            ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
-            : 0;
+        const maxStep = historicalToolCalls.length > 0
+          ? Math.max(...historicalToolCalls.map((tc: any) => tc.stepIndex))
+          : 0;
 
         const unsubscribe = client.subscribeRunStream(
           runId,
@@ -123,6 +175,13 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
   };
 
   useEffect(() => {
+    // Demo mode: không fetch API — replay store xử lý tất cả
+    if (mode === "demo") {
+      setIsLoading(false);
+      setSseStatus("offline");
+      return;
+    }
+
     let cancelled = false;
     const isCancelled = () => cancelled;
 
@@ -135,16 +194,20 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
         unsubscribeRef.current = null;
       }
     };
-  }, [runId]);
+  }, [runId, mode]);
+
+  // Chọn nguồn dữ liệu phù hợp tuỳ mode
+  const displayToolCalls = mode === "demo" ? demoToolCalls : toolCalls;
+  const displayVerdict = mode === "demo" ? demoVerdict : currentRun?.verdict;
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px" }}>
-      <TraceHeader run={currentRun} />
+      <TraceHeader run={currentRun} mode={mode} />
 
-      {currentRun?.verdict && <VerdictBanner verdict={currentRun.verdict} />}
+      {displayVerdict && <VerdictBanner verdict={displayVerdict} />}
 
-      {/* State: Error alert */}
-      {error && (
+      {/* State: Error alert (chỉ hiện ở Live Mode) */}
+      {error && mode === "live" && (
         <div
           className="glass-panel"
           style={{
@@ -194,7 +257,7 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
             marginBottom: "16px",
           }}
         >
-          Agent Execution Trajectory ({toolCalls.length} Tool Calls)
+          Agent Execution Trajectory ({displayToolCalls.length} Tool Calls)
         </h3>
 
         {/* State: Loading Skeleton */}
@@ -215,7 +278,7 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
             <RefreshCw className="animate-spin" size={20} />
             <span>Đang tải dữ liệu Audit Run...</span>
           </div>
-        ) : toolCalls.length === 0 ? (
+        ) : displayToolCalls.length === 0 ? (
           <div
             className="glass-panel"
             style={{
@@ -225,11 +288,13 @@ export const TraceView: React.FC<TraceViewProps> = ({ runId }) => {
               borderRadius: "12px",
             }}
           >
-            No execution steps recorded yet.
+            {mode === "demo"
+              ? "Play the demo to see agent execution steps..."
+              : "No execution steps recorded yet."}
           </div>
         ) : (
           <div>
-            {toolCalls.map((tc) => (
+            {displayToolCalls.map((tc) => (
               <ToolCallCard key={tc.id} toolCall={tc} />
             ))}
           </div>

@@ -3,10 +3,8 @@ import { TraceView } from "./components/trace/TraceView.js";
 import { JudgeForm } from "./components/judge/JudgeForm.js";
 import { ReplayController } from "./components/demo/ReplayController.js";
 import { useReplayStore } from "./stores/replay.store.js";
-import { DemoService, OpenAPI } from "./generated/api/index.js";
-
-// Cấu hình base URL cho API Client
-OpenAPI.BASE = "http://localhost:8000";
+import { DemoService } from "./generated/api/index.js";
+// OpenAPI.BASE được cấu hình tập trung tại useAuditHarnessClient.tsx (port 3000)
 
 const DEFAULT_DEMO_FIXTURE = [
   { type: "run:status_changed", payload: { status: "RUNNING" }, delayMs: 500 },
@@ -41,8 +39,10 @@ export const App: React.FC = () => {
     setCommittedRunId("demo-run-01");
     try {
       const data = await DemoService.getDemoTimelineApiV1DemoRunsRunIdTimelineGet("demo-run-01");
-      setEvents(data.events || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setEvents((data.events as any[]) || []);
     } catch {
+      // Fallback: dùng fixture tĩnh nếu backend không sẵn sàng (offline)
       setEvents(DEFAULT_DEMO_FIXTURE as any);
     }
   };
@@ -128,7 +128,7 @@ export const App: React.FC = () => {
         )}
         
         {activeView === "trace" && (
-          <TraceView runId={committedRunId} />
+          <TraceView runId={committedRunId} mode={activeMode} />
         )}
       </main>
 

@@ -9,6 +9,8 @@ export type { OpenAPIConfig } from "./core/OpenAPI";
 
 export type { EvidenceSchema } from "./models/EvidenceSchema";
 export type { HTTPValidationError } from "./models/HTTPValidationError";
+export type { JudgeRequestSchema } from "./models/JudgeRequestSchema";
+export type { JudgeResponseSchema } from "./models/JudgeResponseSchema";
 export type { RunSchema } from "./models/RunSchema";
 export type { ToolCallSchema } from "./models/ToolCallSchema";
 export type { ValidationError } from "./models/ValidationError";

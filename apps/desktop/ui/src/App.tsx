@@ -3,7 +3,8 @@ import { TraceView } from "./components/trace/TraceView.js";
 import { JudgeForm } from "./components/judge/JudgeForm.js";
 import { ReplayController } from "./components/demo/ReplayController.js";
 import { useReplayStore, type DemoEvent } from "./stores/replay.store.js";
-import { DemoService } from "./generated/api/index.js";
+import { DemoService, RunsService } from "./generated/api/index.js";
+import { DashboardView } from "./components/dashboard/DashboardView.js";
 // OpenAPI.BASE được cấu hình tập trung tại useAuditHarnessClient.tsx (port 3000)
 
 const DEFAULT_DEMO_FIXTURE: DemoEvent[] = [
@@ -44,26 +45,40 @@ const DEFAULT_DEMO_FIXTURE: DemoEvent[] = [
 
 export const App: React.FC = () => {
   const [activeMode, setActiveMode] = useState<"live" | "demo">("live");
-  const [activeView, setActiveView] = useState<"judge" | "trace">("judge");
+  const [activeView, setActiveView] = useState<"judge" | "trace" | "dashboard">(
+    "judge",
+  );
   const [committedRunId, setCommittedRunId] = useState("");
   const [isStarting, setIsStarting] = useState(false);
 
   const { setEvents } = useReplayStore();
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleStartRun = (_config: {
+  const handleStartRun = (config: {
     repo: string;
     findingId: string;
     modelName: string;
     tokenBudget: number;
   }) => {
-    // TODO: Connect to RunsService to start a real run. For now, simulate delay and go to trace.
     setIsStarting(true);
-    setTimeout(() => {
-      setIsStarting(false);
-      setCommittedRunId("new-run-" + Date.now());
-      setActiveView("trace");
-    }, 1500);
+    RunsService.startJudgeApiV1RunsJudgePost({
+      requestBody: {
+        repository: config.repo,
+        findingId: config.findingId,
+        modelName: config.modelName,
+        tokenBudget: config.tokenBudget,
+      },
+    })
+      .then((data) => {
+        setCommittedRunId(data.runId);
+        setActiveView("trace");
+      })
+      .catch((err: Error) => {
+        console.error("Failed to start run", err);
+        alert("Failed to start run: " + err.message);
+      })
+      .finally(() => {
+        setIsStarting(false);
+      });
   };
 
   const handleStartDemo = async () => {
@@ -190,6 +205,28 @@ export const App: React.FC = () => {
           >
             Demo Mode
           </button>
+          <button
+            onClick={() => {
+              setActiveMode("live");
+              setActiveView("dashboard");
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              fontWeight: 600,
+              background:
+                activeView === "dashboard"
+                  ? "rgba(168, 85, 247, 0.2)"
+                  : "transparent",
+              color:
+                activeView === "dashboard"
+                  ? "rgb(192, 132, 252)"
+                  : "var(--text-secondary)",
+              transition: "all 0.2s",
+            }}
+          >
+            Dashboard
+          </button>
         </div>
       </nav>
 
@@ -201,6 +238,16 @@ export const App: React.FC = () => {
 
         {activeView === "trace" && (
           <TraceView runId={committedRunId} mode={activeMode} />
+        )}
+
+        {activeView === "dashboard" && (
+          <DashboardView
+            onSelectRun={(runId) => {
+              setCommittedRunId(runId);
+              setActiveMode("live");
+              setActiveView("trace");
+            }}
+          />
         )}
       </main>
 

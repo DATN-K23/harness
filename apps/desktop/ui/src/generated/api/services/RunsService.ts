@@ -2,12 +2,46 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { JudgeRequestSchema } from "../models/JudgeRequestSchema";
+import type { JudgeResponseSchema } from "../models/JudgeResponseSchema";
 import type { RunSchema } from "../models/RunSchema";
 import type { ToolCallSchema } from "../models/ToolCallSchema";
 import type { CancelablePromise } from "../core/CancelablePromise";
 import { OpenAPI } from "../core/OpenAPI";
 import { request as __request } from "../core/request";
 export class RunsService {
+  /**
+   * Start Judge
+   * Khởi tạo một Audit Run mới
+   * @param requestBody
+   * @returns JudgeResponseSchema Successful Response
+   * @throws ApiError
+   */
+  public static startJudgeApiV1RunsJudgePost(
+    requestBody: JudgeRequestSchema,
+  ): CancelablePromise<JudgeResponseSchema> {
+    return __request(OpenAPI, {
+      method: "POST",
+      url: "/api/v1/runs/judge",
+      body: requestBody,
+      mediaType: "application/json",
+      errors: {
+        422: `Validation Error`,
+      },
+    });
+  }
+  /**
+   * Get Runs
+   * Lấy danh sách tất cả các phiên Audit
+   * @returns RunSchema Successful Response
+   * @throws ApiError
+   */
+  public static getRunsApiV1RunsGet(): CancelablePromise<Array<RunSchema>> {
+    return __request(OpenAPI, {
+      method: "GET",
+      url: "/api/v1/runs",
+    });
+  }
   /**
    * Get Run
    * Lấy thông tin của một phiên Audit
@@ -60,7 +94,7 @@ export class RunsService {
   }
   /**
    * Stream Run
-   * SSE endpoint cho live timeline
+   * SSE endpoint cho live timeline (Polling DB)
    * @param runId
    * @param fromStep
    * @returns any Successful Response

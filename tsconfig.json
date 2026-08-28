@@ -4,7 +4,7 @@
     "noEmit": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@audit-harness/contracts": ["./packages/contracts/src/index.ts"],
@@ -19,5 +19,5 @@
     "scripts/**/*.mts",
     "tests/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": ["node_modules", "dist", "coverage", "apps/desktop/ui"]
 }

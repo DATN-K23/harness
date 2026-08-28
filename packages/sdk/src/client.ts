@@ -181,7 +181,7 @@ export class AuditHarnessClient {
         }),
       },
       signal: abortController.signal,
-      onopen: (response) => {
+      onopen: async (response) => {
         if (!response.ok) {
           throw new NetworkDisconnectedError(
             `SSE connection failed: HTTP ${response.status}`,

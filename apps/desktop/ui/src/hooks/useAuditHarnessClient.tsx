@@ -1,5 +1,10 @@
 import { createContext, useContext, useMemo } from "react";
-import { OpenAPI, RunsService, type VerdictSchema, type ToolCallSchema } from "../generated/api/index.js";
+import {
+  OpenAPI,
+  RunsService,
+  type VerdictSchema,
+  type ToolCallSchema,
+} from "../generated/api/index.js";
 import type { ThoughtEvent } from "../stores/run.store.js";
 
 /**
@@ -52,10 +57,12 @@ export class CustomAuditClient {
     if (callbacks.onError) eventSource.onerror = callbacks.onError;
 
     eventSource.addEventListener("thought", (e: MessageEvent<string>) => {
-      if (callbacks.onThought) callbacks.onThought(JSON.parse(e.data) as ThoughtEvent);
+      if (callbacks.onThought)
+        callbacks.onThought(JSON.parse(e.data) as ThoughtEvent);
     });
     eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
-      if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data) as ToolCallSchema);
+      if (callbacks.onToolCall)
+        callbacks.onToolCall(JSON.parse(e.data) as ToolCallSchema);
     });
     eventSource.addEventListener(
       "status_changed",
@@ -65,10 +72,14 @@ export class CustomAuditClient {
       },
     );
     eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
-      if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data) as VerdictSchema);
+      if (callbacks.onVerdict)
+        callbacks.onVerdict(JSON.parse(e.data) as VerdictSchema);
     });
     eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
-      if (callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data) as { totalDurationMs?: number });
+      if (callbacks.onCompleted)
+        callbacks.onCompleted(
+          JSON.parse(e.data) as { totalDurationMs?: number },
+        );
       eventSource.close();
     });
 

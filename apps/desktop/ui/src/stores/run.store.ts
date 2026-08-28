@@ -81,11 +81,13 @@ export const useRunStore = create<RunState>((set) => ({
 
       const newEvent: ModelEvent = {
         id: thought.id || `thought_${thought.stepIndex}_${Date.now()}`,
-        runId: thought.runId,
         stepIndex: thought.stepIndex,
         eventType: "THOUGHT",
         content: thought.thought || thought.content || "",
       };
+      if (thought.runId) {
+        newEvent.runId = thought.runId;
+      }
       return { modelEvents: [...state.modelEvents, newEvent] };
     }),
 

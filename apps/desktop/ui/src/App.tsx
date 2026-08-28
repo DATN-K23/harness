@@ -61,12 +61,10 @@ export const App: React.FC = () => {
   }) => {
     setIsStarting(true);
     RunsService.startJudgeApiV1RunsJudgePost({
-      requestBody: {
-        repository: config.repo,
-        findingId: config.findingId,
-        modelName: config.modelName,
-        tokenBudget: config.tokenBudget,
-      },
+      repository: config.repo,
+      findingId: config.findingId,
+      modelName: config.modelName,
+      tokenBudget: config.tokenBudget,
     })
       .then((data) => {
         setCommittedRunId(data.runId);

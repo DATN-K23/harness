@@ -55,7 +55,7 @@ export const TraceView: React.FC<TraceViewProps> = ({
         severity: (p.severity as string) || "none",
         confidence: (p.confidence as number) ?? 0,
         rationale: (p.rationale as string) || "",
-        evidence: p.evidence || [],
+        evidence: (p.evidence as any[]) || [],
         verificationStatus: (p.verificationStatus as string) || "unverified",
         label_normalization_version:
           (p.label_normalization_version as string) || "v1.0",

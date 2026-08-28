@@ -232,7 +232,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
                       marginLeft: "8px",
                     }}
                   >
-                    L{ev.startLine}-L{ev.endLine}
+                    L{ev.start_line}-L{ev.end_line}
                   </span>
                 </div>
                 {ev.note && (

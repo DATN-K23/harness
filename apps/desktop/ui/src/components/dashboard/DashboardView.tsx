@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { RunsService } from "../../../generated/api";
-import type { RunSchema } from "../../../generated/api";
-import { exportRunsToCSV, exportRunsToJSON } from "../../../utils/export";
+import { RunsService } from "../../generated/api";
+import type { RunSchema } from "../../generated/api";
+import { exportRunsToCSV, exportRunsToJSON } from "../../utils/export";
 
 interface DashboardViewProps {
   onSelectRun: (runId: string) => void;
@@ -17,7 +17,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const fetchRuns = () => {
     setLoading(true);
     RunsService.getRunsApiV1RunsGet()
-      .then((data) => {
+      .then((data: RunSchema[]) => {
         setRuns(data);
         setError(null);
       })

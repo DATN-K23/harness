@@ -55,10 +55,13 @@ export class CustomAuditClient {
     eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
       if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data));
     });
-    eventSource.addEventListener("status_changed", (e: MessageEvent<string>) => {
-      if (callbacks.onStatusChanged)
-        callbacks.onStatusChanged(JSON.parse(e.data));
-    });
+    eventSource.addEventListener(
+      "status_changed",
+      (e: MessageEvent<string>) => {
+        if (callbacks.onStatusChanged)
+          callbacks.onStatusChanged(JSON.parse(e.data));
+      },
+    );
     eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
       if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data));
     });

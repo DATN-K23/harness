@@ -181,7 +181,7 @@ export class AuditHarnessClient {
         }),
       },
       signal: abortController.signal,
-      onopen: async (response) => {
+      onopen: (response) => {
         if (!response.ok) {
           throw new NetworkDisconnectedError(
             `SSE connection failed: HTTP ${response.status}`,
@@ -194,6 +194,7 @@ export class AuditHarnessClient {
       onmessage: (event) => {
         if (event.event === "heartbeat") return;
         try {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const data = JSON.parse(event.data);
           switch (event.event) {
             case "step:thought":

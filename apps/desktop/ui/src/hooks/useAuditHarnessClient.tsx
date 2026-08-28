@@ -31,30 +31,38 @@ export class CustomAuditClient {
 
   public subscribeRunStream(
     runId: string,
-    callbacks: any,
+    callbacks: {
+      onopen?: (e: Event) => void;
+      onError?: (e: Event) => void;
+      onThought?: (data: unknown) => void;
+      onToolCall?: (data: unknown) => void;
+      onStatusChanged?: (data: unknown) => void;
+      onVerdict?: (data: unknown) => void;
+      onCompleted?: (data: unknown) => void;
+    },
     options: { fromStep: number },
   ) {
     const url = new URL(`${OpenAPI.BASE}/api/v1/runs/${runId}/stream`);
     url.searchParams.set("from_step", options.fromStep.toString());
     const eventSource = new EventSource(url.toString());
 
-    eventSource.onopen = callbacks.onopen;
-    eventSource.onerror = callbacks.onError;
+    if (callbacks.onopen) eventSource.onopen = callbacks.onopen;
+    if (callbacks.onError) eventSource.onerror = callbacks.onError;
 
-    eventSource.addEventListener("thought", (e: any) => {
+    eventSource.addEventListener("thought", (e: MessageEvent<string>) => {
       if (callbacks.onThought) callbacks.onThought(JSON.parse(e.data));
     });
-    eventSource.addEventListener("tool_call", (e: any) => {
+    eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
       if (callbacks.onToolCall) callbacks.onToolCall(JSON.parse(e.data));
     });
-    eventSource.addEventListener("status_changed", (e: any) => {
+    eventSource.addEventListener("status_changed", (e: MessageEvent<string>) => {
       if (callbacks.onStatusChanged)
         callbacks.onStatusChanged(JSON.parse(e.data));
     });
-    eventSource.addEventListener("verdict", (e: any) => {
+    eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
       if (callbacks.onVerdict) callbacks.onVerdict(JSON.parse(e.data));
     });
-    eventSource.addEventListener("completed", (e: any) => {
+    eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
       if (callbacks.onCompleted) callbacks.onCompleted(JSON.parse(e.data));
       eventSource.close();
     });

@@ -2,9 +2,16 @@ import { create } from "zustand";
 import type {
   RunSchema as Run,
   ToolCallSchema,
+  ModelEventSchema,
 } from "../generated/api/index.js";
-type ThoughtEvent = any;
-type ToolCallEvent = any;
+
+type ThoughtEvent = {
+  id?: string;
+  runId?: string;
+  stepIndex: number;
+  thought?: string;
+  content?: string;
+};
 
 type ToolCall = ToolCallSchema;
 interface ModelEvent {
@@ -31,9 +38,9 @@ export interface RunState {
   setRun: (run: Run | null) => void;
   setRunStatus: (status: string) => void;
   setSseStatus: (status: SseStatus) => void;
-  appendToolCall: (tc: any) => void;
-  appendThought: (thought: any) => void;
-  appendModelEvent: (event: any) => void;
+  appendToolCall: (tc: ToolCall) => void;
+  appendThought: (thought: ThoughtEvent) => void;
+  appendModelEvent: (event: ModelEventSchema) => void;
   reset: () => void;
 }
 

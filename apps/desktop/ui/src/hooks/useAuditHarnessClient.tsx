@@ -11,8 +11,6 @@ import type { ThoughtEvent } from "../stores/run.store.js";
  * AuditHarnessClientContext wraps the generated openapi client configuration
  */
 
-OpenAPI.BASE = "http://127.0.0.1:3000";
-
 // Custom class to mimic the old SDK interface for SSE
 export class CustomAuditClient {
   public async getRun(runId: string) {
@@ -32,7 +30,7 @@ export class CustomAuditClient {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public cancelRun(_runId: string) {
-    // Mock implementation for cancelRun
+    // TODO: Implement backend cancel endpoint (PATCH /api/v1/runs/{id}/cancel)
     return Promise.resolve({ success: true });
   }
 
@@ -96,7 +94,10 @@ export function AuditHarnessClientProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const client = useMemo(() => new CustomAuditClient(), []);
+  const client = useMemo(() => {
+    OpenAPI.BASE = "http://127.0.0.1:3000";
+    return new CustomAuditClient();
+  }, []);
 
   return (
     <AuditHarnessClientContext.Provider value={client}>

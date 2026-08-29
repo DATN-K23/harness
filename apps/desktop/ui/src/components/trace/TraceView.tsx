@@ -6,7 +6,7 @@ import { TraceHeader } from "./TraceHeader.js";
 import { VerdictBanner } from "./VerdictBanner.js";
 import { ToolCallCard } from "./ToolCallCard.js";
 import { RefreshCw, AlertCircle } from "lucide-react";
-import type { VerdictSchema } from "../../generated/api/index.js";
+import type { VerdictSchema, EvidenceSchema } from "../../generated/api/index.js";
 
 interface TraceViewProps {
   runId: string;
@@ -50,16 +50,15 @@ export const TraceView: React.FC<TraceViewProps> = ({
     if (verdictEvent) {
       const p = verdictEvent.payload;
       setDemoVerdict({
-        schema_version: (p.schema_version as string) || "judge-verdict-v1",
+        schemaVersion: (p.schema_version as string) || (p.schemaVersion as string) || "judge-verdict-v1",
         validity: (p.validity as string) || "invalid",
         severity: (p.severity as string) || "none",
         confidence: (p.confidence as number) ?? 0,
         rationale: (p.rationale as string) || "",
-        evidence: (p.evidence as any[]) || [],
+        evidence: (p.evidence as EvidenceSchema[]) || [],
         verificationStatus: (p.verificationStatus as string) || "unverified",
-        label_normalization_version:
-          (p.label_normalization_version as string) || "v1.0",
-        pocSourceCode: (p.pocSourceCode as string) ?? null,
+        labelNormalizationVersion:
+          (p.label_normalization_version as string) || (p.labelNormalizationVersion as string) || "v1.0",
       });
     } else {
       setDemoVerdict(null);

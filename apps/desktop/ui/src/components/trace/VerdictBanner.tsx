@@ -17,7 +17,8 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
     verificationStatus,
   } = verdict;
 
-  const isVulnerable = validity === "valid";
+  // Domain logic: validity === "valid" nghĩa là finding đã được xác nhận (bị hổng bảo mật)
+  const isFindingConfirmed = validity === "valid";
   const isHighSeverity = severity === "high" || severity === "critical";
 
   const confidencePct = Math.round(confidence * 100);
@@ -26,20 +27,26 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
   let themeColor = "#10b981"; // Success Green
   let bgRgba = "rgba(16, 185, 129, 0.08)";
   let borderRgba = "rgba(16, 185, 129, 0.5)";
+  let badgeBgRgba = "rgba(16, 185, 129, 0.2)";
+  let badgeBorderRgba = "rgba(16, 185, 129, 0.3)";
   let gradient = "linear-gradient(90deg, #10b981, #059669)";
 
-  if (isVulnerable) {
+  if (isFindingConfirmed) {
     if (isHighSeverity) {
       glowClass = "verdict-glow-danger";
       themeColor = "#f43f5e"; // Rose
       bgRgba = "rgba(244, 63, 94, 0.08)";
       borderRgba = "rgba(244, 63, 94, 0.5)";
+      badgeBgRgba = "rgba(244, 63, 94, 0.2)";
+      badgeBorderRgba = "rgba(244, 63, 94, 0.3)";
       gradient = "linear-gradient(90deg, #f43f5e, #be123c)";
     } else {
       glowClass = "verdict-glow-warning";
       themeColor = "#f59e0b"; // Amber
       bgRgba = "rgba(245, 158, 11, 0.08)";
       borderRgba = "rgba(245, 158, 11, 0.5)";
+      badgeBgRgba = "rgba(245, 158, 11, 0.2)";
+      badgeBorderRgba = "rgba(245, 158, 11, 0.3)";
       gradient = "linear-gradient(90deg, #f59e0b, #d97706)";
     }
   }
@@ -75,7 +82,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
             }}
           >
             <span style={{ fontSize: "1.5rem" }}>
-              {isVulnerable ? (isHighSeverity ? "🚨" : "⚠️") : "✅"}
+              {isFindingConfirmed ? (isHighSeverity ? "🚨" : "⚠️") : "✅"}
             </span>
             <h3
               style={{
@@ -96,9 +103,9 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
                 fontWeight: 700,
                 letterSpacing: "0.5px",
                 textTransform: "uppercase",
-                background: bgRgba.replace("0.08", "0.2"),
+                background: badgeBgRgba,
                 color: themeColor,
-                border: `1px solid ${bgRgba.replace("0.08", "0.3")}`,
+                border: `1px solid ${badgeBorderRgba}`,
               }}
             >
               {severity}
@@ -212,7 +219,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
                   alignItems: "center",
                   cursor: "pointer",
                 }}
-                className="glass-panel"
+                className="glass-panel hover-scale"
               >
                 <div>
                   <span

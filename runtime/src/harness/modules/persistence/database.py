@@ -12,10 +12,12 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "sqlite:///./audit_harness.db"
 )
 
-# Khởi tạo engine (với SQLite cần check_same_thread=False)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+# Khởi tạo engine
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
     pool_pre_ping=True,  # Kiểm tra kết nối trước khi sử dụng từ pool
     echo=os.environ.get("DB_ECHO", "false").lower() == "true",
 )

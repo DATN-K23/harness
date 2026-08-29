@@ -25,7 +25,6 @@ export type SseStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
 export interface RunState {
   currentRun: Run | null;
-  runStatus: string;
   sseStatus: SseStatus;
 
   // Trace Data
@@ -45,7 +44,6 @@ export interface RunState {
 
 export const useRunStore = create<RunState>((set) => ({
   currentRun: null,
-  runStatus: "PENDING",
   sseStatus: "offline",
   toolCalls: [],
   thoughts: [],
@@ -58,7 +56,6 @@ export const useRunStore = create<RunState>((set) => ({
       currentRun: state.currentRun
         ? { ...state.currentRun, status: status }
         : null,
-      runStatus: status,
     })),
 
   setSseStatus: (sseStatus) => set({ sseStatus }),

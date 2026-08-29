@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from pydantic.alias_generators import to_camel
 from typing import List, Optional
 import asyncio
 import json
@@ -8,10 +9,9 @@ import json
 from sqlalchemy.orm import Session
 from harness.modules.persistence.database import SessionLocal, get_db
 from harness.modules.persistence.models import Run, RunStatus, ToolCall, ModelEvent, Verdict
+from harness.modules.events.bus import event_bus
 
 router = APIRouter(prefix="/api/v1/runs", tags=["Runs"])
-
-from pydantic.alias_generators import to_camel
 
 # --- Pydantic Schemas ---
 class EvidenceSchema(BaseModel):
@@ -106,8 +106,58 @@ def _map_verdict(db_verdict: Verdict) -> Optional[VerdictSchema]:
         label_normalization_version=db_verdict.label_normalization_version
     )
 
+async def mock_agent_loop(run_id: str):
+    """Giả lập Agent chạy audit và phát event real-time"""
+    await asyncio.sleep(1)
+    
+    with SessionLocal() as db:
+        r = db.query(Run).filter(Run.id == run_id).first()
+        if r:
+            r.status = RunStatus.RUNNING
+            db.commit()
+    
+    event_bus.publish(run_id, "status_changed", {"status": "RUNNING"})
+    await asyncio.sleep(2)
+    
+    event_bus.publish(run_id, "thought", {"stepIndex": 1, "thought": "Analyzing repository for vulnerabilities..."})
+    await asyncio.sleep(2)
+    
+    event_bus.publish(run_id, "tool_call", {
+        "id": "tc-1", "stepIndex": 1, "toolName": "read_file",
+        "argumentsJson": "{\"path\": \"src/Vault.sol\"}",
+        "resultJson": "{\"content\": \"contract Vault { ... }\"}",
+        "isError": False, "durationMs": 45, "tokensUsed": 100
+    })
+    await asyncio.sleep(2)
+    
+    event_bus.publish(run_id, "thought", {"stepIndex": 2, "thought": "Found reentrancy vulnerability in withdraw()."})
+    await asyncio.sleep(2)
+    
+    verdict_data = {
+        "schemaVersion": "judge-verdict-v1",
+        "validity": "valid",
+        "severity": "high",
+        "confidence": 0.95,
+        "rationale": "Reentrancy vector identified.",
+        "evidence": [{"path": "src/Vault.sol", "start_line": 15, "end_line": 20}],
+        "verificationStatus": "unverified",
+        "labelNormalizationVersion": "v1.0"
+    }
+    event_bus.publish(run_id, "verdict", verdict_data)
+    await asyncio.sleep(1)
+    
+    with SessionLocal() as db:
+        r = db.query(Run).filter(Run.id == run_id).first()
+        if r:
+            r.status = RunStatus.COMPLETED
+            r.total_duration_ms = 8000
+            db.commit()
+    
+    event_bus.publish(run_id, "completed", {"totalDurationMs": 8000})
+
+
 @router.post("/judge", response_model=JudgeResponseSchema)
-def start_judge(request: JudgeRequestSchema, db: Session = Depends(get_db)):
+def start_judge(request: JudgeRequestSchema, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Khởi tạo một Audit Run mới"""
     new_run = Run(
         title=f"Audit {request.finding_id}",
@@ -118,6 +168,10 @@ def start_judge(request: JudgeRequestSchema, db: Session = Depends(get_db)):
     db.add(new_run)
     db.commit()
     db.refresh(new_run)
+    
+    # Launch mock agent
+    background_tasks.add_task(mock_agent_loop, new_run.id)
+    
     return JudgeResponseSchema(run_id=new_run.id)
 
 
@@ -178,75 +232,52 @@ def get_tool_calls(run_id: str, from_step: int = Query(0), limit: int = Query(50
 
 @router.get("/{run_id}/stream")
 async def stream_run(run_id: str, from_step: int = Query(0)):
-    """SSE endpoint cho live timeline (Polling DB)"""
+    """SSE endpoint cho live timeline (EventBus)"""
     async def event_generator():
-        # Tạo session riêng vì request depend db có thể bị đóng sau khi return StreamingResponse
+        # Lấy lịch sử từ DB trước
         db = SessionLocal()
         try:
-            last_event_step = from_step - 1
-            last_tc_step = from_step - 1
-            has_sent_verdict = False
-            last_status = None
+            r = db.query(Run).filter(Run.id == run_id).first()
+            if not r:
+                yield f"event: error\ndata: {json.dumps({'detail': 'Run not found'})}\n\n"
+                return
+                
+            yield f"event: status_changed\ndata: {json.dumps({'status': str(r.status)})}\n\n"
             
-            while True:
-                r = db.query(Run).filter(Run.id == run_id).first()
-                if not r:
-                    break
-                    
-                # 1. Phát sự kiện đổi status
-                if r.status != last_status:
-                    yield f"event: status_changed\ndata: {json.dumps({'status': str(r.status)})}\n\n"
-                    last_status = r.status
+            events = db.query(ModelEvent).filter(
+                ModelEvent.run_id == run_id,
+                ModelEvent.step_index >= from_step,
+                ModelEvent.event_type == 'thought'
+            ).order_by(ModelEvent.step_index.asc()).all()
+            for ev in events:
+                yield f"event: thought\ndata: {json.dumps({'stepIndex': ev.step_index, 'thought': ev.content})}\n\n"
                 
-                # 2. Phát thoughts (model events)
-                events = db.query(ModelEvent).filter(
-                    ModelEvent.run_id == run_id,
-                    ModelEvent.step_index > last_event_step,
-                    ModelEvent.event_type == 'thought'
-                ).order_by(ModelEvent.step_index.asc()).all()
+            tcs = db.query(ToolCall).filter(
+                ToolCall.run_id == run_id,
+                ToolCall.step_index >= from_step
+            ).order_by(ToolCall.step_index.asc()).all()
+            for tc in tcs:
+                schema = ToolCallSchema(
+                    id=tc.id, step_index=tc.step_index, tool_name=tc.tool_name,
+                    arguments_json=tc.arguments_json, result_json=tc.result_json,
+                    is_error=tc.is_error, duration_ms=tc.duration_ms, tokens_used=tc.tokens_used
+                )
+                yield f"event: tool_call\ndata: {schema.model_dump_json(by_alias=True)}\n\n"
+            
+            if r.verdict:
+                v_schema = _map_verdict(r.verdict)
+                yield f"event: verdict\ndata: {v_schema.model_dump_json(by_alias=True) if v_schema else '{}'}\n\n"
                 
-                for ev in events:
-                    yield f"event: thought\ndata: {json.dumps({'stepIndex': ev.step_index, 'thought': ev.content})}\n\n"
-                    last_event_step = max(last_event_step, ev.step_index)
-                    
-                # 3. Phát tool calls
-                tcs = db.query(ToolCall).filter(
-                    ToolCall.run_id == run_id,
-                    ToolCall.step_index > last_tc_step
-                ).order_by(ToolCall.step_index.asc()).all()
-                
-                for tc in tcs:
-                    schema = ToolCallSchema(
-                        id=tc.id,
-                        step_index=tc.step_index,
-                        tool_name=tc.tool_name,
-                        arguments_json=tc.arguments_json,
-                        result_json=tc.result_json,
-                        is_error=tc.is_error,
-                        duration_ms=tc.duration_ms,
-                        tokens_used=tc.tokens_used
-                    )
-                    yield f"event: tool_call\ndata: {schema.model_dump_json(by_alias=True)}\n\n"
-                    last_tc_step = max(last_tc_step, tc.step_index)
-                
-                # 4. Phát Verdict nếu có
-                if r.verdict and not has_sent_verdict:
-                    v_schema = _map_verdict(r.verdict)
-                    yield f"event: verdict\ndata: {v_schema.model_dump_json(by_alias=True) if v_schema else '{}'}\n\n"
-                    has_sent_verdict = True
-                
-                # 5. Dừng loop nếu run kết thúc
-                if r.status in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]:
-                    yield f"event: completed\ndata: {json.dumps({'totalDurationMs': r.total_duration_ms})}\n\n"
-                    break
-                    
-                # Đợi trước khi poll tiếp
-                await asyncio.sleep(1.0)
-                
-                # Làm mới session để lấy dữ liệu cập nhật
-                db.expire_all()
+            if r.status in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]:
+                yield f"event: completed\ndata: {json.dumps({'totalDurationMs': r.total_duration_ms})}\n\n"
+                return
         finally:
             db.close()
             
+        # Đợi các event mới realtime từ EventBus
+        async for msg in event_bus.subscribe(run_id):
+            yield msg
+            if "event: completed" in msg:
+                break
+                
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-

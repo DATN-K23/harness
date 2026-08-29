@@ -177,21 +177,38 @@ export const TraceHeader: React.FC<TraceHeaderProps> = ({
             </button>
           )}
 
-          <div
-            style={{
-              padding: "6px 12px",
-              background:
-                run?.status === "RUNNING"
-                  ? "rgba(59, 130, 246, 0.2)"
-                  : "rgba(16, 185, 129, 0.2)",
-              color: run?.status === "RUNNING" ? "#3b82f6" : "#10b981",
-              borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-            }}
-          >
-            {run?.status || "IDLE"}
-          </div>
+          {(() => {
+            const status = run?.status || "IDLE";
+            let bg = "rgba(107, 114, 128, 0.2)";
+            let color = "#9ca3af";
+            if (status === "RUNNING") {
+              bg = "rgba(59, 130, 246, 0.2)";
+              color = "#3b82f6";
+            } else if (status === "COMPLETED") {
+              bg = "rgba(16, 185, 129, 0.2)";
+              color = "#10b981";
+            } else if (status === "FAILED") {
+              bg = "rgba(244, 63, 94, 0.2)";
+              color = "#f43f5e";
+            } else if (status === "CANCELLED") {
+              bg = "rgba(245, 158, 11, 0.2)";
+              color = "#f59e0b";
+            }
+            return (
+              <div
+                style={{
+                  padding: "6px 12px",
+                  background: bg,
+                  color: color,
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                }}
+              >
+                {status}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </header>

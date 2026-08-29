@@ -3,6 +3,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
@@ -125,7 +126,6 @@ class Verdict(Base):
     rationale = Column(Text, nullable=False)
     
     # Store evidence array as JSON
-    from sqlalchemy import JSON
     evidence = Column(JSON, nullable=True)
     
     verification_status = Column(String, nullable=False)

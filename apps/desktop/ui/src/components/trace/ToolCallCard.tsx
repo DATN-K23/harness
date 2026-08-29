@@ -37,7 +37,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
 
   return (
     <div
-      className="glass-panel"
+      className="glass-panel hover-scale"
       style={{
         borderRadius: "var(--border-radius-lg, 16px)",
         border: toolCall.isError
@@ -52,12 +52,6 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
           : "0 4px 20px rgba(0, 0, 0, 0.2)",
       }}
     >
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
       {/* Header Preview Mode */}
       <div
         onClick={() => setIsExpanded(!isExpanded)}
@@ -132,7 +126,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
           style={{
             padding: "16px",
             borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-            background: "#111827",
+            background: "var(--bg-card-expanded)",
           }}
         >
           <div style={{ marginBottom: "12px" }}>

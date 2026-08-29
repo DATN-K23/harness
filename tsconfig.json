@@ -4,7 +4,6 @@
     "noEmit": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "baseUrl": ".",
     "paths": {
       "@audit-harness/contracts": ["./packages/contracts/src/index.ts"],
       "@audit-harness/sdk": ["./packages/sdk/src/index.ts"]

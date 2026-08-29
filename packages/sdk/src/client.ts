@@ -181,6 +181,7 @@ export class AuditHarnessClient {
         }),
       },
       signal: abortController.signal,
+      // eslint-disable-next-line @typescript-eslint/require-await
       onopen: async (response) => {
         if (!response.ok) {
           throw new NetworkDisconnectedError(

@@ -7,7 +7,8 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/v1/demo", tags=["Demo"])
 
-FIXTURES_DIR = Path(__file__).parent.parent.parent.parent.parent / "demo-fixtures"
+_default_fixtures = Path(__file__).resolve().parents[4] / "demo-fixtures"
+FIXTURES_DIR = Path(os.environ.get("HARNESS_FIXTURES_DIR", str(_default_fixtures)))
 
 @router.get("/runs/{run_id}/timeline")
 def get_demo_timeline(run_id: str) -> Dict[str, Any]:

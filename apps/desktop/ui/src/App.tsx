@@ -50,6 +50,7 @@ export const App: React.FC = () => {
   );
   const [committedRunId, setCommittedRunId] = useState("");
   const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const { setEvents } = useReplayStore();
 
@@ -60,6 +61,7 @@ export const App: React.FC = () => {
     tokenBudget: number;
   }) => {
     setIsStarting(true);
+    setStartError(null);
     RunsService.startJudgeApiV1RunsJudgePost({
       repository: config.repo,
       findingId: config.findingId,
@@ -72,7 +74,7 @@ export const App: React.FC = () => {
       })
       .catch((err: Error) => {
         console.error("Failed to start run", err);
-        alert("Failed to start run: " + err.message);
+        setStartError("Failed to start run: " + err.message);
       })
       .finally(() => {
         setIsStarting(false);
@@ -230,6 +232,32 @@ export const App: React.FC = () => {
 
       {/* Main Content */}
       <main style={{ marginTop: "24px" }}>
+        {startError && activeView === "judge" && (
+          <div
+            className="glass-panel"
+            style={{
+              maxWidth: "900px",
+              margin: "0 auto 20px auto",
+              padding: "16px 24px",
+              borderRadius: "12px",
+              background: "rgba(244, 63, 94, 0.1)",
+              border: "1px solid rgba(244, 63, 94, 0.3)",
+              color: "#fca5a5",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>{startError}</span>
+            <button
+              onClick={() => setStartError(null)}
+              style={{ color: "#fca5a5", fontWeight: 700, padding: "4px 8px" }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {activeView === "judge" && activeMode === "live" && (
           <JudgeForm onStartRun={handleStartRun} isStarting={isStarting} />
         )}

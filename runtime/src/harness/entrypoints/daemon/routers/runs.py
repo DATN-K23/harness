@@ -119,7 +119,7 @@ async def mock_agent_loop(run_id: str):
     event_bus.publish(run_id, "status_changed", {"status": "RUNNING"})
     await asyncio.sleep(2)
     
-    event_bus.publish(run_id, "thought", {"stepIndex": 1, "thought": "Analyzing repository for vulnerabilities..."})
+    event_bus.publish(run_id, "thought", {"id": f"thought_{run_id}_1", "stepIndex": 1, "thought": "Analyzing repository for vulnerabilities..."})
     await asyncio.sleep(2)
     
     event_bus.publish(run_id, "tool_call", {
@@ -130,7 +130,7 @@ async def mock_agent_loop(run_id: str):
     })
     await asyncio.sleep(2)
     
-    event_bus.publish(run_id, "thought", {"stepIndex": 2, "thought": "Found reentrancy vulnerability in withdraw()."})
+    event_bus.publish(run_id, "thought", {"id": f"thought_{run_id}_2", "stepIndex": 2, "thought": "Found reentrancy vulnerability in withdraw()."})
     await asyncio.sleep(2)
     
     verdict_data = {
@@ -250,7 +250,7 @@ async def stream_run(run_id: str, from_step: int = Query(0)):
                 ModelEvent.event_type == 'thought'
             ).order_by(ModelEvent.step_index.asc()).all()
             for ev in events:
-                yield f"event: thought\ndata: {json.dumps({'stepIndex': ev.step_index, 'thought': ev.content})}\n\n"
+                yield f"event: thought\ndata: {json.dumps({'id': ev.id, 'stepIndex': ev.step_index, 'thought': ev.content})}\n\n"
                 
             tcs = db.query(ToolCall).filter(
                 ToolCall.run_id == run_id,

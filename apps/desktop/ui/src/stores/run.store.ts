@@ -72,12 +72,14 @@ export const useRunStore = create<RunState>((set) => ({
   appendThought: (thought) =>
     set((state) => {
       const exists = state.modelEvents.some(
-        (e) => e.runId === thought.runId && e.stepIndex === thought.stepIndex,
+        (e) =>
+          (thought.id && e.id === thought.id) ||
+          (e.stepIndex === thought.stepIndex && e.eventType === "THOUGHT"),
       );
       if (exists) return state;
 
       const newEvent: ModelEvent = {
-        id: thought.id || `thought_${thought.stepIndex}_${Date.now()}`,
+        id: thought.id || `thought_${thought.stepIndex}`,
         stepIndex: thought.stepIndex,
         eventType: "THOUGHT",
         content: thought.thought || thought.content || "",

@@ -65,3 +65,12 @@ The desktop's renderer cache, native-shell state, notification state, open windo
 - **GIVEN** PostgreSQL contains a committed run trajectory and the desktop has no cache or an older cursor
 - **WHEN** the generated client reopens the run
 - **THEN** the view is reconstructed from versioned status and ordered event resources, duplicate events are ignored by run sequence identity, and no desktop state can insert, rewrite or finalize an authoritative event
+
+### Requirement: Unified relational schema for Audit entities
+
+The persistence layer SHALL manage relational models for `Run`, `ToolCall`, `ModelEvent`, and `Verdict` using SQLAlchemy with Alembic database migrations.
+
+#### Scenario: Querying run details with associated verdict and events
+
+- **WHEN** client queries a specific run by ID
+- **THEN** database retrieves the run object joined with its latest `Verdict` and ordered `ToolCall` steps.

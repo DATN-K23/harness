@@ -3,8 +3,11 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from harness.entrypoints.daemon.routers import runs, demo
+from harness.modules.config import load_flags
 
 def create_app() -> FastAPI:
+    load_flags()
+    
     app = FastAPI(
         title="Audit Harness Local Daemon API",
         description="Local runtime API complying with ADR-006 (Python Monolith)",

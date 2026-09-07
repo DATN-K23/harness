@@ -47,42 +47,82 @@ export class CustomAuditClient {
     },
     options: { fromStep: number },
   ) {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/runs/${runId}/stream`);
-    url.searchParams.set("from_step", options.fromStep.toString());
-    const eventSource = new EventSource(url.toString());
+    let eventSource: EventSource | null = null;
+    let isClosed = false;
+    let currentStep = options.fromStep;
+    let retryCount = 0;
+    const MAX_RETRIES = 10;
+    let reconnectTimeoutId: NodeJS.Timeout;
 
-    if (callbacks.onopen) eventSource.onopen = callbacks.onopen;
-    if (callbacks.onError) eventSource.onerror = callbacks.onError;
+    const connect = () => {
+      if (isClosed) return;
 
-    eventSource.addEventListener("thought", (e: MessageEvent<string>) => {
-      if (callbacks.onThought)
-        callbacks.onThought(JSON.parse(e.data) as ThoughtEvent);
-    });
-    eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
-      if (callbacks.onToolCall)
-        callbacks.onToolCall(JSON.parse(e.data) as ToolCallSchema);
-    });
-    eventSource.addEventListener(
-      "status_changed",
-      (e: MessageEvent<string>) => {
+      const url = new URL(`${OpenAPI.BASE}/api/v1/runs/${runId}/stream`);
+      url.searchParams.set("from_step", currentStep.toString());
+      eventSource = new EventSource(url.toString());
+
+      eventSource.onopen = (e) => {
+        retryCount = 0; // reset on successful connection
+        if (callbacks.onopen) callbacks.onopen(e);
+      };
+
+      eventSource.onerror = (e) => {
+        if (eventSource) {
+          eventSource.close();
+        }
+        if (callbacks.onError) callbacks.onError(e);
+
+        if (retryCount >= MAX_RETRIES) {
+          return;
+        }
+
+        retryCount++;
+        const backoffMs = Math.min(1000 * Math.pow(2, retryCount - 1), 30000);
+        reconnectTimeoutId = setTimeout(() => connect(), backoffMs);
+      };
+
+      eventSource.addEventListener("thought", (e: MessageEvent<string>) => {
+        const data = JSON.parse(e.data) as ThoughtEvent;
+        if (data.stepIndex !== undefined && data.stepIndex > currentStep) {
+          currentStep = data.stepIndex;
+        }
+        if (callbacks.onThought) callbacks.onThought(data);
+      });
+
+      eventSource.addEventListener("tool_call", (e: MessageEvent<string>) => {
+        const data = JSON.parse(e.data) as ToolCallSchema;
+        if (data.stepIndex !== undefined && data.stepIndex > currentStep) {
+          currentStep = data.stepIndex;
+        }
+        if (callbacks.onToolCall) callbacks.onToolCall(data);
+      });
+
+      eventSource.addEventListener("status_changed", (e: MessageEvent<string>) => {
         if (callbacks.onStatusChanged)
           callbacks.onStatusChanged(JSON.parse(e.data) as { status: string });
-      },
-    );
-    eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
-      if (callbacks.onVerdict)
-        callbacks.onVerdict(JSON.parse(e.data) as VerdictSchema);
-    });
-    eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
-      if (callbacks.onCompleted)
-        callbacks.onCompleted(
-          JSON.parse(e.data) as { totalDurationMs?: number },
-        );
-      eventSource.close();
-    });
+      });
+
+      eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
+        if (callbacks.onVerdict)
+          callbacks.onVerdict(JSON.parse(e.data) as VerdictSchema);
+      });
+
+      eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
+        if (callbacks.onCompleted)
+          callbacks.onCompleted(JSON.parse(e.data) as { totalDurationMs?: number });
+        isClosed = true;
+        if (eventSource) eventSource.close();
+      });
+    };
+
+    connect();
 
     return () => {
-      eventSource.close();
+      isClosed = true;
+      clearTimeout(reconnectTimeoutId);
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   }
 }

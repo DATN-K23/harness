@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/tests/fixtures/**",
       "**/blueprint/**",
       "**/openspec/**",
+      "**/generated/**",
     ],
   },
   eslint.configs.recommended,

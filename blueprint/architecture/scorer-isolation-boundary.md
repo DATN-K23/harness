@@ -9,12 +9,12 @@ Owners: TV5/TV4; reviewers: TV1, TV6
 `scoring` is a top-level capability in the Python modular monolith, but only `runtime/src/harness/entrypoints/scorer/` may import or compose it. The scorer runs as a separate process identity with a scorer-only database role/schema or equivalent credential boundary.
 
 | Composition root | May import `scoring` | May possess label/scorer credential | May read scorer-only generated schemas |
-|---|---:|---:|---:|
-| daemon | no | no | no |
-| worker | no | no | no |
-| evaluator | no | no | no |
-| scorer | yes | yes | yes |
-| desktop/shell | no | no | no |
+| ---------------- | -------------------: | ----------------------------------: | -------------------------------------: |
+| daemon           |                   no |                                  no |                                     no |
+| worker           |                   no |                                  no |                                     no |
+| evaluator        |                   no |                                  no |                                     no |
+| scorer           |                  yes |                                 yes |                                    yes |
+| desktop/shell    |                   no |                                  no |                                     no |
 
 `scoring` may import only `evaluation.public` plus shared-kernel primitives. `evaluation` cannot import `scoring`, scorer adapters or scorer-only types. This one-way edge avoids a cycle and prevents the evaluator from constructing a label query path.
 
@@ -43,14 +43,14 @@ The only crossing is `ApprovedScoreV1` through `evaluation.public.AcceptApproved
 
 ## Future architecture/security checks
 
-| ID | Failure condition |
-|---|---|
-| `ARCH-SCORER-IMPORT-01` | daemon/worker/evaluator/desktop closure imports `harness.modules.scoring` or scorer-only generated package |
-| `ARCH-SCORER-REVERSE-01` | `evaluation` imports `scoring` or a label adapter/type |
-| `ARCH-SCORER-COMPOSE-01` | non-scorer composition root can instantiate label repository/query/credential |
-| `ARCH-SCORER-SCHEMA-01` | scorer-only schema is reachable from local OpenAPI or desktop generation |
-| `DB-SCORER-GRANT-01` | non-scorer role can select label/adjudication/score-join detail |
-| `DB-SCORER-MUTATE-01` | scorer can mutate run trajectory/lifecycle or execute work |
-| `FLOW-SCORER-01` | label/adjudication/scorer free text appears in run/provider/tool/log/desktop/export fixtures |
+| ID                       | Failure condition                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `ARCH-SCORER-IMPORT-01`  | daemon/worker/evaluator/desktop closure imports `harness.modules.scoring` or scorer-only generated package |
+| `ARCH-SCORER-REVERSE-01` | `evaluation` imports `scoring` or a label adapter/type                                                     |
+| `ARCH-SCORER-COMPOSE-01` | non-scorer composition root can instantiate label repository/query/credential                              |
+| `ARCH-SCORER-SCHEMA-01`  | scorer-only schema is reachable from local OpenAPI or desktop generation                                   |
+| `DB-SCORER-GRANT-01`     | non-scorer role can select label/adjudication/score-join detail                                            |
+| `DB-SCORER-MUTATE-01`    | scorer can mutate run trajectory/lifecycle or execute work                                                 |
+| `FLOW-SCORER-01`         | label/adjudication/scorer free text appears in run/provider/tool/log/desktop/export fixtures               |
 
 Static import/dependency inspection plus composition graph construction must prove absence, not merely rely on runtime denial. Database grant introspection and negative queries prove credential separation. These are future implementation acceptance obligations; this blueprint contains no application code.

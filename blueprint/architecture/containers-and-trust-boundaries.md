@@ -50,17 +50,17 @@ flowchart TB
 
 ## Boundary invariants
 
-| Boundary | Allowed crossing | Forbidden crossing |
-|---|---|---|
-| renderer → Tauri | generated-client operation/payload; typed runtime/picker/notification/update-preparation command | generic filesystem/shell/process/env/URL/credential/updater invocation |
-| Tauri → daemon | protected allowlisted runtime operation; ephemeral selected path for registration; explicit lifecycle | arbitrary URL/command, tool authorization, provider/scorer call, run authority |
-| renderer → daemon | only via generated-client contract and Tauri protected transport | direct endpoint credential, DB/provider/tool/scorer access or authoritative event creation |
-| daemon → PostgreSQL | capability-owned records through ports | direct scorer-table query or credential |
-| worker → provider | exact sanitized messages, local tool definitions, schema | ground truth, host path, provider credential in payload/trace |
-| tools → workspace | bounded authorized relative read/search | shell/network/write/absolute/traversal/symlink escape |
-| source registration → workspace | digest-verified source snapshot | whole contest, reports, labels, mutable host tree |
-| ground truth → scorer | label/adjudication after terminal safe input | any path to desktop/daemon/worker/evaluator/provider/tools/trace |
-| scorer → evaluation | approved non-ground-truth score contract | label/adjudication/raw scorer rationale |
+| Boundary                        | Allowed crossing                                                                                      | Forbidden crossing                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| renderer → Tauri                | generated-client operation/payload; typed runtime/picker/notification/update-preparation command      | generic filesystem/shell/process/env/URL/credential/updater invocation                     |
+| Tauri → daemon                  | protected allowlisted runtime operation; ephemeral selected path for registration; explicit lifecycle | arbitrary URL/command, tool authorization, provider/scorer call, run authority             |
+| renderer → daemon               | only via generated-client contract and Tauri protected transport                                      | direct endpoint credential, DB/provider/tool/scorer access or authoritative event creation |
+| daemon → PostgreSQL             | capability-owned records through ports                                                                | direct scorer-table query or credential                                                    |
+| worker → provider               | exact sanitized messages, local tool definitions, schema                                              | ground truth, host path, provider credential in payload/trace                              |
+| tools → workspace               | bounded authorized relative read/search                                                               | shell/network/write/absolute/traversal/symlink escape                                      |
+| source registration → workspace | digest-verified source snapshot                                                                       | whole contest, reports, labels, mutable host tree                                          |
+| ground truth → scorer           | label/adjudication after terminal safe input                                                          | any path to desktop/daemon/worker/evaluator/provider/tools/trace                           |
+| scorer → evaluation             | approved non-ground-truth score contract                                                              | label/adjudication/raw scorer rationale                                                    |
 
 ## Explicitly forbidden edges
 

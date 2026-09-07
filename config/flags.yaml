@@ -1,0 +1,8 @@
+# TV6 - UI and Delivery Flags
+enable_sse_stream: true
+
+# TV6 - Persistence Flags
+enable_thought_persistence: true
+
+# TV6 - Validation Flags
+enable_verdict_validation: true

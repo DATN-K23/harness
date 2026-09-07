@@ -1,6 +1,6 @@
 # Đồ án này là gì
 
-*Đọc 10 phút. Đọc xong là hiểu cả năm nhóm sẽ làm gì.*
+_Đọc 10 phút. Đọc xong là hiểu cả năm nhóm sẽ làm gì._
 
 ---
 
@@ -37,12 +37,12 @@ Bộ khung đó là sản phẩm của nhóm.
 
 Hỏi để tránh hiểu lầm ngay từ đầu:
 
-| Không làm                               | Vì sao                                                                 |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| Huấn luyện AI riêng                    | Không có tiền, không có máy, và 6 tháng sau là lỗi thời      |
-| Làm "ChatGPT cho blockchain"             | Đó là một cái app, không phải một nghiên cứu                  |
+| Không làm                         | Vì sao                                                   |
+| --------------------------------- | -------------------------------------------------------- |
+| Huấn luyện AI riêng               | Không có tiền, không có máy, và 6 tháng sau là lỗi thời  |
+| Làm "ChatGPT cho blockchain"      | Đó là một cái app, không phải một nghiên cứu             |
 | Chỉ dùng được với một hãng AI     | Sẽ không chứng minh được luận điểm chính (đọc phần dưới) |
-| Copy một dự án mã nguồn mở về sửa | Thì phần lớn công trình không còn là của nhóm                 |
+| Copy một dự án mã nguồn mở về sửa | Thì phần lớn công trình không còn là của nhóm            |
 
 ---
 
@@ -66,7 +66,7 @@ Trên thị trường đã có công cụ dò lỗi smart contract tự động.
 
 Giả sử bộ khung làm AI của hãng A mạnh lên 20%. Tốt. Nhưng nếu thử với hãng B, hãng C mà **không** mạnh lên, thì có nghĩa nhóm chỉ đang ăn may vào một đặc tính riêng của hãng A — đóng góp rất mỏng.
 
-Còn nếu **cả bốn hãng đều mạnh lên**, kết luận trở nên rất chắc: *giá trị nằm ở bộ khung, không nằm ở AI*.
+Còn nếu **cả bốn hãng đều mạnh lên**, kết luận trở nên rất chắc: _giá trị nằm ở bộ khung, không nằm ở AI_.
 
 > Đó là lý do "chạy được với nhiều AI" không phải một tính năng cho oai. Nó là **điều kiện bắt buộc** để chứng minh công trình này là của nhóm.
 
@@ -76,12 +76,12 @@ Còn nếu **cả bốn hãng đều mạnh lên**, kết luận trở nên rấ
 
 Không được nói "AI của em kiểm định tốt hơn". Phải nói bằng bốn con số:
 
-| Con số                    | Nghĩa là gì                                          | Vì sao cần                                                   |
-| -------------------------- | ------------------------------------------------------- | -------------------------------------------------------------- |
-| **Độ phủ**        | Trong tất cả lỗi thật, tìm ra được bao nhiêu % | Sót lỗi thì vô dụng                                       |
-| **Độ chính xác** | Trong những gì báo ra, bao nhiêu % là đúng       | ⭐ Chỗ nhóm thắng — đọc bên dưới                      |
-| **Chi phí**         | Một lần kiểm định tốn bao nhiêu tiền            | Đắt hơn thuê người thì không ai dùng                  |
-| **Tính lặp lại**  | Chạy lại có ra cùng kết quả không                | Không lặp lại được thì không phải kết quả khoa học |
+| Con số           | Nghĩa là gì                                    | Vì sao cần                                         |
+| ---------------- | ---------------------------------------------- | -------------------------------------------------- |
+| **Độ phủ**       | Trong tất cả lỗi thật, tìm ra được bao nhiêu % | Sót lỗi thì vô dụng                                |
+| **Độ chính xác** | Trong những gì báo ra, bao nhiêu % là đúng     | ⭐ Chỗ nhóm thắng — đọc bên dưới                   |
+| **Chi phí**      | Một lần kiểm định tốn bao nhiêu tiền           | Đắt hơn thuê người thì không ai dùng               |
+| **Tính lặp lại** | Chạy lại có ra cùng kết quả không              | Không lặp lại được thì không phải kết quả khoa học |
 
 ### Vì sao độ chính xác là chỗ thắng
 
@@ -112,8 +112,8 @@ Bước 4 là thứ nhóm cần. Đó là **đề có sẵn đáp án** — dùn
 
 Nhóm sẽ làm việc theo hai chế độ:
 
-- **Chấm** — đưa vào một báo cáo lỗi, hệ thống nói đúng hay sai. *(Làm trước, dễ hơn)*
-- **Tự kiểm định** — đưa vào cả kho code, hệ thống tự tìm lỗi. *(Làm sau, khó hơn)*
+- **Chấm** — đưa vào một báo cáo lỗi, hệ thống nói đúng hay sai. _(Làm trước, dễ hơn)_
+- **Tự kiểm định** — đưa vào cả kho code, hệ thống tự tìm lỗi. _(Làm sau, khó hơn)_
 
 ---
 
@@ -127,7 +127,7 @@ Dữ liệu tải về của mỗi cuộc thi có cả code lẫn file đáp án
 
 Kết quả: đúng gần 100%. Đẹp rực rỡ. Và **hoàn toàn vô giá trị**.
 
-→ *AI chỉ được thấy thư mục code. Đáp án cất chỗ khác.*
+→ _AI chỉ được thấy thư mục code. Đáp án cất chỗ khác._
 
 ### Bẫy 2 — Chia dữ liệu sai cách
 
@@ -135,23 +135,23 @@ Nhóm phải chia dữ liệu thành phần để làm và phần để chấm. 
 
 Đây là lỗi kinh điển, và **hội đồng chấm biết rõ lỗi này**.
 
-→ *Chia theo từng cuộc thi, trọn gói. Chia xong thì không đổi nữa.*
+→ _Chia theo từng cuộc thi, trọn gói. Chia xong thì không đổi nữa._
 
 ### Bẫy 3 — Không tắt được từng phần
 
-Câu hội đồng chắc chắn hỏi: *"Em không huấn luyện AI thì đóng góp của em là gì?"*
+Câu hội đồng chắc chắn hỏi: _"Em không huấn luyện AI thì đóng góp của em là gì?"_
 
 Câu trả lời tốt nhất là một bảng: tắt phần ghi nhớ đi thì kết quả tụt 8%, tắt phần tự kiểm chứng thì tụt 15%... Bảng đó nói rõ **từng phần nhóm làm ra đáng giá bao nhiêu**.
 
 Nhưng muốn có bảng đó thì **mọi phần phải tắt được bằng một công tắc**. Nếu code viết dính chặt vào nhau thì đến lúc cần không tắt nổi.
 
-→ *Cứ làm gì ảnh hưởng kết quả thì cho nó một công tắc bật/tắt ngay từ lúc viết.*
+→ _Cứ làm gì ảnh hưởng kết quả thì cho nó một công tắc bật/tắt ngay từ lúc viết._
 
 ### Bẫy 4 — AI có thể đã học thuộc đề
 
 Các cuộc thi cũ công khai trên mạng từ lâu. Rất có thể AI đã đọc chúng trong lúc được huấn luyện. Nếu vậy nó trả lời đúng nhờ **trí nhớ**, không phải nhờ bộ khung của nhóm.
 
-→ *Ưu tiên dùng cuộc thi mới để chấm điểm, và nói thẳng chuyện này trong báo cáo thay vì giấu.*
+→ _Ưu tiên dùng cuộc thi mới để chấm điểm, và nói thẳng chuyện này trong báo cáo thay vì giấu._
 
 ---
 

@@ -7,4 +7,3 @@ Decide whether the finding is valid from the candidate text and the source evide
 A valid finding must describe a source-grounded security defect with a reachable mechanism and impact. Distinguish unsupported claims, intended behavior, duplicates, purely stylistic issues, and claims contradicted by the source. Cite normalized relative source paths and line ranges only when actually observed. Never invent evidence.
 
 Return only the object required by the supplied JudgeVerdict schema. The project validates the object and evidence independently. If evidence is insufficient, express that through the schema's validity, confidence, rationale and unverified fields; do not ask for hidden labels.
-

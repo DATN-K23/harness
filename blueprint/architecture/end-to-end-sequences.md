@@ -161,13 +161,13 @@ Budget checks occur before and after each provider/tool boundary. A selected lim
 
 ## Provider failure paths
 
-| Path | Required sequence |
-|---|---|
-| Incomplete/unapproved profile | Reject before SDK client construction, credential access or network → commit safe configuration failure. |
-| Transient under primary profile | Append the sole attempt/error → no SDK/project retry → commit the mapped terminal failure. |
-| Permanent | Append attempt/error → no transient retry → commit `failed/provider_permanent`. |
-| Retry-enabled non-primary research | Requires distinct flag/profile/experiment identity; append every attempt/backoff and enforce budgets. |
-| Late result after cancellation | Sanitize and account where possible → never append model-visible continuation or rewrite terminal state. |
+| Path                               | Required sequence                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Incomplete/unapproved profile      | Reject before SDK client construction, credential access or network → commit safe configuration failure. |
+| Transient under primary profile    | Append the sole attempt/error → no SDK/project retry → commit the mapped terminal failure.               |
+| Permanent                          | Append attempt/error → no transient retry → commit `failed/provider_permanent`.                          |
+| Retry-enabled non-primary research | Requires distinct flag/profile/experiment identity; append every attempt/backoff and enforce budgets.    |
+| Late result after cancellation     | Sanitize and account where possible → never append model-visible continuation or rewrite terminal state. |
 
 ## Tool denial
 

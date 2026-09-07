@@ -11,15 +11,15 @@ Every tool definition has `name`, `contract_version`, `description_version`, JSO
 
 Every result uses:
 
-| Field | Meaning |
-|---|---|
-| `ok` | Boolean success; denied and operational failures are false. |
-| `tool` / `version` | Contract identity. |
-| `data` | Tool-specific bounded data on success. |
-| `error` | Normalized code, safe message, context, and suggested next action. |
-| `truncated` | Whether sanitized output was shortened. |
-| `omitted_count` | Exact count when known, otherwise null. |
-| `transformation_ids` | Redaction/truncation rule versions. |
+| Field                             | Meaning                                                            |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `ok`                              | Boolean success; denied and operational failures are false.        |
+| `tool` / `version`                | Contract identity.                                                 |
+| `data`                            | Tool-specific bounded data on success.                             |
+| `error`                           | Normalized code, safe message, context, and suggested next action. |
+| `truncated`                       | Whether sanitized output was shortened.                            |
+| `omitted_count`                   | Exact count when known, otherwise null.                            |
+| `transformation_ids`              | Redaction/truncation rule versions.                                |
 | `sanitized_pre_truncation_digest` | Digest after prohibited-data redaction and before size truncation. |
 
 ## Common path rules
@@ -52,15 +52,15 @@ Output: path, one-based line number, bounded line excerpt, match offsets relativ
 
 ## Error catalog
 
-| Code | Safe message content | Suggested action |
-|---|---|---|
-| `invalid_arguments` | Field paths and constraints only | Correct parameters. |
-| `path_denied` | Normalized submitted relative input and policy rule ID | Choose a path under listed source tree. |
-| `not_found` | Safe relative path | List parent or search. |
-| `not_a_file` / `not_a_directory` | Safe relative path | Use correct tool. |
-| `unsupported_content` | Relative path and allowed class | Select text source. |
-| `result_limit` | Limit and returned count | Narrow query/range. |
-| `io_failure` | Stable category without host details | Retry another authorized read or report. |
+| Code                             | Safe message content                                   | Suggested action                         |
+| -------------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| `invalid_arguments`              | Field paths and constraints only                       | Correct parameters.                      |
+| `path_denied`                    | Normalized submitted relative input and policy rule ID | Choose a path under listed source tree.  |
+| `not_found`                      | Safe relative path                                     | List parent or search.                   |
+| `not_a_file` / `not_a_directory` | Safe relative path                                     | Use correct tool.                        |
+| `unsupported_content`            | Relative path and allowed class                        | Select text source.                      |
+| `result_limit`                   | Limit and returned count                               | Narrow query/range.                      |
+| `io_failure`                     | Stable category without host details                   | Retry another authorized read or report. |
 
 ## Excluded capabilities
 

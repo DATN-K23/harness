@@ -39,39 +39,39 @@ Submission and mutation controls are enabled only in `ready`. Existing committed
 
 The main window has explicit capabilities that reference only scoped project commands. No wildcard/native plugin default is accepted as review evidence.
 
-| Allowed command family | Input constraint | Output constraint |
-|---|---|---|
-| runtime discover/start-or-attach/status | no renderer-supplied executable, PID, signal, endpoint or environment name | safe runtime/health state only |
-| generated runtime transport | canonical allowlisted operation ID plus generated payload | validated generated response/error; never raw credential or internal transport details |
-| repository picker | explicit user gesture and directory selection | short-lived path delivered only into registration flow |
-| safe notification | bounded text/state from approved projection | no untrusted HTML, executable action or arbitrary URL |
-| update check/prepare | approved channel and explicit lifecycle confirmation state | availability/active-work/result state; no direct artifact or signer access |
+| Allowed command family                  | Input constraint                                                           | Output constraint                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| runtime discover/start-or-attach/status | no renderer-supplied executable, PID, signal, endpoint or environment name | safe runtime/health state only                                                         |
+| generated runtime transport             | canonical allowlisted operation ID plus generated payload                  | validated generated response/error; never raw credential or internal transport details |
+| repository picker                       | explicit user gesture and directory selection                              | short-lived path delivered only into registration flow                                 |
+| safe notification                       | bounded text/state from approved projection                                | no untrusted HTML, executable action or arbitrary URL                                  |
+| update check/prepare                    | approved channel and explicit lifecycle confirmation state                 | availability/active-work/result state; no direct artifact or signer access             |
 
 Generic filesystem, shell, process, environment, opener/arbitrary URL, raw credential and direct updater commands are not registered for renderer invocation. Effective merged capability and custom-command exposure is a required architecture/release review.
 
 ## Required handshake response
 
-| Field | Rule |
-|---|---|
-| `runtime_instance_id` | Opaque installation/runtime instance identity; safe for diagnostics. |
-| `runtime_version` | Coordinated runtime semantic version. |
-| `api_version` | Must match generated-client supported major. |
-| `contract_digest` | Digest of canonical local-runtime OpenAPI graph. |
-| `build_version` | Immutable build identifier. |
-| `capabilities` | Declared supported resource/capability IDs; no inferred feature probing. |
-| `health` | `starting|ready|degraded|stopping`; `ready` required for mutation. |
-| `recovery_action` | Optional safe `retry|restart|update|contact_owner`; never an executable shell command. |
+| Field                 | Rule                                                                     |
+| --------------------- | ------------------------------------------------------------------------ |
+| `runtime_instance_id` | Opaque installation/runtime instance identity; safe for diagnostics.     |
+| `runtime_version`     | Coordinated runtime semantic version.                                    |
+| `api_version`         | Must match generated-client supported major.                             |
+| `contract_digest`     | Digest of canonical local-runtime OpenAPI graph.                         |
+| `build_version`       | Immutable build identifier.                                              |
+| `capabilities`        | Declared supported resource/capability IDs; no inferred feature probing. |
+| `health`              | `starting                                                                | ready   | degraded | stopping`; `ready` required for mutation.          |
+| `recovery_action`     | Optional safe `retry                                                     | restart | update   | contact_owner`; never an executable shell command. |
 
 ## Compatibility decisions
 
-| Condition | Outcome |
-|---|---|
-| exact compatible API major and accepted contract digest | `ready` |
-| declared additive capability difference supported by client policy | `ready` with unavailable controls hidden/disabled |
-| API major or contract digest incompatible | `incompatible_version`; fail closed |
-| credential invalid | `unauthorized_local`; no anonymous fallback |
-| approved credential backend unavailable | `unauthorized_local`; fail closed without writing plaintext |
-| endpoint absent/unhealthy | `runtime_unavailable`; explicit retry/start |
+| Condition                                                          | Outcome                                                     |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| exact compatible API major and accepted contract digest            | `ready`                                                     |
+| declared additive capability difference supported by client policy | `ready` with unavailable controls hidden/disabled           |
+| API major or contract digest incompatible                          | `incompatible_version`; fail closed                         |
+| credential invalid                                                 | `unauthorized_local`; no anonymous fallback                 |
+| approved credential backend unavailable                            | `unauthorized_local`; fail closed without writing plaintext |
+| endpoint absent/unhealthy                                          | `runtime_unavailable`; explicit retry/start                 |
 
 No state permits direct database/provider/tool/scorer fallback.
 
@@ -81,13 +81,13 @@ For each open run, retain only `run_id`, last committed sequence/cursor and safe
 
 ## Lifecycle controls
 
-| Control | Semantics |
-|---|---|
-| close window or exit Tauri host | presentation/native-integration only; never cancels run or stops runtime implicitly |
-| cancel run | idempotent API request; worker observes at safe boundary |
-| stop runtime | explicit shell/control-plane action; reports active work and safe stop outcome |
-| update runtime/desktop | signed compatibility/active-work preflight; `reject_if_active` or confirmed `quiesce_then_stop`; post-update handshake and rollback; ambiguous paid attempts remain committed |
-| rotate local credential | invalidates old access material without changing durable run state |
+| Control                         | Semantics                                                                                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| close window or exit Tauri host | presentation/native-integration only; never cancels run or stops runtime implicitly                                                                                           |
+| cancel run                      | idempotent API request; worker observes at safe boundary                                                                                                                      |
+| stop runtime                    | explicit shell/control-plane action; reports active work and safe stop outcome                                                                                                |
+| update runtime/desktop          | signed compatibility/active-work preflight; `reject_if_active` or confirmed `quiesce_then_stop`; post-update handshake and rollback; ambiguous paid attempts remain committed |
+| rotate local credential         | invalidates old access material without changing durable run state                                                                                                            |
 
 ## Source registration
 

@@ -10,14 +10,14 @@ Markdown architecture/contracts/ADRs/security/evaluation/desktop/delivery plans;
 
 ## Forbidden outputs in this change
 
-| Output/action | Reason |
-|---|---|
-| application or executable test source under future `runtime/`, `apps/desktop/` or top-level `contracts/` | Would begin implementation rather than define it. |
-| package/build manifest or lockfile | Would install/select implementation dependencies. |
-| executable migration, SQL provisioning, compose/container/installer/updater/signing infrastructure | Would mutate/provision/ship runtime state; accepted ADR-007 defines architecture only and explicitly requires future readiness evidence. |
-| credential, provider SDK initialization or live provider request | Real profile is Proposed and network/cost is unauthorized. |
-| downloaded real contest source/labels/reports or frozen-test access | Dataset/profile gates are open and leakage risk exists. |
-| application run, benchmark, experiment, provider response or performance claim | No runtime exists and synthetic validation is not scientific evidence. |
+| Output/action                                                                                            | Reason                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| application or executable test source under future `runtime/`, `apps/desktop/` or top-level `contracts/` | Would begin implementation rather than define it.                                                                                        |
+| package/build manifest or lockfile                                                                       | Would install/select implementation dependencies.                                                                                        |
+| executable migration, SQL provisioning, compose/container/installer/updater/signing infrastructure       | Would mutate/provision/ship runtime state; accepted ADR-007 defines architecture only and explicitly requires future readiness evidence. |
+| credential, provider SDK initialization or live provider request                                         | Real profile is Proposed and network/cost is unauthorized.                                                                               |
+| downloaded real contest source/labels/reports or frozen-test access                                      | Dataset/profile gates are open and leakage risk exists.                                                                                  |
+| application run, benchmark, experiment, provider response or performance claim                           | No runtime exists and synthetic validation is not scientific evidence.                                                                   |
 
 ## Inventory evidence
 

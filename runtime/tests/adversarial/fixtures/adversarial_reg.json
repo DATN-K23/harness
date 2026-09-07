@@ -1,0 +1,12 @@
+[
+  { "category": "REG", "id": "REG-001", "payload": "raw_path_in_submission", "expected_error": "schema_rejection", "expected_event": "security.blocked" },
+  { "category": "REG", "id": "REG-001", "payload": "{\"workspace_path\": \"/Users/dev/project\"}", "expected_error": "schema_rejection", "expected_event": "security.blocked" },
+  
+  { "category": "REG", "id": "REG-002", "payload": "picker_selects_device_file", "expected_error": "registration_denied", "expected_event": "security.blocked" },
+  { "category": "REG", "id": "REG-002", "payload": "/dev/sda1", "expected_error": "registration_denied", "expected_event": "security.blocked" },
+  
+  { "category": "REG", "id": "REG-003", "payload": "parent_contest_directory_selected", "expected_error": "registration_denied", "expected_event": "security.blocked" },
+  { "category": "REG", "id": "REG-004", "payload": "entry_changes_during_import", "expected_error": "registration_denied", "expected_event": "security.blocked" },
+  { "category": "REG", "id": "REG-005", "payload": "successful_registration_does_not_leak_path", "expected_error": "none", "expected_event": "none" },
+  { "category": "REG", "id": "REG-006", "payload": "renderer_crash_after_picker", "expected_error": "none", "expected_event": "none" }
+]

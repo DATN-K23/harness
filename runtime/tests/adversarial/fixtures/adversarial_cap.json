@@ -1,0 +1,19 @@
+[
+  { "category": "CAP", "id": "CAP-001", "payload": "shell_exec", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-001", "payload": "{\"name\": \"exec\", \"arguments\": {\"command\": \"ls -la\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-001", "payload": "{\"name\": \"npm_install\", \"arguments\": {\"package\": \"malware\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  
+  { "category": "CAP", "id": "CAP-002", "payload": "network_fetch", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-002", "payload": "{\"name\": \"fetch\", \"arguments\": {\"url\": \"http://example.com/exploit\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  
+  { "category": "CAP", "id": "CAP-003", "payload": "file_write", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-003", "payload": "{\"name\": \"write_file\", \"arguments\": {\"path\": \"index.js\", \"content\": \"console.log('hacked')\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  
+  { "category": "CAP", "id": "CAP-004", "payload": "dynamic_tool_install", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-004", "payload": "{\"name\": \"install_plugin\", \"arguments\": {\"plugin_name\": \"shell_toolkit\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  
+  { "category": "CAP", "id": "CAP-005", "payload": "hosted_tool_action", "expected_error": "unsupported_capability", "expected_event": "security.blocked" },
+  
+  { "category": "CAP", "id": "CAP-006", "payload": "poc_arbitrary_code_execution", "expected_error": "unknown_tool", "expected_event": "security.blocked" },
+  { "category": "CAP", "id": "CAP-006", "payload": "{\"name\": \"run_poc\", \"arguments\": {\"code\": \"require('child_process').execSync('rm -rf /')\"}}", "expected_error": "unknown_tool", "expected_event": "security.blocked" }
+]

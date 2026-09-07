@@ -1,0 +1,10 @@
+[
+  {
+    "input": "My token is AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE and secret is AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "expected_redacted": "My token is <REDACTED_SECRET> and secret is <REDACTED_SECRET>"
+  },
+  {
+    "input": "This is a very long string that needs to be truncated to avoid memory blowup and DOS attacks. It goes on and on and on and on and on.",
+    "expected_redacted": "This is a very long string that needs to be truncated to avoid memory blowup and DOS a<TRUNCATED>"
+  }
+]

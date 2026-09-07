@@ -1,8 +1,13 @@
 import type {
   RunStatus,
+  Verdict,
+  PaginationMeta,
+} from "@audit-harness/contracts";
+
+export type {
+  VerdictValidity,
   VerdictStatus,
   SeverityLevel,
-  PaginationMeta,
 } from "@audit-harness/contracts";
 
 export interface PaginatedResult<T> {
@@ -22,38 +27,42 @@ export interface StreamConnectionOptions {
 }
 
 export interface ThoughtEvent {
-  runId: string;
+  id?: string;
+  runId?: string;
   stepIndex: number;
-  thought: string;
-  tokensUsed: number;
+  thought?: string;
+  content?: string;
+  tokensUsed?: number;
 }
 
 export interface ToolCallEvent {
-  runId: string;
+  id?: string;
+  runId?: string;
   stepIndex: number;
-  toolName: string;
+  toolName?: string;
+  tool_name?: string;
   arguments?: Record<string, unknown>;
+  arguments_json?: string;
   result?: string;
-  isError: boolean;
-  durationMs: number;
-  tokensUsed: number;
+  result_json?: string;
+  isError?: boolean;
+  is_error?: boolean;
+  durationMs?: number;
+  duration_ms?: number;
+  tokensUsed?: number;
+  tokens_used?: number;
 }
 
 export interface StatusChangedEvent {
-  runId: string;
+  runId?: string;
   status: RunStatus;
-  timestamp: string;
+  timestamp?: string;
 }
 
-export interface VerdictEvent {
-  runId: string;
-  verdict: {
-    status: VerdictStatus;
-    severity: SeverityLevel;
-    confidenceScore: number;
-    explanation: string;
-    pocResult?: string;
-  };
+export interface VerdictEvent extends Partial<Verdict> {
+  runId?: string;
+  verdict?: Verdict;
+  [key: string]: unknown;
 }
 
 export interface CompletedEvent {

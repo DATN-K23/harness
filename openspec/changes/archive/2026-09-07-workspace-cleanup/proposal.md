@@ -11,9 +11,11 @@ Over time, temporary linter report files (`eslint.json`, `eslint_report.txt`) ac
 ## Capabilities
 
 ### New Capabilities
+
 - None
 
 ### Modified Capabilities
+
 - None (`skip_specs: true` set in `.openspec.yaml` as this is a workspace hygiene and documentation refactoring change).
 
 ## Impact

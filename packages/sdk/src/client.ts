@@ -170,7 +170,7 @@ export class AuditHarnessClient {
     const abortController = new AbortController();
     const url = new URL(`${this.baseUrl}/api/v1/runs/${runId}/stream`);
     if (options?.fromStep !== undefined) {
-      url.searchParams.set("fromStep", String(options.fromStep));
+      url.searchParams.set("from_step", String(options.fromStep));
     }
 
     void fetchEventSource(url.toString(), {
@@ -198,18 +198,23 @@ export class AuditHarnessClient {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const data = JSON.parse(event.data);
           switch (event.event) {
+            case "thought":
             case "step:thought":
               listener.onThought?.(data as ThoughtEvent);
               break;
+            case "tool_call":
             case "step:tool_call":
               listener.onToolCall?.(data as ToolCallEvent);
               break;
+            case "status_changed":
             case "run:status_changed":
               listener.onStatusChanged?.(data as StatusChangedEvent);
               break;
+            case "verdict":
             case "run:verdict":
               listener.onVerdict?.(data as VerdictEvent);
               break;
+            case "completed":
             case "run:completed":
               listener.onCompleted?.(data as CompletedEvent);
               abortController.abort();

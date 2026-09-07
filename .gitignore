@@ -64,3 +64,5 @@ Thumbs.db
 
 # Agent/AI tool scratch files
 .gemini/
+.agents/
+docs/050-Research/

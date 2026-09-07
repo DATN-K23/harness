@@ -11,12 +11,19 @@ FLAGS: Dict[str, Any] = {}
 def load_flags():
     global FLAGS
     if FLAGS_PATH.exists():
-        with open(FLAGS_PATH, "r", encoding="utf-8") as f:
-            loaded = yaml.safe_load(f)
-            if loaded:
-                FLAGS = loaded
+        try:
+            with open(FLAGS_PATH, "r", encoding="utf-8") as f:
+                loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict):
+                    FLAGS = loaded
+                else:
+                    FLAGS = {}
+        except Exception as e:
+            print(f"Warning: Failed to load flags from {FLAGS_PATH}: {e}")
+            FLAGS = {}
     else:
         print(f"Warning: config/flags.yaml not found at {FLAGS_PATH}")
+        FLAGS = {}
 
 def get_flag(key: str, default: Any = False) -> Any:
     return FLAGS.get(key, default)

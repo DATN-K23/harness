@@ -53,7 +53,7 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
               whiteSpace: "pre-wrap",
             }}
           >
-            {thought.thought}
+            {thought.thought || thought.content}
           </div>
         </div>
       </div>

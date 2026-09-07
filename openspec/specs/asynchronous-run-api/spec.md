@@ -151,13 +151,13 @@ The stream endpoint SHALL support an optional `from_step` query parameter (defau
 
 The daemon SHALL expose the following REST endpoints:
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/api/v1/runs` | List all audit runs, ordered by `created_at DESC` |
-| `GET` | `/api/v1/runs/{run_id}` | Get single run with latest verdict |
-| `POST` | `/api/v1/runs/judge` | Create and start a new audit run asynchronously |
-| `GET` | `/api/v1/runs/{run_id}/stream` | SSE live stream with `from_step` offset |
-| `GET` | `/api/v1/runs/{run_id}/tool-calls` | Paginated tool call history |
+| Method | Path                               | Purpose                                           |
+| ------ | ---------------------------------- | ------------------------------------------------- |
+| `GET`  | `/api/v1/runs`                     | List all audit runs, ordered by `created_at DESC` |
+| `GET`  | `/api/v1/runs/{run_id}`            | Get single run with latest verdict                |
+| `POST` | `/api/v1/runs/judge`               | Create and start a new audit run asynchronously   |
+| `GET`  | `/api/v1/runs/{run_id}/stream`     | SSE live stream with `from_step` offset           |
+| `GET`  | `/api/v1/runs/{run_id}/tool-calls` | Paginated tool call history                       |
 
 #### Scenario: Starting a new judge run
 

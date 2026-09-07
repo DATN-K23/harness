@@ -1,13 +1,32 @@
-import type { VerdictStatus, SeverityLevel } from "./enums.js";
+/**
+ * @file verdict.ts
+ * @description Hợp đồng dữ liệu Verdict theo đặc tả judge-verdict-v1
+ */
+
+import type {
+  VerdictValidity,
+  VerificationStatus,
+  SeverityLevel,
+} from "./enums.js";
+
+export interface EvidenceItem {
+  path: string;
+  start_line: number;
+  end_line: number;
+  content_digest?: string | null;
+  note?: string | null;
+}
 
 export interface Verdict {
-  id: string;
-  runId: string;
-  status: VerdictStatus;
+  id?: string;
+  runId?: string;
+  schemaVersion?: string;
+  validity: VerdictValidity;
   severity: SeverityLevel;
-  confidenceScore: number;
-  explanation: string;
-  pocSourceCode?: string | null;
-  pocResult?: string | null;
-  timestamp: string | Date;
+  confidence: number;
+  rationale: string;
+  evidence?: EvidenceItem[] | null;
+  verificationStatus?: VerificationStatus;
+  labelNormalizationVersion?: string;
+  timestamp?: string | Date;
 }

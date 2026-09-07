@@ -233,13 +233,25 @@ export const TraceView: React.FC<TraceViewProps> = ({
 
   // Render combined trace events
   const { modelEvents } = useRunStore();
-  const displayModelEvents = mode === "demo" ? demoModelEvents : modelEvents.filter(e => e.eventType === "THOUGHT");
+  const displayModelEvents =
+    mode === "demo"
+      ? demoModelEvents
+      : modelEvents.filter((e) => e.eventType === "THOUGHT");
 
   const combinedEvents = [
-    ...displayToolCalls.map((tc) => ({ type: "tool_call" as const, stepIndex: tc.stepIndex, data: tc })),
-    ...displayModelEvents.map((me) => ({ type: "thought" as const, stepIndex: me.stepIndex, data: me })),
+    ...displayToolCalls.map((tc) => ({
+      type: "tool_call" as const,
+      stepIndex: tc.stepIndex,
+      data: tc,
+    })),
+    ...displayModelEvents.map((me) => ({
+      type: "thought" as const,
+      stepIndex: me.stepIndex,
+      data: me,
+    })),
   ].sort((a, b) => {
-    if (a.stepIndex !== b.stepIndex) return (a.stepIndex || 0) - (b.stepIndex || 0);
+    if (a.stepIndex !== b.stepIndex)
+      return (a.stepIndex || 0) - (b.stepIndex || 0);
     // if same step index, thought comes first
     if (a.type === "thought" && b.type === "tool_call") return -1;
     if (a.type === "tool_call" && b.type === "thought") return 1;
@@ -294,7 +306,7 @@ export const TraceView: React.FC<TraceViewProps> = ({
         </div>
       )}
 
-          <div style={{ marginTop: "20px" }}>
+      <div style={{ marginTop: "20px" }}>
         <h3
           style={{
             fontSize: "1rem",
@@ -342,10 +354,25 @@ export const TraceView: React.FC<TraceViewProps> = ({
           <div>
             {combinedEvents.map((evt, idx) => {
               if (evt.type === "thought") {
-                const thoughtPayload = { stepIndex: evt.data.stepIndex, thought: evt.data.content, id: evt.data.id, runId: evt.data.runId };
-                return <ThoughtCard key={`thought-${evt.data.id || idx}`} thought={thoughtPayload} />;
+                const thoughtPayload = {
+                  stepIndex: evt.data.stepIndex,
+                  thought: evt.data.content,
+                  id: evt.data.id,
+                  runId: evt.data.runId,
+                };
+                return (
+                  <ThoughtCard
+                    key={`thought-${evt.data.id || idx}`}
+                    thought={thoughtPayload}
+                  />
+                );
               }
-              return <ToolCallCard key={`tool-${evt.data.id || idx}`} toolCall={evt.data} />;
+              return (
+                <ToolCallCard
+                  key={`tool-${evt.data.id || idx}`}
+                  toolCall={evt.data}
+                />
+              );
             })}
           </div>
         )}

@@ -97,10 +97,13 @@ export class CustomAuditClient {
         if (callbacks.onToolCall) callbacks.onToolCall(data);
       });
 
-      eventSource.addEventListener("status_changed", (e: MessageEvent<string>) => {
-        if (callbacks.onStatusChanged)
-          callbacks.onStatusChanged(JSON.parse(e.data) as { status: string });
-      });
+      eventSource.addEventListener(
+        "status_changed",
+        (e: MessageEvent<string>) => {
+          if (callbacks.onStatusChanged)
+            callbacks.onStatusChanged(JSON.parse(e.data) as { status: string });
+        },
+      );
 
       eventSource.addEventListener("verdict", (e: MessageEvent<string>) => {
         if (callbacks.onVerdict)
@@ -109,7 +112,9 @@ export class CustomAuditClient {
 
       eventSource.addEventListener("completed", (e: MessageEvent<string>) => {
         if (callbacks.onCompleted)
-          callbacks.onCompleted(JSON.parse(e.data) as { totalDurationMs?: number });
+          callbacks.onCompleted(
+            JSON.parse(e.data) as { totalDurationMs?: number },
+          );
         isClosed = true;
         if (eventSource) eventSource.close();
       });

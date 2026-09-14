@@ -188,7 +188,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: "12px",
           marginBottom: "20px",
           flexShrink: 0,
@@ -475,6 +475,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 width: "100%",
                 textAlign: "left",
                 borderCollapse: "collapse",
+                tableLayout: "fixed",
               }}
             >
               <thead>
@@ -493,31 +494,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <th
                     scope="col"
-                    style={{ padding: "12px 20px", fontWeight: 600 }}
+                    style={{
+                      padding: "12px 20px",
+                      fontWeight: 600,
+                      width: "36%",
+                      minWidth: "220px",
+                    }}
                   >
                     Run ID / Repo
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "12px 20px", fontWeight: 600 }}
+                    style={{
+                      padding: "12px 20px",
+                      fontWeight: 600,
+                      width: "16%",
+                      minWidth: "120px",
+                    }}
                   >
                     Status
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "12px 20px", fontWeight: 600 }}
+                    style={{
+                      padding: "12px 20px",
+                      fontWeight: 600,
+                      width: "16%",
+                      minWidth: "120px",
+                    }}
                   >
                     Verdict
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "12px 20px", fontWeight: 600 }}
+                    style={{
+                      padding: "12px 20px",
+                      fontWeight: 600,
+                      width: "16%",
+                      minWidth: "120px",
+                    }}
                   >
                     Severity
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "12px 20px", fontWeight: 600 }}
+                    style={{
+                      padding: "12px 20px",
+                      fontWeight: 600,
+                      width: "16%",
+                      minWidth: "100px",
+                    }}
                   >
                     Duration
                   </th>
@@ -537,18 +563,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     tabIndex={0}
                     role="button"
                     aria-label={`Xem chi tiết phiên kiểm thử ${run.id}`}
+                    className="row-interactive"
                     style={{
                       borderBottom: "1px solid var(--border-subtle)",
                       cursor: "pointer",
-                      transition: "background 0.1s ease",
                     }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.background =
-                        "var(--surface-panel)")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
                   >
                     <td style={{ padding: "12px 20px" }}>
                       <div

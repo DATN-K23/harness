@@ -1,6 +1,7 @@
 # Spec: Impeccable UI Experience
 
 ## Purpose
+
 Define the user experience, high-density desktop cockpit architecture, real-time streaming telemetry, and robust error handling standards for the AI Security Audit Harness desktop application.
 
 ## Requirements
@@ -43,6 +44,26 @@ The trace execution view MUST provide visual feedback during live stream process
 - **When** a thought event is received for the current step
 - **Then** the thought container renders an animated pulsing status indicator
 - **And** the viewport automatically scrolls to the newest event unless manual scroll is locked
+
+### Requirement: Standardized 5-Tier Typography Scale and Anti-Slop Discipline
+
+The application styling MUST enforce a strict 5-tier typographic scale (`11px`, `12px`, `13px`, `14px`, `16px`), eliminate all diffuse 50px neon box-shadow keyframes, and remove `hover-scale` 3D transforms from virtualized rows.
+
+#### Scenario: Rendering typography across widgets
+
+- **Given** any component in the desktop application
+- **When** font size is computed
+- **Then** it resolves strictly to one of the 5 defined typographic tokens without micro-fractional increments
+
+### Requirement: Defensive Payload Truncation and Timeline Deltas
+
+The trace stream components MUST safely truncate oversized tool payloads exceeding 500 lines or 20KB and render relative timeline deltas (`+Δt ms`/`+Δt s`) for execution steps.
+
+#### Scenario: Tool execution produces massive payload
+
+- **Given** a tool call returns a result payload exceeding 500 lines or 20KB
+- **When** the tool call card renders
+- **Then** it presents a truncated preview with an explicit toggle button to expand full contents without freezing the main thread
 
 ### Requirement: Dashboard Analytics and Empty State
 

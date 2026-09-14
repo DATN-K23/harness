@@ -4,9 +4,13 @@ import { Brain, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ThoughtCardProps {
   thought: ThoughtEvent;
+  timeDelta?: string;
 }
 
-export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
+export const ThoughtCard: React.FC<ThoughtCardProps> = ({
+  thought,
+  timeDelta,
+}) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const content = thought.thought || thought.content || "";
   const isLong = content.length > 200;
@@ -16,13 +20,12 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
       style={{
         borderRadius: "6px",
         border: "1px solid var(--border-subtle)",
-        borderLeft: "3px solid var(--accent-purple)",
+        borderLeft: "3px solid rgba(168, 85, 247, 0.6)",
         marginBottom: "6px",
         overflow: "hidden",
         background: "var(--surface-card)",
-        transition: "all 0.15s ease",
       }}
-      className="hover-scale"
+      className="row-interactive"
     >
       <div
         onClick={() => isLong && setIsExpanded(!isExpanded)}
@@ -57,7 +60,7 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
             style={{
               fontWeight: 600,
               color: "var(--accent-purple)",
-              fontSize: "0.75rem",
+              fontSize: "12px",
               fontFamily: "var(--font-mono)",
               whiteSpace: "nowrap",
             }}
@@ -68,7 +71,7 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
             <span
               style={{
                 color: "var(--text-muted)",
-                fontSize: "0.72rem",
+                fontSize: "12px",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -80,6 +83,28 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
           )}
         </div>
 
+        {timeDelta && (
+          <span
+            className="tabular-nums font-mono"
+            style={{
+              fontSize: "0.72rem",
+              color: "var(--accent-purple)",
+              background: "var(--accent-purple-bg)",
+              padding: "1px 6px",
+              borderRadius: "3px",
+              border: "1px solid rgba(168, 85, 247, 0.25)",
+              display: "inline-flex",
+              alignItems: "center",
+              fontWeight: 600,
+              flexShrink: 0,
+              marginLeft: "auto",
+            }}
+            title={`Timeline delta: ${timeDelta} from start`}
+          >
+            {timeDelta}
+          </span>
+        )}
+
         {isLong && (
           <button
             type="button"
@@ -88,6 +113,7 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
               padding: "2px",
               display: "flex",
               alignItems: "center",
+              flexShrink: 0,
             }}
             aria-label={isExpanded ? "Collapse thought" : "Expand thought"}
           >
@@ -98,13 +124,14 @@ export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
 
       {isExpanded && (
         <div
+          className="max-w-prose"
           style={{
-            padding: "8px 12px 10px 12px",
+            padding: "10px 14px",
             color: "var(--text-normal)",
-            fontSize: "0.8rem",
-            lineHeight: 1.5,
+            fontSize: "13px",
+            lineHeight: 1.65,
             whiteSpace: "pre-wrap",
-            fontFamily: "var(--font-mono)",
+            fontFamily: "var(--font-sans)",
             background: "rgba(0, 0, 0, 0.15)",
           }}
         >

@@ -297,7 +297,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
             }
           >
             <Zap size={13} color="var(--accent-cyan)" />
-            <span>⚡ Live Mode</span>
+            <span>Live Mode</span>
           </button>
 
           <button
@@ -308,25 +308,23 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "5px",
-              padding: "5px 10px",
+              gap: "6px",
+              padding: "5px 12px",
               borderRadius: "6px",
-              fontWeight: 600,
-              fontSize: "0.8rem",
+              fontWeight: 500,
+              fontSize: "12px",
               background:
-                activeMode === "demo"
-                  ? "var(--accent-emerald-bg)"
-                  : "transparent",
+                activeMode === "demo" ? "var(--surface-active)" : "transparent",
               color:
                 activeMode === "demo"
-                  ? "var(--accent-emerald)"
+                  ? "var(--text-bright)"
                   : "var(--text-muted)",
               transition: "all 0.15s ease",
             }}
             aria-current={activeMode === "demo" ? "page" : undefined}
           >
             <Play size={13} fill="currentColor" color="var(--accent-emerald)" />
-            <span>🎬 Demo Mode</span>
+            <span>Demo Replay</span>
           </button>
 
           <button
@@ -338,32 +336,25 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "5px",
-              padding: "5px 10px",
+              gap: "6px",
+              padding: "5px 12px",
               borderRadius: "6px",
-              fontWeight: 600,
-              fontSize: "0.8rem",
+              fontWeight: 500,
+              fontSize: "12px",
               background:
                 activeView === "dashboard"
-                  ? "var(--accent-purple-bg)"
+                  ? "var(--surface-active)"
                   : "transparent",
               color:
                 activeView === "dashboard"
-                  ? "var(--accent-purple)"
+                  ? "var(--text-bright)"
                   : "var(--text-muted)",
               transition: "all 0.15s ease",
             }}
             aria-current={activeView === "dashboard" ? "page" : undefined}
           >
-            <LayoutDashboard
-              size={13}
-              color={
-                activeView === "dashboard"
-                  ? "var(--accent-purple)"
-                  : "var(--text-muted)"
-              }
-            />
-            <span>📊 Dashboard</span>
+            <LayoutDashboard size={13} color="var(--accent-purple)" />
+            <span>Analytics</span>
           </button>
         </nav>
       </div>

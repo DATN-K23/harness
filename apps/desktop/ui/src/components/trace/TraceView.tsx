@@ -43,8 +43,15 @@ export const TraceView: React.FC<TraceViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<EventFilterTab>("all");
   const parentRef = useRef<HTMLDivElement>(null);
 
+  const formatDelta = (deltaMs: number): string => {
+    if (deltaMs < 1000) {
+      return `+${Math.max(0, Math.round(deltaMs))}ms`;
+    }
+    return `+${(Math.max(0, deltaMs) / 1000).toFixed(1)}s`;
+  };
+
   const combinedEvents = useMemo(() => {
-    return [
+    const rawEvents = [
       ...displayToolCalls.map((tc) => ({
         type: "tool_call" as const,
         stepIndex: tc.stepIndex,
@@ -62,6 +69,65 @@ export const TraceView: React.FC<TraceViewProps> = ({
       if (a.type === "thought" && b.type === "tool_call") return -1;
       if (a.type === "tool_call" && b.type === "thought") return 1;
       return 0;
+    });
+
+    if (rawEvents.length === 0) return [];
+
+    // Calculate relative timeline delta (+Δt ms or +Δt s) relative to first event's timestamp
+    const firstEventData = rawEvents[0].data as {
+      timestamp?: string | number | Date;
+      created_at?: string | number | Date;
+      createdAt?: string | number | Date;
+    };
+    const firstRawTs =
+      firstEventData.timestamp ??
+      firstEventData.created_at ??
+      firstEventData.createdAt;
+    const hasTimestamps = Boolean(
+      firstRawTs && !Number.isNaN(new Date(firstRawTs).getTime()),
+    );
+
+    if (hasTimestamps) {
+      const firstTime = new Date(firstRawTs!).getTime();
+      return rawEvents.map((evt) => {
+        const evtData = evt.data as {
+          timestamp?: string | number | Date;
+          created_at?: string | number | Date;
+          createdAt?: string | number | Date;
+        };
+        const rawTs =
+          evtData.timestamp ?? evtData.created_at ?? evtData.createdAt;
+        const eventTime = rawTs ? new Date(rawTs).getTime() : firstTime;
+        const deltaMs = Math.max(0, eventTime - firstTime);
+        return {
+          ...evt,
+          timeDelta: formatDelta(deltaMs),
+        };
+      });
+    }
+
+    // Fallback if events lack absolute timestamps: simulate timeline using tool durations
+    let accumulatedMs = 0;
+    return rawEvents.map((evt, idx) => {
+      if (idx === 0) {
+        if (evt.type === "tool_call") {
+          accumulatedMs += evt.data.durationMs || 0;
+        }
+        return {
+          ...evt,
+          timeDelta: "+0ms",
+        };
+      }
+      const currentDelta = accumulatedMs;
+      if (evt.type === "tool_call") {
+        accumulatedMs += evt.data.durationMs || 50;
+      } else {
+        accumulatedMs += 100;
+      }
+      return {
+        ...evt,
+        timeDelta: formatDelta(currentDelta),
+      };
     });
   }, [displayToolCalls, displayModelEvents]);
 
@@ -103,13 +169,14 @@ export const TraceView: React.FC<TraceViewProps> = ({
     overscan: 8,
   });
 
-  // Calculate consumed tokens and dynamic budget
+  // Calculate consumed tokens and dynamic budget from currentRun config snapshot
   const totalTokensBurned = displayToolCalls.reduce(
     (sum, tc) => sum + (tc.tokensUsed || 0),
     0,
   );
-  // Read budget from run if available, else standard 50000
-  const estimatedTokenBudget = 50000;
+  const estimatedTokenBudget =
+    (currentRun as { configSnapshot?: { tokenBudget?: number } } | null)
+      ?.configSnapshot?.tokenBudget ?? 150000;
   const isBudgetExhausted = totalTokensBurned >= estimatedTokenBudget;
   const tokenOverage = Math.max(0, totalTokensBurned - estimatedTokenBudget);
   const tokenUsagePercent = Math.min(
@@ -401,7 +468,7 @@ export const TraceView: React.FC<TraceViewProps> = ({
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <AlertCircle size={15} color="var(--accent-rose)" />
-            <span style={{ color: "#fca5a5", fontSize: "0.8rem" }}>
+            <span style={{ color: "var(--accent-rose)", fontSize: "0.8rem" }}>
               {error}
             </span>
           </div>
@@ -585,9 +652,13 @@ export const TraceView: React.FC<TraceViewProps> = ({
                           id: evt.data.id,
                           runId: evt.data.runId,
                         }}
+                        timeDelta={evt.timeDelta}
                       />
                     ) : (
-                      <ToolCallCard toolCall={evt.data} />
+                      <ToolCallCard
+                        toolCall={evt.data}
+                        timeDelta={evt.timeDelta}
+                      />
                     )}
                   </div>
                 );

@@ -33,24 +33,24 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
   const confidencePct = Math.round(confidence * 100);
 
   let themeColor = "var(--accent-emerald)";
-  let bgRgba = "rgba(16, 185, 129, 0.08)";
-  let borderRgba = "rgba(16, 185, 129, 0.4)";
-  let badgeBgRgba = "rgba(16, 185, 129, 0.15)";
-  let barGradient = "linear-gradient(90deg, #10b981, #059669)";
+  let bgRgba = "var(--accent-emerald-bg)";
+  let borderRgba = "rgba(16, 185, 129, 0.35)";
+  let badgeBgRgba = "rgba(16, 185, 129, 0.2)";
+  let barGradient = "linear-gradient(90deg, var(--accent-emerald), #059669)";
 
   if (isFindingConfirmed) {
     if (isHighSeverity) {
       themeColor = "var(--accent-rose)";
-      bgRgba = "rgba(244, 63, 94, 0.08)";
-      borderRgba = "rgba(244, 63, 94, 0.4)";
-      badgeBgRgba = "rgba(244, 63, 94, 0.15)";
-      barGradient = "linear-gradient(90deg, #f43f5e, #be123c)";
+      bgRgba = "var(--accent-rose-bg)";
+      borderRgba = "rgba(244, 63, 94, 0.35)";
+      badgeBgRgba = "rgba(244, 63, 94, 0.2)";
+      barGradient = "linear-gradient(90deg, var(--accent-rose), #be123c)";
     } else {
       themeColor = "var(--accent-amber)";
-      bgRgba = "rgba(245, 158, 11, 0.08)";
-      borderRgba = "rgba(245, 158, 11, 0.4)";
-      badgeBgRgba = "rgba(245, 158, 11, 0.15)";
-      barGradient = "linear-gradient(90deg, #f59e0b, #d97706)";
+      bgRgba = "var(--accent-amber-bg)";
+      borderRgba = "rgba(245, 158, 11, 0.35)";
+      badgeBgRgba = "rgba(245, 158, 11, 0.2)";
+      barGradient = "linear-gradient(90deg, var(--accent-amber), #d97706)";
     }
   }
 
@@ -264,6 +264,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.5px",
+              flexShrink: 0,
             }}
           >
             Evidence:
@@ -280,28 +281,50 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
                 alignItems: "center",
                 gap: "5px",
                 fontSize: "0.72rem",
+                maxWidth: "100%",
+                overflow: "hidden",
               }}
             >
-              <FileCode size={11} color="var(--accent-cyan)" />
+              <FileCode
+                size={11}
+                color="var(--accent-cyan)"
+                style={{ flexShrink: 0 }}
+              />
               <span
                 style={{
                   color: "var(--accent-cyan)",
                   fontFamily: "var(--font-mono)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "320px",
                 }}
+                title={ev.path}
               >
                 {ev.path}
               </span>
               <span
-                className="tabular-nums"
+                className="tabular-nums font-mono"
                 style={{
                   color: "var(--text-muted)",
-                  fontFamily: "var(--font-mono)",
+                  flexShrink: 0,
                 }}
               >
                 :L{ev.start_line}-L{ev.end_line}
               </span>
               {ev.note && (
-                <span style={{ color: "var(--text-dim)", marginLeft: "4px" }}>
+                <span
+                  style={{
+                    color: "var(--text-dim)",
+                    marginLeft: "4px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: "240px",
+                    flexShrink: 1,
+                  }}
+                  title={ev.note}
+                >
                   ({ev.note})
                 </span>
               )}

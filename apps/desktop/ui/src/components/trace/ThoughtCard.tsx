@@ -1,62 +1,116 @@
-import React from "react";
+import React, { useState } from "react";
 import type { ThoughtEvent } from "../../stores/run.store.js";
-import { Brain } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ThoughtCardProps {
   thought: ThoughtEvent;
 }
 
 export const ThoughtCard: React.FC<ThoughtCardProps> = ({ thought }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const content = thought.thought || thought.content || "";
+  const isLong = content.length > 200;
+
   return (
     <div
-      className="glass-panel hover-scale"
       style={{
-        borderRadius: "var(--border-radius-lg, 16px)",
-        border: "1px solid rgba(168, 85, 247, 0.2)",
-        marginBottom: "16px",
+        borderRadius: "6px",
+        border: "1px solid var(--border-subtle)",
+        borderLeft: "3px solid var(--accent-purple)",
+        marginBottom: "6px",
         overflow: "hidden",
-        background: "rgba(168, 85, 247, 0.05)",
+        background: "var(--surface-card)",
+        transition: "all 0.15s ease",
       }}
+      className="hover-scale"
     >
       <div
+        onClick={() => isLong && setIsExpanded(!isExpanded)}
         style={{
-          padding: "16px 20px",
+          padding: "6px 12px",
           display: "flex",
-          alignItems: "flex-start",
-          gap: "12px",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "8px",
+          cursor: isLong ? "pointer" : "default",
+          background: "rgba(168, 85, 247, 0.04)",
+          borderBottom: isExpanded
+            ? "1px solid rgba(255, 255, 255, 0.03)"
+            : "none",
         }}
       >
         <div
           style={{
-            marginTop: "2px",
-            color: "rgb(192, 132, 252)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            minWidth: 0,
           }}
         >
-          <Brain size={20} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div
+          <Brain
+            size={13}
+            color="var(--accent-purple)"
+            style={{ flexShrink: 0 }}
+          />
+          <span
+            className="tabular-nums"
             style={{
               fontWeight: 600,
-              color: "rgb(192, 132, 252)",
-              fontSize: "0.9rem",
-              marginBottom: "8px",
+              color: "var(--accent-purple)",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-mono)",
+              whiteSpace: "nowrap",
             }}
           >
-            Step #{thought.stepIndex}: Thinking...
-          </div>
-          <div
-            style={{
-              color: "var(--text-secondary)",
-              fontSize: "0.95rem",
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {thought.thought || thought.content}
-          </div>
+            Step #{thought.stepIndex}: Reasoning
+          </span>
+          {!isExpanded && (
+            <span
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "0.72rem",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "600px",
+              }}
+            >
+              {content}
+            </span>
+          )}
         </div>
+
+        {isLong && (
+          <button
+            type="button"
+            style={{
+              color: "var(--text-muted)",
+              padding: "2px",
+              display: "flex",
+              alignItems: "center",
+            }}
+            aria-label={isExpanded ? "Collapse thought" : "Expand thought"}
+          >
+            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+        )}
       </div>
+
+      {isExpanded && (
+        <div
+          style={{
+            padding: "8px 12px 10px 12px",
+            color: "var(--text-normal)",
+            fontSize: "0.8rem",
+            lineHeight: 1.5,
+            whiteSpace: "pre-wrap",
+            fontFamily: "var(--font-mono)",
+            background: "rgba(0, 0, 0, 0.15)",
+          }}
+        >
+          {content}
+        </div>
+      )}
     </div>
   );
 };

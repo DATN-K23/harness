@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@tanstack/react-virtual": "^3.14.10",
+    "@tanstack/virtual-core": "^3.17.10",
     "@types/node": "24.13.3",
     "dependency-cruiser": "18.1.0",
     "eslint": "10.8.0",

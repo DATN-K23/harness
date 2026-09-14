@@ -1,11 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import type { VerdictSchema as Verdict } from "../../generated/api/index.js";
+import {
+  ShieldAlert,
+  ShieldCheck,
+  AlertTriangle,
+  FileCode,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
 interface VerdictBannerProps {
   verdict: Verdict | null | undefined;
 }
 
 export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
+  const [showFullRationale, setShowFullRationale] = useState(false);
   if (!verdict) return null;
 
   const {
@@ -17,161 +26,174 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
     verificationStatus,
   } = verdict;
 
-  // Domain logic: validity === "valid" nghĩa là finding đã được xác nhận (bị hổng bảo mật)
-  const isFindingConfirmed = validity === "valid";
-  const isHighSeverity = severity === "high" || severity === "critical";
+  const isFindingConfirmed = validity.toLowerCase() === "valid";
+  const isHighSeverity =
+    severity.toLowerCase() === "high" || severity.toLowerCase() === "critical";
 
   const confidencePct = Math.round(confidence * 100);
 
-  let glowClass = "verdict-glow-success";
-  let themeColor = "#10b981"; // Success Green
+  let themeColor = "var(--accent-emerald)";
   let bgRgba = "rgba(16, 185, 129, 0.08)";
-  let borderRgba = "rgba(16, 185, 129, 0.5)";
-  let badgeBgRgba = "rgba(16, 185, 129, 0.2)";
-  let badgeBorderRgba = "rgba(16, 185, 129, 0.3)";
-  let gradient = "linear-gradient(90deg, #10b981, #059669)";
+  let borderRgba = "rgba(16, 185, 129, 0.4)";
+  let badgeBgRgba = "rgba(16, 185, 129, 0.15)";
+  let barGradient = "linear-gradient(90deg, #10b981, #059669)";
 
   if (isFindingConfirmed) {
     if (isHighSeverity) {
-      glowClass = "verdict-glow-danger";
-      themeColor = "#f43f5e"; // Rose
+      themeColor = "var(--accent-rose)";
       bgRgba = "rgba(244, 63, 94, 0.08)";
-      borderRgba = "rgba(244, 63, 94, 0.5)";
-      badgeBgRgba = "rgba(244, 63, 94, 0.2)";
-      badgeBorderRgba = "rgba(244, 63, 94, 0.3)";
-      gradient = "linear-gradient(90deg, #f43f5e, #be123c)";
+      borderRgba = "rgba(244, 63, 94, 0.4)";
+      badgeBgRgba = "rgba(244, 63, 94, 0.15)";
+      barGradient = "linear-gradient(90deg, #f43f5e, #be123c)";
     } else {
-      glowClass = "verdict-glow-warning";
-      themeColor = "#f59e0b"; // Amber
+      themeColor = "var(--accent-amber)";
       bgRgba = "rgba(245, 158, 11, 0.08)";
-      borderRgba = "rgba(245, 158, 11, 0.5)";
-      badgeBgRgba = "rgba(245, 158, 11, 0.2)";
-      badgeBorderRgba = "rgba(245, 158, 11, 0.3)";
-      gradient = "linear-gradient(90deg, #f59e0b, #d97706)";
+      borderRgba = "rgba(245, 158, 11, 0.4)";
+      badgeBgRgba = "rgba(245, 158, 11, 0.15)";
+      barGradient = "linear-gradient(90deg, #f59e0b, #d97706)";
     }
   }
 
+  const isRationaleLong = (rationale || "").length > 180;
+
   return (
     <div
-      className={glowClass}
       style={{
         background: bgRgba,
         border: `1px solid ${borderRgba}`,
-        borderRadius: "16px",
-        padding: "24px",
-        marginBottom: "24px",
-        animation: "fadeInUp 0.4s ease-out forwards",
+        borderRadius: "8px",
+        padding: "12px 16px",
+        marginBottom: "12px",
+        animation: "fadeInUp 0.3s ease-out forwards",
       }}
     >
-      {/* Header row */}
+      {/* Top HUD Strip */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "16px",
+          alignItems: "center",
+          gap: "16px",
         }}
       >
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "6px",
-            }}
-          >
-            <span style={{ fontSize: "1.5rem" }}>
-              {isFindingConfirmed ? (isHighSeverity ? "🚨" : "⚠️") : "✅"}
-            </span>
-            <h3
-              style={{
-                fontSize: "1.15rem",
-                fontWeight: 700,
-                color: themeColor,
-                textTransform: "capitalize",
-              }}
-            >
-              Verdict: {validity}
-            </h3>
-            {/* Severity badge */}
-            <span
-              style={{
-                padding: "3px 10px",
-                borderRadius: "20px",
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                letterSpacing: "0.5px",
-                textTransform: "uppercase",
-                background: badgeBgRgba,
-                color: themeColor,
-                border: `1px solid ${badgeBorderRgba}`,
-              }}
-            >
-              {severity}
-            </span>
-            {/* Unverified tag */}
-            {verificationStatus === "unverified" && (
-              <span
-                style={{
-                  padding: "3px 10px",
-                  borderRadius: "20px",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  textTransform: "uppercase",
-                  background: "rgba(245, 158, 11, 0.15)",
-                  color: "#fcd34d",
-                  border: "1px solid rgba(245, 158, 11, 0.4)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                UNVERIFIED
-              </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {isFindingConfirmed ? (
+              isHighSeverity ? (
+                <ShieldAlert size={18} color="var(--accent-rose)" />
+              ) : (
+                <AlertTriangle size={18} color="var(--accent-amber)" />
+              )
+            ) : (
+              <ShieldCheck size={18} color="var(--accent-emerald)" />
             )}
           </div>
+
+          <h3
+            style={{
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              color: themeColor,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Verdict: {validity}
+          </h3>
+
+          {/* Severity badge */}
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: "4px",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              background: badgeBgRgba,
+              color: themeColor,
+              border: `1px solid ${borderRgba}`,
+            }}
+          >
+            {severity}
+          </span>
+
+          {/* Verification tag */}
+          {verificationStatus && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "4px",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                background: "rgba(255, 255, 255, 0.05)",
+                color: "var(--text-muted)",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              {verificationStatus}
+            </span>
+          )}
         </div>
 
-        {/* Confidence score */}
-        <div style={{ textAlign: "right", minWidth: "120px" }}>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-muted)",
-              marginBottom: "6px",
-            }}
-          >
-            AI Confidence
+        {/* Confidence Gauge */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            minWidth: "150px",
+          }}
+        >
+          <div style={{ textAlign: "right" }}>
+            <span
+              style={{
+                fontSize: "0.68rem",
+                color: "var(--text-muted)",
+                display: "block",
+                textTransform: "uppercase",
+              }}
+            >
+              AI Confidence
+            </span>
+            <span
+              className="tabular-nums"
+              style={{
+                fontSize: "1rem",
+                fontWeight: 800,
+                color: themeColor,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {confidencePct}%
+            </span>
           </div>
+
           <div
             style={{
-              fontSize: "1.5rem",
-              fontWeight: 800,
-              color: themeColor,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {confidencePct}%
-          </div>
-          {/* Confidence progress bar */}
-          <div
-            style={{
-              marginTop: "6px",
-              height: "4px",
-              background: "rgba(255,255,255,0.08)",
-              borderRadius: "2px",
+              width: "70px",
+              height: "6px",
+              background: "rgba(0, 0, 0, 0.3)",
+              borderRadius: "3px",
               overflow: "hidden",
+              border: "1px solid var(--border-subtle)",
             }}
           >
             <div
               style={{
                 height: "100%",
                 width: `${confidencePct}%`,
-                background: gradient,
-                borderRadius: "2px",
-                transition: "width 1s ease-out",
+                background: barGradient,
+                borderRadius: "3px",
               }}
             />
           </div>
@@ -179,82 +201,112 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
       </div>
 
       {/* Rationale */}
-      <p
-        style={{
-          color: "#d1d5db",
-          fontSize: "0.95rem",
-          lineHeight: "1.6",
-          marginBottom: evidence?.length ? "20px" : "0",
-        }}
-      >
-        {rationale}
-      </p>
-
-      {/* Evidence Cards */}
-      {evidence && evidence.length > 0 && (
-        <div>
-          <div
+      {rationale && (
+        <div style={{ marginTop: "8px" }}>
+          <p
             style={{
-              fontSize: "0.75rem",
-              color: "var(--text-secondary)",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              marginBottom: "8px",
+              color: "var(--text-normal)",
+              fontSize: "0.82rem",
+              lineHeight: "1.4",
+              display:
+                !showFullRationale && isRationaleLong ? "-webkit-box" : "block",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
             }}
           >
-            📁 Evidence
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {evidence.map((ev, idx) => (
-              <div
-                key={idx}
+            {rationale}
+          </p>
+
+          {isRationaleLong && (
+            <button
+              type="button"
+              onClick={() => setShowFullRationale(!showFullRationale)}
+              style={{
+                marginTop: "4px",
+                color: "var(--accent-cyan)",
+                fontSize: "0.72rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+                fontWeight: 500,
+              }}
+            >
+              {showFullRationale ? (
+                <>
+                  Show Less <ChevronUp size={12} />
+                </>
+              ) : (
+                <>
+                  Show Full Analysis <ChevronDown size={12} />
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Evidence Chips */}
+      {evidence && evidence.length > 0 && (
+        <div
+          style={{
+            marginTop: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.68rem",
+              color: "var(--text-muted)",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Evidence:
+          </span>
+          {evidence.map((ev, idx) => (
+            <div
+              key={idx}
+              style={{
+                background: "var(--surface-input)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "4px",
+                padding: "2px 8px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "0.72rem",
+              }}
+            >
+              <FileCode size={11} color="var(--accent-cyan)" />
+              <span
                 style={{
-                  background: "rgba(0, 0, 0, 0.3)",
-                  border: "1px solid var(--glass-border)",
-                  borderRadius: "8px",
-                  padding: "12px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  cursor: "pointer",
+                  color: "var(--accent-cyan)",
+                  fontFamily: "var(--font-mono)",
                 }}
-                className="glass-panel hover-scale"
               >
-                <div>
-                  <span
-                    style={{
-                      color: "var(--accent-cyan)",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {ev.path}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--text-muted)",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.85rem",
-                      marginLeft: "8px",
-                    }}
-                  >
-                    L{ev.start_line}-L{ev.end_line}
-                  </span>
-                </div>
-                {ev.note && (
-                  <span
-                    style={{
-                      color: "var(--text-secondary)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {ev.note}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+                {ev.path}
+              </span>
+              <span
+                className="tabular-nums"
+                style={{
+                  color: "var(--text-muted)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                :L{ev.start_line}-L{ev.end_line}
+              </span>
+              {ev.note && (
+                <span style={{ color: "var(--text-dim)", marginLeft: "4px" }}>
+                  ({ev.note})
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

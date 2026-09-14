@@ -11,27 +11,44 @@ import type { ThoughtEvent } from "../stores/run.store.js";
  * AuditHarnessClientContext wraps the generated openapi client configuration
  */
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 10000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(`Audit client request timed out after ${timeoutMs}ms`),
+          ),
+        timeoutMs,
+      ),
+    ),
+  ]);
+}
+
 // Custom class to mimic the old SDK interface for SSE
 export class CustomAuditClient {
   public async getRun(runId: string) {
-    return RunsService.getRunApiV1RunsRunIdGet(runId);
+    return withTimeout(RunsService.getRunApiV1RunsRunIdGet(runId), 10000);
   }
 
   public async getToolCalls(
     runId: string,
     options: { fromStep: number; limit: number },
   ) {
-    return RunsService.getToolCallsApiV1RunsRunIdToolCallsGet(
-      runId,
-      options.fromStep,
-      options.limit,
+    return withTimeout(
+      RunsService.getToolCallsApiV1RunsRunIdToolCallsGet(
+        runId,
+        options.fromStep,
+        options.limit,
+      ),
+      10000,
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public cancelRun(_runId: string) {
-    // TODO: Implement backend cancel endpoint (PATCH /api/v1/runs/{id}/cancel)
-    return Promise.resolve({ success: true });
+  public cancelRun(runId: string) {
+    // Backend cancel endpoint placeholder
+    return Promise.resolve({ success: true, runId });
   }
 
   public subscribeRunStream(

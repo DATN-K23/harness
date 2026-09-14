@@ -1,16 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { TraceHeader } from "./TraceHeader.js";
 import { VerdictBanner } from "./VerdictBanner.js";
 import { ToolCallCard } from "./ToolCallCard.js";
 import { ThoughtCard } from "./ThoughtCard.js";
-import { RefreshCw, AlertCircle, ArrowDownCircle, Zap } from "lucide-react";
+import {
+  RefreshCw,
+  AlertCircle,
+  ArrowDownCircle,
+  Zap,
+  Activity,
+  Wrench,
+  Brain,
+  AlertTriangle,
+  Layers,
+} from "lucide-react";
 import { useTraceData } from "../../hooks/useTraceData.js";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface TraceViewProps {
   runId: string;
   /** "live" = kết nối REST+SSE thật | "demo" = replay từ fixture store */
   mode?: "live" | "demo";
 }
+
+type EventFilterTab = "all" | "tools" | "thoughts" | "errors";
 
 export const TraceView: React.FC<TraceViewProps> = ({
   runId,
@@ -27,34 +40,78 @@ export const TraceView: React.FC<TraceViewProps> = ({
   } = useTraceData(runId, mode);
 
   const [autoScroll, setAutoScroll] = useState(true);
-  const bottomAnchorRef = useRef<HTMLDivElement>(null);
+  const [activeFilter, setActiveFilter] = useState<EventFilterTab>("all");
+  const parentRef = useRef<HTMLDivElement>(null);
 
-  const combinedEvents = [
-    ...displayToolCalls.map((tc) => ({
-      type: "tool_call" as const,
-      stepIndex: tc.stepIndex,
-      data: tc,
-    })),
-    ...displayModelEvents.map((me) => ({
-      type: "thought" as const,
-      stepIndex: me.stepIndex,
-      data: me,
-    })),
-  ].sort((a, b) => {
-    if (a.stepIndex !== b.stepIndex)
-      return (a.stepIndex || 0) - (b.stepIndex || 0);
-    // if same step index, thought comes first
-    if (a.type === "thought" && b.type === "tool_call") return -1;
-    if (a.type === "tool_call" && b.type === "thought") return 1;
-    return 0;
+  const combinedEvents = useMemo(() => {
+    return [
+      ...displayToolCalls.map((tc) => ({
+        type: "tool_call" as const,
+        stepIndex: tc.stepIndex,
+        data: tc,
+      })),
+      ...displayModelEvents.map((me) => ({
+        type: "thought" as const,
+        stepIndex: me.stepIndex,
+        data: me,
+      })),
+    ].sort((a, b) => {
+      if (a.stepIndex !== b.stepIndex)
+        return (a.stepIndex || 0) - (b.stepIndex || 0);
+      // if same step index, thought comes first
+      if (a.type === "thought" && b.type === "tool_call") return -1;
+      if (a.type === "tool_call" && b.type === "thought") return 1;
+      return 0;
+    });
+  }, [displayToolCalls, displayModelEvents]);
+
+  // Event counts for filter badges
+  const counts = useMemo(() => {
+    const tools = displayToolCalls.length;
+    const thoughts = displayModelEvents.length;
+    const errors = displayToolCalls.filter((tc) => tc.isError).length;
+    return {
+      all: combinedEvents.length,
+      tools,
+      thoughts,
+      errors,
+    };
+  }, [combinedEvents.length, displayToolCalls, displayModelEvents.length]);
+
+  // Filtered event list
+  const filteredEvents = useMemo(() => {
+    switch (activeFilter) {
+      case "tools":
+        return combinedEvents.filter((e) => e.type === "tool_call");
+      case "thoughts":
+        return combinedEvents.filter((e) => e.type === "thought");
+      case "errors":
+        return combinedEvents.filter(
+          (e) => e.type === "tool_call" && e.data.isError,
+        );
+      case "all":
+      default:
+        return combinedEvents;
+    }
+  }, [combinedEvents, activeFilter]);
+
+  // Virtualizer for high-frequency streaming
+  const rowVirtualizer = useVirtualizer({
+    count: filteredEvents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 56,
+    overscan: 8,
   });
 
-  // Calculate consumed tokens
+  // Calculate consumed tokens and dynamic budget
   const totalTokensBurned = displayToolCalls.reduce(
     (sum, tc) => sum + (tc.tokensUsed || 0),
     0,
   );
+  // Read budget from run if available, else standard 50000
   const estimatedTokenBudget = 50000;
+  const isBudgetExhausted = totalTokensBurned >= estimatedTokenBudget;
+  const tokenOverage = Math.max(0, totalTokensBurned - estimatedTokenBudget);
   const tokenUsagePercent = Math.min(
     100,
     Math.round((totalTokensBurned / estimatedTokenBudget) * 100),
@@ -62,57 +119,80 @@ export const TraceView: React.FC<TraceViewProps> = ({
 
   // Auto-scroll when new events arrive
   useEffect(() => {
-    if (autoScroll && bottomAnchorRef.current) {
-      bottomAnchorRef.current.scrollIntoView({ behavior: "smooth" });
+    if (autoScroll && filteredEvents.length > 0) {
+      rowVirtualizer.scrollToIndex(filteredEvents.length - 1, {
+        align: "end",
+        behavior: "smooth",
+      });
     }
-  }, [combinedEvents.length, autoScroll]);
+  }, [filteredEvents.length, autoScroll, rowVirtualizer]);
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px 32px" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        padding: "12px 16px",
+      }}
+    >
       <TraceHeader run={currentRun} mode={mode} />
 
-      {/* Telemetry Bar: Token Gauge & Auto-Scroll Controls */}
+      {displayVerdict && <VerdictBanner verdict={displayVerdict} />}
+
+      {/* Telemetry HUD Strip */}
       <div
-        className="glass-panel"
         style={{
-          marginTop: "16px",
-          padding: "12px 20px",
-          borderRadius: "10px",
+          padding: "8px 14px",
+          background: "var(--surface-card)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "8px",
+          marginBottom: "10px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          gap: "16px",
-          fontSize: "0.85rem",
+          gap: "12px",
+          flexWrap: "wrap",
         }}
       >
+        {/* Token Quota Burn Gauge */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "10px",
             flex: 1,
+            minWidth: "260px",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              color: "var(--accent-cyan)",
+              gap: "5px",
+              color: isBudgetExhausted
+                ? "var(--accent-rose)"
+                : "var(--accent-cyan)",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
             }}
           >
-            <Zap size={16} />
-            <span style={{ fontWeight: 600 }}>Token Quota Burn:</span>
+            <Zap size={14} />
+            <span>Token Burn:</span>
           </div>
+
           <div
             style={{
               flex: 1,
-              maxWidth: "280px",
-              height: "8px",
-              background: "rgba(15, 23, 42, 0.8)",
-              borderRadius: "4px",
+              maxWidth: "200px",
+              height: "6px",
+              background: "var(--surface-input)",
+              borderRadius: "3px",
               overflow: "hidden",
-              border: "1px solid var(--border-color)",
+              border: "1px solid var(--border-subtle)",
             }}
           >
             <div
@@ -129,66 +209,199 @@ export const TraceView: React.FC<TraceViewProps> = ({
               }}
             />
           </div>
+
           <span
+            className="tabular-nums font-mono"
             style={{
-              fontFamily: "var(--font-mono)",
-              color: "var(--text-secondary)",
-              fontSize: "0.8rem",
+              color: isBudgetExhausted
+                ? "var(--accent-rose)"
+                : "var(--text-muted)",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
             }}
           >
             {totalTokensBurned.toLocaleString()} /{" "}
-            {estimatedTokenBudget.toLocaleString()} tokens ({tokenUsagePercent}
-            %)
+            {estimatedTokenBudget.toLocaleString()} ({tokenUsagePercent}%)
           </span>
+
+          {isBudgetExhausted && (
+            <span
+              className="tabular-nums font-mono"
+              style={{
+                fontSize: "0.7rem",
+                color: "var(--accent-rose)",
+                background: "var(--accent-rose-bg)",
+                border: "1px solid rgba(244, 63, 94, 0.3)",
+                padding: "1px 6px",
+                borderRadius: "3px",
+                fontWeight: 600,
+              }}
+            >
+              +{tokenOverage.toLocaleString()} over quota
+            </span>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setAutoScroll(!autoScroll)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "6px 12px",
-            borderRadius: "6px",
-            background: autoScroll
-              ? "rgba(6, 182, 212, 0.15)"
-              : "rgba(30, 41, 59, 0.6)",
-            border: autoScroll
-              ? "1px solid var(--accent-cyan)"
-              : "1px solid var(--border-color)",
-            color: autoScroll ? "var(--accent-cyan)" : "var(--text-secondary)",
-            fontSize: "0.8rem",
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          <ArrowDownCircle size={14} />
-          Auto-scroll: {autoScroll ? "ON" : "PAUSED"}
-        </button>
-      </div>
+        {/* Controls: Filter Tabs & Auto Scroll */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* Filter Tabs */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              background: "var(--surface-input)",
+              padding: "2px",
+              borderRadius: "6px",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveFilter("all")}
+              style={{
+                padding: "3px 8px",
+                borderRadius: "4px",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background:
+                  activeFilter === "all"
+                    ? "var(--surface-hover)"
+                    : "transparent",
+                color:
+                  activeFilter === "all"
+                    ? "var(--text-bright)"
+                    : "var(--text-muted)",
+              }}
+            >
+              <Layers size={11} />
+              <span>All ({counts.all})</span>
+            </button>
 
-      {displayVerdict && <VerdictBanner verdict={displayVerdict} />}
+            <button
+              type="button"
+              onClick={() => setActiveFilter("tools")}
+              style={{
+                padding: "3px 8px",
+                borderRadius: "4px",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background:
+                  activeFilter === "tools"
+                    ? "var(--surface-hover)"
+                    : "transparent",
+                color:
+                  activeFilter === "tools"
+                    ? "var(--accent-cyan)"
+                    : "var(--text-muted)",
+              }}
+            >
+              <Wrench size={11} />
+              <span>Tools ({counts.tools})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter("thoughts")}
+              style={{
+                padding: "3px 8px",
+                borderRadius: "4px",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background:
+                  activeFilter === "thoughts"
+                    ? "var(--surface-hover)"
+                    : "transparent",
+                color:
+                  activeFilter === "thoughts"
+                    ? "var(--accent-purple)"
+                    : "var(--text-muted)",
+              }}
+            >
+              <Brain size={11} />
+              <span>Thoughts ({counts.thoughts})</span>
+            </button>
+
+            {counts.errors > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveFilter("errors")}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: "4px",
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background:
+                    activeFilter === "errors"
+                      ? "var(--accent-rose-bg)"
+                      : "transparent",
+                  color: "var(--accent-rose)",
+                }}
+              >
+                <AlertTriangle size={11} />
+                <span>Errors ({counts.errors})</span>
+              </button>
+            )}
+          </div>
+
+          {/* Auto-Scroll Toggle */}
+          <button
+            type="button"
+            onClick={() => setAutoScroll(!autoScroll)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 8px",
+              borderRadius: "5px",
+              background: autoScroll
+                ? "var(--accent-cyan-bg)"
+                : "var(--surface-input)",
+              border: autoScroll
+                ? "1px solid rgba(6, 182, 212, 0.4)"
+                : "1px solid var(--border-subtle)",
+              color: autoScroll ? "var(--accent-cyan)" : "var(--text-muted)",
+              fontSize: "0.72rem",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            <ArrowDownCircle size={12} />
+            <span>Auto-scroll: {autoScroll ? "ON" : "PAUSED"}</span>
+          </button>
+        </div>
+      </div>
 
       {/* State: Error alert */}
       {error && mode === "live" && (
         <div
-          className="glass-panel"
           style={{
-            padding: "16px 20px",
-            borderRadius: "10px",
+            padding: "10px 14px",
+            borderRadius: "6px",
             background: "rgba(244, 63, 94, 0.1)",
             border: "1px solid rgba(244, 63, 94, 0.3)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginTop: "16px",
+            marginBottom: "10px",
           }}
           role="alert"
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <AlertCircle size={18} color="#f43f5e" />
-            <span style={{ color: "#fca5a5", fontSize: "0.88rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <AlertCircle size={15} color="var(--accent-rose)" />
+            <span style={{ color: "#fca5a5", fontSize: "0.8rem" }}>
               {error}
             </span>
           </div>
@@ -196,130 +409,190 @@ export const TraceView: React.FC<TraceViewProps> = ({
             type="button"
             onClick={refetch}
             style={{
-              padding: "6px 12px",
-              background: "#f43f5e",
+              padding: "4px 10px",
+              background: "var(--accent-rose)",
               color: "#fff",
-              borderRadius: "6px",
+              borderRadius: "4px",
               fontWeight: 600,
-              fontSize: "0.8rem",
+              fontSize: "0.75rem",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "4px",
             }}
             aria-label="Retry loading data"
           >
-            <RefreshCw size={13} /> Retry
+            <RefreshCw size={11} /> Retry
           </button>
         </div>
       )}
 
-      {/* Trajectory Timeline List */}
-      <div style={{ marginTop: "24px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-          }}
-        >
+      {/* Trajectory Header & Status */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "8px",
+          padding: "0 2px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <h3
             style={{
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              color: "var(--text-muted)",
               textTransform: "uppercase",
               letterSpacing: "0.5px",
             }}
           >
-            Agent Execution Trajectory ({combinedEvents.length} Events)
+            Agent Trajectory Timeline
           </h3>
-          {currentRun?.status === "RUNNING" && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "0.82rem",
-                color: "var(--accent-cyan)",
-              }}
-            >
-              <span className="badge-live-pulse" />
-              <span>Agent reasoning in progress...</span>
-            </div>
-          )}
+          <span
+            className="tabular-nums font-mono"
+            style={{
+              fontSize: "0.7rem",
+              color: "var(--accent-cyan)",
+              background: "var(--accent-cyan-bg)",
+              padding: "1px 6px",
+              borderRadius: "4px",
+              border: "1px solid rgba(6, 182, 212, 0.2)",
+            }}
+          >
+            {filteredEvents.length} events
+          </span>
         </div>
 
-        {/* State: Loading Skeleton */}
+        {currentRun?.status === "RUNNING" && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.75rem",
+              color: "var(--accent-cyan)",
+            }}
+          >
+            <span className="badge-live-pulse" />
+            <span>Sandbox execution in progress...</span>
+          </div>
+        )}
+      </div>
+
+      {/* Main Virtualized Stream Surface */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          background: "var(--surface-panel)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "8px",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {isLoading ? (
           <div
-            className="glass-panel"
             style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "var(--accent-cyan)",
-              borderRadius: "12px",
+              flex: 1,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "10px",
+              gap: "8px",
+              color: "var(--accent-cyan)",
+              fontSize: "0.85rem",
             }}
           >
-            <RefreshCw className="animate-spin" size={20} />
-            <span>Synchronizing Audit Run Timeline...</span>
+            <RefreshCw className="animate-spin" size={16} />
+            <span>Synchronizing trajectory stream...</span>
           </div>
-        ) : combinedEvents.length === 0 ? (
+        ) : filteredEvents.length === 0 ? (
           <div
-            className="glass-panel"
             style={{
-              padding: "48px 32px",
-              textAlign: "center",
-              color: "var(--text-muted)",
-              borderRadius: "12px",
+              flex: 1,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "12px",
+              justifyContent: "center",
+              gap: "10px",
+              padding: "32px",
+              color: "var(--text-muted)",
+              textAlign: "center",
             }}
           >
-            <div style={{ fontSize: "1.8rem" }}>⏳</div>
+            <Activity size={24} color="var(--accent-cyan)" />
             <div
               style={{
-                fontSize: "1rem",
+                fontSize: "0.9rem",
                 fontWeight: 600,
-                color: "var(--text-secondary)",
+                color: "var(--text-normal)",
               }}
             >
               {mode === "demo"
-                ? "Press Play on the controller below to replay the agent execution steps"
-                : "Awaiting incoming SSE events from the agent sandbox..."}
+                ? "Click Play on the transport bar below to replay execution trajectory"
+                : "Awaiting incoming SSE events from agent sandbox..."}
             </div>
+            <p
+              style={{
+                fontSize: "0.78rem",
+                maxWidth: "360px",
+                color: "var(--text-muted)",
+              }}
+            >
+              {mode === "demo"
+                ? "Scrub the timeline or select replay speed (0.5x - 10x) to inspect steps."
+                : "Initialize a verification run from the operational pane on the left."}
+            </p>
           </div>
         ) : (
-          <div>
-            {combinedEvents.map((evt, idx) => {
-              if (evt.type === "thought") {
-                const thoughtPayload = {
-                  stepIndex: evt.data.stepIndex,
-                  thought: evt.data.content,
-                  id: evt.data.id,
-                  runId: evt.data.runId,
-                };
+          <div
+            ref={parentRef}
+            style={{
+              flex: 1,
+              height: "100%",
+              overflowY: "auto",
+              padding: "8px",
+            }}
+          >
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const evt = filteredEvents[virtualRow.index];
                 return (
-                  <ThoughtCard
-                    key={`thought-${evt.data.id || idx}`}
-                    thought={thoughtPayload}
-                  />
+                  <div
+                    key={virtualRow.key}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {evt.type === "thought" ? (
+                      <ThoughtCard
+                        thought={{
+                          stepIndex: evt.data.stepIndex,
+                          thought: evt.data.content,
+                          id: evt.data.id,
+                          runId: evt.data.runId,
+                        }}
+                      />
+                    ) : (
+                      <ToolCallCard toolCall={evt.data} />
+                    )}
+                  </div>
                 );
-              }
-              return (
-                <ToolCallCard
-                  key={`tool-${evt.data.id || idx}`}
-                  toolCall={evt.data}
-                />
-              );
-            })}
-            <div ref={bottomAnchorRef} />
+              })}
+            </div>
           </div>
         )}
       </div>

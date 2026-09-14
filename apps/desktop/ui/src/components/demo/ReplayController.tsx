@@ -63,71 +63,87 @@ export const ReplayController: React.FC = () => {
 
   return (
     <div
-      className="glass-panel"
+      className="cockpit-transport-bar"
       style={{
-        position: "fixed",
-        bottom: "40px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "16px 32px",
-        borderRadius: "40px" /* Pill shape */,
+        height: "40px",
+        width: "100%",
+        flexShrink: 0,
+        background: "var(--surface-panel)",
+        borderTop: "1px solid var(--border-subtle)",
         display: "flex",
         alignItems: "center",
-        gap: "24px",
-        zIndex: 100,
-        boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.5)",
-        border: "1px solid var(--glass-border)",
-        background: "rgba(11, 17, 32, 0.7)" /* Darker glass for player */,
-        backdropFilter: "blur(40px) saturate(200%)",
-        minWidth: "650px",
+        justifyContent: "space-between",
+        padding: "0 16px",
+        gap: "16px",
+        zIndex: 50,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <button
+          type="button"
           onClick={() => {
             driftRef.current = 0;
             jumpToStep(0);
           }}
           style={{
+            background: "transparent",
+            border: "none",
             color: "var(--text-secondary)",
-            padding: "8px",
-            borderRadius: "50%",
-            transition: "all 0.2s",
-            display: "flex",
+            padding: "4px 6px",
+            borderRadius: "4px",
+            transition: "all 0.15s ease",
+            display: "inline-flex",
             alignItems: "center",
+            cursor: "pointer",
           }}
           onMouseOver={(e) =>
-            (e.currentTarget.style.background = "rgba(255,255,255,0.1)")
+            (e.currentTarget.style.color = "var(--text-primary)")
           }
-          onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+          onMouseOut={(e) =>
+            (e.currentTarget.style.color = "var(--text-secondary)")
+          }
           title="Reset to Start"
+          aria-label="Reset to Start"
         >
-          <RotateCcw size={20} />
+          <RotateCcw size={14} />
         </button>
 
         <button
+          type="button"
           onClick={() => setPlaying(!isPlaying)}
           style={{
             background: isPlaying
-              ? "var(--bg-card-hover)"
-              : "var(--accent-cyan)",
-            color: isPlaying ? "var(--text-primary)" : "#fff",
-            padding: "12px 24px",
-            borderRadius: "30px",
-            fontWeight: 700,
-            display: "flex",
+              ? "rgba(255, 255, 255, 0.08)"
+              : "rgba(6, 182, 212, 0.2)",
+            color: isPlaying ? "var(--text-primary)" : "var(--accent-cyan)",
+            border: `1px solid ${
+              isPlaying ? "var(--border-subtle)" : "rgba(6, 182, 212, 0.4)"
+            }`,
+            padding: "4px 12px",
+            borderRadius: "6px",
+            fontWeight: 600,
+            fontSize: "0.75rem",
+            display: "inline-flex",
             alignItems: "center",
-            gap: "8px",
-            boxShadow: isPlaying ? "none" : "0 4px 12px rgba(6, 182, 212, 0.3)",
-            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            gap: "6px",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
           }}
-          onMouseOver={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
-          onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.background = isPlaying
+              ? "rgba(255, 255, 255, 0.12)"
+              : "rgba(6, 182, 212, 0.3)")
+          }
+          onMouseOut={(e) =>
+            (e.currentTarget.style.background = isPlaying
+              ? "rgba(255, 255, 255, 0.08)"
+              : "rgba(6, 182, 212, 0.2)")
+          }
         >
           {isPlaying ? (
-            <Pause size={18} />
+            <Pause size={13} />
           ) : (
-            <Play size={18} fill="currentColor" />
+            <Play size={13} fill="currentColor" />
           )}
           {isPlaying ? "Pause" : "Play"}
         </button>
@@ -137,9 +153,9 @@ export const ReplayController: React.FC = () => {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "8px",
+          gap: "12px",
           flex: 1,
-          minWidth: "200px",
+          maxWidth: "700px",
         }}
       >
         <input
@@ -156,87 +172,92 @@ export const ReplayController: React.FC = () => {
             flex: 1,
             accentColor: "var(--accent-cyan)",
             cursor: "pointer",
+            height: "4px",
           }}
         />
         <span
+          className="tabular-nums font-mono"
           style={{
-            fontSize: "0.85rem",
+            fontSize: "0.75rem",
             color: "var(--text-secondary)",
-            minWidth: "60px",
-            fontWeight: 600,
-            fontVariantNumeric: "tabular-nums",
+            minWidth: "65px",
+            textAlign: "right",
           }}
         >
           {currentStep + 1} / {events.length}
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <FastForward size={18} style={{ color: "var(--text-muted)" }} />
-        <select
-          value={playbackSpeed}
-          onChange={(e) => {
-            driftRef.current = 0; // Reset drift khi đổi tốc độ
-            setSpeed(parseFloat(e.target.value));
-          }}
-          style={{
-            background: "rgba(255, 255, 255, 0.05)",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "8px",
-            padding: "6px 10px",
-            fontSize: "0.85rem",
-            outline: "none",
-            cursor: "pointer",
-          }}
-        >
-          <option value={0.5}>0.5x</option>
-          <option value={1}>1x (Normal)</option>
-          <option value={2}>2x</option>
-          <option value={5}>5x (Fast)</option>
-          <option value={10}>10x</option>
-        </select>
-      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <FastForward size={13} style={{ color: "var(--text-muted)" }} />
+          <select
+            value={playbackSpeed}
+            onChange={(e) => {
+              driftRef.current = 0; // Reset drift khi đổi tốc độ
+              setSpeed(parseFloat(e.target.value));
+            }}
+            style={{
+              background: "var(--surface-canvas)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "4px",
+              padding: "2px 6px",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-mono)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value={0.5}>0.5x</option>
+            <option value={1}>1.0x</option>
+            <option value={2}>2.0x</option>
+            <option value={5}>5.0x</option>
+            <option value={10}>10x</option>
+          </select>
+        </div>
 
-      <div
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--accent-cyan)",
-          paddingLeft: "16px",
-          borderLeft: "1px solid var(--border-color)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-        }}
-      >
         <div
           style={{
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            paddingLeft: "12px",
+            borderLeft: "1px solid var(--border-subtle)",
           }}
         >
-          Event:{" "}
-          <code
+          <span
             style={{
-              color: "var(--text-primary)",
-              background: "rgba(0,0,0,0.3)",
-              padding: "2px 6px",
-              borderRadius: "4px",
+              fontSize: "0.7rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              color: "var(--text-muted)",
+            }}
+          >
+            Event:
+          </span>
+          <code
+            className="font-mono"
+            style={{
+              fontSize: "0.72rem",
+              color: "var(--accent-cyan)",
+              background: "rgba(6, 182, 212, 0.08)",
+              padding: "1px 6px",
+              borderRadius: "3px",
+              border: "1px solid rgba(6, 182, 212, 0.15)",
             }}
           >
             {currentEvent?.type || "IDLE"}
           </code>
-        </div>
-        <div
-          style={{
-            color: "var(--text-muted)",
-            fontSize: "0.7rem",
-            marginTop: "4px",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {Math.round(progress)}% complete
+          <span
+            className="tabular-nums font-mono"
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.7rem",
+            }}
+          >
+            {Math.round(progress)}%
+          </span>
         </div>
       </div>
     </div>

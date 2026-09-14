@@ -2,6 +2,15 @@ import React, { useEffect, useState } from "react";
 import { RunsService } from "../../generated/api/index.js";
 import type { RunSchema } from "../../generated/api/index.js";
 import { exportRunsToCSV, exportRunsToJSON } from "../../utils/export.js";
+import {
+  RefreshCw,
+  Download,
+  ShieldCheck,
+  AlertTriangle,
+  Zap,
+  BarChart3,
+  FileSpreadsheet,
+} from "lucide-react";
 
 interface DashboardViewProps {
   onSelectRun: (runId: string) => void;
@@ -64,11 +73,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         flexDirection: "column",
         height: "100%",
         width: "100%",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "24px 32px",
+        padding: "20px 24px",
+        overflowY: "auto",
+        background: "var(--surface-canvas)",
       }}
-      className="animate-fade-in-up"
+      className="animate-fade-in"
     >
       {/* Header Bar */}
       <div
@@ -76,70 +85,101 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "24px",
+          marginBottom: "20px",
+          flexShrink: 0,
         }}
       >
         <div>
-          <h2
-            style={{
-              fontSize: "1.75rem",
-              fontWeight: 700,
-              color: "var(--text-primary)",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Audit Telemetry & Benchmarks
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <BarChart3 size={20} style={{ color: "var(--accent-cyan)" }} />
+            <h2
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                letterSpacing: "-0.3px",
+              }}
+            >
+              Audit Telemetry & Benchmarks
+            </h2>
+          </div>
           <p
             style={{
               color: "var(--text-secondary)",
               marginTop: "4px",
-              fontSize: "0.9rem",
+              fontSize: "0.8rem",
             }}
           >
-            Comprehensive analytics dashboard for multi-agent evaluation and
-            ablation verification.
+            Real-time analytics and historical verification runs across
+            multi-agent sessions.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "8px" }}>
           <button
             type="button"
             onClick={fetchRuns}
-            className="btn-secondary"
-            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-primary)",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
             aria-label="Refresh run logs"
           >
-            🔄 Refresh
+            <RefreshCw size={13} className={loading ? "spin" : ""} /> Refresh
           </button>
           <button
             type="button"
             onClick={handleExportCSV}
             disabled={runs.length === 0}
-            className="btn-indigo"
             style={{
-              padding: "8px 16px",
-              fontSize: "0.85rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              color:
+                runs.length === 0 ? "var(--text-muted)" : "var(--text-primary)",
+              borderRadius: "6px",
               opacity: runs.length === 0 ? 0.4 : 1,
               cursor: runs.length === 0 ? "not-allowed" : "pointer",
             }}
             aria-label="Export runs to CSV"
           >
-            Export CSV
+            <FileSpreadsheet size={13} /> Export CSV
           </button>
           <button
             type="button"
             onClick={handleExportJSON}
             disabled={runs.length === 0}
-            className="btn-purple"
             style={{
-              padding: "8px 16px",
-              fontSize: "0.85rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              color:
+                runs.length === 0 ? "var(--text-muted)" : "var(--text-primary)",
+              borderRadius: "6px",
               opacity: runs.length === 0 ? 0.4 : 1,
               cursor: runs.length === 0 ? "not-allowed" : "pointer",
             }}
             aria-label="Export runs to JSON"
           >
-            Export JSON
+            <Download size={13} /> Export JSON
           </button>
         </div>
       </div>
@@ -149,31 +189,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "16px",
-          marginBottom: "24px",
+          gap: "12px",
+          marginBottom: "20px",
+          flexShrink: 0,
         }}
       >
         <div
-          className="glass-panel"
-          style={{ padding: "18px 20px", borderRadius: "12px" }}
+          style={{
+            padding: "14px 18px",
+            borderRadius: "8px",
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-subtle)",
+          }}
         >
           <div
             style={{
               color: "var(--text-muted)",
-              fontSize: "0.8rem",
+              fontSize: "0.72rem",
               textTransform: "uppercase",
               letterSpacing: "0.5px",
+              fontWeight: 600,
             }}
           >
             Total Audit Runs
           </div>
           <div
+            className="tabular-nums font-mono"
             style={{
-              fontSize: "1.75rem",
+              fontSize: "1.5rem",
               fontWeight: 700,
               color: "var(--text-primary)",
-              marginTop: "6px",
-              fontFamily: "var(--font-mono)",
+              marginTop: "4px",
             }}
           >
             {loading ? "..." : totalRuns}
@@ -181,26 +227,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div
-          className="glass-panel"
-          style={{ padding: "18px 20px", borderRadius: "12px" }}
+          style={{
+            padding: "14px 18px",
+            borderRadius: "8px",
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-subtle)",
+          }}
         >
           <div
             style={{
               color: "var(--text-muted)",
-              fontSize: "0.8rem",
+              fontSize: "0.72rem",
               textTransform: "uppercase",
               letterSpacing: "0.5px",
+              fontWeight: 600,
             }}
           >
             Completed Rate
           </div>
           <div
+            className="tabular-nums font-mono"
             style={{
-              fontSize: "1.75rem",
+              fontSize: "1.5rem",
               fontWeight: 700,
               color: "var(--accent-cyan)",
-              marginTop: "6px",
-              fontFamily: "var(--font-mono)",
+              marginTop: "4px",
             }}
           >
             {loading
@@ -212,26 +263,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div
-          className="glass-panel"
-          style={{ padding: "18px 20px", borderRadius: "12px" }}
+          style={{
+            padding: "14px 18px",
+            borderRadius: "8px",
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-subtle)",
+          }}
         >
           <div
             style={{
               color: "var(--text-muted)",
-              fontSize: "0.8rem",
+              fontSize: "0.72rem",
               textTransform: "uppercase",
               letterSpacing: "0.5px",
+              fontWeight: 600,
             }}
           >
             Verified Findings
           </div>
           <div
+            className="tabular-nums font-mono"
             style={{
-              fontSize: "1.75rem",
+              fontSize: "1.5rem",
               fontWeight: 700,
               color: "var(--accent-emerald)",
-              marginTop: "6px",
-              fontFamily: "var(--font-mono)",
+              marginTop: "4px",
             }}
           >
             {loading ? "..." : verifiedFindings}
@@ -239,26 +295,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div
-          className="glass-panel"
-          style={{ padding: "18px 20px", borderRadius: "12px" }}
+          style={{
+            padding: "14px 18px",
+            borderRadius: "8px",
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-subtle)",
+          }}
         >
           <div
             style={{
               color: "var(--text-muted)",
-              fontSize: "0.8rem",
+              fontSize: "0.72rem",
               textTransform: "uppercase",
               letterSpacing: "0.5px",
+              fontWeight: 600,
             }}
           >
             Average Latency
           </div>
           <div
+            className="tabular-nums font-mono"
             style={{
-              fontSize: "1.75rem",
+              fontSize: "1.5rem",
               fontWeight: 700,
               color: "var(--accent-indigo)",
-              marginTop: "6px",
-              fontFamily: "var(--font-mono)",
+              marginTop: "4px",
             }}
           >
             {loading ? "..." : `${(avgDurationMs / 1000).toFixed(1)}s`}
@@ -268,13 +329,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Main Runs Table & Empty State */}
       <div
-        className="glass-panel"
         style={{
           flex: 1,
-          borderRadius: "14px",
+          borderRadius: "8px",
+          border: "1px solid var(--border-subtle)",
+          background: "var(--surface-card)",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          minHeight: 0,
         }}
       >
         {loading ? (
@@ -283,19 +346,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              padding: "24px",
-              gap: "16px",
+              padding: "20px",
+              gap: "12px",
             }}
           >
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
                 className="skeleton-shimmer"
                 style={{
-                  height: "56px",
+                  height: "48px",
                   width: "100%",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255, 255, 255, 0.05)",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border-subtle)",
                 }}
               />
             ))}
@@ -314,13 +377,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               gap: "12px",
             }}
           >
-            <div style={{ fontSize: "1.5rem" }}>⚠️</div>
-            <div style={{ fontSize: "1rem", fontWeight: 600 }}>{error}</div>
+            <AlertTriangle size={32} />
+            <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>{error}</div>
             <button
               type="button"
               onClick={fetchRuns}
-              className="btn-secondary"
-              style={{ marginTop: "8px" }}
+              style={{
+                marginTop: "8px",
+                padding: "6px 16px",
+                background: "var(--surface-panel)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "6px",
+                color: "var(--text-primary)",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
             >
               Retry Fetch
             </button>
@@ -334,29 +405,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               alignItems: "center",
               justifyContent: "center",
               color: "var(--text-muted)",
-              gap: "16px",
+              gap: "14px",
               padding: "64px 32px",
             }}
           >
             <div
               style={{
-                width: "72px",
-                height: "72px",
+                width: "56px",
+                height: "56px",
                 borderRadius: "50%",
                 background: "rgba(6, 182, 212, 0.08)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 border: "1px solid rgba(6, 182, 212, 0.2)",
-                fontSize: "1.8rem",
+                color: "var(--accent-cyan)",
               }}
             >
-              🛡️
+              <ShieldCheck size={28} />
             </div>
             <div style={{ textAlign: "center" }}>
               <p
                 style={{
-                  fontSize: "1.15rem",
+                  fontSize: "1.05rem",
                   fontWeight: 600,
                   color: "var(--text-primary)",
                   marginBottom: "4px",
@@ -366,9 +437,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </p>
               <p
                 style={{
-                  fontSize: "0.88rem",
+                  fontSize: "0.82rem",
                   color: "var(--text-secondary)",
-                  maxWidth: "400px",
+                  maxWidth: "420px",
                 }}
               >
                 Execute your first smart contract verification run to inspect
@@ -379,21 +450,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={() => onSelectRun("new")}
               style={{
-                marginTop: "8px",
-                padding: "10px 24px",
-                background: "var(--judge-accent)",
-                color: "#ffffff",
-                borderRadius: "8px",
+                marginTop: "6px",
+                padding: "8px 20px",
+                background: "var(--accent-cyan)",
+                color: "#050810",
+                border: "none",
+                borderRadius: "6px",
                 fontWeight: 600,
-                fontSize: "0.9rem",
-                boxShadow: "0 4px 14px rgba(6, 182, 212, 0.3)",
+                fontSize: "0.82rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(6, 182, 212, 0.25)",
               }}
             >
-              ⚡ Launch First Audit Run
+              <Zap size={14} fill="currentColor" /> Launch First Audit Run
             </button>
           </div>
         ) : (
-          <div style={{ overflowX: "auto", flex: 1 }}>
+          <div style={{ overflowX: "auto", overflowY: "auto", flex: 1 }}>
             <table
               style={{
                 width: "100%",
@@ -404,41 +480,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <thead>
                 <tr
                   style={{
-                    background: "rgba(5, 8, 16, 0.8)",
-                    borderBottom: "1px solid var(--border-color)",
+                    background: "var(--surface-panel)",
+                    borderBottom: "1px solid var(--border-subtle)",
                     color: "var(--text-muted)",
-                    fontSize: "0.75rem",
+                    fontSize: "0.72rem",
                     textTransform: "uppercase",
-                    letterSpacing: "1px",
+                    letterSpacing: "0.5px",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10,
                   }}
                 >
                   <th
                     scope="col"
-                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                    style={{ padding: "12px 20px", fontWeight: 600 }}
                   >
                     Run ID / Repo
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                    style={{ padding: "12px 20px", fontWeight: 600 }}
                   >
                     Status
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                    style={{ padding: "12px 20px", fontWeight: 600 }}
                   >
                     Verdict
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                    style={{ padding: "12px 20px", fontWeight: 600 }}
                   >
                     Severity
                   </th>
                   <th
                     scope="col"
-                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                    style={{ padding: "12px 20px", fontWeight: 600 }}
                   >
                     Duration
                   </th>
@@ -458,78 +537,86 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     tabIndex={0}
                     role="button"
                     aria-label={`Xem chi tiết phiên kiểm thử ${run.id}`}
-                    className="hover-scale"
                     style={{
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                      borderBottom: "1px solid var(--border-subtle)",
                       cursor: "pointer",
+                      transition: "background 0.1s ease",
                     }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.background =
+                        "var(--surface-panel)")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
                   >
-                    <td style={{ padding: "16px 24px" }}>
+                    <td style={{ padding: "12px 20px" }}>
                       <div
+                        className="tabular-nums font-mono"
                         style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "0.875rem",
+                          fontSize: "0.82rem",
                           color: "var(--accent-cyan)",
+                          fontWeight: 500,
                         }}
                       >
                         {run.id}
                       </div>
                       <div
                         style={{
-                          fontSize: "0.85rem",
+                          fontSize: "0.78rem",
                           color: "var(--text-secondary)",
-                          marginTop: "4px",
+                          marginTop: "2px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          maxWidth: "250px",
+                          maxWidth: "400px",
                         }}
                         title={run.targetRepository}
                       >
                         {run.targetRepository}
                       </div>
                     </td>
-                    <td style={{ padding: "16px 24px" }}>
+                    <td style={{ padding: "12px 20px" }}>
                       <span
                         style={{
-                          padding: "4px 12px",
-                          borderRadius: "20px",
-                          fontSize: "0.75rem",
+                          padding: "3px 10px",
+                          borderRadius: "4px",
+                          fontSize: "0.72rem",
                           fontWeight: 600,
                           background:
                             run.status === "COMPLETED"
-                              ? "rgba(16, 185, 129, 0.15)"
+                              ? "rgba(16, 185, 129, 0.12)"
                               : run.status === "FAILED"
-                                ? "rgba(244, 63, 94, 0.15)"
-                                : "rgba(59, 130, 246, 0.15)",
+                                ? "rgba(244, 63, 94, 0.12)"
+                                : "rgba(59, 130, 246, 0.12)",
                           color:
                             run.status === "COMPLETED"
-                              ? "#10b981"
+                              ? "var(--accent-emerald)"
                               : run.status === "FAILED"
-                                ? "#f43f5e"
-                                : "#3b82f6",
+                                ? "var(--accent-rose)"
+                                : "var(--accent-indigo)",
                           border: `1px solid ${
                             run.status === "COMPLETED"
-                              ? "rgba(16, 185, 129, 0.3)"
+                              ? "rgba(16, 185, 129, 0.25)"
                               : run.status === "FAILED"
-                                ? "rgba(244, 63, 94, 0.3)"
-                                : "rgba(59, 130, 246, 0.3)"
+                                ? "rgba(244, 63, 94, 0.25)"
+                                : "rgba(59, 130, 246, 0.25)"
                           }`,
                         }}
                       >
                         {run.status}
                       </span>
                     </td>
-                    <td style={{ padding: "16px 24px" }}>
+                    <td style={{ padding: "12px 20px" }}>
                       {run.verdict ? (
                         <span
                           style={{
-                            fontSize: "0.875rem",
+                            fontSize: "0.82rem",
                             fontWeight: 600,
                             color:
                               run.verdict.validity === "valid"
-                                ? "#f43f5e"
-                                : "#10b981",
+                                ? "var(--accent-rose)"
+                                : "var(--accent-emerald)",
                           }}
                         >
                           {run.verdict.validity.toUpperCase()}
@@ -538,11 +625,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span style={{ color: "var(--text-muted)" }}>-</span>
                       )}
                     </td>
-                    <td style={{ padding: "16px 24px" }}>
+                    <td style={{ padding: "12px 20px" }}>
                       {run.verdict ? (
                         <span
                           style={{
-                            fontSize: "0.875rem",
+                            fontSize: "0.82rem",
                             color: "var(--text-secondary)",
                             textTransform: "capitalize",
                           }}
@@ -553,12 +640,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span style={{ color: "var(--text-muted)" }}>-</span>
                       )}
                     </td>
-                    <td style={{ padding: "16px 24px" }}>
+                    <td style={{ padding: "12px 20px" }}>
                       <span
+                        className="tabular-nums font-mono"
                         style={{
-                          fontSize: "0.875rem",
+                          fontSize: "0.8rem",
                           color: "var(--text-muted)",
-                          fontFamily: "var(--font-mono)",
                         }}
                       >
                         {(run.totalDurationMs / 1000).toFixed(1)}s

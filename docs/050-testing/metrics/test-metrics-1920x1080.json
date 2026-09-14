@@ -1,0 +1,17 @@
+{
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "cockpit_container_width": 1888,
+  "left_margin_px": 16,
+  "right_margin_px": 16,
+  "horizontal_dead_void_ratio": 0.0167,
+  "dead_void_pass": true,
+  "cls_score": 0,
+  "build_exit_code": 0,
+  "e2e_total_tests": 22,
+  "e2e_pass_count": 22,
+  "e2e_fail_count": 0,
+  "timestamp": "2026-09-14T08:56:11.757Z"
+}

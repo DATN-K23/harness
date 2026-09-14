@@ -2,13 +2,14 @@ import type {
   RunSchema,
   ToolCallSchema,
   VerdictSchema,
-} from "../generated/api";
+} from "../generated/api/index.js";
 
 export function downloadFile(
   content: string,
   fileName: string,
   mimeType: string,
 ) {
+  if (typeof document === "undefined") return;
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
 
@@ -22,8 +23,8 @@ export function downloadFile(
   URL.revokeObjectURL(url);
 }
 
-export function exportRunsToCSV(runs: RunSchema[]) {
-  if (!runs || runs.length === 0) return;
+export function generateRunsCSV(runs: RunSchema[]): string {
+  if (!runs || runs.length === 0) return "";
 
   const headers = [
     "Run ID",
@@ -55,7 +56,12 @@ export function exportRunsToCSV(runs: RunSchema[]) {
       .join(",");
   });
 
-  const csvContent = [headers.join(","), ...rows].join("\n");
+  return [headers.join(","), ...rows].join("\n");
+}
+
+export function exportRunsToCSV(runs: RunSchema[]) {
+  const csvContent = generateRunsCSV(runs);
+  if (!csvContent) return;
 
   downloadFile(
     csvContent,
@@ -64,11 +70,11 @@ export function exportRunsToCSV(runs: RunSchema[]) {
   );
 }
 
-export function exportRunsToJSON(
+export function generateRunsJSON(
   runs: RunSchema[],
   toolCallsByRun?: Record<string, ToolCallSchema[]>,
-) {
-  if (!runs || runs.length === 0) return;
+): string {
+  if (!runs || runs.length === 0) return "";
 
   const exportData = runs.map((run) => {
     const data: Record<string, unknown> = { ...run };
@@ -78,8 +84,18 @@ export function exportRunsToJSON(
     return data;
   });
 
+  return JSON.stringify(exportData, null, 2);
+}
+
+export function exportRunsToJSON(
+  runs: RunSchema[],
+  toolCallsByRun?: Record<string, ToolCallSchema[]>,
+) {
+  const jsonContent = generateRunsJSON(runs, toolCallsByRun);
+  if (!jsonContent) return;
+
   downloadFile(
-    JSON.stringify(exportData, null, 2),
+    jsonContent,
     `audit_runs_export_${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
     "application/json",
   );

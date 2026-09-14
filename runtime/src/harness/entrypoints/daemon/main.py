@@ -17,7 +17,15 @@ def create_app() -> FastAPI:
     # Chỉ allow localhost cho Local API (theo Blueprint)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:1420", "tauri://localhost"],  # Tauri domains
+        allow_origins=[
+            "http://localhost:1420",
+            "http://127.0.0.1:1420",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "tauri://localhost",
+        ],  # Tauri & Local Dev domains
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

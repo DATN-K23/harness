@@ -34,12 +34,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, []);
 
   const handleExportCSV = () => {
+    if (runs.length === 0) return;
     exportRunsToCSV(runs);
   };
 
   const handleExportJSON = () => {
+    if (runs.length === 0) return;
     exportRunsToJSON(runs);
   };
+
+  // Compute summary stats
+  const totalRuns = runs.length;
+  const completedRuns = runs.filter((r) => r.status === "COMPLETED").length;
+  const verifiedFindings = runs.filter(
+    (r) => r.verdict?.validity === "valid",
+  ).length;
+  const avgDurationMs =
+    totalRuns > 0
+      ? Math.round(
+          runs.reduce((acc, r) => acc + (r.totalDurationMs || 0), 0) /
+            totalRuns,
+        )
+      : 0;
 
   return (
     <div
@@ -48,93 +64,214 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         flexDirection: "column",
         height: "100%",
         width: "100%",
-        maxWidth: "1150px",
+        maxWidth: "1200px",
         margin: "0 auto",
-        padding: "32px 16px",
+        padding: "24px 32px",
       }}
       className="animate-fade-in-up"
     >
+      {/* Header Bar */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "32px",
+          marginBottom: "24px",
         }}
       >
         <div>
           <h2
             style={{
-              fontSize: "1.875rem",
+              fontSize: "1.75rem",
               fontWeight: 700,
-              background: "linear-gradient(90deg, #60a5fa, #a5b4fc)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              color: "var(--text-primary)",
+              letterSpacing: "-0.5px",
             }}
           >
-            Compare Runs
+            Audit Telemetry & Benchmarks
           </h2>
           <p
             style={{
               color: "var(--text-secondary)",
-              marginTop: "8px",
-              fontSize: "0.95rem",
+              marginTop: "4px",
+              fontSize: "0.9rem",
             }}
           >
-            Analytics dashboard for evaluation and ablation study.
+            Comprehensive analytics dashboard for multi-agent evaluation and
+            ablation verification.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "16px" }}>
+        <div style={{ display: "flex", gap: "12px" }}>
           <button
+            type="button"
             onClick={fetchRuns}
-            style={{
-              padding: "10px 18px",
-              background: "rgba(30, 41, 59, 0.6)",
-              color: "var(--text-primary)",
-              borderRadius: "8px",
-              border: "1px solid var(--border-color)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-            }}
+            className="btn-secondary"
+            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+            aria-label="Refresh run logs"
           >
-            Refresh
+            🔄 Refresh
           </button>
           <button
+            type="button"
             onClick={handleExportCSV}
+            disabled={runs.length === 0}
+            className="btn-indigo"
             style={{
-              padding: "10px 18px",
-              background: "linear-gradient(135deg, #4f46e5, #4338ca)",
-              color: "#ffffff",
-              borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
+              padding: "8px 16px",
+              fontSize: "0.85rem",
+              opacity: runs.length === 0 ? 0.4 : 1,
+              cursor: runs.length === 0 ? "not-allowed" : "pointer",
             }}
+            aria-label="Export runs to CSV"
           >
             Export CSV
           </button>
           <button
+            type="button"
             onClick={handleExportJSON}
+            disabled={runs.length === 0}
+            className="btn-purple"
             style={{
-              padding: "10px 18px",
-              background: "linear-gradient(135deg, #9333ea, #7e22ce)",
-              color: "#ffffff",
-              borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              boxShadow: "0 4px 14px rgba(147, 51, 234, 0.3)",
+              padding: "8px 16px",
+              fontSize: "0.85rem",
+              opacity: runs.length === 0 ? 0.4 : 1,
+              cursor: runs.length === 0 ? "not-allowed" : "pointer",
             }}
+            aria-label="Export runs to JSON"
           >
             Export JSON
           </button>
         </div>
       </div>
 
+      {/* Top Stats Overview Cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "16px",
+          marginBottom: "24px",
+        }}
+      >
+        <div
+          className="glass-panel"
+          style={{ padding: "18px 20px", borderRadius: "12px" }}
+        >
+          <div
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.8rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Total Audit Runs
+          </div>
+          <div
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              marginTop: "6px",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {loading ? "..." : totalRuns}
+          </div>
+        </div>
+
+        <div
+          className="glass-panel"
+          style={{ padding: "18px 20px", borderRadius: "12px" }}
+        >
+          <div
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.8rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Completed Rate
+          </div>
+          <div
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              color: "var(--accent-cyan)",
+              marginTop: "6px",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {loading
+              ? "..."
+              : totalRuns > 0
+                ? `${Math.round((completedRuns / totalRuns) * 100)}%`
+                : "0%"}
+          </div>
+        </div>
+
+        <div
+          className="glass-panel"
+          style={{ padding: "18px 20px", borderRadius: "12px" }}
+        >
+          <div
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.8rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Verified Findings
+          </div>
+          <div
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              color: "var(--accent-emerald)",
+              marginTop: "6px",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {loading ? "..." : verifiedFindings}
+          </div>
+        </div>
+
+        <div
+          className="glass-panel"
+          style={{ padding: "18px 20px", borderRadius: "12px" }}
+        >
+          <div
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.8rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Average Latency
+          </div>
+          <div
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              color: "var(--accent-indigo)",
+              marginTop: "6px",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {loading ? "..." : `${(avgDurationMs / 1000).toFixed(1)}s`}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Runs Table & Empty State */}
       <div
         className="glass-panel"
         style={{
           flex: 1,
-          borderRadius: "16px",
+          borderRadius: "14px",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -150,14 +287,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               gap: "16px",
             }}
           >
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
                 className="skeleton-shimmer"
                 style={{
-                  height: "64px",
+                  height: "56px",
                   width: "100%",
-                  borderRadius: "12px",
+                  borderRadius: "8px",
                   border: "1px solid rgba(255, 255, 255, 0.05)",
                 }}
               />
@@ -168,14 +305,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             style={{
               flex: 1,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
               color: "var(--accent-rose)",
-              padding: "32px",
+              padding: "48px",
               textAlign: "center",
+              gap: "12px",
             }}
           >
-            {error}
+            <div style={{ fontSize: "1.5rem" }}>⚠️</div>
+            <div style={{ fontSize: "1rem", fontWeight: 600 }}>{error}</div>
+            <button
+              type="button"
+              onClick={fetchRuns}
+              className="btn-secondary"
+              style={{ marginTop: "8px" }}
+            >
+              Retry Fetch
+            </button>
           </div>
         ) : runs.length === 0 ? (
           <div
@@ -187,36 +335,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               justifyContent: "center",
               color: "var(--text-muted)",
               gap: "16px",
-              padding: "48px",
+              padding: "64px 32px",
             }}
           >
             <div
               style={{
-                width: "64px",
-                height: "64px",
+                width: "72px",
+                height: "72px",
                 borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.05)",
+                background: "rgba(6, 182, 212, 0.08)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid var(--border-color)",
-                fontSize: "1.5rem",
+                border: "1px solid rgba(6, 182, 212, 0.2)",
+                fontSize: "1.8rem",
               }}
             >
-              📋
+              🛡️
             </div>
-            <p
+            <div style={{ textAlign: "center" }}>
+              <p
+                style={{
+                  fontSize: "1.15rem",
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  marginBottom: "4px",
+                }}
+              >
+                No Audit Runs Recorded Yet
+              </p>
+              <p
+                style={{
+                  fontSize: "0.88rem",
+                  color: "var(--text-secondary)",
+                  maxWidth: "400px",
+                }}
+              >
+                Execute your first smart contract verification run to inspect
+                trajectory events and model verdicts.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelectRun("new")}
               style={{
-                fontSize: "1.1rem",
+                marginTop: "8px",
+                padding: "10px 24px",
+                background: "var(--judge-accent)",
+                color: "#ffffff",
+                borderRadius: "8px",
                 fontWeight: 600,
-                color: "var(--text-secondary)",
+                fontSize: "0.9rem",
+                boxShadow: "0 4px 14px rgba(6, 182, 212, 0.3)",
               }}
             >
-              No audit runs found yet.
-            </p>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
-              Start a new run to see results here.
-            </p>
+              ⚡ Launch First Audit Run
+            </button>
           </div>
         ) : (
           <div style={{ overflowX: "auto", flex: 1 }}>
@@ -238,19 +412,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     letterSpacing: "1px",
                   }}
                 >
-                  <th style={{ padding: "16px 24px", fontWeight: 600 }}>
+                  <th
+                    scope="col"
+                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                  >
                     Run ID / Repo
                   </th>
-                  <th style={{ padding: "16px 24px", fontWeight: 600 }}>
+                  <th
+                    scope="col"
+                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                  >
                     Status
                   </th>
-                  <th style={{ padding: "16px 24px", fontWeight: 600 }}>
+                  <th
+                    scope="col"
+                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                  >
                     Verdict
                   </th>
-                  <th style={{ padding: "16px 24px", fontWeight: 600 }}>
+                  <th
+                    scope="col"
+                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                  >
                     Severity
                   </th>
-                  <th style={{ padding: "16px 24px", fontWeight: 600 }}>
+                  <th
+                    scope="col"
+                    style={{ padding: "16px 24px", fontWeight: 600 }}
+                  >
                     Duration
                   </th>
                 </tr>
@@ -260,6 +449,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <tr
                     key={run.id}
                     onClick={() => onSelectRun(run.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectRun(run.id);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Xem chi tiết phiên kiểm thử ${run.id}`}
                     className="hover-scale"
                     style={{
                       borderBottom: "1px solid rgba(255, 255, 255, 0.04)",

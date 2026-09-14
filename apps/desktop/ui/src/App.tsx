@@ -5,49 +5,16 @@ import { ReplayController } from "./components/demo/ReplayController.js";
 import { useReplayStore, type DemoEvent } from "./stores/replay.store.js";
 import { DemoService, RunsService } from "./generated/api/index.js";
 import { DashboardView } from "./components/dashboard/DashboardView.js";
-// OpenAPI.BASE được cấu hình tập trung tại useAuditHarnessClient.tsx (port 3000)
-
-const DEFAULT_DEMO_FIXTURE: DemoEvent[] = [
-  { type: "run:status_changed", payload: { status: "RUNNING" }, delayMs: 500 },
-  {
-    type: "step:thought",
-    payload: {
-      stepIndex: 1,
-      thought: "Analyzing Vault.sol reentrancy vectors...",
-    },
-    delayMs: 1000,
-  },
-  {
-    type: "step:tool_call",
-    payload: {
-      stepIndex: 1,
-      toolName: "read_file",
-      isError: false,
-      durationMs: 45,
-    },
-    delayMs: 1200,
-  },
-  {
-    type: "step:thought",
-    payload: {
-      stepIndex: 2,
-      thought: "Found state update after external transfer — CEI violation.",
-    },
-    delayMs: 1000,
-  },
-  {
-    type: "run:verdict",
-    payload: { status: "VALID", severity: "HIGH", confidenceScore: 0.95 },
-    delayMs: 1500,
-  },
-  { type: "run:completed", payload: { totalDurationMs: 5200 }, delayMs: 500 },
-];
+import {
+  TopNavigation,
+  type AppMode,
+  type AppView,
+} from "./components/layout/TopNavigation.js";
+import { DEFAULT_DEMO_FIXTURE } from "./fixtures/demo.fixture.js";
 
 export const App: React.FC = () => {
-  const [activeMode, setActiveMode] = useState<"live" | "demo">("live");
-  const [activeView, setActiveView] = useState<"judge" | "trace" | "dashboard">(
-    "judge",
-  );
+  const [activeMode, setActiveMode] = useState<AppMode>("live");
+  const [activeView, setActiveView] = useState<AppView>("judge");
   const [committedRunId, setCommittedRunId] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -105,132 +72,27 @@ export const App: React.FC = () => {
         paddingBottom: "120px",
       }}
     >
-      {/* Top Navigation */}
-      <nav
-        className="glass-panel"
-        style={{
-          padding: "16px 32px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "16px",
-          borderBottom: "1px solid var(--border-color)",
-          borderTop: "none",
-          borderLeft: "none",
-          borderRight: "none",
-          borderRadius: 0,
-        }}
-      >
-        {/* Logo */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            cursor: "pointer",
-          }}
-          onClick={() => {
-            setActiveView("judge");
+      {/* Modular Top Navigation Header */}
+      <TopNavigation
+        activeMode={activeMode}
+        activeView={activeView}
+        onSelectMode={(mode) => {
+          if (mode === "demo") {
+            void handleStartDemo();
+          } else {
             setActiveMode("live");
-          }}
-        >
-          <div
-            style={{
-              width: "14px",
-              height: "14px",
-              background: "var(--judge-accent)",
-              borderRadius: "50%",
-              boxShadow: "0 0 10px var(--accent-cyan)",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: 700,
-              color: "var(--text-primary)",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Audit Harness
-          </span>
-        </div>
+          }
+        }}
+        onSelectView={(view) => {
+          setActiveView(view);
+        }}
+        onLogoClick={() => {
+          setActiveView("judge");
+          setActiveMode("live");
+        }}
+      />
 
-        {/* Mode Switcher */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            background: "rgba(0,0,0,0.3)",
-            padding: "4px",
-            borderRadius: "12px",
-          }}
-        >
-          <button
-            onClick={() => {
-              setActiveMode("live");
-              setActiveView("judge");
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              background:
-                activeMode === "live" ? "var(--bg-card-hover)" : "transparent",
-              color:
-                activeMode === "live"
-                  ? "var(--text-primary)"
-                  : "var(--text-secondary)",
-              transition: "all 0.2s",
-            }}
-          >
-            Live Mode
-          </button>
-          <button
-            onClick={() => void handleStartDemo()}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              background:
-                activeMode === "demo"
-                  ? "rgba(16, 185, 129, 0.2)"
-                  : "transparent",
-              color:
-                activeMode === "demo"
-                  ? "var(--accent-emerald)"
-                  : "var(--text-secondary)",
-              transition: "all 0.2s",
-            }}
-          >
-            Demo Mode
-          </button>
-          <button
-            onClick={() => {
-              setActiveMode("live");
-              setActiveView("dashboard");
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              background:
-                activeView === "dashboard"
-                  ? "rgba(168, 85, 247, 0.2)"
-                  : "transparent",
-              color:
-                activeView === "dashboard"
-                  ? "rgb(192, 132, 252)"
-                  : "var(--text-secondary)",
-              transition: "all 0.2s",
-            }}
-          >
-            Dashboard
-          </button>
-        </div>
-      </nav>
-
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main style={{ marginTop: "24px" }}>
         {startError && activeView === "judge" && (
           <div
@@ -247,11 +109,14 @@ export const App: React.FC = () => {
               justifyContent: "space-between",
               alignItems: "center",
             }}
+            role="alert"
           >
             <span>{startError}</span>
             <button
+              type="button"
               onClick={() => setStartError(null)}
               style={{ color: "#fca5a5", fontWeight: 700, padding: "4px 8px" }}
+              aria-label="Đóng thông báo lỗi"
             >
               ✕
             </button>
@@ -269,9 +134,14 @@ export const App: React.FC = () => {
         {activeView === "dashboard" && (
           <DashboardView
             onSelectRun={(runId) => {
-              setCommittedRunId(runId);
-              setActiveMode("live");
-              setActiveView("trace");
+              if (runId === "new") {
+                setActiveMode("live");
+                setActiveView("judge");
+              } else {
+                setCommittedRunId(runId);
+                setActiveMode("live");
+                setActiveView("trace");
+              }
             }}
           />
         )}

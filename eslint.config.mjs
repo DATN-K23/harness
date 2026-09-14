@@ -14,6 +14,7 @@ export default tseslint.config(
       "**/blueprint/**",
       "**/openspec/**",
       "**/generated/**",
+      "**/.agents/**",
     ],
   },
   eslint.configs.recommended,

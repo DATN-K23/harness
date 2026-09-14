@@ -1,6 +1,9 @@
 # Spec: Impeccable UI Experience
 
-## ADDED REQUIREMENTS
+## Purpose
+Define the user experience, high-density desktop cockpit architecture, real-time streaming telemetry, and robust error handling standards for the AI Security Audit Harness desktop application.
+
+## Requirements
 
 ### Requirement: Form Validation and Test Presets
 

@@ -1,3 +1,5 @@
 .agent/
 .claude/
 .codex/
+.agents/
+../docs/blueprint-new-vi.md

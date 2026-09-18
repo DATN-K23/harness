@@ -1428,18 +1428,12 @@ MVP dùng PostgreSQL work/outbox/claim/lease để có một durable authority, 
 
 Sau khi đọc tài liệu này, hãy quay lại file gốc theo nhu cầu:
 
-1. Quyết định và trạng thái: `blueprint/decisions/README.md` và ADR-001…007.
-2. Cấu trúc code: `blueprint/architecture/physical-repository-layout.md`.
-3. Module/owner/dependency: `blueprint/architecture/components-and-ownership.md`.
-4. Product/process topology: `blueprint/architecture/desktop-runtime-topology.md`.
-5. Agent loop: `blueprint/architecture/agent-runtime-boundaries.md` và `end-to-end-sequences.md`.
-6. Lifecycle: `blueprint/architecture/judge-lifecycle.md`.
-7. Contract: `blueprint/contracts/` và `blueprint/providers/`.
-8. Persistence: `blueprint/persistence/`.
-9. Security: `blueprint/security/`.
-10. Evaluation: `blueprint/evaluation/`.
-11. Desktop UX: `blueprint/desktop/`.
-12. Chia việc và thứ tự code: `blueprint/delivery/implementation-work-packages.md`.
+1. Quyết định và trạng thái: `blueprint/decisions/architecture-decisions.md`.
+2. Kiến trúc tổng quan và Database: `blueprint/architecture/system-overview.md`.
+3. Ranh giới module và Ground-Truth: `blueprint/architecture/module-layout.md`.
+4. Luồng xử lý và Vòng đời: `blueprint/architecture/sequences.md`.
+5. Nguyên lý chấm điểm: `blueprint/evaluation/methodology.md`.
+6. Cấu hình thí nghiệm: `blueprint/evaluation/experiment-profile.md`.
 
 ## 33. Bản tóm tắt một trang
 

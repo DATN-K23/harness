@@ -6,7 +6,6 @@
 
 Normative: yes  
 Version: `judge-sequences-v3`  
-Owner: TV1; collaborators: TV2, TV3, TV4, TV6
 
 ## Submission to terminal retrieval
 
@@ -52,7 +51,7 @@ sequenceDiagram
   API-->>T: version/contract/capability/health
   T-->>UI: validated generated response
   Note over UI,T: every window/host may close or crash
-  Note over S,DB: no implicit stop/cancel; committed work remains authoritative
+  Note over S,DB: no implicit stop/cancel, committed work remains authoritative
   U->>UI: reopen desktop
   UI->>T: rediscover + full handshake + cursor resume
 ```
@@ -75,17 +74,17 @@ sequenceDiagram
   API->>DB: inspect active runs, claims and ambiguous attempts
   alt reject_if_active with work
     API-->>T: conflict + safe counts
-    T-->>UI: no installation; explicit action required
+    T-->>UI: no installation, explicit action required
   else confirmed quiesce_then_stop or no work
-    API->>DB: quiesce at safe boundaries; preserve ambiguity
+    API->>DB: quiesce at safe boundaries, preserve ambiguity
     API-->>T: quiesced + manifest digest
     T->>PKG: install coordinated signed artifacts
     T->>API: restart/rediscover and full compatibility handshake
     alt compatible and healthy
-      T-->>UI: ready; mutations enabled
+      T-->>UI: ready, mutations enabled
     else install/interruption/mismatch
       T->>PKG: execute documented rollback
-      T-->>UI: incompatible/update-failed; mutations disabled
+      T-->>UI: incompatible/update-failed, mutations disabled
     end
   end
 ```
@@ -107,7 +106,7 @@ sequenceDiagram
     C-->>O: model input or context_budget
     O->>E: context.allocated/transformed
     O->>P: normalized request + accepted profile digest
-    P->>P: pre-network gate; official async adapter; one non-streaming attempt
+    P->>P: pre-network gate, official async adapter, one non-streaming attempt
     P-->>O: normalized response/tool intent/usage/error
     O->>E: provider attempt + exact sanitized response
     alt tool request
@@ -191,7 +190,7 @@ sequenceDiagram
   Q->>W2: redeliver run_id
   W2->>DB: acquire new claim or observe active lease policy
   W2->>DB: reload next sequence and run state
-  W2->>DB: append N+1; duplicates rejected
+  W2->>DB: append N+1, duplicates rejected
   W2->>DB: terminal CAS
 ```
 
@@ -201,9 +200,7 @@ Provider calls cannot be guaranteed exactly once across process failure. The rep
 
 The scheduler resolves one accepted provider profile ID/version/digest for a matched pair. Both direct and harness arms use the same immutable model, SDK mapping, sampling, output reserve, timeout and one-attempt policy. Their prompt wrappers and allowed tools intentionally differ and are versioned by the experiment profile. Profile drift or retry asymmetry rejects the pair before either arm reaches the network.
 
-## Post-terminal scoring
 
-The evaluator passes canonical `experiment_cell_id` and terminal `run_id` to the separate scorer entrypoint without loading a label. Only scorer-composed `scoring` resolves `case_id`, writes scorer-only detail and submits `ApprovedScoreV1` through `evaluation.public`. The score is not a run event; no label or scorer detail returns to worker, evaluator internals, tools, provider, ordinary run API or desktop.
 
 
 ## Source: judge-lifecycle.md
@@ -212,7 +209,6 @@ The evaluator passes canonical `experiment_cell_id` and terminal `run_id` to the
 
 Normative: yes  
 Version: `judge-lifecycle-v2`  
-Owner: TV1; collaborator: TV6  
 Requirements: API-03, ORCH-01, ORCH-03
 
 ## State machine

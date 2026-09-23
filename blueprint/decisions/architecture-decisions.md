@@ -4,15 +4,14 @@
 
 # ADR-001: Technology stack for the future Judge MVP
 
-- Status: `Accepted`
+- Status: `Superseded by ADR-008`
 - Version: `adr-001-v2`
 - Decision date: 2026-08-14
-- Owner: TV1/TV6
-- Collaborators: TV2, TV3, TV4, TV5
 - Governing requirements: API-01–API-10, ORCH-01–ORCH-08, DATA-01–DATA-06, UI-01–UI-06
-- Accepted by: project owner/team lead after confirming the six-person team can work in Python and TypeScript
+- Accepted by: project owner/team lead
 - Approval scope: runtime/renderer stack family; Tauri native-host selection is governed by accepted ADR-007
 - Affected work packages: WP-01–WP-10
+- Superseded: This ADR's Python/FastAPI/PostgreSQL stack is superseded by ADR-008 (TypeScript/Bun monorepo).
 
 ## Context
 
@@ -60,7 +59,7 @@ Exact compatible dependency versions are pinned by the first implementation chan
 - ADR-006 fixes downloadable desktop plus independent local runtime.
 - ADR-007 is `Accepted` at architecture-choice scope for Tauri 2, least-authority native commands, independent runtime supervision, protected credential custody and coordinated signed updates; three-OS readiness remains future evidence.
 - ADR-002 fixes direct official-SDK provider integration; an accepted provider profile is still required before network use.
-- ADR-003 fixes evaluation methodology; an accepted experiment profile is still required before result-bearing execution.
+
 
 ## Consequences
 
@@ -72,7 +71,7 @@ Exact compatible dependency versions are pinned by the first implementation chan
 
 ## Supersession rule
 
-Changing the language family, API framework, relational authority, renderer family or packaging topology requires a superseding ADR with incompatibility evidence, migration impact, TV1/TV6 review and project-owner approval. Ordinary lockfile updates do not supersede this ADR.
+Changing the language family, API framework, relational authority, renderer family or packaging topology requires a superseding ADR with incompatibility evidence, migration impact, and project-owner approval. Ordinary lockfile updates do not supersede this ADR.
 
 
 ## Source: ADR-002-provider-contract.md
@@ -82,7 +81,6 @@ Changing the language family, API framework, relational authority, renderer fami
 - Status: `Accepted`
 - Version: `adr-002-v2`
 - Decision date: `2026-08-14`
-- Owner/approvers: TV1 architecture owner and TV5 evaluation owner
 - Governing requirements: PROV-01–PROV-04, ORCH-02, ORCH-04, VER-01, DATA-02
 - Affected work packages: WP-03, WP-04, WP-08
 
@@ -135,81 +133,17 @@ Direct and harness arms reference the same accepted provider-profile identifier 
 
 ## Acceptance evidence
 
-Accepted by TV1/TV5 on `2026-08-14` against this `adr-002-v2` content and the project-port boundary in `architecture/agent-runtime-boundaries.md`. Acceptance authorizes blueprint architecture only. It does not approve a credential, model, price, network call, dependency installation or experiment.
+Accepted on `2026-08-14` against this `adr-002-v2` content and the project-port boundary in `architecture/agent-runtime-boundaries.md`. Acceptance authorizes blueprint architecture only. It does not approve a credential, model, price, network call, dependency installation or experiment.
 
-
-
-## Source: ADR-003-baseline-protocol.md
-
-# ADR-003: Matched-pair direct-versus-harness evaluation methodology
-
-- Status: `Accepted`
-- Version: `adr-003-v2`
-- Decision date: `2026-08-14`
-- Owner/approver: TV5 evaluation owner
-- Collaborators/reviewers: TV1, TV2, TV4, TV6
-- Governing requirements: EVAL-01–EVAL-06
-- Affected work packages: WP-08, WP-09
-
-## Decision scope
-
-This ADR accepts the durable methodology for RQ1. It does not accept a model, case list, repeat count, token budget, statistical threshold, prompt revision, retry-enabled run or paid execution. Those values live in a versioned experiment profile; changing them versions that profile rather than this ADR.
-
-## Accepted methodology
-
-RQ1 compares matched `(case_id, repeat_index)` pairs using the same immutable candidate, source snapshot, provider-profile digest, model snapshot, sampling/seed semantics, verdict-schema digest, total logical-token budget and output accounting. Both cells are scheduled in a deterministic predeclared paired order.
-
-The arms intentionally differ only where the treatment requires it:
-
-| Direct arm | Harness arm |
-|---|---|
-| shared Judge core + direct wrapper | same Judge core + harness wrapper |
-| one request containing deterministic `SourceBundle` | explicit agent loop using local read-only source tools |
-| loop/tools/tool feedback/schema repair disabled | versioned flags may enable them |
-| one provider call | one or more logical calls within the same total logical-token budget |
-
-Prompt wrappers are not claimed identical. Their exact bytes and digests are frozen as treatment definitions. The Judge meaning, verdict schema and provider profile are shared.
-
-## Logical-token and time accounting
-
-Fairness uses total logical model-visible tokens, not a provider invoice shortcut. Every call counts its complete input as sent, including repeated committed history, tool results, wrapper/core prompt, cached context and any content the provider reports at a discounted/cache rate. Output and reasoning categories are retained separately and included under the profile's declared accounting formula. Native usage is preserved; a versioned estimator defines fallback and disagreement behavior.
-
-Wall-clock is not forced equal because orchestration and tools are part of the treatment. The same per-cell maximum protects runaway work, while observed provider latency, tool latency, queue time and end-to-end elapsed time are reported separately. Latency is an outcome, not converted into extra token allowance.
-
-## Primary retry symmetry
-
-Primary direct and harness cells each configure SDK retries to zero and one project attempt per logical provider call. A transient failure remains an accounted terminal outcome. Retry-enabled execution is a separate result-affecting flag, snapshot value, acceptance family and experiment identity; it cannot be mixed into the primary analysis.
-
-## Pairing, drift and test discipline
-
-- Case list, contest/source-family split, repeats, scheduling seed/order, prompts, flags, provider/profile, budgets, schemas, scorer and thresholds are frozen before test execution.
-- A pair is rejected before either network call if a required digest/value differs or only one arm enables retry.
-- Training informs development; validation selects/finalizes profile values; frozen test is used once for the confirmatory report and never for adaptation.
-- Repeats estimate within-case variability; they are not independent cases. Inference clusters at contest and reports source-family sensitivity.
-- All scheduled cells remain in completion and quality denominators under predeclared semantics.
-
-## Profile gate
-
-`evaluation/rq1-confirmatory-v1.profile.yaml` remains `Proposed` until all required values, provider-profile acceptance, prompt/schema/flag/bundle/scorer digests, split freeze, repeat/schedule, contest-cluster inference method/confidence/seed/iterations, thresholds, execution window, paid ceiling and approvers are recorded. The experiment/profile gate runs before provider construction or credential access. Incomplete, unapproved or digest-drifted profiles produce `pre_network_experiment_rejected`.
-
-## Consequences
-
-The comparison is reproducible and suitable for ablation while preserving the real product difference. It costs more metadata and requires honest accounting of repeated context. Changing RQ1 values creates a new profile/version; changing the matched-pair methodology, adaptation rules or inferential unit requires a superseding ADR.
-
-## Acceptance evidence
-
-Accepted by TV5 on `2026-08-14` for methodology only against `adr-003-v2`, `baseline-protocol-v2` and `experiment-profile-v1`. This acceptance is blueprint evidence and authorizes no dataset freeze, credential, paid model call or contest execution.
 
 
 ## Source: ADR-004-opencode-reference.md
 
 # ADR-004: Use OpenCode as pinned architecture evidence, not an implementation base
 
-- Status: `Accepted`
+- Status: `Superseded by ADR-008`
 - Version: `adr-004-v1`
 - Decision date: 2026-08-14
-- Owner: TV1/TV6
-- Collaborators: TV2, TV3, TV4, TV5
 - Governing requirements: ORCH-05–ORCH-08, PROV-01–PROV-07, TOOL-01–TOOL-05, DATA-05, API-05–API-09
 - Reviewed repository: local `/home/zinn/zinn/DATN/opencode` for evidence only
 - Reviewed snapshot: `14f0bf64a19493110b51f5fdeb9c1c1bba5dd3f5`
@@ -217,6 +151,7 @@ Accepted by TV5 on `2026-08-14` for methodology only against `adr-003-v2`, `base
 - License observed: MIT, copyright 2025 opencode
 - Source-reuse authorization: none
 - Affected work packages: WP-01–WP-07
+- Superseded: OpenCode is no longer reference-only; its module structure is adopted as the architectural model per ADR-008.
 
 ## Decision
 
@@ -274,58 +209,61 @@ A newer OpenCode snapshot creates a new ADR-004 version containing the new immut
 
 # ADR-005: Capability-first modular monolith with shallow hexagonal modules
 
-- Status: `Accepted`
-- Version: `adr-005-v1`
-- Decision date: 2026-08-14
-- Owner: TV1
-- Collaborators: TV2, TV3, TV4, TV5, TV6
+- Status: `Accepted (Updated for package-based monorepo)`
+- Version: `adr-005-v2`
+- Decision date: 2026-08-14 (updated: 2026-09-22)
 - Governing requirements: ORCH-05–ORCH-08, DATA-01, EVAL-11, API-08
 - Accepted by: project owner/team lead after source-layout review
 - Affected work packages: WP-01–WP-10
 
 ## Context
 
-The runtime must remain one maintainable product without collapsing business ownership into global `domain/`, `application/`, and `adapters/` folders. The source tree must support six parallel tracks, prevent provider/filesystem/database types from leaking across boundaries, and isolate scoring without creating independently released microservices.
+The runtime must remain one maintainable product without collapsing business ownership into flat global folders. The source tree must prevent provider/database types from leaking across boundaries and isolate core logic without creating independently deployed microservices.
 
 ## Decision
 
-Organize the Python runtime by capability first:
+Organize the TypeScript/Bun monorepo by package, each owning a clear responsibility:
 
-1. `run_control`
-2. `model_gateway`
-3. `source_access`
-4. `agent_runtime`
-5. `judge`
-6. `evaluation`
-7. `scoring`
+1. `protocol` — shared types, effects, and API contracts
+2. `schema` — data models and database schemas (Drizzle ORM)
+3. `core` — agent runtime, Judge execution, tool dispatch, orchestration
+4. `llm` — model gateway and provider adapters
+5. `server` — local daemon / API server
+6. `cli` — command-line interface
+7. `client` — HTTP/RPC client SDK
+8. `ui` — shared UI components
+9. `app` — web application interface
+10. `desktop` — desktop application wrapper (Electron)
 
-Inside a capability, use only the shallow hexagonal roles that contain real artifacts: `public`, `domain`, `application`, `ports`, `adapters`, and `resources`. Do not create empty folders to imitate a template.
+Each package owns its public API surface. Internal implementation details are not exported across package boundaries.
 
-The daemon, worker, evaluator and scorer are separate composition roots over the same runtime source, lockfile and compatibility version. Process separation enforces lifecycle and credentials; it does not create independent services, repositories or release cadences.
+The server, scorer, and CLI are separate entry points over the same monorepo source and lockfile. Process separation enforces lifecycle and credentials; it does not create independent services or release cadences.
 
 ## Dependency law
 
-- Capability-to-capability imports target only `harness.modules.<depended_on>.public`.
-- Internal `domain`, `application`, `ports`, `adapters`, resources and persistence metadata are never imported by another capability.
-- A process entrypoint is the only wiring exception: it may import declared factories/adapters for its own composition graph, but contains no business policy and is never imported by capabilities.
-- Every database table and migration contribution has one capability owner. Other capabilities use public commands/queries/events; they do not query foreign tables.
-- `shared_kernel` contains only stable identifiers, time, money, `Result` and base errors.
-- `platform` contains configuration, database engine, observability, secret-store and process mechanics only. It owns no business repository or query.
-- Public contracts expose project-owned types, never FastAPI, SQLAlchemy, provider-SDK or desktop-shell types.
+- Package-to-package imports target only the package's public API (exported from its `index.ts` or equivalent entry point).
+- Internal implementation files are never imported by another package.
+- `protocol` and `schema` are the foundation packages — they have zero internal dependencies and must be importable by both frontend and backend environments.
+- Every database table and migration has one package owner (`schema`). Other packages use typed queries; they do not define tables.
+- Provider SDK types and credentials never escape the `llm` package boundary.
+- Public contracts expose project-owned types, never framework-specific or provider-SDK types.
 
-## Allowed capability graph
+## Allowed dependency graph
 
-| Importer | Allowed capability imports |
+| Consumer | Allowed imports |
 |---|---|
-| `run_control` | none |
-| `model_gateway` | none |
-| `source_access` | none |
-| `agent_runtime` | `run_control.public`, `model_gateway.public`, `source_access.public` |
-| `judge` | `run_control.public`, `agent_runtime.public`, `source_access.public` |
-| `evaluation` | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
-| `scoring` | `evaluation.public` only |
+| `protocol` | none |
+| `schema` | `protocol` |
+| `llm` | `protocol`, `schema` |
+| `core` | `protocol`, `schema`, `llm` |
+| `server` | `protocol`, `schema`, `llm`, `core` |
+| `client` | `protocol` |
+| `ui` | `protocol`, `client` |
+| `app` | `protocol`, `client`, `ui` |
+| `desktop` | `protocol`, `client`, `ui`, `app` |
+| `cli` | `protocol`, `client` |
 
-The graph is acyclic. A direct `judge -> model_gateway`, `evaluation -> scoring`, or any undeclared edge requires a blueprint/ADR revision.
+The graph is acyclic. Frontend packages (`app`, `desktop`, `ui`, `cli`) must never import backend packages (`core`, `server`, `llm`). Any undeclared edge requires a blueprint/ADR revision.
 
 ## Options considered
 
@@ -336,21 +274,17 @@ The graph is acyclic. A direct `judge -> model_gateway`, `evaluation -> scoring`
 | Capability-first with shallow hexagonal roles | **Accepted** | Keeps business ownership local while preserving ports/adapters where they matter. |
 | Independently deployed service per capability | Rejected for MVP | Adds distributed versioning/failure modes without scale or ownership evidence. |
 
-## Scoring exception and isolation
-
-`scoring` remains in the runtime repository but only the scorer composition root may wire it, its ground-truth adapter, scorer-only generated schemas and credentials. Daemon, worker, evaluator and desktop dependency closures deny the entire module. The scorer sends approved non-ground-truth output through `evaluation.public`; evaluation never imports scoring.
-
 ## Future extension seams
 
 Audit mode and `VerificationRunner` become new capability modules/entrypoints with declared public contracts. They do not add mode conditionals, shell/network authority or PoC execution to Judge modules. Long-term memory and compaction require separate accepted changes and result-affecting flags.
 
 ## Enforcement plan
 
-WP-01 creates architecture tests for allowed/forbidden imports, cycles, framework types in `public`, table/migration ownership, platform/shared-kernel purity, composition-root business logic and scorer dependency closures. `architecture/physical-repository-layout.md` is the normative source placement contract.
+WP-01 creates architecture tests for allowed/forbidden imports, cycles, framework types in public APIs, table/migration ownership, and scorer dependency isolation. `architecture/module-layout.md` is the normative source placement contract.
 
 ## Supersession
 
-Changing the system-level organizing axis, adding a global business adapter/repository layer, or splitting a capability into an independently released service requires a superseding ADR with dependency/migration impact and TV1–TV6 approval.
+Changing the system-level organizing axis, adding a global business adapter/repository layer, or splitting a package into an independently released service requires a superseding ADR with dependency/migration impact and project-owner approval.
 
 
 ## Source: ADR-006-desktop-local-runtime.md
@@ -360,8 +294,6 @@ Changing the system-level organizing axis, adding a global business adapter/repo
 - Status: `Accepted`
 - Version: `adr-006-v1`
 - Decision date: 2026-08-14
-- Owner: TV6/TV1
-- Collaborators: TV2, TV3, TV4, TV5
 - Governing requirements: API-01–API-10, UI-01–UI-06, DATA-05–DATA-06, TOOL-01
 - Accepted by: project owner/team lead after product-topology review
 - Affected work packages: WP-01, WP-02, WP-05–WP-10
@@ -372,7 +304,7 @@ Deliver the MVP as one coordinated product consisting of:
 
 1. a downloadable desktop client whose renderer uses React, TypeScript and Vite;
 2. a local headless runtime bundle containing daemon, worker, evaluator and scorer process entrypoints from one Python modular-monolith source and compatibility version;
-3. PostgreSQL as the durable run/job/event/evaluation authority.
+3. PostgreSQL as the durable run/job/event authority.
 
 The desktop is a thin presentation/control client. It uses only the generated local-runtime API client. It never imports Python internals, opens PostgreSQL, invokes providers/tools, resolves runtime/scorer credentials, or fabricates authoritative events.
 
@@ -435,8 +367,6 @@ Changing to hosted SaaS, renderer-owned execution, direct desktop database/provi
 - Status: `Accepted`
 - Version: `adr-007-v2`
 - Decision date: 2026-08-19
-- Owner: TV6
-- Collaborators: TV1, TV4
 - Governing requirements: API-04, API-06–API-10, UI-01, UI-04–UI-06
 - Accepted by: project owner after ADR-007 option review
 - Approval scope: native-host family and authority boundary; distribution readiness remains unproven
@@ -460,7 +390,7 @@ The Tauri host is an OS adapter, not a Judge business capability or an alternate
 - local notifications containing safe projection data;
 - update availability and explicit coordinated-update preparation.
 
-The renderer receives no generic filesystem, shell, process, environment-variable, arbitrary-URL, raw-credential, direct-updater, database, provider, Judge-tool, or scorer capability. Displayed model/source/trace content cannot widen this allowlist. A new native authority requires a versioned command/permission change, TV4 review, and updated acceptance evidence.
+The renderer receives no generic filesystem, shell, process, environment-variable, arbitrary-URL, raw-credential, direct-updater, database, provider, Judge-tool, or scorer capability. Displayed model/source/trace content cannot widen this allowlist. A new native authority requires a versioned command/permission change, security review, and updated acceptance evidence.
 
 ## Runtime lifecycle boundary
 
@@ -540,6 +470,75 @@ No provider call, contest data, Judge implementation, scorer access, installer p
 
 ## Supersession
 
-Changing the host family, granting renderer generic native authority, coupling runtime lifetime to the desktop, replacing OS-protected credential custody, or weakening coordinated signed-update behavior requires a superseding ADR with TV6/TV4 review, measured incompatibility evidence, migration impact, and project-owner approval.
+Changing the host family, granting renderer generic native authority, coupling runtime lifetime to the desktop, replacing OS-protected credential custody, or weakening coordinated signed-update behavior requires a superseding ADR with security review, measured incompatibility evidence, migration impact, and project-owner approval.
 
 
+## Source: ADR-008-technology-stack-migration.md
+
+# ADR-008: Technology stack migration to TypeScript/Bun monorepo
+
+- Status: `Accepted`
+- Version: `adr-008-v1`
+- Decision date: 2026-09-22
+- Governing requirements: API-01–API-10, ORCH-01–ORCH-08, DATA-01–DATA-06, UI-01–UI-06
+- Accepted by: project owner
+- Supersedes: ADR-001 (Python/FastAPI stack), ADR-004 (OpenCode as reference-only)
+- Affected work packages: WP-01–WP-10
+
+## Context
+
+ADR-001 accepted Python 3.12+ with FastAPI, PostgreSQL, and a React/Vite renderer as the technology stack. ADR-004 designated the OpenCode project (TypeScript/Bun/Effect monorepo) as a "pinned architecture reference" but explicitly prohibited using it as an implementation base or dependency.
+
+After detailed analysis of OpenCode's architecture (40+ packages, Effect-based, provider abstractions, local-first design), the project owner determined that Harness should adopt OpenCode's module structure as its actual architectural model rather than merely referencing it. This provides:
+
+1. A proven, production-tested architecture for AI agent tooling
+2. A TypeScript-unified stack (no Python-to-TypeScript bridge complexity)
+3. Package-based boundaries that naturally enforce the modular monolith principles from ADR-005
+4. Mature patterns for provider abstraction, tool dispatch, and local-first operation
+
+## Decision
+
+### Accepted stack
+
+| Layer | Technology | Notes |
+|---|---|---|
+| Runtime language | TypeScript (strict mode) | Single language for backend and frontend |
+| Runtime engine | Bun | Fast startup, native TypeScript execution, built-in test runner |
+| Monorepo management | Turborepo + Bun workspaces | Topological task ordering, caching, shared dependency catalog |
+| Database ORM | Drizzle ORM | Type-safe SQL, migrations, schema-as-code |
+| HTTP server | Hono or equivalent | Lightweight, standards-based HTTP framework |
+| Renderer | React/Vite (web) + Electron (desktop) | Web-first with desktop wrapper |
+| Package count | 10 core packages | `protocol`, `schema`, `core`, `llm`, `server`, `cli`, `client`, `ui`, `app`, `desktop` |
+
+### What changes from ADR-001
+
+| ADR-001 accepted | ADR-008 replaces with | Rationale |
+|---|---|---|
+| Python 3.12+ | TypeScript (Bun) | Unified language eliminates cross-language bridge |
+| FastAPI | Hono or equivalent | Lightweight, Bun-native HTTP server |
+| PostgreSQL (sole authority) | Database via Drizzle ORM (engine TBD) | ORM-first approach; specific engine is a future decision |
+| SQLAlchemy + Alembic | Drizzle ORM + Drizzle Kit | Type-safe, schema-as-code approach |
+| 7-capability Python monolith | 10-package TypeScript monorepo | Package boundaries over capability directories |
+
+### What does NOT change
+
+- Non-negotiable invariants (ground truth isolation, scorer isolation, trajectory integrity) remain exactly as defined
+- ADR-002 (provider contract) core principles remain valid
+
+- ADR-005 dependency principles (acyclic graph, isolation) are preserved — only the implementation moves from Python capability directories to TypeScript packages
+- ADR-006 (desktop/local-runtime topology) core design is preserved
+- ADR-007 (Tauri native host) is not superseded — the desktop shell choice remains a separate concern
+
+## Relation to OpenCode
+
+OpenCode's module structure is adopted as the **architectural model**. This means:
+
+- Harness follows the same package taxonomy and boundary patterns
+- Harness is NOT a fork, wrapper, or dependency of OpenCode
+- No source code is copied from OpenCode
+- The `.opencode_reference/` directory remains as a read-only reference for architectural comparison
+- OpenCode's domain logic is irrelevant — Harness's domain is judging and analysis.
+
+## Supersession
+
+Changing the runtime language, runtime engine, monorepo management tool, or database ORM requires a superseding ADR with incompatibility evidence, migration impact analysis, and project-owner approval.

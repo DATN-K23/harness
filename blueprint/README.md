@@ -1,41 +1,62 @@
-# Judge Mode MVP Blueprint
+# Harness Blueprint
 
-Status: `Validated blueprint`  
-Version: `judge-blueprint-v4`  
-Owners: TV1–TV6  
-OpenSpec change: `blueprint-consolidation`
+Status: `Validated blueprint`
+Version: `blueprint-v5`
+OpenSpec change: `update-module-layout`
 
-> Blueprint only — no implementation evidence. This package defines future architecture, contracts, security, evaluation and delivery acceptance. It contains no application/test/migration/infrastructure source and proves no service, desktop build, provider call or contest result exists.
+## System Overview
+
+**Harness** is a local-first AI Agent system designed to wrap Large Language Models (LLMs) and provide them with tools, context management, and multi-turn reasoning capabilities. It runs entirely on the developer's machine as a downloadable desktop application backed by a local runtime and database.
+
+Harness is specifically designed for **Smart Contract Auditing**, allowing the AI to autonomously analyze source code and discover or verify vulnerabilities with greater precision than traditional chat interfaces.
+
+Harness operates in two primary modes:
+- **Audit Mode**: The agent acts as an autonomous auditor, actively scanning a given smart contract repository to discover new vulnerabilities (findings) similar to a human auditor in Code4rena or Sherlock contests.
+- **Judge Mode**: The agent acts as a judge/verifier, taking an existing list of findings or a single candidate finding, filtering out duplicates, and verifying their validity by deeply analyzing the codebase.
+
+> Blueprint only — no implementation evidence. This document defines future architecture, contracts, security, and delivery acceptance. It contains no application/test/migration/infrastructure source.
 
 ## What is decided
 
-- Capability-first Python modular monolith with shallow hexagonal boundaries.
-- Local runtime release with separate daemon, worker, evaluator, and scorer entrypoints; PostgreSQL is authoritative.
-- Downloadable React/TypeScript/Vite desktop as a thin generated-client consumer.
-- Tauri 2 narrow Rust native host with explicit per-window permissions.
-- Official asynchronous OpenAI Responses SDK as the first real adapter.
-- Matched direct-versus-harness RQ1 methodology, whole-contest plus source-family splits, scorer isolation.
+- TypeScript/Bun monorepo with 10 core packages, managed via Turborepo.
+- Local runtime with server, core engine, and evaluation tooling; database is authoritative.
+- Downloadable desktop application as a thin client consumer.
+- Model gateway abstracting AI provider interactions (OpenAI, Anthropic, etc.).
+- Matched Audit and Judge workflows leveraging structured JSON output and strict context isolation.
 
 ## Non-negotiable invariants
 
-1. Ground truth, labels, adjudication and scorer detail have no edge into Judge request/context/provider/tool/workspace/run event/log/desktop paths.
+1. The agent runtime operates purely on source code and provided rulesets, with isolated context to ensure reproducible and unbiased analysis.
 2. The native picker path is ephemeral registration-only input. Runtime imports a managed immutable snapshot.
-3. Judge runtime structurally has no shell, mutation, process, package/VCS, network/URL, hosted tool, plugin discovery, arbitrary execution or PoC capability.
-4. Every optional result-affecting behavior has a stable flag, telemetry, immutable snapshot value and enabled/disabled acceptance IDs; safety invariants are not disableable.
-5. Every run records model/profile and prompt versions/digests, resolved flags, native/logical tokens, separated latency, decimal cost/pricing and ordered tool calls.
-6. Train may shape behavior, validation may select profile values, and frozen test cannot feed adaptation.
-7. PostgreSQL run/work/outbox/claim/event state survives desktop/daemon/worker restarts.
-8. `scoring` is composed only by the scorer process and depends one-way on `evaluation.public`.
-9. Judge verdicts remain `unverified`; future PoC execution belongs to a separate `VerificationRunner` change/process.
+3. The runtime structurally has no shell mutation, process spawning, or network access beyond the configured model provider.
+4. Every optional behavior has a stable flag, telemetry, and immutable snapshot value.
+5. Every run records model/profile and prompt versions/digests, resolved flags, token usage, separated latency, cost, and ordered tool calls.
+6. The agent's knowledge and capabilities are defined strictly by its toolset and provided prompts, ensuring predictable and deterministic behavior where possible.
+7. Database state survives desktop/server restarts.
+8. Judge verdicts remain `unverified`; future PoC execution belongs to a separate `VerificationRunner` change/process.
 
-## Package map (New Consolidated Layout)
+## Package map
 
 ```text
-blueprint/
-├── README.md, vocabulary.md
-├── decisions/       ADR-001..007 consolidated into architecture-decisions.md
-├── architecture/    system-overview.md, module-layout.md, sequences.md
-└── evaluation/      methodology.md, experiment-profile.md
+harness/
+├── bunfig.toml                # Bun workspace configuration
+├── package.json               # Root workspace manifest and dependency catalog
+├── turbo.json                 # Turborepo pipeline configuration
+├── tsconfig.json              # Shared TypeScript configuration
+├── infra/                     # Infrastructure-as-code
+├── sdks/                      # External SDKs (e.g., IDE extensions)
+├── blueprint/                 # This directory — architecture documentation
+└── packages/
+    ├── protocol/              # Shared types, effects, and API contracts
+    ├── schema/                # Data models and database schemas (Drizzle ORM)
+    ├── core/                  # Core engine: Agent loop, tool dispatch, execution logic
+    ├── llm/                   # Model gateway and provider adapters
+    ├── server/                # Local daemon / API server
+    ├── cli/                   # Command-line interface
+    ├── client/                # HTTP/RPC client SDK
+    ├── ui/                    # Shared UI components
+    ├── app/                   # Web application interface
+    └── desktop/               # Desktop application wrapper (Electron)
 ```
 
 ## How to read
@@ -44,20 +65,3 @@ blueprint/
 2. Read `decisions/architecture-decisions.md` for historical ADR context.
 3. Use `architecture/system-overview.md` and `architecture/module-layout.md` for structure and boundaries.
 4. Use `architecture/sequences.md` to understand runtime behavior and end-to-end flows.
-5. Review `evaluation/methodology.md` for the core scoring rules and baseline protocol.
-6. Review `evaluation/experiment-profile.md` for specific experiment configurations.
-
-## Old-to-New Path Mapping Table
-
-| Cũ (97 files) | Mới (<10 files) | Lý do |
-| --- | --- | --- |
-| `architecture/*` | `architecture/` (3 files) | Gộp thành system-overview.md, module-layout.md, sequences.md |
-| `persistence/*` | `architecture/system-overview.md` | Gộp vào system-overview |
-| `desktop/*` | `architecture/system-overview.md` | Gộp vào system-overview |
-| `security/*` | `architecture/module-layout.md` | Xóa boilerplate, chỉ giữ Ground-Truth Isolation |
-| `decisions/ADR-*` | `decisions/architecture-decisions.md`| Gộp tất cả ADR thành 1 file duy nhất |
-| `evaluation/*` | `evaluation/` (2 files) | Gộp thành methodology.md và experiment-profile.md |
-| `evaluation/examples/`, `evaluation/prompts/` | Xóa | Giữ inline trong methodology.md |
-| `contracts/*`, `providers/*` | Xóa | Sẽ định nghĩa lại khi implement |
-| `delivery/*` | Xóa | Traceability metadata được xử lý qua công cụ/Openspec |
-| `manifest.yaml`, `manifest-format.md` | Xóa | Dư thừa |

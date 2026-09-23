@@ -1,284 +1,110 @@
-# Module Layout & Ground Truth Isolation
+# Module Layout & Boundaries
 
-## Source: physical-repository-layout.md
+## System Overview
 
-# Physical Repository Layout and Import Boundaries
+Harness is a local-first AI evaluation harness for code security analysis. It measures whether agent-orchestrated reasoning (with tool use, iterative context management, and structured evidence gathering) produces better vulnerability judgments than a single-shot model prompt.
 
-Normative: yes  
-Version: `physical-layout-v2`  
-Owner: TV1; collaborators: TV2–TV6  
-Decision: ADR-005 (`Accepted`), ADR-007 (`Accepted`)
+This document defines the physical repository layout and module boundaries. It is the authoritative guide for where code belongs. When implementing a new feature or fixing a bug, use this document to determine the correct package.
 
-## Target implementation tree
+## Physical Repository Layout
 
-This is an ownership map for a later implementation change, not executable scaffolding produced by this blueprint.
+The project is a TypeScript/Bun monorepo managed by Turborepo, consisting of 10 core packages:
 
 ```text
 harness/
-├── README.md
-├── compose.yaml                         # developer entrypoint; not work authority
-├── contracts/
-│   ├── README.md
-│   ├── registry.yaml
-│   ├── openapi/local-runtime.v1.openapi.yaml
-│   ├── schemas/
-│   │   ├── shared/v1/
-│   │   ├── run-control/v1/
-│   │   ├── model-gateway/v1/
-│   │   ├── source-access/v1/
-│   │   ├── agent-runtime/v1/
-│   │   ├── judge/v1/
-│   │   ├── evaluation/v1/
-│   │   └── scorer-only/v1/
-│   └── examples/{valid,invalid}/
-├── runtime/
-│   ├── README.md
-│   ├── pyproject.toml
-│   ├── uv.lock
-│   ├── src/harness/
-│   │   ├── shared_kernel/
-│   │   ├── modules/
-│   │   │   ├── run_control/
-│   │   │   ├── model_gateway/
-│   │   │   ├── source_access/
-│   │   │   ├── agent_runtime/
-│   │   │   ├── judge/
-│   │   │   ├── evaluation/
-│   │   │   └── scoring/
-│   │   ├── platform/{configuration,database,observability,secrets,process_runtime}/
-│   │   ├── entrypoints/{daemon,worker,evaluator,scorer}/
-│   │   └── generated/contracts/
-│   ├── migrations/{env.py,registry.py}
-│   └── tests/
-│       ├── architecture/
-│       ├── modules/{run_control,model_gateway,source_access,agent_runtime,judge,evaluation,scoring}/
-│       ├── contract/
-│       ├── integration/
-│       ├── adversarial/
-│       └── e2e/
-├── apps/desktop/
-│   ├── README.md
-│   ├── ui/
-│   │   ├── package.json
-│   │   ├── pnpm-lock.yaml
-│   │   ├── tsconfig.json
-│   │   ├── vite.config.ts
-│   │   └── src/
-│   │       ├── app/
-│   │       ├── modules/{runs,judge,trace,settings,evaluation}/
-│   │       ├── shared/{components,hooks,formatting,errors}/
-│   │       └── generated/runtime-client/
-│   ├── src-tauri/                       # Tauri 2 narrow Rust native host
-│   │   ├── Cargo.toml
-│   │   ├── Cargo.lock
-│   │   ├── build.rs
-│   │   ├── tauri.conf.json
-│   │   ├── capabilities/
-│   │   │   └── main-window.json         # explicit per-window allowlist
-│   │   ├── permissions/
-│   │   │   ├── runtime-bridge.toml
-│   │   │   ├── repository-picker.toml
-│   │   │   ├── notifications.toml
-│   │   │   └── update-coordinator.toml
-│   │   └── src/
-│   │       ├── main.rs                  # Tauri executable bootstrap only
-│   │       ├── lib.rs                   # command/plugin registration
-│   │       ├── commands/                # typed renderer-to-native bridge
-│   │       ├── runtime_supervision/     # discover/start-or-attach/status adapters
-│   │       ├── credential_store/        # OS-protected custody; no plaintext fallback
-│   │       ├── repository_picker/       # short-lived picker result only
-│   │       ├── notifications/           # safe local projection only
-│   │       └── update_coordinator/      # signed preflight/quiesce/rollback
-│   ├── resources/{icons,static}/
-│   └── tests/{unit,contract,e2e}/
-├── config/{runtime,flags,providers,evaluation}/
-├── datasets/{README.md,manifests,synthetic}/
-├── packaging/
-│   ├── local-runtime/{compose.yaml,env.example,healthcheck}/
-│   └── desktop/{windows,macos,linux}/
-├── docs/
-├── blueprint/
-└── openspec/
+├── bunfig.toml                # Bun workspace configuration
+├── package.json               # Root workspace manifest and dependency catalog
+├── turbo.json                 # Turborepo pipeline configuration (lint, test, build, dev)
+├── tsconfig.json              # Shared TypeScript configuration
+├── infra/                     # Infrastructure-as-code (e.g. AWS / Cloudflare / Serverless)
+├── sdks/                      # External SDKs (e.g., VSCode extension)
+└── packages/
+    ├── protocol/              # Shared types, effects, and API contracts
+    ├── schema/                # Data models and database schemas (Drizzle ORM)
+    ├── core/                  # Core engine: Agent loop, tool dispatch, Judge execution
+    ├── llm/                   # Model gateway and provider adapters
+    ├── server/                # Local daemon / API server exposing the core engine
+    ├── cli/                   # Command-line interface for running evaluations
+    ├── client/                # HTTP/RPC client SDK for communicating with the server
+    ├── ui/                    # Shared UI components
+    ├── app/                   # Web application interface
+    └── desktop/               # Desktop application wrapper (Electron-based)
 ```
 
-ADR-007 accepts this `src-tauri/` ownership shape, but the tree remains a future implementation map. This blueprint creates none of these files. No empty Rust, layer, capability, or platform directory is created merely to match the diagram.
+## Root Configuration and Directories
 
-## Desktop native-host boundary
+- **`turbo.json`**: Defines the task pipeline for the monorepo, ensuring commands like `build`, `typecheck`, and `lint` run in the correct topological order and use caching.
+- **`bunfig.toml` & `package.json`**: Manages shared dependencies across all packages to prevent version conflicts (utilizing the `catalog:` feature of Bun workspaces).
+- **`infra/`**: Contains Infrastructure-as-Code definitions for cloud deployments, remote evaluation runners, or shared backend services.
+- **`sdks/`**: Holds generated or hand-written SDKs for external platforms to interface with Harness (e.g., IDE extensions).
 
-`apps/desktop/ui/` owns presentation, generated-contract invocation and safe projection state. `apps/desktop/src-tauri/` owns only OS integration. The generated client uses an injected native transport that submits an allowlisted canonical operation identifier and validated payload; Rust derives the protected endpoint and credential and cannot accept an arbitrary URL, method, executable or filesystem path from rendered content.
+## Package Boundaries and Roles
 
-Initial renderer-callable project commands are limited to runtime discovery/start-or-attach/status, allowlisted authenticated runtime transport, explicit repository selection, safe notifications and update check/preparation. Generic Tauri filesystem, shell, process, environment, opener/arbitrary-URL, raw secret and direct updater commands are not registered for the main window. Effective merged capabilities and custom-command exposure are reviewed, not inferred from file names or plugin defaults.
+When implementing a new feature, use this guide to determine where your code belongs:
 
-## Capability-local shape
+### 1. `protocol` & `schema` (The Foundation)
+
+- **Role**: Define the shared vocabulary and data model of the system.
+  - `schema` owns the data models — database tables (via Drizzle ORM), entity definitions, and migration logic. This includes run records, trajectory events, verdicts, and evidence.
+  - `protocol` owns the API contracts, shared types, validation schemas, and effect definitions. These are the types that cross package boundaries.
+- **Rules**: Must not depend on any other internal package. Must be importable by both frontend (browser) and backend (Node/Bun) environments.
+
+### 2. `core` & `llm` (The Brain)
+
+- **Role**:
+  - `core` is the heart of Harness. It contains the agent runtime loop, Judge execution logic, tool dispatch (bounded read-only source tools), context management, and verdict generation. This is where the core logic lives.
+  - `llm` abstracts all interactions with external AI providers (OpenAI, Anthropic, etc.) behind a unified model gateway interface. It handles provider profiles, request sanitization, token accounting, cost tracking, and retry policy.
+- **Rules**: `core` can import `protocol`, `schema`, and `llm`. `llm` can import `protocol` and `schema`. Neither may import `server`, `client`, or any frontend package. Provider SDK types must not leak beyond `llm`.
+
+### 3. `server` (The API)
+
+- **Role**: A thin HTTP daemon that exposes `core` functionality via a local API. Handles run submission, status queries, trajectory event streaming, and source registration.
+- **Rules**: Consumes `core`, `llm`, `protocol`, and `schema`. Must not contain deep business logic — all orchestration belongs in `core`. The server is a process boundary, not a business boundary.
+
+### 4. `client` (The Bridge)
+
+- **Role**: The universal HTTP/RPC client SDK used by all frontends to communicate with the `server`. Provides typed methods for every server endpoint.
+- **Rules**: Consumes `protocol` only. Must be strictly browser-safe and avoid any Node.js/Bun built-ins. This is the only sanctioned way for UI code to interact with the runtime.
+
+### 5. `ui`, `app`, `desktop`, `cli` (The Presentation)
+
+- **Role**:
+  - `ui`: Reusable visual components (buttons, modals, data tables, verdict displays).
+  - `app`: The main web application — routing, pages, state management, trajectory viewer, run dashboard.
+  - `desktop`: Wraps the `app` in a native desktop shell (Electron). Handles window management, native file dialogs for source registration, and local credential custody.
+  - `cli`: Terminal-based interaction for headless runs and CI/CD integration.
+- **Rules**: All presentation packages consume `client` (to talk to the API) and `ui` (for visual components). They **must never** directly import `core`, `llm`, or `server`. This enforces a strict client-server boundary, even when running locally.
+
+## Dependency Graph
 
 ```text
-modules/<capability>/
-├── public/          cross-capability commands, queries, events, value types
-├── domain/          capability invariants and models
-├── application/     use cases and workflows
-├── ports/           required inbound/outbound abstractions
-├── adapters/        capability-owned HTTP/DB/provider/filesystem implementations
-└── resources/       owned prompts, schemas and static policy data
+protocol ← schema
+    ↑         ↑
+    |         |
+   llm ← ── core
+    ↑         ↑
+    |         |
+    └── server ──┘
+         ↑
+       client
+         ↑
+    ┌────┼────┐
+    ui  app  cli
+         ↑
+      desktop
 ```
 
-Only non-empty roles exist. `public` remains framework/SDK neutral.
+**Rules:**
+- Arrows point from consumer → dependency (i.e., `core` imports `llm`, `protocol`, `schema`)
+- `protocol` and `schema` have zero internal dependencies
+- No circular dependencies permitted
+- Frontend packages never import backend packages
 
-## Capability ownership and public surface
+## Architecture Checks
 
-| Capability | Owns | Initial public surface | Must not own |
-|---|---|---|---|
-| `run_control` | lifecycle, idempotency, job/outbox, claims, ordered events | `SubmitRun`, `ClaimWork`, `CancelRun`, `GetRun`, `ListRunEvents`, lifecycle events/IDs | provider mapping, source I/O, labels |
-| `model_gateway` | profiles, normalized request/response, native fidelity, attempts/cost/errors | `InvokeModelOnce`, provider/profile/attempt types | loop continuation, tool execution, verdict meaning |
-| `source_access` | registration, immutable snapshots, workspace, bounded tools/path security | `RegisterSource`, `ResolveSnapshot`, `DispatchSourceTool`, snapshot/evidence types | repository-picker UI, Judge semantics, labels |
-| `agent_runtime` | committed-history turn loop, context, budgets, stop mechanics | `ExecuteAgentTurn`, `ContinueRun`, allocation/stop types | valid/invalid semantics, scorer access |
-| `judge` | candidate, prompts/policy, verdict/evidence validation, Judge workflow | `StartJudge`, `ValidateVerdict`, candidate/verdict types | SDK/filesystem mechanics, labels |
-| `evaluation` | profiles/protocol, arm schedule, manifests, aggregation/export | `ScheduleExperiment`, `AcceptApprovedScore`, safe experiment/result types | ground-truth resolution/credentials |
-| `scoring` | labels/adjudication, post-terminal join, score computation | no general runtime consumer; scorer-root inputs only | agent/provider/API/desktop behavior |
+When opening a Pull Request, ensure these invariants hold:
 
-## Allowed capability graph
-
-| Importer | Allowed imports |
-|---|---|
-| `run_control` | shared kernel only |
-| `model_gateway` | shared kernel only |
-| `source_access` | shared kernel only |
-| `agent_runtime` | `run_control.public`, `model_gateway.public`, `source_access.public` |
-| `judge` | `run_control.public`, `agent_runtime.public`, `source_access.public` |
-| `evaluation` | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
-| `scoring` | `evaluation.public` only |
-
-## Table and migration ownership
-
-| Capability | Owned relational records | Migration contribution |
-|---|---|---|
-| `run_control` | `run`, `run_config`, `idempotency_record`, `work_item`, `outbox_record`, `work_claim`, `trajectory_event`, `security_event` | run lifecycle, ordering, lease/claim/CAS constraints |
-| `model_gateway` | `provider_profile_ref`, `provider_attempt` | attempt uniqueness, usage/cost/native-identity constraints |
-| `source_access` | `source_snapshot`, `source_registration`, managed-content metadata | immutable revision/inventory/tree digests and safe registration metadata; no raw host path |
-| `agent_runtime` | `agent_step`, `context_allocation`, `tool_call` reference/projection | step/attempt ordering and budget evidence |
-| `judge` | `candidate_finding`, `judge_verdict`, `verdict_evidence` | verdict/evidence semantic constraints |
-| `evaluation` | `experiment`, `experiment_cell`, `approved_score`, `evaluation_export` | experiment identity/resume/export constraints |
-| `scoring` | `ground_truth_label`, `adjudication`, `score_join` | scorer-only schema/role and post-terminal join constraints |
-
-`runtime/migrations/registry.py` composes module metadata; it does not own business tables. Foreign identifiers are contract references, not permission for another module to issue direct table queries.
-
-## Composition roots and deny matrix
-
-| Entrypoint | May wire | Explicitly denied |
-|---|---|---|
-| `daemon` | run-control/source-registration/Judge/evaluation public API adapters | `scoring`, scorer schemas/credential/grants, provider direct calls |
-| `worker` | run control, Judge, agent runtime, model gateway, source access | `scoring`, ground truth, desktop/shell |
-| `evaluator` | evaluation plus allowed public dependencies | `scoring`, ground-truth adapter/credential, desktop internals |
-| `scorer` | scoring and `evaluation.public` output adapter | agent runtime, provider invocation, source tools, run-event mutation |
-| desktop renderer | generated local-runtime client plus allowlisted Tauri transport/picker/lifecycle commands | all Python internals, DB, provider/tools, scoring, ground truth, generic native authority |
-| Tauri native host | OS integration and protected local transport only | Judge policy/state authority, provider/tools/scoring, raw renderer credential access |
-
-## Generated contracts
-
-`contracts/registry.yaml` is the exposure allowlist. The desktop generator reads only `contracts/openapi/local-runtime.v1.openapi.yaml` and cannot reach `schemas/scorer-only`. Pydantic/TypeScript outputs are reproducible projections and are never manually edited or treated as canonical.
-
-## Future architecture checks
-
-| Check | Fails when |
-|---|---|
-| `ARCH-IMPORT-01` | capability imports another capability outside `.public` |
-| `ARCH-CYCLE-01` | allowed capability graph becomes cyclic |
-| `ARCH-PUBLIC-01` | public type imports FastAPI, SQLAlchemy, provider SDK or native shell |
-| `ARCH-OWNER-01` | table/migration lacks exactly one capability owner or is queried cross-capability |
-| `ARCH-KERNEL-01` | shared kernel/platform contains business model, repository or policy |
-| `ARCH-ENTRY-01` | entrypoint contains business decisions or is imported by a capability |
-| `ARCH-SCORER-01` | non-scorer closure imports `scoring`, scorer schemas or credentials |
-| `ARCH-GEN-01` | generated contract changed without canonical-source change or scorer-only type reaches desktop |
-| `ARCH-DESKTOP-01` | renderer imports runtime internals or bypasses the generated client for Judge data |
-| `ARCH-TAURI-01` | a window receives generic filesystem/shell/process/env/URL/credential/updater permission or an undeclared project command |
-| `ARCH-TAURI-02` | native host contains Judge policy, accepts arbitrary endpoint/command input, or owns runtime/run lifetime |
-
-## Track ownership
-
-| Track | Primary capability/review responsibility |
-|---|---|
-| TV1 | `run_control`, `agent_runtime`, `judge`, `model_gateway`; graph approval |
-| TV2 | context/budget internals inside `agent_runtime` |
-| TV3 | tool registry/contracts inside `source_access` |
-| TV4 | source/workspace security and scoring isolation review |
-| TV5 | `evaluation`, scorer-method review, contract/statistical drift |
-| TV6 | daemon/local API, persistence mechanics, desktop/client generation and Tauri native host |
-
-Audit, long-term memory, compaction and `VerificationRunner` are future modules only after their own change. Judge authority is not widened to make room for them.
-
-
-## Source: agent-runtime-boundaries.md
-
-# Agent Runtime and Provider Boundaries
-
-Normative: yes  
-Version: `agent-runtime-boundaries-v1`  
-Owners: TV2 agent runtime, TV1 model gateway; reviewers: TV3, TV5, TV6
-
-## Capability responsibilities
-
-| Capability | Owns | May call | Must not own/import |
-|---|---|---|---|
-| `judge` | Judge use-case coordination and terminal-result request | `agent_runtime.public`, `run_control.public`, `source_access.public` | provider SDK, tool implementation, scoring |
-| `agent_runtime` | explicit committed history, step loop, context planning, stop rules, normalized tool intents, verdict proposal | `model_gateway.public`, `source_access.public`, `run_control.public` | provider SDK types/credentials, filesystem, ground truth, scorer |
-| `model_gateway` | project provider port, profile gate, adapter mappings, provider attempt telemetry | its own public/domain/application/ports/adapters | agent loop, tool dispatch, verdict acceptance, ground truth |
-| `source_access` | registered snapshot, workspace policy, local read/search/list tools | its own public contract | provider calls, agent policy, labels |
-| `run_control` | lifecycle/CAS, immutable config, budgets, event/attempt persistence | its own public contract | provider/tool invocation or scoring |
-
-Cross-capability imports use only `harness.modules.<capability>.public`. The OpenAI adapter is private to `model_gateway` and is composed only by an entrypoint.
-
-## One logical step
-
-```mermaid
-sequenceDiagram
-  participant J as judge
-  participant A as agent_runtime
-  participant R as run_control.public
-  participant M as model_gateway.public
-  participant S as source_access.public
-  J->>A: continue(run_id, immutable_config)
-  A->>R: load committed history and budgets
-  A->>A: plan exact model-visible history
-  A->>M: generate(normalized request, accepted profile digest)
-  M->>M: pre-network profile/capability gate
-  M->>M: one non-streaming official SDK attempt
-  M-->>A: normalized response/error + attempt telemetry
-  A->>R: commit response/attempt before continuation
-  alt local tool intent
-    A->>S: execute registered-snapshot tool request
-    S-->>A: bounded normalized result/denial
-    A->>R: commit tool event/result
-  else proposed verdict
-    A->>A: independent schema/evidence validation
-    A->>J: valid proposal or repair/terminal reason
-  end
-```
-
-History becomes model-visible only after its source event is durably committed. A crash reloads committed history; it never asks a provider-managed thread to reconstruct state.
-
-## Adapter boundary
-
-Project-owned port input contains normalized messages, local custom-function schemas, verdict response schema, limits, sampling and safe correlation IDs. Adapter output contains normalized assistant content/tool intents, usage, safe native identity, timing and normalized error. Mapping evidence lives in `contracts/provider-contract.md` and `providers/conformance-matrix.md`.
-
-Forbidden edges:
-
-- `agent_runtime`, `judge`, desktop or evaluator importing `openai` or any provider SDK;
-- adapter invoking a local function, hosted tool or recursive agent loop;
-- credential or raw provider object entering a trajectory;
-- provider response becoming a verdict without independent project validation;
-- label, contest answer, scorer record or raw host path reaching provider input.
-
-## Deterministic substitution
-
-Composition may replace the real adapter with `deterministic-scripted` or `deterministic-faults` behind the same port. Deterministic behavior keys on fixture/profile/request-step digests, not wall time or network. Architecture and contract tests must prove both substitutions require no change in `judge` or `agent_runtime`.
-
-## Extension seams
-
-A future provider adapter, streaming protocol or retry-enabled experiment is added behind `model_gateway.public` with a versioned profile and conformance evidence. Future Audit mode may reuse public result contracts but cannot broaden the Judge loop. A future `VerificationRunner` receives an approved verdict after Judge completion and owns any executable sandbox separately.
-
-
-
-## Source: scorer-isolation-boundary.md
-
-<!-- MISSING: security/scorer-isolation-boundary.md -->
-
-
+1. **Boundary Enforcement**: Frontend packages (`app`, `desktop`, `ui`, `cli`) MUST NOT import backend packages (`core`, `server`, `llm`).
+2. **Data Integrity**: All database access goes through `schema` and is orchestrated by `core`. The UI never speaks directly to the database.
+3. **Provider Isolation**: Provider SDK types and credentials never escape the `llm` package boundary.
+4. **No Ownership Metadata**: Do not encode team tracks or specific developers into this blueprint. Code ownership is managed via Git and `CODEOWNERS`.

@@ -7,54 +7,50 @@ Harness is a specialized Agent framework designed for smart contract security, o
 - **Audit Mode**: Autonomous exploration of a smart contract codebase to discover vulnerabilities (findings) from scratch.
 - **Judge Mode**: Verifying, deduplicating, and filtering a provided set of candidate findings against the codebase.
 
-## Source: system-context.md
-
-# System Context
+## System Context
 
 Normative: yes
-Version: `system-context-v2`
-Requirements: API-04–API-09, EVAL-10–EVAL-11, TOOL-01
+Version: `system-context-v3`
+Requirements: API-04–API-09, TOOL-01
 
-## Context diagram
+### Context diagram
 
 ```mermaid
 flowchart LR
-    U[Research operator] -->|desktop controls and repository selection| D[Downloadable desktop]
-    D -->|generated local-runtime client| H[Local Judge runtime]
+    U[Operator / Auditor] -->|desktop controls and repository selection| D[Downloadable desktop (Tauri 2)]
+    D -->|generated local-runtime client| H[Local Agent runtime]
     H -->|sanitized model request| P[Configured model provider]
     P -->|response/tool intent/usage| H
     SR[Source registration] -->|opaque immutable snapshot| H
-    H -->|status, committed trace, unverified verdict| D
+    H -->|status, committed trace, verdicts / audit reports| D
 ```
 
-## Responsibilities
+### Responsibilities
 
-| Element           | Owns                                                      | Must not own or receive                            |
-| ----------------- | --------------------------------------------------------- | -------------------------------------------------- |
-| research operator | repository choice, finding, approved config               | implicit ground truth or public-service assumption |
-| desktop           | native OS integration and safe presentation               | run authority, DB/provider/tool internals          |
-| local runtime     | source registration, orchestration, persistence, safe API | agent-visible ground truth                         |
-| model provider    | sanitized one-attempt request/response                    | host paths, credential in trajectory               |
+| Element           | Owns                                                                 | Must not own or receive                            |
+| ----------------- | -------------------------------------------------------------------- | -------------------------------------------------- |
+| operator / auditor| repository choice, finding, candidate finding, approved config       | implicit ground truth or public-service assumption |
+| desktop           | native OS integration and safe presentation                          | run authority, DB/provider/tool internals          |
+| local runtime     | source registration, orchestration, persistence, safe API            | agent-visible ground truth                         |
+| model provider    | sanitized one-attempt request/response                               | host paths, credential in trajectory               |
 
-## Context invariants
+### Context invariants
 
 | ID     | Invariant                                                                                             |
 | ------ | ----------------------------------------------------------------------------------------------------- |
 | CTX-01 | Candidate/source content is untrusted agent-visible data, never a label.                              |
-| CTX-02 | Run submission uses only opaque`source_snapshot_id`; raw path is registration-only ephemeral input. |
+| CTX-02 | Run submission uses only opaque `source_snapshot_id`; raw path is registration-only ephemeral input.  |
 | CTX-04 | Desktop uses only generated local-runtime contracts and is not execution authority.                   |
 | CTX-05 | Desktop disconnect/closure does not cancel or hide committed work.                                    |
 | CTX-06 | Local endpoint is access-controlled and non-public; this is not multi-tenant authorization.           |
 
-## Source: components-and-ownership.md
-
-# Components, Ports, Dependencies, and Ownership
+## Components, Ports, Dependencies, and Ownership
 
 Normative: yes
 Version: `components-v4`
 Requirements: ORCH-05–ORCH-08, API-08–API-10, UI-06
 
-## Component map
+### Component map
 
 ```mermaid
 flowchart LR
@@ -62,78 +58,75 @@ flowchart LR
   GC -->|allowlisted operation + payload| TAURI[Tauri 2 narrow Rust host]
   UI -->|typed picker/lifecycle/notification commands| TAURI
   TAURI -->|protected endpoint + credential| DAEMON[Daemon composition root]
-  DAEMON --> RC[run_control.public]
-  DAEMON --> SA[source_access.public]
+  DAEMON --> RC[run_control]
+  DAEMON --> SA[source_access]
   WORKER[Worker composition root] --> RC
-  WORKER --> J[judge.public]
-  J --> AR[agent_runtime.public]
+  WORKER --> J[judge]
+  WORKER --> A[audit]
+  J --> AR[agent_runtime]
+  A --> AR
   J --> SA
+  A --> SA
   AR --> RC
-  AR --> MG[model_gateway.public]
+  AR --> MG[model_gateway]
   AR --> SA
-  RC --> PG[(PostgreSQL)]
+  RC --> PG[(PostgreSQL via Drizzle)]
 ```
 
-Arrows between capabilities terminate only at `.public`. Composition roots may wire their declared module-owned adapters but contain no policy.
+Arrows between capabilities terminate only at public boundaries. Composition roots wire declared module adapters but contain no business policy.
 
-The Tauri host is not a runtime composition root. It transports generated-client operations to the discovered local daemon and owns only OS integration. It cannot interpret Judge policy, fabricate authoritative data, call providers/tools, or accept arbitrary renderer-supplied endpoints, processes, paths, environment names or update artifacts.
+The Tauri host is not a runtime composition root. It transports generated-client operations to the discovered local daemon and owns only OS integration. It cannot interpret Judge or Audit policy, fabricate authoritative data, call providers/tools, or accept arbitrary renderer-supplied endpoints, processes, paths, environment names or update artifacts.
 
-## Capability ownership
+### Capability ownership
 
 | Capability        | Public contract                                                 | Adapter custody                                           | Forbidden dependencies                            |
 | ----------------- | --------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------- |
 | `run_control`   | run commands/queries/events, claims and IDs                     | PostgreSQL run/outbox/job adapters; daemon API projection | SDK, source I/O                                   |
 | `model_gateway` | one-attempt model port, profile and telemetry types             | OpenAI plus deterministic adapters; credential resolver   | continuation, desktop                             |
 | `source_access` | registration/snapshot/tool/evidence types                       | filesystem/workspace/redaction/tool adapters              | provider, repository-picker UI                    |
-| `agent_runtime` | turn/continuation/context/budget contracts                      | context estimator and committed-history adapters          | Judge semantics                                   |
+| `agent_runtime` | turn/continuation/context/budget contracts                      | context estimator and committed-history adapters          | Judge/Audit domain semantics                      |
 | `judge`         | candidate/Judge/verdict workflow contracts                      | prompt/verdict/evidence validators                        | provider SDK, raw filesystem                      |
+| `audit`         | repository/audit/report workflow contracts                      | audit prompt/report validators                            | provider SDK, raw filesystem                      |
 
-## Outside-capability areas
+### Outside-capability areas
 
 | Area              | Allowed contents                                                        | Forbidden contents                                                     |
 | ----------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `shared_kernel` | IDs, time, money,`Result`, base errors                                | finding/run/provider business models or services                       |
+| `shared_kernel` | IDs, time, money, `Result`, base errors                                 | finding/run/provider business models or services                       |
 | `platform`      | configuration, DB engine, observability, secrets and process primitives | business repositories, queries, policies or cross-module orchestration |
 | `entrypoints`   | dependency construction, process startup/shutdown                       | branching business logic or direct foreign-table queries               |
 | `generated`     | reproducible canonical-contract projections                             | manually maintained models in daemon/desktop sets                      |
 
-## Desktop ownership
+### Desktop ownership
 
 | Area                                    | Owns                                                                                            | Explicitly denied                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `apps/desktop/ui`                     | React/Vite presentation, form state, safe cache/cursor, generated client and injected transport | raw local credential, direct DB/provider/tool access, generic native APIs        |
-| `apps/desktop/src-tauri/capabilities` | per-window allowlists and project command references                                            | wildcard or permissive-default authority                                         |
-| `apps/desktop/src-tauri/permissions`  | scopes for runtime bridge, picker, notification and update-preparation commands                 | generic filesystem/shell/process/env/URL/raw-secret/direct-updater grants        |
-| `apps/desktop/src-tauri/src/commands` | typed validation and dispatch into one native integration owner                                 | business rules, arbitrary command or endpoint execution                          |
+| `packages/app`                          | React presentation, form state, safe cache/cursor, generated client                             | raw local credential, direct DB/provider/tool access, generic native APIs        |
+| `packages/desktop/src-tauri/capabilities`| per-window allowlists and project command references                                           | wildcard or permissive-default authority                                         |
+| `packages/desktop/src-tauri/permissions` | scopes for runtime bridge, picker, notification and update-preparation commands                 | generic filesystem/shell/process/env/URL/raw-secret/direct-updater grants        |
+| `packages/desktop/src-tauri/src/commands`| typed validation and dispatch into one native integration owner                                | business rules, arbitrary command or endpoint execution                          |
 | runtime supervision                     | protected rendezvous, discover/start-or-attach/status                                           | owning run state or terminating runtime on window/host exit                      |
 | credential store                        | OS-protected installation credential access/rotation                                            | returning persistent raw secret to renderer or plaintext fallback                |
-| update coordinator                      | signature/compatibility/active-work/quiesce/rollback orchestration                              | renderer-triggered direct install or signing-key access                          |
 
-## Process composition
+### Process composition
 
 | Process          | Runtime role                                                  | Persistent authority                                             | Forbidden closure                                                         |
 | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | daemon           | local API, source registration, run projections               | PostgreSQL through capability ports                              | provider direct                                                           |
-| worker           | claims work and executes Judge turns                          | PostgreSQL run/claim/event state                                 | desktop                                                                   |
+| worker           | claims work and executes Judge and Audit turns                | PostgreSQL run/claim/event state                                 | desktop                                                                   |
 | desktop renderer | display/control projection through generated client           | none; renderer cache is non-authoritative                        | Backend/DB/provider/tool imports and generic Tauri authority              |
-| Tauri host       | window/OS integration and protected local transport           | none; rendezvous/process signals are non-authoritative           | Judge policy, DB/provider/tool access, runtime lifetime ownership         |
+| Tauri host       | window/OS integration and protected local transport           | none; rendezvous/process signals are non-authoritative           | Judge/Audit policy, DB/provider/tool access, runtime lifetime ownership  |
 
-## Integration rule
+### Integration rule
 
-Contract tests target public ports and canonical schemas. Every model-visible contract change needs owner/consumer review, a new version/digest, updated flags when result-affecting, and updated traceability before implementation acceptance. Full file-placement, table ownership and architecture-test rules are in `physical-repository-layout.md`.
+Contract tests target public ports and canonical schemas. Every model-visible contract change needs owner/consumer review, a new version/digest, updated flags when result-affecting, and updated traceability before implementation acceptance. Full file-placement, table ownership and architecture-test rules are in `module-layout.md`.
 
-## Source: desktop-runtime-topology.md
-
-<!-- MISSING: desktop/desktop-runtime-topology.md -->
-
-## Source: containers-and-trust-boundaries.md
-
-# Containers and Trust Boundaries
+## Containers and Trust Boundaries
 
 Normative: yes
-Version: `containers-v3`
+Version: `containers-v4`
 
-## Container view
+### Container view
 
 ```mermaid
 flowchart TB
@@ -146,17 +139,17 @@ flowchart TB
   end
   subgraph L[Local runtime boundary]
     DAEMON[Daemon]
-    DB[(PostgreSQL)]
+    DB[(PostgreSQL via Drizzle)]
     REG[Source access]
     DAEMON --> DB
     REG --> DB
   end
-  subgraph W[Judge worker boundary]
-    ORCH[Judge/agent runtime]
+  subgraph W[Agent worker boundary]
+    ORCH[Audit / Judge agent runtime]
     TOOLS[Bounded source tools]
   end
   subgraph X[Ephemeral untrusted workspace]
-    FINDING[CandidateFinding]
+    FINDING[Finding / CandidateFinding]
     SRC[Read-only source/]
   end
   PROVIDER[External model provider]
@@ -168,7 +161,7 @@ flowchart TB
   REG -->|verified snapshot only| SRC
 ```
 
-## Boundary invariants
+### Boundary invariants
 
 | Boundary                         | Allowed crossing                                                                                      | Forbidden crossing                                                                         |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -180,19 +173,17 @@ flowchart TB
 | tools → workspace               | bounded authorized relative read/search                                                               | shell/network/write/absolute/traversal/symlink escape                                      |
 | source registration → workspace | digest-verified source snapshot                                                                       | mutable host tree                                                                          |
 
-## Explicitly forbidden edges
+### Explicitly forbidden edges
 
 No edge exists from the desktop to PostgreSQL, provider SDK, or tool dispatcher. No renderer edge exists to generic Tauri filesystem, shell, process, environment, arbitrary URL, raw credential or direct updater authority. Local access control does not authorize public exposure.
 
-## Source: erd.md
-
-# PostgreSQL Entity and Ownership Blueprint
+## PostgreSQL Entity and Ownership Blueprint
 
 Normative: yes
-Version: `persistence-erd-v2`
+Version: `persistence-erd-v3`
 Requirements: DATA-01–DATA-04
 
-## Entity relationships
+### Entity relationships
 
 ```mermaid
 erDiagram
@@ -207,19 +198,22 @@ erDiagram
   RUN ||--o{ STEP : contains
   STEP ||--o{ PROVIDER_ATTEMPT : invokes
   STEP ||--o{ TOOL_CALL : contains
-  RUN ||--o| VERDICT : completes_with
+  RUN ||--o| VERDICT : completes_judge
   VERDICT ||--|{ EVIDENCE : cites
+  RUN ||--o| AUDIT_REPORT : completes_audit
+  AUDIT_REPORT ||--o{ FINDING : contains
+  FINDING ||--|{ EVIDENCE : cites
   RUN ||--o{ SECURITY_EVENT : records
   IDEMPOTENCY_RECORD ||--|| RUN : resolves_to
 ```
 
-## Key fields
+### Key fields
 
 | Entity                                                              | Required identity/concurrency fields                                                                              | Sensitive/exposure rule                                            |
 | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `source_registration`                                             | registration ID, policy version, safe outcome, snapshot ID, timestamps                                            | no raw selected path/hash                                          |
 | `source_snapshot`                                                 | snapshot ID, revision, inventory/tree/content digests, managed content reference                                  | safe projection exposes ID/revision/digests only                   |
-| `run`                                                             | run ID, state, state version, terminal reason/timestamps                                                          | no label/raw path/credential                                       |
+| `run`                                                             | run ID, mode, state, state version, terminal reason/timestamps                                                    | no label/raw path/credential                                       |
 | `run_config`                                                      | run ID, canonical config digest and immutable resolved values                                                     | profile/prompt/flag/budget/source versions/digests                 |
 | `work_item`                                                       | work ID, run ID, kind, state, version, available time                                                             | PostgreSQL authority; queue payload ID only                        |
 | `outbox_record`                                                   | outbox ID, aggregate/work ID, event kind, payload digest, publish state/version                                   | safe stable IDs only                                               |
@@ -227,17 +221,19 @@ erDiagram
 | `trajectory_event`                                                | event ID, run ID, unique sequence, schema/type, safe payload/digest                                               | append-only safe projection                                        |
 | `provider_attempt`                                                | attempt ID, step/logical-call/attempt indexes, profile/model, request/response digests, usage/timing/cost/outcome | no credential/raw native object                                    |
 | `tool_call`                                                       | call ID/index, tool/version, safe args/result digests, timing/outcome                                             | relative authorized source paths only                              |
-| `verdict/evidence`                                                | one verdict/run; ordered relative-path evidence                                                                   | no score/label                                                     |
+| `verdict/evidence`                                                | one verdict/run (Judge Mode); ordered relative-path evidence                                                      | no score/label                                                     |
+| `audit_report/finding`                                            | one report/run (Audit Mode); structured findings with severity and evidence                                       | safe API/export                                                    |
 
-## Capability table/migration ownership
+### Capability table/migration ownership
 
 | Capability        | Tables/migration namespace                                                                                                                                                            | Other capabilities use                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `source_access` | `source_registration`, `source_snapshot`, managed-content metadata                                                                                                                | `source_access.public` only                           |
-| `run_control`   | `candidate_finding`, `run`, `run_config`, `idempotency_record`, `work_item`, `outbox_record`, `work_claim`, `trajectory_event`, `security_event`, safe content refs | `run_control.public` only                             |
-| `model_gateway` | `provider_profile_ref`, `provider_attempt`                                                                                                                                        | `model_gateway.public` only                           |
-| `agent_runtime` | `step`, context allocation, `tool_call` projection/reference                                                                                                                      | `agent_runtime.public` only                           |
-| `judge`         | `verdict`, `evidence`                                                                                                                                                             | `judge.public` only                                   |
+| `source_access` | `source_registration`, `source_snapshot`, managed-content metadata                                                                                                                | `source_access` public API only                         |
+| `run_control`   | `candidate_finding`, `run`, `run_config`, `idempotency_record`, `work_item`, `outbox_record`, `work_claim`, `trajectory_event`, `security_event`, safe content refs                 | `run_control` public API only                           |
+| `model_gateway` | `provider_profile_ref`, `provider_attempt`                                                                                                                                        | `model_gateway` public API only                         |
+| `agent_runtime` | `step`, context allocation, `tool_call` projection/reference                                                                                                                      | `agent_runtime` public API only                         |
+| `judge`         | `verdict`, `evidence`                                                                                                                                                             | `judge` public API only                                 |
+| `audit`         | `audit_report`, `finding`                                                                                                                                                             | `audit` public API only                                 |
 
 Foreign keys/references do not authorize cross-module SQL. Module migration metadata is composed by the migration registry; each table has exactly one owner.
 
@@ -257,12 +253,10 @@ Daemon/worker/desktop roles have isolated access to their respective schemas. No
 
 PostgreSQL is authoritative. SQLite, Redis, renderer cache, filesystem rendezvous data and process memory are not state authorities.
 
-## Source: field-dictionary.md
-
-# Persistence Field Dictionary
+## Persistence Field Dictionary
 
 Normative: yes
-Version: `field-dictionary-v2`
+Version: `field-dictionary-v3`
 Requirements: DATA-01, DATA-02, DATA-04, PROV-02
 
 Legend: `P` public-safe local API projection, `I` trusted internal, `A` agent-visible exact sanitized, `X` secret/prohibited (never stored raw). Retention is `run` (life of research record), `registry`, or `ephemeral`.
@@ -302,12 +296,12 @@ There is deliberately no field for selected/raw/canonical host path or its hash.
 | Field                          | Type / null         | Constraint/index           | Class / retention | Source and digest semantics                                    | API/export       |
 | ------------------------------ | ------------------- | -------------------------- | ----------------- | -------------------------------------------------------------- | ---------------- |
 | `run_id`                     | string / no         | PK                         | P / run           | Control-plane generated                                        | API/export       |
-| `mode`                       | enum / no           | fixed`judge` in MVP      | P / run           | Submitted contract                                             | API/export       |
+| `mode`                       | enum / no           | `'audit' \| 'judge'`       | P / run           | Submitted operational mode                                     | API/export       |
 | `state`                      | enum / no           | state index                | P / run           | CAS transition                                                 | API/export       |
 | `state_version`              | integer / no        | monotonic                  | I / run           | CAS counter                                                    | API safe summary |
-| `candidate_finding_id`       | string / no         | FK,index                   | P / run           | Registry ref                                                   | API/export       |
+| `candidate_finding_id`       | string / yes        | FK,index                   | P / run           | Registry ref (Judge Mode; null in Audit Mode)                  | API/export       |
 | `source_snapshot_id`         | string / no         | FK,index                   | P / run           | Registry ref                                                   | API/export       |
-| `config_digest`              | digest / no         | FK/unique-per-config       | P / run           | `run_config` canonical digest                                | API/export       |
+| `config_digest`              | digest / no         | FK/unique-per-config       | P / run           | `run_config` canonical digest                                  | API/export       |
 | `created_at`                 | UTC timestamp / no  | index                      | P / run           | Application clock                                              | API/export       |
 | `updated_at`                 | UTC timestamp / no  | index                      | P / run           | Last committed transition                                      | API/export       |
 | `started_at`                 | UTC timestamp / yes | index                      | P / run           | Running transition                                             | API/export       |
@@ -349,13 +343,6 @@ There is deliberately no field for selected/raw/canonical host path or its hash.
 | `sampling`                             | JSON / no           | immutable        | P / run           | Provider-neutral values/support       | API/export                           |
 | `retry_policy`                         | JSON / no           | immutable        | P / run           | Versioned policy                      | API/export                           |
 | `pricing_version`                      | string / no         | index            | P / run           | Frozen pricing catalog                | API/export                           |
-| `manifest_version`                     | string / yes        | index            | I / run           | External controller                 | Research export                      |
-| `manifest_digest`                      | digest / yes        | index            | I / run           | Frozen manifest                       | Research export                      |
-| `split`                                | enum / yes          | index            | I / run           | Whole-contest assignment              | Research export, never model context |
-| `source_family_id`                     | string / yes        | index            | I / run           | Frozen family grouping                | Research export, never model context |
-| `protocol_version`                     | string / yes        | index            | I / run           | Frozen experiment                     | Research export                      |
-| `protocol_digest`                      | digest / yes        | index            | I / run           | Canonical protocol                    | Research export                      |
-| `experiment_profile_id_version_digest` | JSON / yes          | immutable        | I / run           | Accepted experiment profile reference | Research export                      |
 | `harness_commit`                       | string / no         | index            | I / run           | Build provenance                      | Reproduction export                  |
 | `build_id`                             | string / no         | index            | I / run           | Packaging provenance                  | Reproduction export                  |
 | `runtime_id`                           | string / no         | immutable        | I / run           | Language/runtime version              | Reproduction export                  |
@@ -525,36 +512,34 @@ There is deliberately no field for selected/raw/canonical host path or its hash.
 
 No raw `X` value has a persistence field; token digests are one-way high-entropy control material only. Provider credentials, raw secrets, prohibited ground-truth content in run records, and raw host paths/hashes are structurally absent. PostgreSQL records are authoritative; SQLite, Redis, renderer cache and process memory are not substitute authorities.
 
-## Source: consistency-and-idempotency.md
-
-# PostgreSQL Consistency, Work Delivery, and Recovery
+## PostgreSQL Consistency, Work Delivery, and Recovery
 
 Normative: yes
-Version: `persistence-consistency-v2`
+Version: `persistence-consistency-v3`
 Requirements: API-02, API-03, DATA-01–DATA-04
 
-## Authority
+### Authority
 
-PostgreSQL is the sole MVP authority for source-snapshot metadata, run/config/lifecycle, work items, outbox records, claims/leases, ordered events, attempts, tool calls, verdict/evidence, experiment cells and scorer-controlled records. Desktop cache, daemon/worker memory, filesystem rendezvous metadata and process exit status are projections/signals only.
+PostgreSQL is the sole authoritative datastore for source-snapshot metadata, run/config/lifecycle, work items, outbox records, claims/leases, ordered events, attempts, tool calls, verdicts, audit findings and reports. All database tables, models, and migrations are managed type-safely via Drizzle ORM in `@harness/schema`. Desktop cache, daemon/worker memory, filesystem rendezvous metadata and process exit status are projections/signals only.
 
-SQLite, Redis and an in-memory queue/state store are not fallback authorities. They may not be silently introduced for packaging, polling, caching or scheduling. Object/content storage may hold immutable sanitized/snapshot bytes only when PostgreSQL retains authoritative identity/digest/ownership and the storage contract is explicitly configured.
+SQLite, Redis, and in-memory queues or state stores are not fallback authorities. They may not be silently introduced for packaging, polling, caching or scheduling.
 
-## Transaction boundaries
+### Transaction boundaries
 
 1. **Register source:** after canonical import, insert immutable snapshot/inventory/digest metadata; original path is never persisted.
-2. **Accept run:** resolve snapshot and profiles; insert candidate, run, immutable config and idempotency binding atomically.
+2. **Accept run:** resolve snapshot and profiles; insert candidate (if Judge Mode), run, immutable config and idempotency binding atomically.
 3. **Publish work:** insert `work_item` and `outbox_record` in the same PostgreSQL transaction as `accepted -> queued`. An outbox publisher may repeat delivery; the database record is authority.
 4. **Claim:** worker atomically acquires an eligible work item with claim token/version, owner and finite lease; stale owners cannot append or transition.
 5. **Append:** allocate monotonic `(run_id, sequence)` and persist event plus associated step/attempt/tool fact atomically under active claim/version.
-6. **Terminal:** compare expected run state/version/claim, persist verdict/evidence or failure aggregate, usage/cost, terminal event, final state and completed work outcome atomically.
+6. **Terminal:** compare expected run state/version/claim, persist verdict/evidence or audit findings/report, failure aggregate, usage/cost, terminal event, final state and completed work outcome atomically.
 
-## Submission idempotency
+### Submission idempotency
 
-The protected local API requires an opaque idempotency key and stores its SHA-256 digest. Canonical request digest covers candidate, source snapshot and every configuration/profile/flag/budget reference. Equal key/digest returns the existing resource; equal key/different digest returns `idempotency_conflict`. Concurrent insert is resolved by a unique constraint and reload, never by duplicate enqueue.
+The protected local API requires an opaque idempotency key and stores its SHA-256 digest. Canonical request digest covers candidate (if present), source snapshot and every configuration/profile/flag/budget reference. Equal key/digest returns the existing resource; equal key/different digest returns `idempotency_conflict`. Concurrent insert is resolved by a unique constraint and reload, never by duplicate enqueue.
 
 Source registration and lifecycle commands use the same key/digest rule. A repeated registration may return the same snapshot only if canonical imported bytes and policy version match; it does not persist or compare raw host path.
 
-## Work item, outbox, claim, and lease
+### Work item, outbox, claim, and lease
 
 `work_item` is a durable finite state record (`pending|claimed|completed|failed|cancelled`) with monotonic version. `outbox_record` represents delivery intent and publisher progress, not the run state. Queue messages contain only stable work/run IDs and delivery IDs.
 
@@ -562,28 +547,28 @@ A claim operation checks work state/version, run state/version, cancellation and
 
 Every append/transition supplies run state/version and active claim token/version. A zero-row update means stale, expired, cancelled or terminal; the caller reloads. Tokens are never trusted from queue delivery alone.
 
-## Ordered events and finite cursors
+### Ordered events and finite cursors
 
 `(run_id, sequence)` is unique, begins at one and is never reused. The API returns finite bounded pages ordered by sequence. Cursor encodes/signs/binds run ID, last committed sequence, page policy and cursor version; it contains no DB offset, credential or content. Cross-run, malformed, expired-policy or gap-producing cursors fail safely. `next_cursor: null` means no later committed event at query time, not run terminality.
 
 Desktop reconnect reloads runtime identity/compatibility, run state and events after its last committed sequence; it de-duplicates `(run_id, sequence)`. Desktop timestamps/cache never repair event order and never become lifecycle authority.
 
-## Redelivery and ambiguous provider attempts
+### Redelivery and ambiguous provider attempts
 
 Duplicate delivery reloads PostgreSQL and cannot duplicate accepted/terminal transitions. A paid provider call cannot be exactly-once across a crash between external completion and local commit. The claim records `attempt_outcome_unknown`; primary one-attempt policy does not silently repeat it. Recovery either proves a committed response, terminates under frozen ambiguity policy, or schedules only under a separately accepted retry experiment identity.
 
-## Cancellation and lifecycle
+### Cancellation and lifecycle
 
 Cancellation request is idempotently durable. Accepted/queued work can cancel before claim; running work observes it at provider/tool boundaries. A terminal CAS wins permanently. Window close/disconnect never creates a cancel request.
 
 Explicit runtime shutdown/update first records lifecycle operation and policy. `reject_if_active` conflicts when work is active; `quiesce_then_stop` prevents new claims and waits/terminates only under documented safe boundaries. Runtime update does not erase jobs/claims/events and compatibility migration/rollback is explicit.
 
-## Desktop-independent recovery
+### Desktop-independent recovery
 
-Daemon, worker, evaluator and scorer restart from PostgreSQL state without a desktop process. They recover outbox publication, eligible leases, next event sequence, remaining budgets and terminal immutability. Renderer cache may be deleted at any time without losing accepted work. Process memory is never the only copy of a state transition, queue intent, provider attempt, tool result, cancellation or score acceptance.
+Daemon, worker, and background runtime processes restart from PostgreSQL state without a desktop process. They recover outbox publication, eligible leases, next event sequence, remaining budgets and terminal immutability. Renderer cache may be deleted at any time without losing accepted work. Process memory is never the only copy of a state transition, queue intent, provider attempt, tool result, or cancellation.
 
-## Reproduction snapshot
+### Reproduction snapshot
 
-Before queueing, immutable configuration or content-addressed references retain canonical candidate/source digests; runtime/build/dependency lock; exact prompts/tool/schema digests; accepted provider/model/capability/cutoff/pricing profile; experiment/manifest/split/source-family; sampling; logical-token estimator/budgets; wall-clock; retry flag/attempt limits; all result-affecting flags and security/transformation versions. Every provider attempt records model/prompt/profile/flags, native/logical token categories, latency, cost and tool-call correlations.
+Before queueing, immutable configuration or content-addressed references retain canonical candidate/source digests; runtime/build/dependency lock; exact prompts/tool/schema digests; accepted provider/model/capability/cutoff/pricing profile; sampling; logical-token estimator/budgets; wall-clock; retry flag/attempt limits; all result-affecting flags and security/transformation versions. Every provider attempt records model/prompt/profile/flags, native/logical token categories, latency, cost and tool-call correlations.
 
 Redaction/classification occurs before relational/blob/event/log/API/export persistence. Raw host paths, credentials, labels and prohibited originals are neither stored nor hashed into run-visible records.

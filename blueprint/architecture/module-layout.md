@@ -2,9 +2,11 @@
 
 ## System Overview
 
-Harness is a local-first AI evaluation harness for code security analysis. It measures whether agent-orchestrated reasoning (with tool use, iterative context management, and structured evidence gathering) produces better vulnerability judgments than a single-shot model prompt.
+Harness is a local-first AI Agent framework designed for Smart Contract Security analysis. It wraps Large Language Models (LLMs) with tools, context management, and multi-turn reasoning to discover and verify vulnerabilities in smart contracts across two primary modes:
+- **Audit Mode**: Autonomous exploration of a smart contract codebase to discover new vulnerabilities (findings).
+- **Judge Mode**: Verifying, deduplicating, and filtering a provided set of candidate findings against the codebase.
 
-This document defines the physical repository layout and module boundaries. It is the authoritative guide for where code belongs. When implementing a new feature or fixing a bug, use this document to determine the correct package.
+This document defines the physical repository layout and module boundaries across the 10 core packages. It is the authoritative guide for where code belongs. When implementing a new feature or fixing a bug, use this document to determine the correct package.
 
 ## Physical Repository Layout
 
@@ -28,7 +30,7 @@ harness/
     ├── client/                # HTTP/RPC client SDK for communicating with the server
     ├── ui/                    # Shared UI components
     ├── app/                   # Web application interface
-    └── desktop/               # Desktop application wrapper (Electron-based)
+    └── desktop/               # Desktop application wrapper (Tauri 2)
 ```
 
 ## Root Configuration and Directories
@@ -71,7 +73,7 @@ When implementing a new feature, use this guide to determine where your code bel
 - **Role**:
   - `ui`: Reusable visual components (buttons, modals, data tables, verdict displays).
   - `app`: The main web application — routing, pages, state management, trajectory viewer, run dashboard.
-  - `desktop`: Wraps the `app` in a native desktop shell (Electron). Handles window management, native file dialogs for source registration, and local credential custody.
+  - `desktop`: Wraps the `app` in a lightweight native desktop shell (Tauri 2 with narrow Rust host). Handles window management, native file dialogs for source registration, and local credential custody.
   - `cli`: Terminal-based interaction for headless runs and CI/CD integration.
 - **Rules**: All presentation packages consume `client` (to talk to the API) and `ui` (for visual components). They **must never** directly import `core`, `llm`, or `server`. This enforces a strict client-server boundary, even when running locally.
 

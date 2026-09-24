@@ -19,7 +19,9 @@ Requirements: API-08–API-10, EVAL-11
 | runtime supervisor | OS-appropriate independent owner of daemon/worker/evaluator/scorer lifetime that survives renderer and Tauri-host exit. | The Tauri child-process lifetime is not runtime authority. |
 | update coordinator | Project control plane that validates signed desktop/runtime artifacts, compatibility manifest, active work, migration safety, health and rollback. | Not a renderer-selected artifact URL/key or direct updater invocation. |
 | `JudgeRun` | One asynchronous analysis of one `CandidateFinding` against one `SourceSnapshot`. | Session, queue delivery, and attempt are distinct. |
+| `AuditRun` | One asynchronous autonomous security exploration of a `SourceSnapshot` producing an `AuditReport`. | Not a single-finding verification. |
 | `Finding` | An identified vulnerability or issue in the audited smart contract. | Not a ground truth label or benchmark case. |
+| `AuditReport` | Structured compilation of all discovered and classified findings from an AuditRun. | Not raw conversational chat logs. |
 | `CandidateFinding` | Canonical agent-visible untrusted allegation to classify (used in Judge Mode). | Never ground truth. |
 | `SourceSnapshot` | Opaque immutable managed source identity/revision/inventory/tree digest imported by `source_access`. | Never the raw selected host path. |
 | `Trajectory` | Ordered append-only exact sanitized model-visible/run events for one run. | Not ordinary mutable logs. |
@@ -30,9 +32,9 @@ Requirements: API-08–API-10, EVAL-11
 
 ## Capability and process names
 
-Capabilities: `run_control`, `model_gateway`, `source_access`, `agent_runtime`, `judge`. Public imports use `harness.modules.<capability>.public`.
+Capabilities: `run_control`, `model_gateway`, `source_access`, `agent_runtime`, `judge`, `audit`. Cross-package imports use the TypeScript monorepo packages `@harness/<package>` (e.g., `@harness/core`, `@harness/llm`, `@harness/protocol`, `@harness/schema`, `@harness/server`).
 
-Composition roots/process identities: `daemon`, `worker`. `desktop` contains a renderer and the ADR-007-selected Tauri 2 native host; neither is a local runtime composition root.
+Composition roots/process identities: `daemon` (or local API server), `worker`. `desktop` contains a web renderer and the ADR-007-selected Tauri 2 native host; neither is a local runtime composition root.
 
 ## Run and connection states
 
@@ -52,7 +54,7 @@ Desktop connection states: `runtime_starting`, `ready`, `runtime_unavailable`, `
 
 ## Run event types
 
-`run.accepted`, `run.queued`, `run.started`, `context.allocated`, `context.transformed`, `provider.attempted`, `provider.failed`, `model.responded`, `tool.requested`, `tool.completed`, `tool.failed`, `security.blocked`, `verdict.validation_failed`, `run.cancel_requested`, `run.completed`, `run.failed`, `run.cancelled`, `run.budget_exhausted`.
+`run.accepted`, `run.queued`, `run.started`, `context.allocated`, `context.transformed`, `provider.attempted`, `provider.failed`, `model.responded`, `tool.requested`, `tool.completed`, `tool.failed`, `security.blocked`, `finding.discovered`, `finding.validated`, `verdict.validation_failed`, `run.cancel_requested`, `run.completed`, `run.failed`, `run.cancelled`, `run.budget_exhausted`.
 
 
 

@@ -56,7 +56,7 @@ harness/
     ├── client/                # HTTP/RPC client SDK
     ├── ui/                    # Shared UI components
     ├── app/                   # Web application interface
-    └── desktop/               # Desktop application wrapper (Electron)
+    └── desktop/               # Desktop application wrapper (Tauri 2)
 ```
 
 ## How to read

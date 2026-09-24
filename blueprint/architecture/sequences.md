@@ -1,20 +1,16 @@
 # System Sequences & Lifecycle
 
-## Source: end-to-end-sequences.md
-
-# End-to-End Sequences
-
 Normative: yes  
-Version: `judge-sequences-v3`  
+Version: `sequences-v4`  
 
-## Submission to terminal retrieval
+## Submission to terminal retrieval (Judge Mode)
 
 ```mermaid
 sequenceDiagram
-  actor U as Operator
-  participant API
-  participant APP as RunApplication
-  participant DB
+  actor U as Operator / Auditor
+  participant API as API Server (@harness/server)
+  participant APP as Core Engine (@harness/core)
+  participant DB as Database (PostgreSQL / @harness/schema)
   participant Q as JobQueue
   participant W as Worker
   U->>API: POST canonical request + Idempotency-Key
@@ -32,16 +28,58 @@ sequenceDiagram
 
 Invariant: configuration is persisted before enqueue; queue payload contains only stable identifiers; a client disconnect does not stop work.
 
+## Autonomous Audit Mode flow
+
+```mermaid
+sequenceDiagram
+  actor U as Operator / Auditor
+  participant UI as Desktop / Web UI (@harness/app)
+  participant API as API Server (@harness/server)
+  participant CORE as Core Engine (@harness/core)
+  participant LLM as Model Gateway (@harness/llm)
+  participant DB as Database (PostgreSQL / @harness/schema)
+
+  U->>UI: Select smart contract repository
+  UI->>API: POST /sources/register (ephemeral path)
+  API->>CORE: Create immutable source snapshot
+  CORE->>DB: Persist SourceSnapshot (inventory, digests)
+  API-->>UI: 201 Created (source_snapshot_id)
+
+  U->>UI: POST /audit/runs (source_snapshot_id, config)
+  UI->>API: Submit Audit Run request
+  API->>DB: Atomically create run (mode=audit, state=queued)
+  API-->>UI: 202 Accepted (run_id)
+
+  Note over CORE,LLM: Autonomous Exploration Loop
+  loop Multi-turn reasoning & finding collection
+    CORE->>LLM: Prompt with contract context & active checklist
+    LLM-->>CORE: Tool request (read_file, list_dir, search)
+    CORE->>CORE: Execute bounded read tool on SourceSnapshot
+    CORE->>DB: Append trajectory events (step, tool_call, token_usage)
+    CORE->>LLM: Send tool result
+    LLM-->>CORE: Candidate vulnerability discovered
+    CORE->>CORE: Validate finding structure & deduplicate
+    CORE->>DB: Persist finding.discovered event
+  end
+
+  CORE->>CORE: Compile structured AuditReport
+  CORE->>DB: Commit findings, AuditReport & CAS running -> completed
+  UI->>API: GET /runs/{run_id}/report
+  API-->>UI: Return completed AuditReport & verified findings
+```
+
+Invariant: Audit Mode operates purely on immutable snapshots through read-only tools; all intermediate reasoning, tool calls, and discovered findings are durably recorded in PostgreSQL.
+
 ## Tauri discovery, protected transport, and host exit
 
 ```mermaid
 sequenceDiagram
-  actor U as Operator
-  participant UI as React/generated client
-  participant T as Tauri narrow host
+  actor U as Operator / Auditor
+  participant UI as React UI (@harness/app)
+  participant T as Tauri Host (@harness/desktop)
   participant S as Runtime supervisor
-  participant API as Local daemon
-  participant DB as PostgreSQL
+  participant API as Local Daemon (@harness/server)
+  participant DB as Database (PostgreSQL)
   U->>UI: open desktop
   UI->>T: runtime discover/start-or-attach
   T->>S: platform-scoped discover/start-or-attach
@@ -56,52 +94,19 @@ sequenceDiagram
   UI->>T: rediscover + full handshake + cursor resume
 ```
 
-Invariant: renderer input cannot choose an arbitrary endpoint, credential, executable, process or URL. The Tauri host is protected transport/OS integration only and never owns Judge continuation or run state.
-
-## Coordinated signed update
-
-```mermaid
-sequenceDiagram
-  actor U as Operator
-  participant UI as Desktop projection
-  participant T as Tauri update coordinator
-  participant API as Local daemon
-  participant DB as PostgreSQL
-  participant PKG as Approved signed release
-  UI->>T: check/prepare approved channel
-  T->>PKG: verify OS signing + artifact signature + compatibility manifest
-  T->>API: prepare update(policy, target versions/digests)
-  API->>DB: inspect active runs, claims and ambiguous attempts
-  alt reject_if_active with work
-    API-->>T: conflict + safe counts
-    T-->>UI: no installation, explicit action required
-  else confirmed quiesce_then_stop or no work
-    API->>DB: quiesce at safe boundaries, preserve ambiguity
-    API-->>T: quiesced + manifest digest
-    T->>PKG: install coordinated signed artifacts
-    T->>API: restart/rediscover and full compatibility handshake
-    alt compatible and healthy
-      T-->>UI: ready, mutations enabled
-    else install/interruption/mismatch
-      T->>PKG: execute documented rollback
-      T-->>UI: incompatible/update-failed, mutations disabled
-    end
-  end
-```
-
-Invariant: Tauri's updater is artifact transport, not product authority. Renderer cannot supply artifact URLs/signing keys or invoke installation directly, and window close never substitutes for cancellation/quiesce.
+Invariant: renderer input cannot choose an arbitrary endpoint, credential, executable, process or URL. The Tauri host is protected transport/OS integration only and never owns Judge/Audit continuation or run state.
 
 ## Provider and tool iteration
 
 ```mermaid
 sequenceDiagram
-  participant O as Orchestrator
+  participant O as Orchestrator (@harness/core)
   participant C as ContextPlanner
-  participant P as model_gateway.public
+  participant P as ModelGateway (@harness/llm)
   participant T as ToolRegistry
   participant W as WorkspacePolicy
-  participant E as EventSink
-  loop until valid verdict or stop
+  participant E as EventSink (@harness/schema)
+  loop until valid verdict, report or stop
     O->>C: preflight exact planned messages + output reserve
     C-->>O: model input or context_budget
     O->>E: context.allocated/transformed
@@ -115,7 +120,7 @@ sequenceDiagram
       W-->>T: allowed or safe denial
       T-->>O: bounded transformed result/error
       O->>E: tool/security/transformation events
-    else proposed verdict
+    else proposed verdict or finding
       O->>O: schema and evidence validation
     end
   end
@@ -133,21 +138,21 @@ Invariant: explicit history is reconstructed only from committed events. The ada
 
 ## Structured repair and completion
 
-1. A proposed verdict is validated independently of the provider.
-2. Schema or evidence failure emits `verdict.validation_failed` with safe validation paths.
+1. A proposed verdict or finding is validated independently of the provider.
+2. Schema or evidence failure emits validation failed event with safe validation paths.
 3. When repair is enabled and attempts remain, the failure is added to the next preflighted context.
-4. A valid verdict and evidence are committed atomically with aggregates and `run.completed`.
-5. Exhausted repair produces `failed/schema_repair_exhausted`; no partial verdict is terminal.
+4. A valid verdict/finding and evidence are committed atomically with aggregates and `run.completed`.
+5. Exhausted repair produces `failed/schema_repair_exhausted`; no partial verdict or unvalidated finding is terminal.
 
 ## Cancellation and budget exhaustion
 
 ```mermaid
 sequenceDiagram
-  actor U as Operator
-  participant API
-  participant APP as RunApplication
+  actor U as Operator / Auditor
+  participant API as API Server (@harness/server)
+  participant APP as Core Engine (@harness/core)
   participant W as Worker
-  participant DB
+  participant DB as Database (PostgreSQL)
   U->>API: POST cancel
   API->>APP: idempotent cancel request
   APP->>DB: record request
@@ -169,7 +174,7 @@ Budget checks occur before and after each provider/tool boundary. A selected lim
 | Incomplete/unapproved profile | Reject before SDK client construction, credential access or network → commit safe configuration failure. |
 | Transient under primary profile | Append the sole attempt/error → no SDK/project retry → commit the mapped terminal failure. |
 | Permanent | Append attempt/error → no transient retry → commit `failed/provider_permanent`. |
-| Retry-enabled non-primary research | Requires distinct flag/profile/experiment identity; append every attempt/backoff and enforce budgets. |
+| Configured retry profile | When explicit retry profile is enabled, append every attempt/backoff and enforce strict budget ceilings. |
 | Late result after cancellation | Sanitize and account where possible → never append model-visible continuation or rewrite terminal state. |
 
 ## Tool denial
@@ -183,7 +188,7 @@ sequenceDiagram
   participant Q as JobQueue
   participant W1 as Worker A
   participant W2 as Worker B
-  participant DB
+  participant DB as Database (PostgreSQL)
   Q->>W1: deliver run_id
   W1->>DB: claim token/version and append sequence N
   W1--xDB: interrupted
@@ -196,22 +201,11 @@ sequenceDiagram
 
 Provider calls cannot be guaranteed exactly once across process failure. The reproduction record distinguishes attempts with unknown outcome, and idempotency prevents the system from pretending otherwise.
 
-## Matched direct and harness calls
+## Run Lifecycle & State Machine
 
-The scheduler resolves one accepted provider profile ID/version/digest for a matched pair. Both direct and harness arms use the same immutable model, SDK mapping, sampling, output reserve, timeout and one-attempt policy. Their prompt wrappers and allowed tools intentionally differ and are versioned by the experiment profile. Profile drift or retry asymmetry rejects the pair before either arm reaches the network.
-
-
-
-
-## Source: judge-lifecycle.md
-
-# Judge Run Lifecycle
-
-Normative: yes  
-Version: `judge-lifecycle-v2`  
-Requirements: API-03, ORCH-01, ORCH-03
-
-## State machine
+- **Normative**: yes  
+- **Version**: `run-lifecycle-v3`  
+- **Requirements**: API-03, ORCH-01, ORCH-03
 
 ```mermaid
 stateDiagram-v2
@@ -222,7 +216,7 @@ stateDiagram-v2
   queued --> running: worker claim CAS
   queued --> cancelled: cancellation before claim
   queued --> failed: unrecoverable queue/preflight failure
-  running --> completed: valid verdict + evidence atomic commit
+  running --> completed: valid verdict/report atomic commit
   running --> failed: permanent/unrecoverable failure
   running --> cancelled: cooperative cancellation at safe boundary
   running --> budget_exhausted: one stop reason wins
@@ -243,14 +237,14 @@ stateDiagram-v2
 | queued | running | Worker adapter | Claim token valid; cancellation not committed | Claim + state version CAS + start event | Stale claim rejected |
 | queued | cancelled | Run application/worker | Cancel requested before successful start CAS | Cancel request/outcome + terminal aggregate | Claim loses CAS |
 | queued | failed | Worker/application | Job is unrecoverable before model call | Failure event + terminal aggregate | Terminal state unchanged |
-| running | completed | Run application via worker | Verdict schema/evidence valid; cancel absent; budgets available | Verdict/evidence/usage + completion event + terminal state in one transaction | Stale worker rejected |
+| running | completed | Run application via worker | Verdict/report schema and evidence valid; cancel absent; budgets available | Verdict/findings/usage + completion event + terminal state in one transaction | Stale worker rejected |
 | running | failed | Run application via worker | Permanent error or retries/repair exhausted | Failure reason/usage + terminal event/state | Stale worker rejected |
 | running | cancelled | Run application via worker | Cancellation observed at model/tool boundary | Cancel outcome/usage + terminal event/state | Terminal state unchanged |
 | running | budget_exhausted | Run application via worker | Stop condition selected | Budget evidence + terminal event/state | Terminal state unchanged |
 
 All other transitions are invalid. Terminal states are immutable.
 
-Before `accepted -> queued` for a real-provider run, the application resolves and validates accepted provider/experiment profile versions and digests. Before each model attempt, `model_gateway` repeats the pre-network gate before SDK client construction or credential access. A missing/unapproved/drifted profile is a configuration failure, not a provider attempt. Deterministic profiles bypass real credential/network approval while remaining schema/contract checked.
+Before `accepted -> queued` for a real-provider run, the application resolves and validates accepted provider profile versions and digests. Before each model attempt, `model_gateway` repeats the pre-network gate before SDK client construction or credential access. A missing/unapproved/drifted profile is a configuration failure, not a provider attempt. Deterministic profiles bypass real credential/network approval while remaining schema/contract checked.
 
 ## Budget exhaustion
 
@@ -258,10 +252,8 @@ When checks observe multiple exhausted limits at one safe boundary, choose by fi
 
 No provider or tool action starts after a terminal transition or after the chosen limit is known. In-flight provider calls may not be physically cancelled; their late result is recorded only as a safe orphan-attempt observation and cannot mutate the terminal run.
 
-The primary RQ1 profile permits one project attempt and configures SDK retries to zero. A transient error therefore maps to a terminal primary outcome after the single recorded attempt. Retry-enabled execution is a different experiment identity and cannot reuse primary acceptance or paired results.
+The default profile permits one model attempt and configures SDK retries to zero. A transient error therefore maps to a terminal failure after the single recorded attempt, preventing silent provider retries from consuming unaccounted budget. Explicit retry-enabled runs require separate profile configuration with bounded retry budgets.
 
 ## Version and CAS
 
 Each mutable run row has a monotonically increasing `state_version`. A transition supplies expected state and version. A zero-row update means the caller is stale and must reload; it never retries a terminal write blindly.
-
-

@@ -1,7 +1,5 @@
 # Architecture Decisions
 
-## Source: ADR-001-technology-stack.md
-
 # ADR-001: Technology stack for the future Judge MVP
 
 - Status: `Superseded by ADR-008`
@@ -31,15 +29,6 @@ Acceptance evidence is the approved OpenSpec design `sha256:5aea91ad544a46cc6462
 | Desktop delivery | React/TypeScript/Vite provides the renderer; ADR-007 selects Tauri 2 with a narrow Rust host. |
 | Reproducibility | `uv`, `pnpm`, committed lockfiles and Docker Compose define the packaging family. |
 | Operational simplicity | No Redis, Kubernetes, external LLM gateway or independently deployed microservices in MVP. |
-
-## Options considered
-
-| Option | Disposition | Rationale |
-|---|---|---|
-| Python runtime + PostgreSQL work table + React/TypeScript desktop renderer | **Accepted** | Best fit for provider/data tooling, typed async boundaries, one durable datastore and team proficiency. |
-| TypeScript/NestJS runtime + Redis/BullMQ + React | Rejected for MVP | Adds Redis and a second execution authority without evidence that it improves the research harness. |
-| Python runtime + dedicated Redis/Celery-style queue | Rejected for MVP | Adds infrastructure and retry ambiguity around paid attempts; PostgreSQL claims are sufficient for MVP. |
-| OpenCode's Bun/Effect/Solid stack | Rejected | The stack and compatibility surface are not required by Judge methodology; see ADR-004. |
 
 ## Accepted stack family
 
@@ -74,8 +63,6 @@ Exact compatible dependency versions are pinned by the first implementation chan
 Changing the language family, API framework, relational authority, renderer family or packaging topology requires a superseding ADR with incompatibility evidence, migration impact, and project-owner approval. Ordinary lockfile updates do not supersede this ADR.
 
 
-## Source: ADR-002-provider-contract.md
-
 # ADR-002: Direct official SDK behind the project provider port
 
 - Status: `Accepted`
@@ -97,22 +84,12 @@ The adapter translates project-owned requests and responses at the boundary. No 
 ## Accepted first-adapter behavior
 
 1. Each logical step sends the complete, explicit, committed model-visible history selected by `agent_runtime`; the provider is not the conversation authority.
-2. Calls are non-streaming and one-attempt for the primary RQ1 profile.
+2. Calls are non-streaming and one-attempt for the default provider profile.
 3. Official SDK automatic retries are set to zero; project retry is disabled for primary direct and harness arms.
 4. Only normalized local custom-function definitions may be sent. Tool requests are dispatched by `source_access`; automatic SDK/provider tool execution is forbidden.
 5. Hosted tools, provider-owned loops, Agents SDK orchestration and background/provider conversation state are forbidden in MVP.
 6. Returned structured data is independently parsed and validated against the project verdict schema. Provider structured-output success is not acceptance.
 7. Native request ID, resolved model when exposed, usage, finish/error metadata and timings are preserved through allowlisted mappings; secrets and raw unsafe errors are not.
-
-## Rejected MVP options
-
-| Option | Disposition | Reason |
-|---|---|---|
-| LiteLLM or another in-process gateway | Rejected for MVP | Adds a semantic/retry layer before native fidelity is established. |
-| external provider proxy | Rejected for MVP | Adds trust, logging, latency and failure boundaries without an MVP need. |
-| OpenAI Agents SDK orchestration | Rejected for MVP | Provider/library loop ownership conflicts with the project-owned agent state machine and ablation controls. |
-| hosted web/file/computer tools | Rejected for MVP | Expands network and execution authority beyond read-only registered source. |
-| provider-owned conversation/thread state | Rejected for MVP | Prevents exact committed-history replay and symmetric accounting. |
 
 Multiple providers remain supported by the port and profile schemas. Adding a second adapter does not require changing the agent loop.
 
@@ -136,8 +113,6 @@ Direct and harness arms reference the same accepted provider-profile identifier 
 Accepted on `2026-08-14` against this `adr-002-v2` content and the project-port boundary in `architecture/agent-runtime-boundaries.md`. Acceptance authorizes blueprint architecture only. It does not approve a credential, model, price, network call, dependency installation or experiment.
 
 
-
-## Source: ADR-004-opencode-reference.md
 
 # ADR-004: Use OpenCode as pinned architecture evidence, not an implementation base
 
@@ -205,8 +180,6 @@ A newer OpenCode snapshot creates a new ADR-004 version containing the new immut
 - Result: `PASS — reference-only review; zero source/dependency carry-over observed`.
 
 
-## Source: ADR-005-capability-first-modular-monolith.md
-
 # ADR-005: Capability-first modular monolith with shallow hexagonal modules
 
 - Status: `Accepted (Updated for package-based monorepo)`
@@ -233,7 +206,7 @@ Organize the TypeScript/Bun monorepo by package, each owning a clear responsibil
 7. `client` — HTTP/RPC client SDK
 8. `ui` — shared UI components
 9. `app` — web application interface
-10. `desktop` — desktop application wrapper (Electron)
+10. `desktop` — desktop application wrapper (Tauri 2)
 
 Each package owns its public API surface. Internal implementation details are not exported across package boundaries.
 
@@ -265,15 +238,6 @@ The server, scorer, and CLI are separate entry points over the same monorepo sou
 
 The graph is acyclic. Frontend packages (`app`, `desktop`, `ui`, `cli`) must never import backend packages (`core`, `server`, `llm`). Any undeclared edge requires a blueprint/ADR revision.
 
-## Options considered
-
-| Option | Disposition | Reason |
-|---|---|---|
-| Repository-wide layer-first tree | Rejected | Technical folders become coupling hubs and obscure capability/table ownership. |
-| Capability-first with full clean-architecture ceremony in every module | Rejected | Empty layers increase navigation and false abstraction without stronger boundaries. |
-| Capability-first with shallow hexagonal roles | **Accepted** | Keeps business ownership local while preserving ports/adapters where they matter. |
-| Independently deployed service per capability | Rejected for MVP | Adds distributed versioning/failure modes without scale or ownership evidence. |
-
 ## Future extension seams
 
 Audit mode and `VerificationRunner` become new capability modules/entrypoints with declared public contracts. They do not add mode conditionals, shell/network authority or PoC execution to Judge modules. Long-term memory and compaction require separate accepted changes and result-affecting flags.
@@ -286,8 +250,6 @@ WP-01 creates architecture tests for allowed/forbidden imports, cycles, framewor
 
 Changing the system-level organizing axis, adding a global business adapter/repository layer, or splitting a package into an independently released service requires a superseding ADR with dependency/migration impact and project-owner approval.
 
-
-## Source: ADR-006-desktop-local-runtime.md
 
 # ADR-006: Downloadable desktop client over an independent local runtime
 
@@ -338,15 +300,6 @@ The native repository picker may return a host path only as ephemeral sensitive 
 
 The MVP does not promise a single-file, database-free installer. PostgreSQL is not silently replaced by embedded SQLite to simplify packaging.
 
-## Options considered
-
-| Option | Disposition | Rationale |
-|---|---|---|
-| Public/browser-hosted web application | Rejected for MVP | Conflicts with downloadable local-first product and expands auth/multi-tenancy threat scope. |
-| Desktop embeds and owns the agent loop | Rejected | Window lifecycle would become execution authority and weaken crash recovery. |
-| Desktop thin client + independent local runtime | **Accepted** | Preserves durable async execution, local repository UX and contract-first separation. |
-| Independently deployed backend services | Rejected | Adds distributed release/version/failure ownership without evidence. |
-
 ## Consequences
 
 - OpenAPI remains a local process boundary and canonical generated-client source.
@@ -359,8 +312,6 @@ The MVP does not promise a single-file, database-free installer. PostgreSQL is n
 
 Changing to hosted SaaS, renderer-owned execution, direct desktop database/provider access, embedded SQLite authority or independently released runtime services requires a superseding ADR and threat/migration review.
 
-
-## Source: ADR-007-desktop-shell.md
 
 # ADR-007: Tauri 2 native desktop shell, signing, and updater boundary
 
@@ -419,15 +370,13 @@ Tauri's updater is the signed native artifact transport, not the complete produc
 
 Signing private keys belong to release CI or an explicit release-owner secret boundary. Renderer and runtime processes never receive them. Losing the updater or closing the desktop is not cancellation and cannot erase committed work.
 
-## Candidate comparison
+## Selected candidate
 
 | Candidate | Architecture fit | Decision | Remaining evidence |
 |---|---|---|---|
 | Tauri 2 + system webview + narrow Rust host | Keeps React/Vite, supports explicit capabilities/permissions and native integration without bundling a Node/Chromium authority into the thin host. | **Accepted** | Three-OS packaging, system-webview variance, lifecycle, secure-store, signed-update, rollback, reproducibility, startup/memory/bundle measurements. |
-| Electron + bundled Chromium/Node | Mature React desktop ecosystem and consistent renderer, but adds preload/IPC/Node/Chromium privilege and update maintenance this thin client does not need. | Rejected as primary; contingency only through a superseding ADR. | Would still require strict sandbox/IPC/sender validation, secure-store checks, Linux distribution/update design, and independent runtime proof. |
-| Python-hosted webview/native UI | Reuses Python knowledge, but no nominated candidate demonstrated an equally clear React/Vite, per-window permission, signing, and three-OS updater boundary. | Rejected for MVP. | A future concrete candidate must satisfy the same matrix through a superseding ADR. |
 
-Bundle size alone is not the decision. The primary reason is the smallest reviewable native-authority surface for a trace UI that displays untrusted model/source content while the independent Python runtime owns all Judge behavior.
+The primary reason for selecting Tauri 2 is the smallest reviewable native-authority surface for a trace UI that displays untrusted model/source content while the independent runtime owns all execution.
 
 ## Official documentation evidence
 
@@ -440,8 +389,6 @@ Sources were reviewed for the 2026-08-19 decision. They establish available fram
 | Native picker | [Dialog plugin](https://v2.tauri.app/plugin/dialog/) | Supports operator path selection; it does not authorize runtime/model filesystem access. |
 | Signed updater | [Updater plugin](https://v2.tauri.app/plugin/updater/) | Supports signed update artifacts on Windows/Linux/macOS; it does not coordinate Python runtime, PostgreSQL migrations, active work, or rollback by itself. |
 | Encrypted store | [Stronghold plugin](https://v2.tauri.app/plugin/stronghold/) | Demonstrates encrypted secret storage but is not presumed equivalent to each OS credential manager. |
-| Electron hardening/store | [Security](https://www.electronjs.org/docs/latest/tutorial/security), [safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage) | Confirms Electron can be hardened while leaving preload/IPC/Node and Linux secure-backend fallback review to the project. |
-| Electron updater | [autoUpdater](https://www.electronjs.org/docs/latest/api/auto-updater) | Documents built-in macOS/Windows updating and no equivalent built-in Linux path. |
 
 ## Required readiness spike
 
@@ -473,8 +420,6 @@ No provider call, contest data, Judge implementation, scorer access, installer p
 Changing the host family, granting renderer generic native authority, coupling runtime lifetime to the desktop, replacing OS-protected credential custody, or weakening coordinated signed-update behavior requires a superseding ADR with security review, measured incompatibility evidence, migration impact, and project-owner approval.
 
 
-## Source: ADR-008-technology-stack-migration.md
-
 # ADR-008: Technology stack migration to TypeScript/Bun monorepo
 
 - Status: `Accepted`
@@ -505,9 +450,9 @@ After detailed analysis of OpenCode's architecture (40+ packages, Effect-based, 
 | Runtime language | TypeScript (strict mode) | Single language for backend and frontend |
 | Runtime engine | Bun | Fast startup, native TypeScript execution, built-in test runner |
 | Monorepo management | Turborepo + Bun workspaces | Topological task ordering, caching, shared dependency catalog |
-| Database ORM | Drizzle ORM | Type-safe SQL, migrations, schema-as-code |
+| Database ORM | Drizzle ORM over PostgreSQL | Type-safe SQL, migrations, schema-as-code over authoritative PostgreSQL |
 | HTTP server | Hono or equivalent | Lightweight, standards-based HTTP framework |
-| Renderer | React/Vite (web) + Electron (desktop) | Web-first with desktop wrapper |
+| Renderer | React/Vite (web) + Tauri 2 (desktop) | Web-first with native desktop shell per ADR-007 |
 | Package count | 10 core packages | `protocol`, `schema`, `core`, `llm`, `server`, `cli`, `client`, `ui`, `app`, `desktop` |
 
 ### What changes from ADR-001
@@ -516,7 +461,7 @@ After detailed analysis of OpenCode's architecture (40+ packages, Effect-based, 
 |---|---|---|
 | Python 3.12+ | TypeScript (Bun) | Unified language eliminates cross-language bridge |
 | FastAPI | Hono or equivalent | Lightweight, Bun-native HTTP server |
-| PostgreSQL (sole authority) | Database via Drizzle ORM (engine TBD) | ORM-first approach; specific engine is a future decision |
+| PostgreSQL (sole authority) | PostgreSQL via Drizzle ORM | Retains PostgreSQL as sole durable authority; adopts type-safe schema-as-code |
 | SQLAlchemy + Alembic | Drizzle ORM + Drizzle Kit | Type-safe, schema-as-code approach |
 | 7-capability Python monolith | 10-package TypeScript monorepo | Package boundaries over capability directories |
 
@@ -524,10 +469,9 @@ After detailed analysis of OpenCode's architecture (40+ packages, Effect-based, 
 
 - Non-negotiable invariants (ground truth isolation, scorer isolation, trajectory integrity) remain exactly as defined
 - ADR-002 (provider contract) core principles remain valid
-
 - ADR-005 dependency principles (acyclic graph, isolation) are preserved — only the implementation moves from Python capability directories to TypeScript packages
 - ADR-006 (desktop/local-runtime topology) core design is preserved
-- ADR-007 (Tauri native host) is not superseded — the desktop shell choice remains a separate concern
+- ADR-007 (Tauri 2 native host) is confirmed as the desktop shell wrapper per ADR-007
 
 ## Relation to OpenCode
 

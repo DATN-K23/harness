@@ -1,0 +1,35 @@
+[
+  { "category": "PATH", "id": "PATH-001", "payload": "/etc/passwd", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-001", "payload": "/var/log/syslog", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-001", "payload": "/root/.ssh/id_rsa", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-002", "payload": "C:\\secrets.txt", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-002", "payload": "C:/Windows/System32/cmd.exe", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-002", "payload": "\\\\SERVER\\share\\hidden", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-003", "payload": "../report.md", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-003", "payload": "a/../../labels.json", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-003", "payload": "../../../../etc/shadow", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-004", "payload": "%2e%2e/report", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-004", "payload": "%252e%252e/config", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-004", "payload": "..%c0%af..%c0%af", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-005", "payload": "a\\b/c", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-005", "payload": "mixed\\separators/and\u0000nul", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-005", "payload": "\u0000file", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-006", "payload": "symlink_to_parent", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-007", "payload": "race_condition_file_mock", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-008", "payload": "official-report.md", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-008", "payload": "../official-report.md", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-009", "payload": "judging", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-009", "payload": "labels", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-009", "payload": ".git/config", "expected_error": "path_denied", "expected_event": "security.blocked" },
+  
+  { "category": "PATH", "id": "PATH-010", "payload": "/home/user/workspace/unregistered.txt", "expected_error": "schema_rejection", "expected_event": "security.blocked" },
+  { "category": "PATH", "id": "PATH-011", "payload": "relative/missing_file.txt", "expected_error": "not_found", "expected_event": "none" },
+  { "category": "PATH", "id": "PATH-012", "payload": "payload.bin", "expected_error": "unsupported_content", "expected_event": "none" }
+]

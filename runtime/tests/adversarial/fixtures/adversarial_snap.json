@@ -1,0 +1,13 @@
+[
+  { "category": "SNAP", "id": "SNAP-001", "payload": "file_byte_changes_after_registration", "expected_error": "snapshot_integrity", "expected_event": "security.blocked" },
+  { "category": "SNAP", "id": "SNAP-002", "payload": "extra_file_inserted_into_source_tree", "expected_error": "tree_mismatch", "expected_event": "security.blocked" },
+  { "category": "SNAP", "id": "SNAP-003", "payload": "revision_digest_pair_mismatch", "expected_error": "registry_rejection", "expected_event": "security.blocked" },
+  
+  { "category": "VOL", "id": "VOL-001", "payload": "file_exceeds_max_bytes", "expected_error": "truncation", "expected_event": "security.blocked" },
+  { "category": "VOL", "id": "VOL-001", "payload": "{\"file_size\": 50000000}", "expected_error": "truncation", "expected_event": "security.blocked" },
+  
+  { "category": "VOL", "id": "VOL-002", "payload": "directory_search_exceeds_match_limit", "expected_error": "truncation", "expected_event": "security.blocked" },
+  { "category": "VOL", "id": "VOL-002", "payload": "{\"match_count\": 10001}", "expected_error": "truncation", "expected_event": "security.blocked" },
+  
+  { "category": "VOL", "id": "VOL-003", "payload": "extremely_long_single_line_payload_string_here_simulating_memory_blowup_attempt", "expected_error": "truncation", "expected_event": "security.blocked" }
+]

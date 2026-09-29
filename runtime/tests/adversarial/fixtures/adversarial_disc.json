@@ -1,0 +1,10 @@
+[
+  { "category": "DISC", "id": "DISC-001", "payload": "blocked_argument_with_secret_AWS_ACCESS_KEY", "expected_error": "none", "expected_event": "security.redacted" },
+  { "category": "DISC", "id": "DISC-001", "payload": "Failed to read /Users/admin/Desktop/secrets.txt", "expected_error": "none", "expected_event": "security.redacted" },
+  
+  { "category": "DISC", "id": "DISC-002", "payload": "provider_error_with_credential_like_string", "expected_error": "none", "expected_event": "security.redacted" },
+  { "category": "DISC", "id": "DISC-002", "payload": "Provider returned 401 Unauthorized for token sk-1234567890abcdef", "expected_error": "none", "expected_event": "security.redacted" },
+  
+  { "category": "DISC", "id": "DISC-003", "payload": "cross_run_event_cursor_query", "expected_error": "isolation_denied", "expected_event": "security.blocked" },
+  { "category": "DISC", "id": "DISC-003", "payload": "{\"query\": \"events\", \"run_id\": \"other_user_run_id\"}", "expected_error": "isolation_denied", "expected_event": "security.blocked" }
+]

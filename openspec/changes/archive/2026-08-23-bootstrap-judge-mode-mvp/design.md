@@ -363,27 +363,27 @@ modules/<capability>/
 
 The capability ownership is fixed as follows:
 
-| Capability | Owns | Does not own |
-|---|---|---|
-| `run_control` | run lifecycle, idempotency, jobs/outbox, claims/leases, status and committed event ordering | agent decisions, provider mapping, labels |
-| `model_gateway` | provider profiles, normalized model contracts, provider identity/usage/cost/error mapping, OpenAI and deterministic adapters | continuation, tools, verdict semantics |
-| `source_access` | source registration, immutable snapshots, workspace assembly, safe read-only tools, path security and filesystem adapter | repository-picker UI, Judge policy, ground truth |
-| `agent_runtime` | generic turn loop, committed history rebuild, context allocation, budgets, continuation and stop mechanics | `valid`/`invalid` meaning, scorer access |
-| `judge` | candidate semantics, Judge prompts/policy, verdict/evidence validation and Judge workflow | generic provider SDK code, filesystem mechanics, labels |
-| `evaluation` | experiment protocol/profile, direct-versus-harness scheduling, manifests, aggregation and safe export | resolving labels, provider credentials |
-| `scoring` | scorer-only label normalization, post-terminal join and approved scoring outputs | agent-visible context, API presentation, provider calls |
+| Capability      | Owns                                                                                                                         | Does not own                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `run_control`   | run lifecycle, idempotency, jobs/outbox, claims/leases, status and committed event ordering                                  | agent decisions, provider mapping, labels               |
+| `model_gateway` | provider profiles, normalized model contracts, provider identity/usage/cost/error mapping, OpenAI and deterministic adapters | continuation, tools, verdict semantics                  |
+| `source_access` | source registration, immutable snapshots, workspace assembly, safe read-only tools, path security and filesystem adapter     | repository-picker UI, Judge policy, ground truth        |
+| `agent_runtime` | generic turn loop, committed history rebuild, context allocation, budgets, continuation and stop mechanics                   | `valid`/`invalid` meaning, scorer access                |
+| `judge`         | candidate semantics, Judge prompts/policy, verdict/evidence validation and Judge workflow                                    | generic provider SDK code, filesystem mechanics, labels |
+| `evaluation`    | experiment protocol/profile, direct-versus-harness scheduling, manifests, aggregation and safe export                        | resolving labels, provider credentials                  |
+| `scoring`       | scorer-only label normalization, post-terminal join and approved scoring outputs                                             | agent-visible context, API presentation, provider calls |
 
 The initial allowed capability graph is acyclic and explicit:
 
-| Importing capability | Allowed capability imports |
-|---|---|
-| `run_control` | none |
-| `model_gateway` | none |
-| `source_access` | none |
-| `agent_runtime` | `run_control.public`, `model_gateway.public`, `source_access.public` |
-| `judge` | `run_control.public`, `agent_runtime.public`, `source_access.public` |
-| `evaluation` | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
-| `scoring` | `evaluation.public` only |
+| Importing capability | Allowed capability imports                                                           |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `run_control`        | none                                                                                 |
+| `model_gateway`      | none                                                                                 |
+| `source_access`      | none                                                                                 |
+| `agent_runtime`      | `run_control.public`, `model_gateway.public`, `source_access.public`                 |
+| `judge`              | `run_control.public`, `agent_runtime.public`, `source_access.public`                 |
+| `evaluation`         | `run_control.public`, `judge.public`, `model_gateway.public`, `source_access.public` |
+| `scoring`            | `evaluation.public` only                                                             |
 
 All capabilities may use the minimal `shared_kernel`; that use is not a capability edge. Any new edge, including a direct Judge-to-provider edge or evaluation-to-scoring edge, requires a blueprint/ADR revision before implementation rather than an ad hoc import.
 
@@ -441,11 +441,11 @@ CI evidence planned by the blueprint includes schema fixture validation, OpenAPI
 
 `ADR-004-opencode-reference.md` records the reviewed local snapshot and this disposition:
 
-| Disposition | Relevant ideas |
-|---|---|
-| Adopt | One provider turn per invocation; one tool call per settlement; explicit schema/protocol boundaries; inward dependencies; durable, inspectable event concepts. |
-| Adapt | OpenCode's session/event timeline becomes a non-streaming, PostgreSQL-backed polling trace; its tool registry becomes an immutable source-only Judge registry; its broad provider abstraction becomes the smaller project-owned contract required by TV1/TV5. |
-| Reject | Forking or copying OpenCode; its Bun/Effect/Solid stack; product-scale monorepo surface; host-authority bash/write/network tools; SQLite or process-local execution authority; V1/V2 compatibility baggage; hosted provider tools and hidden provider loops. |
+| Disposition | Relevant ideas                                                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Adopt       | One provider turn per invocation; one tool call per settlement; explicit schema/protocol boundaries; inward dependencies; durable, inspectable event concepts.                                                                                                |
+| Adapt       | OpenCode's session/event timeline becomes a non-streaming, PostgreSQL-backed polling trace; its tool registry becomes an immutable source-only Judge registry; its broad provider abstraction becomes the smaller project-owned contract required by TV1/TV5. |
+| Reject      | Forking or copying OpenCode; its Bun/Effect/Solid stack; product-scale monorepo surface; host-authority bash/write/network tools; SQLite or process-local execution authority; V1/V2 compatibility baggage; hosted provider tools and hidden provider loops.  |
 
 The ADR is `Accepted` at blueprint level and references the clean local snapshot `14f0bf64a19493110b51f5fdeb9c1c1bba5dd3f5`. It contains a provenance matrix with one row per considered pattern and these mandatory fields: snapshot-relative evidence path, observed behavior, `adopt`/`adapt`/`reject` disposition, Judge rationale, destination blueprint contract or architecture section, forbidden carry-over, and future validation evidence. A label such as "inspired by OpenCode" is insufficient without this row-level trace.
 
@@ -516,14 +516,14 @@ Electron is rejected as the primary host because its bundled Chromium/Node and p
 
 The applied ADR must preserve an official-documentation evidence table rather than reducing the choice to bundle-size claims:
 
-| Evidence | Official source | Decision use and limit |
-|---|---|---|
-| Tauri capabilities and permissions | `https://v2.tauri.app/security/capabilities/`, `https://v2.tauri.app/security/permissions/` | Supports explicit window/webview command allowlists; the project must still inspect the effective merged permission graph and project-command defaults. |
-| Tauri dialog | `https://v2.tauri.app/plugin/dialog/` | Supports native repository selection; it does not grant runtime/model filesystem authority. |
-| Tauri updater | `https://v2.tauri.app/plugin/updater/` | Supports signed update artifacts on Windows/Linux/macOS; it does not by itself coordinate Python runtime, PostgreSQL migration, active work or rollback. |
-| Tauri Stronghold | `https://v2.tauri.app/plugin/stronghold/` | Demonstrates encrypted secret storage, but is not assumed equivalent to each OS credential manager. |
-| Electron security and safe storage | `https://www.electronjs.org/docs/latest/tutorial/security`, `https://www.electronjs.org/docs/latest/api/safe-storage` | Shows Electron can be hardened and use OS cryptography, but also makes preload/IPC/Node and Linux-backend fallback review project responsibilities. |
-| Electron updater | `https://www.electronjs.org/docs/latest/api/auto-updater` | Documents built-in macOS/Windows updating and the absence of an equivalent built-in Linux path, increasing three-OS release variance for this project. |
+| Evidence                           | Official source                                                                                                       | Decision use and limit                                                                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tauri capabilities and permissions | `https://v2.tauri.app/security/capabilities/`, `https://v2.tauri.app/security/permissions/`                           | Supports explicit window/webview command allowlists; the project must still inspect the effective merged permission graph and project-command defaults.  |
+| Tauri dialog                       | `https://v2.tauri.app/plugin/dialog/`                                                                                 | Supports native repository selection; it does not grant runtime/model filesystem authority.                                                              |
+| Tauri updater                      | `https://v2.tauri.app/plugin/updater/`                                                                                | Supports signed update artifacts on Windows/Linux/macOS; it does not by itself coordinate Python runtime, PostgreSQL migration, active work or rollback. |
+| Tauri Stronghold                   | `https://v2.tauri.app/plugin/stronghold/`                                                                             | Demonstrates encrypted secret storage, but is not assumed equivalent to each OS credential manager.                                                      |
+| Electron security and safe storage | `https://www.electronjs.org/docs/latest/tutorial/security`, `https://www.electronjs.org/docs/latest/api/safe-storage` | Shows Electron can be hardened and use OS cryptography, but also makes preload/IPC/Node and Linux-backend fallback review project responsibilities.      |
+| Electron updater                   | `https://www.electronjs.org/docs/latest/api/auto-updater`                                                             | Documents built-in macOS/Windows updating and the absence of an equivalent built-in Linux path, increasing three-OS release variance for this project.   |
 
 Acceptance records the project owner's explicit choice, but it does not waive readiness evidence. Before native distribution is considered ready, the WP-01/WP-10 packaged spike must build on every claimed OS and demonstrate: discover/start-or-attach of a dummy runtime; compatible and incompatible handshakes; OS-protected credential use with no renderer persistence or insecure fallback; picker-to-registration custody; desktop close/reopen while committed work persists; renderer denial of undeclared native commands; signed update, active-work preflight, failure and rollback states; clean-machine reproducibility; and measured startup, memory and bundle evidence. Failure pauses distribution and requires remediation or a superseding ADR; it does not silently change the accepted stack.
 

@@ -20,13 +20,13 @@ Schema and evidence failures produce safe field-level issues. When the versioned
 
 ## Fixtures
 
-| File | Expected | Reason |
-|---|---|---|
-| `examples/verdict-valid.json` | pass | Valid verdict, bounded confidence, one evidence item, unverified. |
-| `examples/verdict-invalid.json` | pass | Invalid finding with severity none and evidence. |
-| `examples/verdict-confidence-zero.json` | pass | Inclusive lower confidence boundary. |
-| `examples/verdict-confidence-one.json` | pass | Inclusive upper confidence boundary. |
-| `examples/verdict-invalid-severity.json` | fail | Invalid finding claims high severity. |
-| `examples/verdict-missing-evidence.json` | fail | Evidence array is empty. |
-| `examples/verdict-path-traversal.json` | fail | Evidence path contains parent traversal. |
-| `examples/verdict-confidence-out-of-range.json` | fail | Confidence exceeds one. |
+| File                                            | Expected | Reason                                                            |
+| ----------------------------------------------- | -------- | ----------------------------------------------------------------- |
+| `examples/verdict-valid.json`                   | pass     | Valid verdict, bounded confidence, one evidence item, unverified. |
+| `examples/verdict-invalid.json`                 | pass     | Invalid finding with severity none and evidence.                  |
+| `examples/verdict-confidence-zero.json`         | pass     | Inclusive lower confidence boundary.                              |
+| `examples/verdict-confidence-one.json`          | pass     | Inclusive upper confidence boundary.                              |
+| `examples/verdict-invalid-severity.json`        | fail     | Invalid finding claims high severity.                             |
+| `examples/verdict-missing-evidence.json`        | fail     | Evidence array is empty.                                          |
+| `examples/verdict-path-traversal.json`          | fail     | Evidence path contains parent traversal.                          |
+| `examples/verdict-confidence-out-of-range.json` | fail     | Confidence exceeds one.                                           |

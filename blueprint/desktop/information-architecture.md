@@ -11,25 +11,25 @@ The downloadable desktop uses React/Vite under `apps/desktop/ui/` and the accept
 
 ## Primary views
 
-| View | Purpose | Primary local-runtime data | Never shown |
-|---|---|---|---|
-| runtime connection | starting/health/authorization/version/reconnect state | `/health`, `/runtime-info` handshake and safe recovery action | local credential, executable command, raw internal error |
-| repository registration | invoke native picker then register source | ephemeral picker input; safe snapshot response | retained/raw path after registration, adjacent contest data |
-| new Judge run | canonical finding and approved configuration | registered snapshots, provider/profile/config catalog | label, credential, direct host path |
-| run detail | status, config, ordered trace, terminal result | run view plus cursor event pages | scorer label/adjudication, prohibited original |
-| evidence | authorized run-bound source excerpt | evidence ordinal/snapshot-bound projection | arbitrary URL/path input or adjacent file |
-| evaluation | safe experiment status/approved aggregates | evaluation public projection | scorer-only schema/raw label query |
-| runtime lifecycle | explicit shutdown/update preparation with active-run warning | generated lifecycle operations and safe recovery state | implicit window-close shutdown, arbitrary command/download |
+| View                    | Purpose                                                      | Primary local-runtime data                                    | Never shown                                                 |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| runtime connection      | starting/health/authorization/version/reconnect state        | `/health`, `/runtime-info` handshake and safe recovery action | local credential, executable command, raw internal error    |
+| repository registration | invoke native picker then register source                    | ephemeral picker input; safe snapshot response                | retained/raw path after registration, adjacent contest data |
+| new Judge run           | canonical finding and approved configuration                 | registered snapshots, provider/profile/config catalog         | label, credential, direct host path                         |
+| run detail              | status, config, ordered trace, terminal result               | run view plus cursor event pages                              | scorer label/adjudication, prohibited original              |
+| evidence                | authorized run-bound source excerpt                          | evidence ordinal/snapshot-bound projection                    | arbitrary URL/path input or adjacent file                   |
+| evaluation              | safe experiment status/approved aggregates                   | evaluation public projection                                  | scorer-only schema/raw label query                          |
+| runtime lifecycle       | explicit shutdown/update preparation with active-run warning | generated lifecycle operations and safe recovery state        | implicit window-close shutdown, arbitrary command/download  |
 
 ## Native interaction surfaces
 
-| Surface | User-visible action | Authority limit |
-|---|---|---|
-| runtime connection | retry, start-or-attach, rotate/restart after safe error | no arbitrary executable/endpoint/PID/signal input |
-| generated runtime request | use application controls backed by canonical operations | no raw credential, arbitrary URL/method or direct daemon escape |
-| repository registration | click picker and confirm registration | short-lived path only; no generic renderer file browsing/read/write |
-| notification | receive bounded local status | no untrusted HTML, URL fetch or executable action |
-| update | review version, compatibility, active-work and confirmation state | no direct installer invocation, artifact URL or signing-key access from renderer |
+| Surface                   | User-visible action                                               | Authority limit                                                                  |
+| ------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| runtime connection        | retry, start-or-attach, rotate/restart after safe error           | no arbitrary executable/endpoint/PID/signal input                                |
+| generated runtime request | use application controls backed by canonical operations           | no raw credential, arbitrary URL/method or direct daemon escape                  |
+| repository registration   | click picker and confirm registration                             | short-lived path only; no generic renderer file browsing/read/write              |
+| notification              | receive bounded local status                                      | no untrusted HTML, URL fetch or executable action                                |
+| update                    | review version, compatibility, active-work and confirmation state | no direct installer invocation, artifact URL or signing-key access from renderer |
 
 Untrusted source/model/trace content cannot invoke a native surface. The main-window Tauri capability excludes generic filesystem, shell, process, environment, opener/arbitrary URL, raw credential and direct updater commands. Any new renderer-to-native operation requires a typed contract, scoped permission, TV4 review and updated acceptance mapping.
 

@@ -12,7 +12,10 @@
       "additionalProperties": false,
       "required": ["amount", "currency"],
       "properties": {
-        "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+        "amount": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
         "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
       }
     },
@@ -31,7 +34,15 @@
     "event": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "event_id", "run_id", "sequence", "type", "occurred_at", "payload"],
+      "required": [
+        "schema_version",
+        "event_id",
+        "run_id",
+        "sequence",
+        "type",
+        "occurred_at",
+        "payload"
+      ],
       "properties": {
         "schema_version": { "const": "trajectory-event-v1" },
         "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -39,11 +50,24 @@
         "sequence": { "type": "integer", "minimum": 1 },
         "type": {
           "enum": [
-            "run.accepted", "run.queued", "run.started", "context.allocated",
-            "context.transformed", "provider.attempted", "provider.failed",
-            "model.responded", "tool.requested", "tool.completed", "tool.failed",
-            "security.blocked", "verdict.validation_failed", "run.cancel_requested",
-            "run.completed", "run.failed", "run.cancelled", "run.budget_exhausted"
+            "run.accepted",
+            "run.queued",
+            "run.started",
+            "context.allocated",
+            "context.transformed",
+            "provider.attempted",
+            "provider.failed",
+            "model.responded",
+            "tool.requested",
+            "tool.completed",
+            "tool.failed",
+            "security.blocked",
+            "verdict.validation_failed",
+            "run.cancel_requested",
+            "run.completed",
+            "run.failed",
+            "run.cancelled",
+            "run.budget_exhausted"
           ]
         },
         "occurred_at": { "type": "string", "format": "date-time" },
@@ -64,11 +88,20 @@
             "properties": {
               "payload": {
                 "type": "object",
-                "required": ["context_limit", "output_reserve", "bucket_tokens", "estimator_version", "provider_call_allowed"],
+                "required": [
+                  "context_limit",
+                  "output_reserve",
+                  "bucket_tokens",
+                  "estimator_version",
+                  "provider_call_allowed"
+                ],
                 "properties": {
                   "context_limit": { "type": "integer", "minimum": 1 },
                   "output_reserve": { "type": "integer", "minimum": 1 },
-                  "bucket_tokens": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+                  "bucket_tokens": {
+                    "type": "object",
+                    "additionalProperties": { "type": "integer", "minimum": 0 }
+                  },
                   "estimator_version": { "type": "string", "minLength": 1 },
                   "provider_call_allowed": { "type": "boolean" }
                 }
@@ -82,7 +115,16 @@
             "properties": {
               "payload": {
                 "type": "object",
-                "required": ["attempt_index", "provider_profile", "model_id", "request_digest", "latency_ms", "usage", "cost", "pricing_version"],
+                "required": [
+                  "attempt_index",
+                  "provider_profile",
+                  "model_id",
+                  "request_digest",
+                  "latency_ms",
+                  "usage",
+                  "cost",
+                  "pricing_version"
+                ],
                 "properties": {
                   "attempt_index": { "type": "integer", "minimum": 1 },
                   "provider_profile": { "type": "string", "minLength": 1 },
@@ -98,7 +140,13 @@
           }
         },
         {
-          "if": { "properties": { "type": { "enum": ["tool.requested", "tool.completed", "tool.failed"] } } },
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["tool.requested", "tool.completed", "tool.failed"]
+              }
+            }
+          },
           "then": {
             "properties": {
               "payload": {
@@ -130,14 +178,32 @@
           }
         },
         {
-          "if": { "properties": { "type": { "enum": ["run.completed", "run.failed", "run.cancelled", "run.budget_exhausted"] } } },
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "run.completed",
+                  "run.failed",
+                  "run.cancelled",
+                  "run.budget_exhausted"
+                ]
+              }
+            }
+          },
           "then": {
             "properties": {
               "payload": {
                 "type": "object",
                 "required": ["terminal_state"],
                 "properties": {
-                  "terminal_state": { "enum": ["completed", "failed", "cancelled", "budget_exhausted"] },
+                  "terminal_state": {
+                    "enum": [
+                      "completed",
+                      "failed",
+                      "cancelled",
+                      "budget_exhausted"
+                    ]
+                  },
                   "terminal_reason": { "type": ["string", "null"] }
                 }
               }

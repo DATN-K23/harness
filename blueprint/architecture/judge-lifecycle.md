@@ -28,19 +28,19 @@ stateDiagram-v2
 
 ## Transition table
 
-| From | To | Authority | Preconditions | Atomic persistence | Duplicate/stale outcome |
-|---|---|---|---|---|---|
-| none | accepted | Run application | Valid canonical request, source/config resolvable, idempotency available | Run + immutable config + idempotency record | Same key/digest returns original; different digest conflicts |
-| accepted | queued | Run application | Durable job reference created | State version CAS + `run.queued` | Existing queued state returned |
-| accepted | failed | Run application | Snapshot/enqueue cannot complete safely | Failure event + terminal aggregate | Terminal state unchanged |
-| accepted | cancelled | Run application | Cancel requested before durable enqueue | Cancel event + terminal aggregate | Terminal state unchanged |
-| queued | running | Worker adapter | Claim token valid; cancellation not committed | Claim + state version CAS + start event | Stale claim rejected |
-| queued | cancelled | Run application/worker | Cancel requested before successful start CAS | Cancel request/outcome + terminal aggregate | Claim loses CAS |
-| queued | failed | Worker/application | Job is unrecoverable before model call | Failure event + terminal aggregate | Terminal state unchanged |
-| running | completed | Run application via worker | Verdict schema/evidence valid; cancel absent; budgets available | Verdict/evidence/usage + completion event + terminal state in one transaction | Stale worker rejected |
-| running | failed | Run application via worker | Permanent error or retries/repair exhausted | Failure reason/usage + terminal event/state | Stale worker rejected |
-| running | cancelled | Run application via worker | Cancellation observed at model/tool boundary | Cancel outcome/usage + terminal event/state | Terminal state unchanged |
-| running | budget_exhausted | Run application via worker | Stop condition selected | Budget evidence + terminal event/state | Terminal state unchanged |
+| From     | To               | Authority                  | Preconditions                                                            | Atomic persistence                                                            | Duplicate/stale outcome                                      |
+| -------- | ---------------- | -------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| none     | accepted         | Run application            | Valid canonical request, source/config resolvable, idempotency available | Run + immutable config + idempotency record                                   | Same key/digest returns original; different digest conflicts |
+| accepted | queued           | Run application            | Durable job reference created                                            | State version CAS + `run.queued`                                              | Existing queued state returned                               |
+| accepted | failed           | Run application            | Snapshot/enqueue cannot complete safely                                  | Failure event + terminal aggregate                                            | Terminal state unchanged                                     |
+| accepted | cancelled        | Run application            | Cancel requested before durable enqueue                                  | Cancel event + terminal aggregate                                             | Terminal state unchanged                                     |
+| queued   | running          | Worker adapter             | Claim token valid; cancellation not committed                            | Claim + state version CAS + start event                                       | Stale claim rejected                                         |
+| queued   | cancelled        | Run application/worker     | Cancel requested before successful start CAS                             | Cancel request/outcome + terminal aggregate                                   | Claim loses CAS                                              |
+| queued   | failed           | Worker/application         | Job is unrecoverable before model call                                   | Failure event + terminal aggregate                                            | Terminal state unchanged                                     |
+| running  | completed        | Run application via worker | Verdict schema/evidence valid; cancel absent; budgets available          | Verdict/evidence/usage + completion event + terminal state in one transaction | Stale worker rejected                                        |
+| running  | failed           | Run application via worker | Permanent error or retries/repair exhausted                              | Failure reason/usage + terminal event/state                                   | Stale worker rejected                                        |
+| running  | cancelled        | Run application via worker | Cancellation observed at model/tool boundary                             | Cancel outcome/usage + terminal event/state                                   | Terminal state unchanged                                     |
+| running  | budget_exhausted | Run application via worker | Stop condition selected                                                  | Budget evidence + terminal event/state                                        | Terminal state unchanged                                     |
 
 All other transitions are invalid. Terminal states are immutable.
 

@@ -6,13 +6,13 @@ Owners: TV2 agent runtime, TV1 model gateway; reviewers: TV3, TV5, TV6
 
 ## Capability responsibilities
 
-| Capability | Owns | May call | Must not own/import |
-|---|---|---|---|
-| `judge` | Judge use-case coordination and terminal-result request | `agent_runtime.public`, `run_control.public`, `source_access.public` | provider SDK, tool implementation, scoring |
+| Capability      | Owns                                                                                                           | May call                                                             | Must not own/import                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `judge`         | Judge use-case coordination and terminal-result request                                                        | `agent_runtime.public`, `run_control.public`, `source_access.public` | provider SDK, tool implementation, scoring                       |
 | `agent_runtime` | explicit committed history, step loop, context planning, stop rules, normalized tool intents, verdict proposal | `model_gateway.public`, `source_access.public`, `run_control.public` | provider SDK types/credentials, filesystem, ground truth, scorer |
-| `model_gateway` | project provider port, profile gate, adapter mappings, provider attempt telemetry | its own public/domain/application/ports/adapters | agent loop, tool dispatch, verdict acceptance, ground truth |
-| `source_access` | registered snapshot, workspace policy, local read/search/list tools | its own public contract | provider calls, agent policy, labels |
-| `run_control` | lifecycle/CAS, immutable config, budgets, event/attempt persistence | its own public contract | provider/tool invocation or scoring |
+| `model_gateway` | project provider port, profile gate, adapter mappings, provider attempt telemetry                              | its own public/domain/application/ports/adapters                     | agent loop, tool dispatch, verdict acceptance, ground truth      |
+| `source_access` | registered snapshot, workspace policy, local read/search/list tools                                            | its own public contract                                              | provider calls, agent policy, labels                             |
+| `run_control`   | lifecycle/CAS, immutable config, budgets, event/attempt persistence                                            | its own public contract                                              | provider/tool invocation or scoring                              |
 
 Cross-capability imports use only `harness.modules.<capability>.public`. The OpenAI adapter is private to `model_gateway` and is composed only by an entrypoint.
 
@@ -64,4 +64,3 @@ Composition may replace the real adapter with `deterministic-scripted` or `deter
 ## Extension seams
 
 A future provider adapter, streaming protocol or retry-enabled experiment is added behind `model_gateway.public` with a versioned profile and conformance evidence. Future Audit mode may reuse public result contracts but cannot broaden the Judge loop. A future `VerificationRunner` receives an approved verdict after Judge completion and owns any executable sandbox separately.
-

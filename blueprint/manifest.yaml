@@ -3,7 +3,7 @@ blueprint_id: bootstrap-judge-mode-mvp
 blueprint_version: judge-blueprint-v3
 scope: documentation-only
 status: Validated
-generated_at: '2026-08-19T08:34:11Z'
+generated_at: "2026-08-19T08:34:11Z"
 self:
   path: manifest.yaml
   digest: self-excluded

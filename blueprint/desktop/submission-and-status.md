@@ -26,16 +26,16 @@ The selected raw path is write-only ephemeral input to `POST /source-snapshots` 
 
 ## Submission fields
 
-| Field | Rule | Feedback |
-|---|---|---|
-| finding title/description | required bounded canonical text | labeled untrusted input |
-| claimed locations | optional relative paths/lines; runtime validates | never accepts host root |
-| source snapshot | registered opaque ID/revision/tree digest | no raw path/free text |
-| provider/experiment profile | accepted immutable refs/digests; deterministic allowed | profile/ADR status and pre-network gate visible |
-| flags preset/overrides | dependencies and safety invariants enforced | result-affecting value snapshotted |
-| budgets | steps/tokens/wall-clock/cost/output within control limits | unit and maximum visible |
-| manifest/protocol | approved version for experiment submission | drift/conflict rejected |
-| idempotency key | retained per canonical draft | changed digest requires new key |
+| Field                       | Rule                                                      | Feedback                                        |
+| --------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| finding title/description   | required bounded canonical text                           | labeled untrusted input                         |
+| claimed locations           | optional relative paths/lines; runtime validates          | never accepts host root                         |
+| source snapshot             | registered opaque ID/revision/tree digest                 | no raw path/free text                           |
+| provider/experiment profile | accepted immutable refs/digests; deterministic allowed    | profile/ADR status and pre-network gate visible |
+| flags preset/overrides      | dependencies and safety invariants enforced               | result-affecting value snapshotted              |
+| budgets                     | steps/tokens/wall-clock/cost/output within control limits | unit and maximum visible                        |
+| manifest/protocol           | approved version for experiment submission                | drift/conflict rejected                         |
+| idempotency key             | retained per canonical draft                              | changed digest requires new key                 |
 
 ## Wireflow
 

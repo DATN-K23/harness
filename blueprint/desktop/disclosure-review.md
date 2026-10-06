@@ -8,16 +8,16 @@ Owner: TV6; collaborator: TV4
 
 ## Review matrix
 
-| Surface | Label/adjudication | Credential | Raw host path | Prohibited original | Result |
-|---|---:|---:|---:|---:|---|
-| runtime connection | absent | shell/OS custody only; never rendered | absent | bounded safe diagnostic | PASS |
-| Tauri command bridge | absent | raw local credential/signing key unavailable | picker path short-lived only | undeclared command/arguments withheld | PASS |
-| repository picker | absent | absent | transient native control only | not persisted/logged | PASS |
-| registered snapshot/run submission | absent | absent | opaque ID/digest only | bounded fields | PASS |
-| provider/tool/security cards | absent | structurally excluded | authorized relative evidence only | redacted/withheld | PASS |
-| verdict/evidence | no official label | absent | source-relative evidence only | bounded | PASS |
-| evaluation view/export | approved safe aggregate only | absent | absent | scorer schema absent | PASS |
-| reconnect/cache | absent | absent from renderer persistence | absent | committed safe projection only | PASS |
+| Surface                            |           Label/adjudication |                                   Credential |                     Raw host path |                   Prohibited original | Result |
+| ---------------------------------- | ---------------------------: | -------------------------------------------: | --------------------------------: | ------------------------------------: | ------ |
+| runtime connection                 |                       absent |        shell/OS custody only; never rendered |                            absent |               bounded safe diagnostic | PASS   |
+| Tauri command bridge               |                       absent | raw local credential/signing key unavailable |      picker path short-lived only | undeclared command/arguments withheld | PASS   |
+| repository picker                  |                       absent |                                       absent |     transient native control only |                  not persisted/logged | PASS   |
+| registered snapshot/run submission |                       absent |                                       absent |             opaque ID/digest only |                        bounded fields | PASS   |
+| provider/tool/security cards       |                       absent |                        structurally excluded | authorized relative evidence only |                     redacted/withheld | PASS   |
+| verdict/evidence                   |            no official label |                                       absent |     source-relative evidence only |                               bounded | PASS   |
+| evaluation view/export             | approved safe aggregate only |                                       absent |                            absent |                  scorer schema absent | PASS   |
+| reconnect/cache                    |                       absent |             absent from renderer persistence |                            absent |        committed safe projection only | PASS   |
 
 ## Rendering requirements
 

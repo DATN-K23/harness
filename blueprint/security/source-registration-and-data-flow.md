@@ -46,16 +46,16 @@ Every run preflight resolves the snapshot ID, verifies revision/tree/inventory d
 
 ## Raw-path exclusion matrix
 
-| Destination | Raw selected host path |
-|---|---|
-| registration request in memory | allowed briefly; zeroized/released after import outcome |
-| renderer/Tauri persistence | forbidden |
-| source registration/snapshot record | forbidden |
-| run/config/job/outbox/event/trajectory/security event | forbidden |
-| ordinary/error/access log or telemetry tag | forbidden |
-| provider request/response metadata | forbidden |
-| desktop view/export/cursor/URL | forbidden |
-| evaluation/scorer record/export | forbidden |
+| Destination                                           | Raw selected host path                                  |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| registration request in memory                        | allowed briefly; zeroized/released after import outcome |
+| renderer/Tauri persistence                            | forbidden                                               |
+| source registration/snapshot record                   | forbidden                                               |
+| run/config/job/outbox/event/trajectory/security event | forbidden                                               |
+| ordinary/error/access log or telemetry tag            | forbidden                                               |
+| provider request/response metadata                    | forbidden                                               |
+| desktop view/export/cursor/URL                        | forbidden                                               |
+| evaluation/scorer record/export                       | forbidden                                               |
 
 Even denied paths are not hashed into run-visible data. Safe errors contain operation, rule/category and correlation ID only.
 

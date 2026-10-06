@@ -6,14 +6,14 @@ Tài liệu vào cửa cho toàn nhóm. Đọc trước khi bắt đầu bất k
 
 ## Thứ tự đọc
 
-| # | Tài liệu | Đối tượng | Thời lượng |
-|---|---|---|---|
-| 1 | [`idea.md`](idea.md) | Toàn nhóm | 10 phút |
-| 2 | Tài liệu này | Toàn nhóm | 15 phút |
-| 3 | [`01-glossary.md`](01-glossary.md) | Toàn nhóm, đọc lướt rồi tra lại khi cần | 10 phút |
-| 4 | [`02-roles.md`](02-roles.md) | Toàn nhóm, đọc kỹ phần của mình | 10 phút |
-| 5 | [`04-working-rules.md`](04-working-rules.md) | Toàn nhóm | 10 phút |
-| 6 | [`05-timeline-guide.md`](05-timeline-guide.md) và [`timeline.csv`](timeline.csv) | Toàn nhóm | 15 phút |
+| #   | Tài liệu                                                                         | Đối tượng                               | Thời lượng |
+| --- | -------------------------------------------------------------------------------- | --------------------------------------- | ---------- |
+| 1   | [`idea.md`](idea.md)                                                             | Toàn nhóm                               | 10 phút    |
+| 2   | Tài liệu này                                                                     | Toàn nhóm                               | 15 phút    |
+| 3   | [`01-glossary.md`](01-glossary.md)                                               | Toàn nhóm, đọc lướt rồi tra lại khi cần | 10 phút    |
+| 4   | [`02-roles.md`](02-roles.md)                                                     | Toàn nhóm, đọc kỹ phần của mình         | 10 phút    |
+| 5   | [`04-working-rules.md`](04-working-rules.md)                                     | Toàn nhóm                               | 10 phút    |
+| 6   | [`05-timeline-guide.md`](05-timeline-guide.md) và [`timeline.csv`](timeline.csv) | Toàn nhóm                               | 15 phút    |
 
 ---
 
@@ -57,12 +57,12 @@ provider đó. Nếu cải thiện trên cả bốn thì kết luận vững: gi
 
 ## Bốn chỉ số đánh giá
 
-| Chỉ số | Định nghĩa | Vì sao cần |
-|---|---|---|
-| **Recall** | Tỷ lệ lỗ hổng thật được phát hiện | Bỏ sót nhiều thì công cụ không dùng được |
-| **Precision** | Tỷ lệ báo cáo đưa ra là chính xác | Trọng tâm cạnh tranh của đồ án, xem bên dưới |
-| **Cost** | Chi phí cho một lần chạy | Vượt chi phí thuê chuyên gia thì không có ai áp dụng |
-| **Reproducibility** | Chạy lại cùng cấu hình có cùng kết quả | Điều kiện tối thiểu của một kết quả nghiên cứu |
+| Chỉ số              | Định nghĩa                             | Vì sao cần                                           |
+| ------------------- | -------------------------------------- | ---------------------------------------------------- |
+| **Recall**          | Tỷ lệ lỗ hổng thật được phát hiện      | Bỏ sót nhiều thì công cụ không dùng được             |
+| **Precision**       | Tỷ lệ báo cáo đưa ra là chính xác      | Trọng tâm cạnh tranh của đồ án, xem bên dưới         |
+| **Cost**            | Chi phí cho một lần chạy               | Vượt chi phí thuê chuyên gia thì không có ai áp dụng |
+| **Reproducibility** | Chạy lại cùng cấu hình có cùng kết quả | Điều kiện tối thiểu của một kết quả nghiên cứu       |
 
 ### Vì sao precision là trọng tâm
 
@@ -83,12 +83,12 @@ Nếu cả năm chỉ hoàn thiện được một thành phần, đó phải l�
 Bốn rủi ro dưới đây nguy hiểm vì chúng không tạo ra bất kỳ dấu hiệu cảnh báo nào. Hệ thống vẫn chạy, số liệu
 vẫn đẹp, và sai sót chỉ lộ ra khi bị chất vấn.
 
-| Rủi ro | Cơ chế | Biện pháp |
-|---|---|---|
-| **Ground truth leakage** | Dữ liệu contest chứa cả source lẫn báo cáo chấm. Agent mở file báo cáo và sao chép kết luận. Độ chính xác gần 100% nhưng không có giá trị. | Chỉ mount thư mục `source/`. Chặn ở tầng tool, không dựa vào chỉ dẫn trong prompt. |
-| **Split leakage** | Chia dữ liệu theo finding khiến finding của cùng một contest xuất hiện ở cả train và test. Model đã thấy trường hợp tương tự. | Chia theo contest, trọn gói. Ghi vào manifest và cố định vĩnh viễn. |
-| **Không ablate được** | Các thành phần gắn chặt vào nhau nên không tắt riêng lẻ được, dẫn tới không định lượng được đóng góp của từng phần. | Mọi thành phần ảnh hưởng kết quả phải có flag bật/tắt ngay từ khi viết. |
-| **Data contamination** | Contest cũ đã công khai từ lâu và có thể nằm trong dữ liệu huấn luyện của model. Kết quả đúng nhờ ghi nhớ, không nhờ harness. | Ưu tiên contest sau knowledge cutoff. Tách nhóm trước/sau cutoff và báo cáo minh bạch. |
+| Rủi ro                   | Cơ chế                                                                                                                                     | Biện pháp                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| **Ground truth leakage** | Dữ liệu contest chứa cả source lẫn báo cáo chấm. Agent mở file báo cáo và sao chép kết luận. Độ chính xác gần 100% nhưng không có giá trị. | Chỉ mount thư mục `source/`. Chặn ở tầng tool, không dựa vào chỉ dẫn trong prompt.     |
+| **Split leakage**        | Chia dữ liệu theo finding khiến finding của cùng một contest xuất hiện ở cả train và test. Model đã thấy trường hợp tương tự.              | Chia theo contest, trọn gói. Ghi vào manifest và cố định vĩnh viễn.                    |
+| **Không ablate được**    | Các thành phần gắn chặt vào nhau nên không tắt riêng lẻ được, dẫn tới không định lượng được đóng góp của từng phần.                        | Mọi thành phần ảnh hưởng kết quả phải có flag bật/tắt ngay từ khi viết.                |
+| **Data contamination**   | Contest cũ đã công khai từ lâu và có thể nằm trong dữ liệu huấn luyện của model. Kết quả đúng nhờ ghi nhớ, không nhờ harness.              | Ưu tiên contest sau knowledge cutoff. Tách nhóm trước/sau cutoff và báo cáo minh bạch. |
 
 Xử lý bốn rủi ro này một cách minh bạch, kể cả khi số liệu không thuận lợi, sẽ nâng đáng kể chất lượng phần
 đánh giá của báo cáo.
@@ -99,12 +99,12 @@ Xử lý bốn rủi ro này một cách minh bạch, kể cả khi số liệu 
 
 Ghi rõ ngay từ đầu để tránh hiểu nhầm về hướng đi:
 
-| Không thực hiện | Lý do |
-|---|---|
-| Huấn luyện hoặc fine-tune model riêng | Vượt quá nguồn lực và sẽ lỗi thời trong vòng vài tháng |
+| Không thực hiện                              | Lý do                                                       |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| Huấn luyện hoặc fine-tune model riêng        | Vượt quá nguồn lực và sẽ lỗi thời trong vòng vài tháng      |
 | Xây dựng một chatbot chuyên ngành blockchain | Đó là sản phẩm ứng dụng, không phải một đóng góp nghiên cứu |
-| Chỉ hỗ trợ một nhà cung cấp model | Không đủ để trả lời RQ3 |
-| Fork dự án mã nguồn mở rồi chỉnh sửa | Phần lớn công trình sẽ không còn thuộc về nhóm |
+| Chỉ hỗ trợ một nhà cung cấp model            | Không đủ để trả lời RQ3                                     |
+| Fork dự án mã nguồn mở rồi chỉnh sửa         | Phần lớn công trình sẽ không còn thuộc về nhóm              |
 
 ---
 

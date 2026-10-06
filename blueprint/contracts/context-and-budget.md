@@ -39,28 +39,28 @@ For secrets/prohibited data, the pre-truncation digest covers the already-redact
 
 ## Allocation buckets
 
-| Bucket | Priority | Truncation |
-|---|---:|---|
-| System instructions | 1 | Never |
-| Candidate finding | 1 | Never |
-| Tool definitions | 1 | Must fit selected registry; reject config rather than silent removal |
-| Verdict schema | 1 | Never |
-| Recent model/tool history | 2 | No compaction in MVP; oldest-event omission only if explicitly enabled/versioned |
-| New tool result | 2 | Deterministic bounded result and optional truncation |
-| Output reserve | Absolute | Never consumed by input |
+| Bucket                    | Priority | Truncation                                                                       |
+| ------------------------- | -------: | -------------------------------------------------------------------------------- |
+| System instructions       |        1 | Never                                                                            |
+| Candidate finding         |        1 | Never                                                                            |
+| Tool definitions          |        1 | Must fit selected registry; reject config rather than silent removal             |
+| Verdict schema            |        1 | Never                                                                            |
+| Recent model/tool history |        2 | No compaction in MVP; oldest-event omission only if explicitly enabled/versioned |
+| New tool result           |        2 | Deterministic bounded result and optional truncation                             |
+| Output reserve            | Absolute | Never consumed by input                                                          |
 
 History omission is disabled in the first MVP protocol unless separately specified; a run that cannot fit terminates rather than silently changing semantics.
 
 ## Stop conditions
 
-| Condition | Check points | Terminal reason | Result-affecting control |
-|---|---|---|---|
-| Wall-clock | Before/after provider/tool/backoff | `wall_clock` | Required budget; retry/backoff behavior flagged |
-| Cost | Before a call using upper-bound estimate and after usage | `cost_budget` | Required budget |
-| Total tokens | Before estimated call and after actual/native usage | `total_tokens` | Required budget |
-| Maximum steps | Before starting next model step | `max_steps` | Required budget |
-| Context capacity | Every provider call | `context_budget` | Safety/compatibility invariant; transformation behavior flagged |
-| No progress | After a completed step | `no_progress` | Optional versioned flag and algorithm |
+| Condition        | Check points                                             | Terminal reason  | Result-affecting control                                        |
+| ---------------- | -------------------------------------------------------- | ---------------- | --------------------------------------------------------------- |
+| Wall-clock       | Before/after provider/tool/backoff                       | `wall_clock`     | Required budget; retry/backoff behavior flagged                 |
+| Cost             | Before a call using upper-bound estimate and after usage | `cost_budget`    | Required budget                                                 |
+| Total tokens     | Before estimated call and after actual/native usage      | `total_tokens`   | Required budget                                                 |
+| Maximum steps    | Before starting next model step                          | `max_steps`      | Required budget                                                 |
+| Context capacity | Every provider call                                      | `context_budget` | Safety/compatibility invariant; transformation behavior flagged |
+| No progress      | After a completed step                                   | `no_progress`    | Optional versioned flag and algorithm                           |
 
 ## Stop precedence
 

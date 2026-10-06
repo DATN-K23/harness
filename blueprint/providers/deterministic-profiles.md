@@ -6,10 +6,10 @@ Owners: TV1/TV5
 
 Deterministic profiles implement `model_gateway.public` without importing or constructing a network SDK. They are valid independently of `real-primary` and are mandatory for architecture, contract, lifecycle and failure-path verification.
 
-| Profile | Fixture key | Covers |
-|---|---|---|
-| `deterministic-scripted-v1` | profile version + scenario + request digest + step index | ordered messages, local tool intent, structured verdict, exact usage/model/request metadata, repeated response |
-| `deterministic-faults-v1` | profile version + fault scenario + attempt index | auth, authorization, rate limit, timeout, network, unavailable, policy refusal, malformed response, unsupported capability, missing metadata |
+| Profile                     | Fixture key                                              | Covers                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deterministic-scripted-v1` | profile version + scenario + request digest + step index | ordered messages, local tool intent, structured verdict, exact usage/model/request metadata, repeated response                               |
+| `deterministic-faults-v1`   | profile version + fault scenario + attempt index         | auth, authorization, rate limit, timeout, network, unavailable, policy refusal, malformed response, unsupported capability, missing metadata |
 
 Rules:
 
@@ -24,4 +24,3 @@ Rules:
 Minimum fixture scenarios are `simple-valid-verdict`, `list-read-search-verdict`, `invalid-verdict-repair`, `tool-denied`, `context-budget`, every normalized provider error, missing usage, model mismatch, late result after cancellation and ambiguous process interruption.
 
 Acceptance checks prove: zero network socket/client construction, zero credential access, stable byte-equivalent normalized result for the same fixture key, independent verdict validation, and substitutability without edits to `judge` or `agent_runtime`.
-

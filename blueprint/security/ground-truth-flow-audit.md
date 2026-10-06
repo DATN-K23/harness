@@ -23,15 +23,15 @@ There is no reverse `evaluation -> scoring` import and no run-event/API crossing
 
 ## Forbidden-edge review
 
-| Component/closure | Blueprint inputs/imports | Credential/grant | Result |
-|---|---|---|---|
-| desktop/shell/generated client | desktop-public OpenAPI allowlist | no DB/provider/scorer credential | PASS |
-| daemon/source registration/run API | `run_control.public`, `source_access.public`, safe projections | no scorer schema usage/select | PASS |
-| worker/Judge/agent runtime/provider/tools | candidate, opaque snapshot, config, committed safe history | no scorer/label credential or import | PASS |
-| run/config/work/outbox/events/ordinary logs | schema allowlists with no label/scorer/raw path | run role only | PASS |
-| evaluator | manifests, profile, case/arm/repeat IDs, terminal refs, `ApprovedScoreV1` | no label adapter/schema/credential; cannot import `scoring` | PASS |
-| scorer | canonical IDs, terminal-subject projection via `evaluation.public`, private label lookup | scorer-only role/schema; no direct run mutation/provider/tool grants | PASS |
-| research exporter | separately approved evaluation/scorer projection | no path back to run construction | PASS |
+| Component/closure                           | Blueprint inputs/imports                                                                 | Credential/grant                                                     | Result |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------ |
+| desktop/shell/generated client              | desktop-public OpenAPI allowlist                                                         | no DB/provider/scorer credential                                     | PASS   |
+| daemon/source registration/run API          | `run_control.public`, `source_access.public`, safe projections                           | no scorer schema usage/select                                        | PASS   |
+| worker/Judge/agent runtime/provider/tools   | candidate, opaque snapshot, config, committed safe history                               | no scorer/label credential or import                                 | PASS   |
+| run/config/work/outbox/events/ordinary logs | schema allowlists with no label/scorer/raw path                                          | run role only                                                        | PASS   |
+| evaluator                                   | manifests, profile, case/arm/repeat IDs, terminal refs, `ApprovedScoreV1`                | no label adapter/schema/credential; cannot import `scoring`          | PASS   |
+| scorer                                      | canonical IDs, terminal-subject projection via `evaluation.public`, private label lookup | scorer-only role/schema; no direct run mutation/provider/tool grants | PASS   |
+| research exporter                           | separately approved evaluation/scorer projection                                         | no path back to run construction                                     | PASS   |
 
 ## Schema/generation audit
 

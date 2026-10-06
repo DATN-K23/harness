@@ -7,15 +7,15 @@ Requirements: API-03, API-10, VER-03, UI-03–UI-06
 
 ## Run-state matrix
 
-| Run state | Verdict panel | Message/action |
-|---|---|---|
-| `accepted` | hidden | configuration committed; refresh/cancel |
-| `queued` | hidden | waiting for worker; refresh/cancel |
-| `running` | hidden | committed trace partial; refresh/request cancel |
-| `completed` | visible | schema/evidence-valid unverified Judge result |
-| `failed` | hidden | normalized terminal reason; inspect committed trace |
-| `cancelled` | hidden | cancellation observed at safe boundary |
-| `budget_exhausted` | hidden | selected limit and observed evidence |
+| Run state          | Verdict panel | Message/action                                      |
+| ------------------ | ------------- | --------------------------------------------------- |
+| `accepted`         | hidden        | configuration committed; refresh/cancel             |
+| `queued`           | hidden        | waiting for worker; refresh/cancel                  |
+| `running`          | hidden        | committed trace partial; refresh/request cancel     |
+| `completed`        | visible       | schema/evidence-valid unverified Judge result       |
+| `failed`           | hidden        | normalized terminal reason; inspect committed trace |
+| `cancelled`        | hidden        | cancellation observed at safe boundary              |
+| `budget_exhausted` | hidden        | selected limit and observed evidence                |
 
 ## Completed
 

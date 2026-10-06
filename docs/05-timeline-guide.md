@@ -17,10 +17,10 @@ Cuối mỗi chu kỳ, cả nhóm cập nhật trạng thái hạng mục trực
 
 ## Mốc chính
 
-| Mốc | Thời điểm | Kết quả |
-|---|---|---|
-| M1 | Cuối C04 | Dùng kết quả ban đầu để xác định điểm yếu và thứ tự ưu tiên nâng cấp |
-| M2 | Cuối C08 | Judge mode chạy end-to-end và có trace |
-| M3 | Cuối C12 | Có ablation và so sánh nhiều provider lần 1 |
-| M4 | Cuối C18 | Đóng băng hệ thống và chốt kết luận nghiên cứu |
-| M5 | Cuối C26 | Bảo vệ |
+| Mốc | Thời điểm | Kết quả                                                              |
+| --- | --------- | -------------------------------------------------------------------- |
+| M1  | Cuối C04  | Dùng kết quả ban đầu để xác định điểm yếu và thứ tự ưu tiên nâng cấp |
+| M2  | Cuối C08  | Judge mode chạy end-to-end và có trace                               |
+| M3  | Cuối C12  | Có ablation và so sánh nhiều provider lần 1                          |
+| M4  | Cuối C18  | Đóng băng hệ thống và chốt kết luận nghiên cứu                       |
+| M5  | Cuối C26  | Bảo vệ                                                               |

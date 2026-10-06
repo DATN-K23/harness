@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@audit-harness/contracts": ["./packages/contracts/src/index.ts"],
+      "@audit-harness/sdk": ["./packages/sdk/src/index.ts"]
+    }
+  },
+  "include": [
+    "*.config.ts",
+    "apps/**/*.ts",
+    "packages/**/*.ts",
+    "scripts/**/*.ts",
+    "scripts/**/*.mts",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage", "apps/desktop/ui"]
+}

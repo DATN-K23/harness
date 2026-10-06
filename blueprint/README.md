@@ -65,13 +65,13 @@ The future implementation repository layout is fixed in `architecture/physical-r
 
 ## Decision/profile status
 
-| Item | Status | Meaning |
-|---|---|---|
-| ADR-001..ADR-006 | Accepted at their stated architecture/methodology scope | Future implementation may follow them after package gates. |
-| ADR-007 | Accepted at native-host architecture scope | Selects Tauri 2; packaged three-OS lifecycle/security/update readiness remains future evidence. |
-| `real-primary@1` | Proposed, `network_ready: false` | Any real-provider run is rejected before client/credential/network. |
-| `rq1-confirmatory-v1@1` | Proposed, `execution_ready: false` | Any result-bearing RQ1 run is rejected before network/cost/test access. |
-| deterministic profiles/examples | Blueprint validation only | Not scientific or implementation evidence. |
+| Item                            | Status                                                  | Meaning                                                                                         |
+| ------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| ADR-001..ADR-006                | Accepted at their stated architecture/methodology scope | Future implementation may follow them after package gates.                                      |
+| ADR-007                         | Accepted at native-host architecture scope              | Selects Tauri 2; packaged three-OS lifecycle/security/update readiness remains future evidence. |
+| `real-primary@1`                | Proposed, `network_ready: false`                        | Any real-provider run is rejected before client/credential/network.                             |
+| `rq1-confirmatory-v1@1`         | Proposed, `execution_ready: false`                      | Any result-bearing RQ1 run is rejected before network/cost/test access.                         |
+| deterministic profiles/examples | Blueprint validation only                               | Not scientific or implementation evidence.                                                      |
 
 ## Completion boundary
 

@@ -14,8 +14,25 @@ generation_policies:
     allow_exposure: [desktop_public]
     deny_exposure: [runtime_internal, evaluation_internal, scorer_only]
     manual_edits: forbidden
-    public_schema_allowlist: [RuntimeInfo, HealthView, SourceSnapshot, AcceptedRun, RunView, EventPage, CancelResponse, LifecycleResponse, Error]
-    drift_checks: [canonical_openapi_digest_matches_build, generated_tree_clean_after_regeneration, no_scorer_only_reachable_ref, no_manual_generated_diff]
+    public_schema_allowlist:
+      [
+        RuntimeInfo,
+        HealthView,
+        SourceSnapshot,
+        AcceptedRun,
+        RunView,
+        EventPage,
+        CancelResponse,
+        LifecycleResponse,
+        Error,
+      ]
+    drift_checks:
+      [
+        canonical_openapi_digest_matches_build,
+        generated_tree_clean_after_regeneration,
+        no_scorer_only_reachable_ref,
+        no_manual_generated_diff,
+      ]
 
 contracts:
   - id: local-runtime-api
@@ -25,7 +42,17 @@ contracts:
     owner: run_control
     exposure: desktop_public
     consumers: [desktop]
-    includes: [health, runtime-info, source-registration, judge-runs, run-events, cancellation, explicit-shutdown, prepare-update]
+    includes:
+      [
+        health,
+        runtime-info,
+        source-registration,
+        judge-runs,
+        run-events,
+        cancellation,
+        explicit-shutdown,
+        prepare-update,
+      ]
 
   - id: judge-verdict
     blueprint_source: contracts/judge-verdict.schema.json

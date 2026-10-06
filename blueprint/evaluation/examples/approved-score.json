@@ -9,7 +9,7 @@
   "label_normalization_version": "severity-v1",
   "completion_class": "completed_schema_valid",
   "prediction_class": "negative",
-  "gate_ready": {"completed": true, "schema_valid": true},
+  "gate_ready": { "completed": true, "schema_valid": true },
   "scored_at": "2026-08-14T00:00:00Z",
   "ground_truth_present": false,
   "adjudication_present": false,

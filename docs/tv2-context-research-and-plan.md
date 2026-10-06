@@ -135,7 +135,7 @@ L0 Đo → L1 Ngân sách → L2 Định hình output tool → L3 Giảm tải t
 
 | Lớp | Làm gì | Quyết định thiết kế (kèm lý do) | Flag |
 |---|---|---|---|
-| **L0 Đo** | Ước lượng token trước khi gọi; ghi usage thật sau khi gọi | Interface `TokenEstimator` theo họ model, có chế độ `exact` và `upperbound`. Ghi sai số ước lượng theo từng lượt để hiệu chỉnh biên an toàn. **Token logic** = tổng input + output của mọi lần gọi, kể cả lần gọi để nén | Không tắt (đây là đo lường) |
+| **L0 Đo** | Ước lượng token trước khi gọi; ghi usage thật sau khi gọi | Đếm bằng `o200k_base` (đã chốt, xem 3.2). Ghi cả số o200k lẫn số thật của provider theo từng lượt để hiệu chỉnh biên an toàn. **Token logic** = tổng input + output của mọi lần gọi, kể cả lần gọi để nén | Không tắt (đây là đo lường) |
 | **L1 Ngân sách** | Kiểm tra *trước mỗi lần gọi*: `input_est × margin ≤ W_exp − reserve` | **Kiểm tra chủ động, không chờ lỗi**, để không trả tiền cho một lần gọi chắc chắn hỏng. **`W_exp` là một cửa sổ chung cho mọi provider**: nếu model 1M token không bao giờ phải nén còn model 128k thì có, RQ3 thực chất đang so hai harness khác nhau. Vẫn cứu không được thì dừng `context_budget` | Không tắt (an toàn) |
 | **L2 Định hình output tool** (cùng TV3) | Kết quả tool có số dòng, giới hạn N dòng / K token, marker kèm gợi ý đọc tiếp | Với code nên cắt **phần đầu và gợi ý `offset`**, vì dòng giữ liên tục, khớp với cách dẫn chứng `file:line`. Cắt giữa như Codex hợp với log hơn | `tool_output_shaping` |
 | **L3 Giảm tải tất định** ⭐ | (a) read cũ bị thay bởi read mới hơn (superseded); (b) kết quả rỗng; (c) **ẩn kết quả tool cũ** ngoài cửa sổ P token gần nhất. Placeholder ghi rõ cách lấy lại, ví dụ `[ẩn: read_file Vault.sol:1–400 sha256:… — đọc lại nếu cần]` | **Cơ chế chính**: rẻ, tất định, tái lập được, có bằng chứng nghiên cứu, và không mất thông tin nhờ snapshot bất biến. Chạy theo lô khi giải phóng ≥ X token, để giữ cache | `obs_masking`, `supersede_reads`, `drop_empty` |
@@ -155,13 +155,29 @@ Tối ưu cho prompt cache và hạn chế hiện tượng *lost-in-the-middle*:
 6. Session note bản mới nhất
 7. Kết quả tool mới
 
-### 3.2 Đơn vị của ngân sách (cần chốt cùng TV5)
+### 3.2 Đơn vị đếm token: **chốt dùng o200k**
 
-Cùng một đoạn văn bản nhưng mỗi tokenizer đếm ra một số khác nhau. Đề xuất:
+**Quyết định (TV2, 06/10/2026): mọi quyết định của Context Engine đều đếm token bằng tokenizer `o200k_base`.**
 
-- **Ngưỡng chính sách** (khi nào ẩn, khi nào nén) tính bằng một đơn vị trung lập, ví dụ `o200k` hoặc bytes/4. Như vậy harness hành xử giống nhau trên mọi provider.
-- **Kiểm tra giới hạn cứng** dùng `upperbound` theo đúng tokenizer của từng provider.
-- **Báo cáo** cả hai con số.
+Mỗi tokenizer đếm cùng một đoạn văn bản ra một số khác nhau. Nhóm cần một "thước đo" chung, chạy offline và giống nhau cho mọi model, nên chọn `o200k_base`: tokenizer của OpenAI (dùng cho GPT-4o và các model đời sau), bộ từ vựng khoảng 200 nghìn token.
+
+**Vì sao chọn o200k:**
+
+- **Không cần API key, chạy offline, miễn phí.** Sau này có nhiều model, không thể gọi API riêng của từng hãng mỗi lần đếm.
+- **Nhanh:** đếm toàn bộ dữ liệu đo nền (729 file, khoảng 1,2 triệu token) mất chưa tới 2 giây.
+- **Chính xác hơn hẳn cách ước lượng thô.** Benchmark trên 601 file Solidity cho thấy "ký tự ÷ 4" khá sát với code bình thường, nhưng **đếm thiếu tới 1,77 lần** với file chứa hex, bytecode (xem `experiments/tv2/token-benchmark/`).
+- **Là đơn vị trung lập:** cùng một thước cho mọi provider, nên harness hành xử giống nhau trên mọi model (công bằng cho RQ3).
+
+**Cách dùng:**
+
+| Việc | Đếm bằng |
+|---|---|
+| Quyết định khi nào dọn, khi nào dừng | o200k |
+| Kiểm tra giới hạn cứng của từng model | o200k cộng biên an toàn riêng cho từng model |
+| Báo cáo chi phí | Số token thật do provider trả về sau mỗi lần gọi |
+| Theo dõi độ lệch | Mỗi lượt ghi cả số o200k lẫn số thật, để biết o200k lệch bao nhiêu với từng model |
+
+**Giới hạn:** Claude, Gemini… có tokenizer riêng nên số thật sẽ khác o200k. Biên an toàn cho từng model sẽ hiệu chỉnh dần từ độ lệch ghi được trong các run thật. Không cần gọi API đếm token riêng.
 
 ### 3.3 Câu hỏi nghiên cứu con của TV2
 
@@ -201,7 +217,7 @@ Lý do không để mỗi model dùng hết cửa sổ của nó:
 | Cửa sổ thí nghiệm `W_exp` (phải ≤ cửa sổ nhỏ nhất trong các model dùng) | Cố định |
 | Phần chừa cho câu trả lời (phải nằm trong giới hạn output của mọi model) | Cố định |
 | Ngưỡng bắt đầu dọn | Cố định |
-| Đếm token để quyết định (một đơn vị trung lập) | Cố định |
+| Đếm token để quyết định (o200k, xem 3.2) | Cố định |
 | Kiểm tra giới hạn cứng (giới hạn và cách đếm thật của từng model) | Theo model |
 | Báo cáo chi phí (số token thật và giá thật của từng provider) | Theo model |
 
@@ -292,7 +308,7 @@ Judge run ngắn, có thể không bao giờ chạm ngưỡng, khi đó ablation
 ## 5. Câu hỏi cần chốt với nhóm
 
 1. Cửa sổ thí nghiệm chung `W_exp` là bao nhiêu? Áp cho mọi provider kể cả model có cửa sổ lớn hơn?
-2. Ngưỡng chính sách tính theo đơn vị trung lập (`o200k` / bytes/4) hay theo tokenizer riêng của từng provider?
+2. ~~Ngưỡng chính sách tính theo đơn vị trung lập hay theo tokenizer riêng của từng provider?~~ **Đã chốt: đếm bằng o200k** (mục 3.2). Cần báo TV5 để thống nhất cách tính token khi so sánh.
 3. Phần dự trữ cho output của verdict là bao nhiêu token?
 4. Khi đã giảm tải hết mà vẫn tràn: dừng `context_budget` (đề xuất) hay cho phép bỏ bớt lịch sử?
 5. Cắt output tool thuộc tool (TV3) hay thuộc Context Engine (TV2)? Đề xuất: tool có giới hạn cứng, Context Engine áp chính sách có flag.

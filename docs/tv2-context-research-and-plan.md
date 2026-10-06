@@ -10,7 +10,7 @@
 2. [Bài toán của TV2, suy luận từ đầu](#1-bài-toán-của-tv2-suy-luận-từ-đầu)
 3. [Các harness mã nguồn mở quản lý token thế nào](#2-các-harness-mã-nguồn-mở-quản-lý-token-thế-nào)
 4. [Thiết kế riêng: Context Engine 6 lớp](#3-thiết-kế-riêng-context-engine-6-lớp)
-5. [Kế hoạch cho hai người](#4-kế-hoạch-cho-hai-người)
+5. [Phân công](#4-phân-công)
 6. [Câu hỏi cần chốt với nhóm](#5-câu-hỏi-cần-chốt-với-nhóm)
 7. [Tài liệu tham khảo](#tài-liệu-tham-khảo)
 
@@ -183,43 +183,115 @@ Chạy năm chiến lược:
 
 Bảng này đủ làm một chương riêng trong báo cáo và là bằng chứng rõ ràng cho đóng góp của TV2.
 
+### 3.4 Cửa sổ context: cố định hay theo từng model?
+
+Các model mạnh hiện nay (Claude, Gemini Flash…) đều có cửa sổ context rất lớn, nhưng giới hạn output và giá mỗi hãng khác nhau.
+
+**Quyết định đề xuất: dùng một ngưỡng cố định chung cho thí nghiệm, nhỏ hơn nhiều so với cửa sổ tối đa của model. Giới hạn thật của từng model chỉ dùng để kiểm tra an toàn.**
+
+Lý do không để mỗi model dùng hết cửa sổ của nó:
+
+1. **TV2 không có gì để đo.** Run khó dùng hết một cửa sổ khổng lồ. Context không bao giờ đầy thì cơ chế dọn dẹp không bao giờ chạy, bảng ablation ra ≈ 0.
+2. **Rất tốn tiền.** Mỗi lượt gửi lại toàn bộ context, nên để context phình to thì chi phí mỗi run tăng rất nhanh. Cache có thể giảm số tiền thật trả cho provider, nhưng số token logic dùng để so sánh thì không đổi.
+3. **Context càng dài, model càng dễ bỏ sót** thông tin nằm giữa. Mức độ tùy model, nên đây là điều cần đo.
+4. **Công bằng giữa các provider (RQ3).** Cùng một ngưỡng thì mọi model chơi cùng luật, RQ3 so model chứ không so cách dọn dẹp.
+
+| Thành phần | Cố định hay theo model |
+|---|---|
+| Cửa sổ thí nghiệm `W_exp` (phải ≤ cửa sổ nhỏ nhất trong các model dùng) | Cố định |
+| Phần chừa cho câu trả lời (phải nằm trong giới hạn output của mọi model) | Cố định |
+| Ngưỡng bắt đầu dọn | Cố định |
+| Đếm token để quyết định (một đơn vị trung lập) | Cố định |
+| Kiểm tra giới hạn cứng (giới hạn và cách đếm thật của từng model) | Theo model |
+| Báo cáo chi phí (số token thật và giá thật của từng provider) | Theo model |
+
+Giá trị cụ thể của các ngưỡng sẽ chốt sau khi có số liệu đo nền.
+
+**Thí nghiệm phụ (nếu còn ngân sách):** chạy thêm nhánh dùng cửa sổ đầy đủ của model, so với nhánh dùng ngưỡng chung có dọn dẹp. Kết quả trả lời câu hội đồng có thể hỏi: *"Model đã có cửa sổ rất lớn, quản lý context để làm gì?"*
+
+**Lưu ý:** RQ3 cần ít nhất 3 provider. Ngưỡng chung phải vừa với tất cả các provider được chọn.
+
+### 3.5 Judge và Audit dùng chung một workflow
+
+**Quyết định: một engine, một workflow, một chính sách cho cả hai chế độ.** Không có thiết kế riêng cho Judge hay Audit.
+
+Trước mỗi lần gọi model, engine làm đúng các bước sau, không cần biết đang chạy chế độ nào:
+
+```
+1. Đo       → context sắp gửi nặng bao nhiêu token?
+2. So       → còn dưới ngưỡng không?
+                 ├─ Còn  → gửi luôn
+                 └─ Vượt → dọn theo thứ tự:
+3. Cắt      → kết quả tool quá dài thì chỉ giữ một đoạn + lời nhắc "đọc tiếp"
+4. Ẩn       → kết quả tool cũ thay bằng một dòng ghi chú
+5. Tóm tắt  → vẫn vượt thì nhờ model tóm tắt phần cũ
+6. Vẫn vượt → dừng run, không gọi model
+7. Ghi lại  → lưu số liệu: bao nhiêu token, đã dọn gì
+```
+
+Judge và Audit chỉ khác ở **dữ liệu đưa vào**, không khác ở cách xử lý:
+
+| | Judge | Audit |
+|---|---|---|
+| Thứ được ghim (không bao giờ ẩn) | Finding cần chấm | Danh sách lỗi đã tìm thấy |
+| Độ dài run | Ngắn | Dài |
+| Thường đi tới bước | 2 (gửi luôn) | 4–5 (ẩn, tóm tắt) |
+
+Engine chỉ nhận một **danh sách mục được ghim**; mỗi chế độ tự đưa vào thứ mình cần giữ. Sổ lỗi và bản đồ độ phủ là dữ liệu của Audit workflow (lưu trong database), engine chỉ hiển thị chúng như mọi mục được ghim khác.
+
+**Vì sao dùng chung:**
+
+1. **Công bằng khi nghiên cứu:** khác biệt kết quả chỉ đến từ chế độ, không đến từ cách quản lý context.
+2. **Ít việc hơn:** một engine, một bộ test, một chỗ sửa lỗi.
+3. **Tự thích nghi:** ngưỡng quyết định khi nào dọn. Judge ngắn thì engine gần như đứng yên, Audit dài thì engine tự làm việc.
+4. **Dễ đo đóng góp:** một bộ công tắc dùng chung, bảng ablation rõ ràng.
+5. **Dễ mở rộng:** chế độ mới chỉ cần đưa dữ liệu vào cùng engine.
+
+**Hệ quả:**
+
+- Phần khó (ẩn, tóm tắt, sổ ghi chú) được thiết kế nhắm vào Audit. Judge vẫn dùng các bước đo, kiểm tra và cắt.
+- Thí nghiệm của TV2 đo chủ yếu trên **Audit**. Với Judge chỉ báo cáo engine kích hoạt bao nhiêu lần, tốn bao nhiêu token.
+- "Judge không bao giờ tràn" vẫn là giả định. Giai đoạn đo nền sẽ kiểm chứng; nếu đúng thì đó cũng là một kết quả để ghi vào báo cáo.
+- Chỉ tách khi có số liệu cho thấy một cách dọn giúp Audit nhưng làm hại Judge. Kể cả khi đó, cách xử lý là đổi một tham số, không viết engine thứ hai, và phải ghi rõ trong báo cáo.
+
 ---
 
-## 4. Kế hoạch cho hai người
+## 4. Phân công
 
-**Phân vai:**
+Mỗi người tự thiết kế và lên kế hoạch chi tiết cho phần mình phụ trách. Hai người review chéo cho nhau.
 
-- **Người A — Đo, Ngân sách, Nén:** L0, L1, L4, L6.
-- **Người B — Giảm tải, Ghi nhớ, Thí nghiệm:** L2, L3, L5, cùng các script đo lường.
+| Người | Phụ trách |
+|---|---|
+| **Người A — Đo & Ngân sách** | L0 Đo token · L1 Ngân sách (kiểm tra trước khi gọi) · L4 Tóm tắt bằng model · L6 Ghi vết |
+| **Người B — Dọn dẹp & Ghi nhớ** | L2 Cắt kết quả tool · L3 Ẩn kết quả cũ · L5 Sổ ghi chú và bộ nhớ dài hạn · Script đo lường, thí nghiệm |
 
-| Giai đoạn | Người A | Người B | Đầu ra kiểm chứng được |
-|---|---|---|---|
-| **0. Đo nền** (2 tuần, làm được ngay, không phụ thuộc track khác) | **Benchmark estimator trên Solidity**: so `chars/4`, `o200k` và API đếm token của 2–3 provider (chỉ chạy offline một lần) trên khoảng 50 file `.sol`, ra phân phối sai số và chọn biên an toàn | **Đo áp lực context**: số token của từng file và từng repo trên 10–20 repo contest, so với cửa sổ 128k. Từ đó biết Judge có thật sự cần L3/L4 hay không | Hai bảng số liệu và một bản thiết kế 2–3 trang mang tới buổi chốt Sprint 1 |
-| **1. Lõi** (≈4 tuần) | `TokenEstimator`, preflight L1, ghi token logic (cùng TV1), telemetry (cùng TV6) | L2 cùng TV3; bộ fixture file lớn | Run giả lập có telemetry; ca tràn dừng `context_budget` mà không gọi model |
-| **2. Giảm tải tất định** (≈4 tuần) | Hỗ trợ tích hợp; test bật/tắt | L3: supersede, kết quả rỗng, ẩn kết quả cũ; giữ cache | Ablation S0, S1, S2 trên Judge |
-| **3. Ghi chú và nén** (≈6 tuần, gắn với Audit) | L4 với template audit, kiểm tra tiến triển | Session note có cấu trúc | S3, S4 và H2 trên Audit |
-| **4. Memory và đa provider** (≈6 tuần) | Áp `W_exp` chung, chi phí context theo từng model | Long-term memory phân vùng theo split, kèm test chứng minh không rò rỉ | Bảng đa provider; test chống rò rỉ memory |
-| **5. Chốt** | Thí nghiệm chính thức, freeze, viết chương | Như A | Chương "Quản lý ngữ cảnh" trong báo cáo |
+**Thứ tự ưu tiên chung:**
+
+1. Đo nền: độ chính xác của cách đếm token trên Solidity, áp lực context trên các repo contest.
+2. Lõi: đo, kiểm tra ngân sách, cắt kết quả tool, ghi vết.
+3. Ẩn kết quả cũ, chạy ablation đầu tiên.
+4. Tóm tắt, sổ ghi chú, bộ nhớ (gắn với Audit).
+5. Đa provider, thí nghiệm chính thức, viết báo cáo.
 
 ### 4.1 Ranh giới với các track khác
 
 | Track | TV2 cung cấp | TV2 cần nhận |
 |---|---|---|
-| TV1 | Hàm preflight trước mỗi lần gọi model; số token logic | Thời điểm gọi preflight trong agent loop; thứ tự ưu tiên các điều kiện dừng |
-| TV3 | Format marker khi cắt output | Giới hạn cứng của tool; `read_file` hỗ trợ offset; token của tool description |
-| TV4 | Bước cắt chạy sau bước redact | Rule redaction có version |
-| TV5 | Estimator có version; flag và telemetry; số token tiết kiệm | Manifest split (cho memory); thống nhất đơn vị ngân sách |
-| TV6 | Field telemetry về context và các phép giảm tải | Hiển thị phân bổ context trong Trace View |
+| TV1 | Hàm kiểm tra ngân sách trước mỗi lần gọi model; số token logic | Thời điểm gọi kiểm tra trong agent loop; thứ tự ưu tiên các điều kiện dừng |
+| TV3 | Format lời nhắc khi cắt output | Giới hạn cứng của tool; `read_file` hỗ trợ đọc từ dòng N; token của mô tả tool |
+| TV4 | Bước cắt chạy sau bước lọc thông tin nhạy cảm | Quy tắc lọc có version |
+| TV5 | Cách đếm token có version; công tắc và số liệu; số token tiết kiệm | Danh sách chia tập train/test (cho memory); thống nhất đơn vị ngân sách |
+| TV6 | Dữ liệu về context và các lần dọn dẹp | Hiển thị phân bổ context trong Trace View |
 
 ### 4.2 Rủi ro lớn nhất
 
-Judge run ngắn, có thể không bao giờ chạm ngưỡng, khi đó ablation ra ≈ 0. Giai đoạn 0 tồn tại chính là để biết điều này **ngay từ tuần 2**, không phải đợi tới tháng 3. Nếu áp lực thấp, chuyển trọng tâm thí nghiệm của TV2 sang Audit và sang chỉ số *chi phí*.
+Judge run ngắn, có thể không bao giờ chạm ngưỡng, khi đó ablation trên Judge ra ≈ 0. Vì vậy cần đo áp lực context càng sớm càng tốt, và đặt trọng tâm thí nghiệm của TV2 vào Audit cùng chỉ số *chi phí*.
 
 ---
 
 ## 5. Câu hỏi cần chốt với nhóm
 
-1. Cửa sổ thí nghiệm chung `W_exp` là bao nhiêu (ví dụ 128k)? Áp cho mọi provider kể cả model có cửa sổ lớn hơn?
+1. Cửa sổ thí nghiệm chung `W_exp` là bao nhiêu? Áp cho mọi provider kể cả model có cửa sổ lớn hơn?
 2. Ngưỡng chính sách tính theo đơn vị trung lập (`o200k` / bytes/4) hay theo tokenizer riêng của từng provider?
 3. Phần dự trữ cho output của verdict là bao nhiêu token?
 4. Khi đã giảm tải hết mà vẫn tràn: dừng `context_budget` (đề xuất) hay cho phép bỏ bớt lịch sử?

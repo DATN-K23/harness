@@ -25,9 +25,9 @@
 
 ## 4. Deterministic fakes (`@harness/core/testing`)
 
-- [ ] 4.1 [Owner: TV1 with TV6; gate: C05] Implement `FakeClock`, `SeededRandom`, `FakeSleep` and `InMemoryRunStore` (claim with lease expiry, expected-version CAS, unique contiguous sequence, terminal immutability, optional fault injection). Evidence: a contract test file written against `RunStorePort` that rejects duplicate sequence, stale claim and terminal transition; TV6 reruns it later on the PostgreSQL adapter.
-- [ ] 4.2 [Owner: TV1; gate: C05] Implement `ScriptedModelGateway` (scripted responses, errors, usage, latency, call log, call count), `FakeContextEngine` variants (pass-through and threshold-driven with scripted `needs_compaction`/`stop`, labeled non-authoritative) and `InMemoryToolRegistry` (read-only files, injectable failures and delays). Evidence: unit tests for scripting and call logs; gateway never throws for provider errors.
-- [ ] 4.3 [Owner: TV1 with TV4; gate: C05] Implement `RegexSecurityFilter`, `InMemorySnapshot`, and scripted `IngestionPort`/`SanitizerPort`/`SandboxPort` (including state probe results). Evidence: tests that the filter redacts before any later step and that scripted stage results are returned verbatim.
+- [x] 4.1 [Owner: TV1 with TV6; gate: C05] Implement `FakeClock`, `SeededRandom`, `FakeSleep` and `InMemoryRunStore` (claim with lease expiry, expected-version CAS, unique contiguous sequence, terminal immutability, optional fault injection). Evidence: a contract test file written against `RunStorePort` that rejects duplicate sequence, stale claim and terminal transition; TV6 reruns it later on the PostgreSQL adapter.
+- [x] 4.2 [Owner: TV1; gate: C05] Implement `ScriptedModelGateway` (scripted responses, errors, usage, latency, call log, call count), `FakeContextEngine` variants (pass-through and threshold-driven with scripted `needs_compaction`/`stop`, labeled non-authoritative) and `InMemoryToolRegistry` (read-only files, injectable failures and delays). Evidence: unit tests for scripting and call logs; gateway never throws for provider errors.
+- [x] 4.3 [Owner: TV1 with TV4; gate: C05] Implement `RegexSecurityFilter`, `InMemorySnapshot`, and scripted `IngestionPort`/`SanitizerPort`/`SandboxPort` (including state probe results). Evidence: tests that the filter redacts before any later step and that scripted stage results are returned verbatim.
 
 ## 5. Step execution
 

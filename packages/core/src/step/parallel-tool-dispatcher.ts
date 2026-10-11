@@ -16,6 +16,8 @@ export const ToolFailureKinds = [
   "thrown",
   "tool_error",
   "malformed",
+  /** Set by the step, not the dispatcher: a call returned while tools were disabled on a forced step. */
+  "tools_disabled",
 ] as const
 
 export type ToolFailureKind = (typeof ToolFailureKinds)[number]
@@ -72,12 +74,13 @@ export interface ToolDispatcherOptions {
 const PathArgumentKeys = ["path", "filePath", "file", "directory", "dir"] as const
 const MaxArgumentsChars = 500
 const MaxThrownChars = 300
-const NextStepMarker = "Suggested next step:"
+export const NextStepMarker = "Suggested next step:"
 const NoPathArgument = "<no path argument>"
 
 const bounded = (text: string, limit: number) => (text.length > limit ? `${text.slice(0, limit)}...` : text)
 
-const describeArguments = (args: Record<string, unknown>) => {
+/** Argument values as bounded JSON for a model-visible error message. */
+export const describeArguments = (args: Record<string, unknown>) => {
   try {
     return bounded(JSON.stringify(args) ?? "{}", MaxArgumentsChars)
   } catch {

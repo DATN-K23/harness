@@ -38,7 +38,13 @@ export {
 export type { EventAppendResult, EventSinkOptions } from "./runner/event-sink"
 export { buildRunConfigSnapshot } from "./runner/run-config"
 export type { BuiltRunConfig, RunConfigInput } from "./runner/run-config"
-export { ParallelToolDispatcher, SecurityRuleIds, ToolFailureKinds } from "./step/parallel-tool-dispatcher"
+export {
+  NextStepMarker,
+  ParallelToolDispatcher,
+  SecurityRuleIds,
+  ToolFailureKinds,
+  describeArguments,
+} from "./step/parallel-tool-dispatcher"
 export type {
   DispatchInput,
   DispatchOutcome,
@@ -49,3 +55,5 @@ export type {
 } from "./step/parallel-tool-dispatcher"
 export { MaxSchemaRepairs, synthesizeVerdict } from "./judge/verdict-synthesizer"
 export type { VerdictSynthesis, VerdictSynthesisDeps, VerdictSynthesisInput } from "./judge/verdict-synthesizer"
+export { JudgeStep } from "./runner/judge-step"
+export type { JudgeStepDeps, JudgeStepInput, JudgeStepResult } from "./runner/judge-step"

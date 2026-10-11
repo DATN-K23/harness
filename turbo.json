@@ -5,6 +5,17 @@
   "tasks": {
     "typecheck": {},
     "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/NOTICE",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/bunfig.toml",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/.gitattributes",
+        "$TURBO_ROOT$/packages/*/package.json",
+        "$TURBO_ROOT$/packages/*/tsconfig.json",
+        "$TURBO_ROOT$/packages/*/src/**"
+      ],
       "outputs": []
     }
   }

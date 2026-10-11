@@ -65,6 +65,8 @@ Changing the language family, API framework, relational authority, renderer fami
 
 # ADR-002: Direct official SDK behind the project provider port
 
+> Current applicability: the official-SDK strategy remains accepted. Python paths below are historical; ADR-008 and [ADR-009](#adr-009-package-ownership-and-selective-opencode-reuse) place the public model boundary in llm.
+
 - Status: `Accepted`
 - Version: `adr-002-v2`
 - Decision date: `2026-08-14`
@@ -115,6 +117,8 @@ Accepted on `2026-08-14` against this `adr-002-v2` content and the project-port 
 
 
 # ADR-004: Use OpenCode as pinned architecture evidence, not an implementation base
+
+> Current applicability: the reference-only/no-copy restriction is superseded by [ADR-009](#adr-009-package-ownership-and-selective-opencode-reuse). The original snapshot and decision below remain historical evidence.
 
 - Status: `Superseded by ADR-008`
 - Version: `adr-004-v1`
@@ -181,6 +185,8 @@ A newer OpenCode snapshot creates a new ADR-004 version containing the new immut
 
 
 # ADR-005: Capability-first modular monolith with shallow hexagonal modules
+
+> Current applicability: package roles, persistence placement and the dependency graph below are partially superseded by [ADR-009](#adr-009-package-ownership-and-selective-opencode-reuse). Capability ownership, public seams and isolation remain required. Use the current module layout for imports.
 
 - Status: `Accepted (Updated for package-based monorepo)`
 - Version: `adr-005-v2`
@@ -253,6 +259,8 @@ Changing the system-level organizing axis, adding a global business adapter/repo
 
 # ADR-006: Downloadable desktop client over an independent local runtime
 
+> Current applicability: Python implementation wording below is historical under ADR-008/009. Independent runtime lifetime and the thin desktop boundary remain accepted.
+
 - Status: `Accepted`
 - Version: `adr-006-v1`
 - Decision date: 2026-08-14
@@ -314,6 +322,8 @@ Changing to hosted SaaS, renderer-owned execution, direct desktop database/provi
 
 
 # ADR-007: Tauri 2 native desktop shell, signing, and updater boundary
+
+> Current applicability: Tauri 2 remains selected. Python runtime references below are historical under ADR-008/009; signing, update and native authority rules remain accepted.
 
 - Status: `Accepted`
 - Version: `adr-007-v2`
@@ -422,6 +432,8 @@ Changing the host family, granting renderer generic native authority, coupling r
 
 # ADR-008: Technology stack migration to TypeScript/Bun monorepo
 
+> Current applicability: the stack remains accepted; no-copy statements and shared-schema database ownership are partially superseded by [ADR-009](#adr-009-package-ownership-and-selective-opencode-reuse). The original decision below is retained as history.
+
 - Status: `Accepted`
 - Version: `adr-008-v1`
 - Decision date: 2026-09-22
@@ -486,3 +498,50 @@ OpenCode's module structure is adopted as the **architectural model**. This mean
 ## Supersession
 
 Changing the runtime language, runtime engine, monorepo management tool, or database ORM requires a superseding ADR with incompatibility evidence, migration impact analysis, and project-owner approval.
+
+
+# ADR-009: Package ownership and selective OpenCode reuse
+
+- Status: `Accepted for documentation and reuse direction; implementation pending`
+- Decision date: `2026-10-06`
+- Authority: project leader's request to reuse appropriate OpenCode code, define the packages, and apply `align-packages-with-opencode`; no separate team meeting is claimed.
+- Supersedes: ADR-004/008 reference-only/no-copy restrictions; ADR-005/008 package responsibility, dependency and shared-schema persistence statements only.
+
+## Context and decision
+
+The old package map conflated shared data schemas with database tables and treated
+CLI startup as a forbidden backend import. Inspection of the pinned source shows
+separate data/API/provider contracts, core-owned tables and CLI server composition.
+Adopt the authoritative [module layout](../architecture/module-layout.md), including
+its provenance, public dependency allowlist, capability ownership and scorer isolation.
+Schema contains safe data codecs/types; protocol contains application API contracts;
+core owns orchestration and capability persistence; llm owns the public model boundary.
+CLI API commands use client; serve/start may compose public server/core startup services.
+
+Selective source reuse is authorized in principle. This decision does not copy code,
+select a fork or dependency, assert license/integration review has happened, or prove
+runtime behavior. Each future port must identify its source revision and adaptation,
+review applicable licensing and dependency requirements, and demonstrate Harness contracts.
+
+## Retained decisions and adaptation gates
+
+TypeScript/Bun/Turborepo, React, Tauri 2 and PostgreSQL through Drizzle remain selected.
+OpenCode SolidJS, Electron, SQLite and Effect HttpApi are observations, not stack
+changes. Adopting their frameworks or replacing the ADR-002 official-SDK integration
+strategy requires a separate superseding decision before dependent implementation.
+Upstream tools, retries and continuation cannot bypass Harness read-only Judge tools,
+one-observable-attempt accounting, budgets, exact sanitized traces, immutable config,
+durable handoff/recovery or isolated scorer credentials. Judge verdicts remain unverified.
+Audit/verification keep declared capability/port seams and their separate delivery scope.
+
+## Alternatives and consequences
+
+Keeping the old map would misplace persistence and prohibit legitimate composition.
+Copying the complete upstream topology would introduce packages, frameworks and powers
+outside the approved scope. Choose the ten existing package boundaries with explicit
+adaptation. A package allowlist alone is insufficient: subpath reachability, generated
+artifacts and DB grants must also exclude labels from agent processes.
+
+This is documentation acceptance only. Package placeholders remain placeholders;
+readiness gates for implementation and provider profiles are not fulfilled by this ADR.
+Historical ADR bodies, rationale and rejected alternatives above remain unchanged.

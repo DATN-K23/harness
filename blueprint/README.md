@@ -1,12 +1,12 @@
 # Harness Blueprint
 
-Status: `Validated blueprint`
-Version: `blueprint-v5`
-OpenSpec change: `update-module-layout`
+Status: `Architecture documentation; runtime implementation pending`
+Version: `blueprint-v6`
+OpenSpec change: `align-packages-with-opencode`
 
 ## System Overview
 
-**Harness** is a local-first AI Agent system designed to wrap Large Language Models (LLMs) and provide them with tools, context management, and multi-turn reasoning capabilities. It runs entirely on the developer's machine as a downloadable desktop application backed by a local runtime and database.
+**Harness** is a local-first AI Agent system designed to wrap Large Language Models (LLMs) and provide them with tools, context management, and multi-turn reasoning capabilities. The desktop application, runtime and database run locally; configured external model providers receive sanitized model requests.
 
 Harness is specifically designed for **Smart Contract Auditing**, allowing the AI to autonomously analyze source code and discover or verify vulnerabilities with greater precision than traditional chat interfaces.
 
@@ -37,31 +37,20 @@ Harness operates in two primary modes:
 
 ## Package map
 
-```text
-harness/
-├── bunfig.toml                # Bun workspace configuration
-├── package.json               # Root workspace manifest and dependency catalog
-├── turbo.json                 # Turborepo pipeline configuration
-├── tsconfig.json              # Shared TypeScript configuration
-├── infra/                     # Infrastructure-as-code
-├── sdks/                      # External SDKs (e.g., IDE extensions)
-├── blueprint/                 # This directory — architecture documentation
-└── packages/
-    ├── protocol/              # Shared types, effects, and API contracts
-    ├── schema/                # Data models and database schemas (Drizzle ORM)
-    ├── core/                  # Core engine: Agent loop, tool dispatch, execution logic
-    ├── llm/                   # Model gateway and provider adapters
-    ├── server/                # Local daemon / API server
-    ├── cli/                   # Command-line interface
-    ├── client/                # HTTP/RPC client SDK
-    ├── ui/                    # Shared UI components
-    ├── app/                   # Web application interface
-    └── desktop/               # Desktop application wrapper (Tauri 2)
-```
+Use the authoritative [module layout](architecture/module-layout.md) for all ten
+package responsibilities, source provenance, import/generation rules, CLI composition
+and scorer isolation. Shared schema is data; protocol is the application API; core
+capabilities own persistence; llm owns the model boundary. This map adapts the pinned
+OpenCode source without changing the React/Tauri/PostgreSQL choices.
 
 ## How to read
 
-1. Read `vocabulary.md` to understand the domain terms.
-2. Read `decisions/architecture-decisions.md` for historical ADR context.
-3. Use `architecture/system-overview.md` and `architecture/module-layout.md` for structure and boundaries.
-4. Use `architecture/sequences.md` to understand runtime behavior and end-to-end flows.
+1. [Vocabulary](vocabulary.md) defines domain and architecture terms.
+2. [Architecture decisions](decisions/architecture-decisions.md) retain history and ADR-009's scoped supersession.
+3. [Module layout](architecture/module-layout.md) determines code placement and allowed imports.
+4. [System overview](architecture/system-overview.md) defines processes, trust boundaries and persistence contracts.
+5. [Sequences](architecture/sequences.md) define runtime flows and lifecycle transitions.
+
+This directory retains six Markdown files. Documentation acceptance is not proof of
+an implemented Judge, successful source port or completed evaluation. OpenSpec delta
+synchronization/archive is a separate workflow step.

@@ -41,8 +41,15 @@ context: |
     remaining real adapters and cross-provider matrix stay at C11-C12.
   - Audit mode, cross-run long-term memory, compaction, PoC execution,
     production multi-tenancy, Kubernetes, and MCP are outside this MVP.
-  - No technology stack is selected yet. Do not scaffold implementation before
-    the stack and provider/baseline ADR readiness gates are approved.
+  - ADR-008 selects TypeScript/Bun/Turborepo, React, Tauri 2 and PostgreSQL via
+    Drizzle. ADR-009 aligns package ownership and authorizes selective OpenCode
+    reuse direction; it does not implement a port or change that stack.
+  - Use blueprint/architecture/module-layout.md for the current package and
+    capability map. Shared schema is safe data, protocol is the application API,
+    and capability persistence lives in core. CLI startup has a narrow public
+    composition seam; scorer reachability and credentials remain isolated.
+  - Implementation/provider/baseline readiness gates still require their own
+    evidence; package documentation is not proof those gates are complete.
 
   Team ownership: TV1 agent loop/provider ports; TV2 context; TV3 tools/skills;
   TV4 security/verification; TV5 data/evaluation; TV6 API/persistence/UI/demo.

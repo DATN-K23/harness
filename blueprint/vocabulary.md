@@ -1,7 +1,7 @@
 # Canonical Vocabulary and Identifier Registry
 
 Normative: yes  
-Version: `vocabulary-v2`
+Version: `vocabulary-v3`
 Requirements: API-08–API-10, EVAL-11
 
 ## Core and architecture terms
@@ -14,10 +14,17 @@ Requirements: API-08–API-10, EVAL-11
 | shallow hexagonal boundary | Add domain/application/ports/adapters inside a capability only when non-empty and useful. | No ceremonial folder requirement. |
 | local runtime | Headless daemon/worker/evaluator/scorer processes plus PostgreSQL from one coordinated modular-monolith release. | Desktop window/process is not runtime authority. |
 | desktop | Downloadable thin renderer/native shell using only generated local-runtime API plus narrow OS integration. | Not a web service, DB client, provider client or tool host. |
-| Tauri 2 native host | Narrow Rust process under future `apps/desktop/src-tauri/` that owns allowlisted OS integration and protected transport to the local runtime. | Not the local runtime, business orchestrator, generic native bridge or execution authority. |
+| Tauri 2 native host | Narrow Rust process under future `packages/desktop/src-tauri/` that owns allowlisted OS integration and protected transport to the local runtime. | Not the local runtime, business orchestrator, generic native bridge or execution authority. |
 | renderer-to-native capability | Per-window allowlist joining a Tauri command permission with its allowed scope. | Not implicit access to filesystem, shell, process, environment, URLs, secrets or updater primitives. |
 | runtime supervisor | OS-appropriate independent owner of daemon/worker/evaluator/scorer lifetime that survives renderer and Tauri-host exit. | The Tauri child-process lifetime is not runtime authority. |
 | update coordinator | Project control plane that validates signed desktop/runtime artifacts, compatibility manifest, active work, migration safety, health and rollback. | Not a renderer-selected artifact URL/key or direct updater invocation. |
+| shared data schema | Browser-safe codec/type in schema; decoding validates incoming values. | Not a Drizzle table, DB authority or automatic validation on import. |
+| application protocol | Operations, requests, responses and errors in protocol, using schema. | Not the server implementation or provider wire format. |
+| provider protocol | Model wire encoding/decoding behind the llm port. | Not application HTTP policy or Judge continuation. |
+| capability persistence | Tables, queries and migrations owned in core backend capability areas. | No cross-capability SQL or common-schema DB driver. |
+| generated client | Reproducible API projection; generation dependencies are separate from browser runtime imports. | No generated server/core/scorer runtime import. |
+| CLI composition | Serve/start wiring through public core/server startup services. | No second agent loop, scorer authority or bypass of durable admission. |
+| `GroundTruthLabel` | Scorer-only label contract and data outside shared schema and agent processes. | Not CandidateFinding or an API response. |
 | `JudgeRun` | One asynchronous analysis of one `CandidateFinding` against one `SourceSnapshot`. | Session, queue delivery, and attempt are distinct. |
 | `AuditRun` | One asynchronous autonomous security exploration of a `SourceSnapshot` producing an `AuditReport`. | Not a single-finding verification. |
 | `Finding` | An identified vulnerability or issue in the audited smart contract. | Not a ground truth label or benchmark case. |
@@ -32,9 +39,11 @@ Requirements: API-08–API-10, EVAL-11
 
 ## Capability and process names
 
-Capabilities: `run_control`, `model_gateway`, `source_access`, `agent_runtime`, `judge`, `audit`. Cross-package imports use the TypeScript monorepo packages `@harness/<package>` (e.g., `@harness/core`, `@harness/llm`, `@harness/protocol`, `@harness/schema`, `@harness/server`).
+Capabilities: `run_control`, `model_gateway`, `source_access`, `agent_runtime`, `judge`, `evaluation`, isolated `scoring`, and future `audit`. Cross-package imports use the TypeScript monorepo packages `@harness/<package>` (e.g., `@harness/core`, `@harness/llm`, `@harness/protocol`, `@harness/schema`, `@harness/server`).
 
-Composition roots/process identities: `daemon` (or local API server), `worker`. `desktop` contains a web renderer and the ADR-007-selected Tauri 2 native host; neither is a local runtime composition root.
+Composition roots/process identities: `daemon` (or local API server), `worker`, `evaluator`, isolated `scorer`. CLI serve/start may wire public daemon startup; ordinary commands use client/API. `desktop` contains a web renderer and the ADR-007-selected Tauri 2 native host; neither is a local runtime composition root.
+
+Package roles, public subpaths and dependency rules are defined once in the [module layout](architecture/module-layout.md).
 
 ## Run and connection states
 

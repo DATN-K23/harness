@@ -1,112 +1,252 @@
 # Module Layout & Boundaries
 
-## System Overview
+Normative package map for the proposed Harness TypeScript/Bun modular monolith.
+This is a documentation contract: the ten package directories currently contain
+placeholders, not an implemented runtime. The current package ownership decision is recorded in ADR-009.
 
-Harness is a local-first AI Agent framework designed for Smart Contract Security analysis. It wraps Large Language Models (LLMs) with tools, context management, and multi-turn reasoning to discover and verify vulnerabilities in smart contracts across two primary modes:
-- **Audit Mode**: Autonomous exploration of a smart contract codebase to discover new vulnerabilities (findings).
-- **Judge Mode**: Verifying, deduplicating, and filtering a provided set of candidate findings against the codebase.
+## Package responsibilities
 
-This document defines the physical repository layout and module boundaries across the 10 core packages. It is the authoritative guide for where code belongs. When implementing a new feature or fixing a bug, use this document to determine the correct package.
+Each package exposes declared public exports, not its entire source tree. The ten package responsibilities below define the proposed Harness boundaries.
 
-## Physical Repository Layout
+### schema
 
-The project is a TypeScript/Bun monorepo managed by Turborepo, consisting of 10 core packages:
+**Harness:** Safe domain data contracts: IDs, CandidateFinding, SourceSnapshot references,
+run projections, events and unverified verdict data. Public exports are codecs,
+validators and inferred TypeScript types. A codec can have different encoded and
+decoded forms. Merely importing it does not validate input; a boundary must decode it.
+No Drizzle tables, migrations, DB driver, credentials, GroundTruthLabel, scoring metadata
+or business decisions belong here. Shared types confer no access authority.
 
-```text
-harness/
-├── bunfig.toml                # Bun workspace configuration
-├── package.json               # Root workspace manifest and dependency catalog
-├── turbo.json                 # Turborepo pipeline configuration (lint, test, build, dev)
-├── tsconfig.json              # Shared TypeScript configuration
-├── infra/                     # Infrastructure-as-code (e.g. AWS / Cloudflare / Serverless)
-├── sdks/                      # External SDKs (e.g., VSCode extension)
-└── packages/
-    ├── protocol/              # Shared types, effects, and API contracts
-    ├── schema/                # Data models and database schemas (Drizzle ORM)
-    ├── core/                  # Core engine: Agent loop, tool dispatch, Judge execution
-    ├── llm/                   # Model gateway and provider adapters
-    ├── server/                # Local daemon / API server exposing the core engine
-    ├── cli/                   # Command-line interface for running evaluations
-    ├── client/                # HTTP/RPC client SDK for communicating with the server
-    ├── ui/                    # Shared UI components
-    ├── app/                   # Web application interface
-    └── desktop/               # Desktop application wrapper (Tauri 2)
+### protocol
+
+**Harness:** Application API paths/operations, payloads, errors, event transport and
+middleware contracts built on schema. Public surface is the canonical API definition.
+This describes the client/server agreement; it is neither a server nor a second agent loop.
+It owns no DB queries or provider wire format. Framework choice is distinct from this role.
+
+### core
+
+**Harness:** `run_control`, `source_access`,
+agent_runtime, judge, evaluation and isolated scoring, with future audit/verification seams.
+Own domain rules, use cases, ports, adapters, resource lifetime and capability persistence.
+Public subpaths expose operations/types and narrowly scoped composition services.
+Private stores/SQL are not cross-capability APIs. Tests and migration contributions live
+with their capability; no empty layer directories are required just to match a template.
+
+### llm
+
+**Harness:** Public one-attempt model port, normalized requests/results/events, adapter
+errors, profile checks, credentials, sanitization, usage/cost accounting and explicit retry
+mechanisms under the existing run policy. Core owns continuation, tool execution,
+committed history and Judge decisions. SDK types, credentials and native protocol objects
+stay behind the port. The currently accepted official-SDK strategy remains in force; changing it requires a separate decision.
+
+### Data, API, model and storage walkthrough
+
+A representative flow makes the package boundaries concrete.
+
+For Harness, safe RunInfo belongs to schema; a get-run request/response/error contract
+belongs to protocol; its HTTP handler belongs to server; lookup/transaction and the
+run table/migration belong to core/run_control. Project a stored row into RunInfo,
+excluding leases, credentials and private control fields. Do not serialize an entire
+DB row as the public response. A provider JSON encoder belongs to llm, not protocol.
+The API protocol connects application clients to Harness; the provider protocol
+connects the model adapter to the provider. Neither determines Judge domain policy.
+
+### server
+
+**Harness:** API routes,
+authentication middleware, input decoding, safe error/response projections and public
+server startup composition. Public surface is route/startup services. Business policy,
+claims and run transitions remain in core; handlers do not duplicate them.
+
+### client
+
+**Harness:** Browser-safe generated API methods,
+transport configuration and safe contract types. Runtime may import schema/protocol,
+never server/core or generator tooling. Regenerate and review output when contracts
+change; do not hand-maintain generated models. Node filesystem/codegen dependencies
+belong to the generator only. Only endpoints included in the Harness API contract are exported.
+
+### ui
+
+**Harness:** React presentation components, styles and display helpers with public component props.
+No business execution, DB/provider access or API orchestration. Safe schema values
+may type display data; a button does not need a client dependency.
+
+### app
+
+**Harness:** React pages, navigation, forms, run/trace views and client-based state sync.
+Public surface is app composition and presentation contracts. Keep browser dependencies limited to safe shared contracts and public clients.
+UI cache and connection state never become authoritative run state.
+
+### desktop
+
+**Harness:** Tauri 2 native shell and the app renderer, window integration, scoped picker and protected transport.
+Public surface is a narrow typed native bridge and generated runtime contract.
+The native host owns installation credential custody, not model provider credentials.
+No renderer/native DB access, tool execution, Judge/evaluation/scoring composition or
+runtime lifetime authority. Supervision uses the existing independent-runtime contract.
+
+### cli
+
+**Harness:** Terminal product interface with two distinct entrypoints: ordinary run/status/evaluation
+request commands use client; serve/start commands may assemble public server/core
+startup services. Public surface is commands/options/output and startup wiring.
+Do not duplicate an agent loop or bypass durable admission, claims, budgets and terminal
+transitions. Ordinary CLI/serve cannot acquire scorer code or credentials. Evaluation
+execution and scorer execution retain their separate process roots.
+
+### Harness stack choices
+
+The package definitions describe responsibilities and boundaries. They do not change
+the project stack: React remains the presentation framework, Tauri 2 the desktop shell,
+and PostgreSQL with Drizzle the datastore. The provider integration strategy remains
+as recorded in the accepted ADRs. Any stack migration requires its own decision.
+
+## Dependency matrix
+
+This is the Harness public-import **allowlist**.
+An allowed dependency is not mandatory. Restrictions on subpaths and process closures
+apply even when the package-level edge is allowed. External framework dependencies
+are omitted. Type-only imports do not grant permission to expose private backend types.
+
+| Consumer | Runtime internal dependencies | Type-only internal dependencies | Generation/build-only |
+|---|---|---|---|
+| schema | none | none | own schema tooling |
+| protocol | schema | schema | API export tooling |
+| llm | schema | schema | provider tooling |
+| core | schema, llm | schema, llm | capability migration assembly |
+| server | protocol, schema, core | protocol, schema, public core contracts | API generation |
+| client | protocol, schema | protocol, schema | contract/codegen tooling; public server definitions only if needed |
+| ui | schema | schema, protocol, public client contracts | browser bundler |
+| app | client, schema, ui | schema, protocol, public client and UI contracts | browser bundler |
+| desktop renderer | app, ui, client, schema | safe presentation exports; schema, protocol, public client contracts | browser bundler |
+| desktop native host | generated transport contract only | generated transport contract only | native contract generation and packaging |
+| cli API commands | client, schema | client, schema, protocol | CLI packaging |
+| cli composition commands | public server/core startup, schema | same public startup contracts, schema | runtime packaging |
+
+Generation may read backend definitions in a dedicated build process; emitted browser
+artifacts must not import server/core/llm, generators, Node/Bun built-ins or scorer types.
+Validate the resulting bundle/import closure, not merely the generator's manifest.
+No type-only backdoor to private DB/scorer models is allowed. Same-package presentation
+composition is allowed; all backend access remains through client transport.
+
+### Runtime import graph
+
+Arrows mean **consumer imports dependency**, matching the runtime column above.
+Desktop native uses a generated contract, not a backend package import.
+
+```mermaid
+flowchart TD
+  protocol --> schema
+  llm --> schema
+  core --> schema
+  core --> llm
+  server --> protocol
+  server --> schema
+  server --> core
+  client --> protocol
+  client --> schema
+  ui --> schema
+  app --> client
+  app --> schema
+  app --> ui
+  desktop_renderer --> app
+  desktop_renderer --> ui
+  desktop_renderer --> client
+  desktop_renderer --> schema
+  cli_api --> client
+  cli_api --> schema
+  cli_composition --> server
+  cli_composition --> core
+  cli_composition --> schema
+  desktop_native --> generated_contract
 ```
 
-## Root Configuration and Directories
+### Transport and execution flow
 
-- **`turbo.json`**: Defines the task pipeline for the monorepo, ensuring commands like `build`, `typecheck`, and `lint` run in the correct topological order and use caching.
-- **`bunfig.toml` & `package.json`**: Manages shared dependencies across all packages to prevent version conflicts (utilizing the `catalog:` feature of Bun workspaces).
-- **`infra/`**: Contains Infrastructure-as-Code definitions for cloud deployments, remote evaluation runners, or shared backend services.
-- **`sdks/`**: Holds generated or hand-written SDKs for external platforms to interface with Harness (e.g., IDE extensions).
+This diagram shows calls/data delivery, **not package imports**. Worker and daemon
+are process roots; both compose public capabilities from the coordinated runtime.
 
-## Package Boundaries and Roles
-
-When implementing a new feature, use this guide to determine where your code belongs:
-
-### 1. `protocol` & `schema` (The Foundation)
-
-- **Role**: Define the shared vocabulary and data model of the system.
-  - `schema` owns the data models — database tables (via Drizzle ORM), entity definitions, and migration logic. This includes run records, trajectory events, verdicts, and evidence.
-  - `protocol` owns the API contracts, shared types, validation schemas, and effect definitions. These are the types that cross package boundaries.
-- **Rules**: Must not depend on any other internal package. Must be importable by both frontend (browser) and backend (Node/Bun) environments.
-
-### 2. `core` & `llm` (The Brain)
-
-- **Role**:
-  - `core` is the heart of Harness. It contains the agent runtime loop, Judge execution logic, tool dispatch (bounded read-only source tools), context management, and verdict generation. This is where the core logic lives.
-  - `llm` abstracts all interactions with external AI providers (OpenAI, Anthropic, etc.) behind a unified model gateway interface. It handles provider profiles, request sanitization, token accounting, cost tracking, and retry policy.
-- **Rules**: `core` can import `protocol`, `schema`, and `llm`. `llm` can import `protocol` and `schema`. Neither may import `server`, `client`, or any frontend package. Provider SDK types must not leak beyond `llm`.
-
-### 3. `server` (The API)
-
-- **Role**: A thin HTTP daemon that exposes `core` functionality via a local API. Handles run submission, status queries, trajectory event streaming, and source registration.
-- **Rules**: Consumes `core`, `llm`, `protocol`, and `schema`. Must not contain deep business logic — all orchestration belongs in `core`. The server is a process boundary, not a business boundary.
-
-### 4. `client` (The Bridge)
-
-- **Role**: The universal HTTP/RPC client SDK used by all frontends to communicate with the `server`. Provides typed methods for every server endpoint.
-- **Rules**: Consumes `protocol` only. Must be strictly browser-safe and avoid any Node.js/Bun built-ins. This is the only sanctioned way for UI code to interact with the runtime.
-
-### 5. `ui`, `app`, `desktop`, `cli` (The Presentation)
-
-- **Role**:
-  - `ui`: Reusable visual components (buttons, modals, data tables, verdict displays).
-  - `app`: The main web application — routing, pages, state management, trajectory viewer, run dashboard.
-  - `desktop`: Wraps the `app` in a lightweight native desktop shell (Tauri 2 with narrow Rust host). Handles window management, native file dialogs for source registration, and local credential custody.
-  - `cli`: Terminal-based interaction for headless runs and CI/CD integration.
-- **Rules**: All presentation packages consume `client` (to talk to the API) and `ui` (for visual components). They **must never** directly import `core`, `llm`, or `server`. This enforces a strict client-server boundary, even when running locally.
-
-## Dependency Graph
-
-```text
-protocol ← schema
-    ↑         ↑
-    |         |
-   llm ← ── core
-    ↑         ↑
-    |         |
-    └── server ──┘
-         ↑
-       client
-         ↑
-    ┌────┼────┐
-    ui  app  cli
-         ↑
-      desktop
+```mermaid
+flowchart LR
+  presentation[App / CLI API commands] --> client[Generated client]
+  client -->|HTTP; protected IPC bridge on desktop| daemon[Server / daemon]
+  daemon -->|Public run_control operations| admission[Core admission]
+  admission -->|Atomic run + work + outbox| db[(PostgreSQL)]
+  db -->|Durable work claim| worker[Core worker]
+  worker -->|One-attempt port| llm[LLM gateway]
+  llm -->|Provider protocol| provider[Model provider]
+  worker -->|Owned persistence ports| db
+  worker -->|Bounded read-only tools| snapshot[Managed source snapshot]
 ```
 
-**Rules:**
-- Arrows point from consumer → dependency (i.e., `core` imports `llm`, `protocol`, `schema`)
-- `protocol` and `schema` have zero internal dependencies
-- No circular dependencies permitted
-- Frontend packages never import backend packages
+## Capability placement and process isolation
 
-## Architecture Checks
+The following paths are proposed placement, not existing implementation. Use public
+package/subpath exports, e.g. `@harness/core/run-control`, not private SQL imports.
+A literal `public/` directory is unnecessary. Capability code owns its domain,
+application, ports, adapters, tests and migration contributions as they become needed.
 
-When opening a Pull Request, ensure these invariants hold:
+| Owner | Proposed source and public seam | Persistence responsibility |
+|---|---|---|
+| run_control | `packages/core/src/run-control`; admission/status/events/claims | run/config/candidate, durable work/outbox/claims, safe trajectory and security event storage |
+| source_access | `packages/core/src/source-access`; registration/snapshot/read ports | source registration, immutable inventory and managed content metadata |
+| agent_runtime | `packages/core/src/agent-runtime`; turn/context/budget ports | steps, context allocation, tool-call projections |
+| judge | `packages/core/src/judge`; candidate workflow and verdict ports | verdict/evidence |
+| evaluation | `packages/core/src/evaluation`; frozen experiment and safe execution ports | experiment manifests and safe execution records; no labels |
+| scoring | `packages/core/src/scoring`; scorer-entrypoint-only contracts | labels, adjudication and scoring metadata in restricted schema/role |
+| model_gateway | `packages/llm/src`; one-attempt model port | port owns attempt/profile semantics; its PostgreSQL adapter and migration contribution live in `packages/core/src/model-gateway-persistence` |
+| future audit | `packages/core/src/audit`; declared mode workflow seam | future findings/reports |
+| future verification | separate VerificationRunner port/process seam | separate change; no PoC authority in Judge |
 
-1. **Boundary Enforcement**: Frontend packages (`app`, `desktop`, `ui`, `cli`) MUST NOT import backend packages (`core`, `server`, `llm`).
-2. **Data Integrity**: All database access goes through `schema` and is orchestrated by `core`. The UI never speaks directly to the database.
-3. **Provider Isolation**: Provider SDK types and credentials never escape the `llm` package boundary.
-4. **No Ownership Metadata**: Do not encode team tracks or specific developers into this blueprint. Code ownership is managed via Git and `CODEOWNERS`.
+The gateway persistence adapter in core implements the llm-owned port; llm never imports
+core. It is the gateway capability's persistence contribution, not permission for other
+capabilities to query provider_attempt tables. All actual Drizzle tables/migrations are
+backend-owned in core. Core infrastructure assembles drivers and selected migration
+contributions; a global DB helper must not become a cross-capability query repository.
+Foreign keys do not grant query permission. Use owning public operations and explicit
+transaction ports for atomic changes described in the system overview.
+
+### Composition and repository placement
+
+- Daemon: `packages/server` public startup; optional `packages/cli` serve wiring.
+- Worker: `packages/core` worker entrypoint composes admission/claims, source, agent and Judge plus llm adapters.
+- Evaluator: separate `packages/core` evaluation entrypoint submits matched runs and consumes safe results; no scorer import or label credential.
+- Scorer: separate `packages/core` scoring entrypoint consumes immutable outputs and restricted labels with its own DB role. It is not a service loaded by the ordinary CLI.
+- Tests/migration contributions: colocate with capability owners; assembly selects only the role's contributions. A privileged offline migration process must not pass its credentials to daemon/worker.
+- Configuration: versioned profile/config definitions at owning capabilities; resolved immutable values enter run snapshots. Provider secrets remain outside snapshots and generated contracts.
+- Datasets: versioned manifests and managed safe inputs for evaluator/agent; label material accessible only to scorer outside source workspaces. Dataset packaging cannot silently bundle labels with source.
+- Packaging: one coordinated runtime version, Bun dependency lock and compatibility contract for daemon/worker/evaluator/scorer. Desktop consumes generated transport contracts and performs the existing compatibility handshake.
+
+Root `package.json` would declare Bun workspaces; `bunfig.toml` holds Bun settings;
+`turbo.json` would orchestrate/cache tasks; `tsconfig.json` would share compiler settings.
+These files are future implementation, not artifacts created by this change. Do not
+infer a cloud deployment from an `infra` placeholder or introduce separate service
+release ownership. Additional SDKs are projections, not alternate business runtimes.
+
+### Boundary review walkthrough
+
+1. Accept CandidateFinding and a safe immutable SourceSnapshot through schema/protocol.
+   Server decodes and calls run_control; source_access grants bounded reads of managed content.
+   Agent receives only those inputs and exact sanitized model-visible history.
+2. Core projects run/verdict data through safe schema responses. GroundTruthLabel,
+   adjudication reports, scoring metadata and credential resolution stay inside scoring.
+3. Reject adding GroundTruthLabel to schema even if it is only a type: a shared/generated
+   export crosses the data boundary. Reject a root core barrel exporting scoring even
+   when CLI only asks for startup: transitive module initialization/re-exports may expose it.
+4. Daemon, worker, evaluator, ordinary CLI/serve and renderer dependency closures exclude
+   scoring modules, label schemas and scorer credentials. Scorer has a dedicated entrypoint,
+   restricted DB schema/role and explicit safe output projection; package placement alone
+   cannot enforce this. A migration registry must likewise select role-specific contributions.
+5. Judge tools remain read-only and verdicts remain `unverified`. Authorize every tool
+   before I/O; registry visibility does not replace checks in leaf executors. Exclude
+   write/shell/PoC execution at both registry and executor boundaries.
+
+Continuation, compaction, hosted tools and implicit retries require explicit review
+before adoption. Keep per-call preflight/budgets, explicit observable attempts, exact
+sanitized trace, immutable configuration, terminal CAS and recovery rules
+from [system overview](system-overview.md) and [sequences](sequences.md). Optional
+result-affecting changes need a separate change with flag, telemetry, immutable snapshot
+value and enabled/disabled tests; mandatory isolation is never disableable.

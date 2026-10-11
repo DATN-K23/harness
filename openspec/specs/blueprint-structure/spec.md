@@ -21,11 +21,16 @@ Blueprint MUST tổ chức theo cấu trúc phẳng ưu tiên, tối đa 2 cấp
 - **THEN** không có file nào nằm sâu quá `blueprint/<section>/<file>` (tức là KHÔNG có `blueprint/a/b/c.md`)
 
 ### Requirement: Blueprint SHALL preserve ADR decisions
-Tất cả Architecture Decision Records (ADR-001 đến ADR-007) hiện tại MUST được giữ nguyên nội dung quyết định cốt lõi. Có thể gộp vào ít file hơn nhưng nội dung decision status (Accepted/Proposed) và rationale MUST không bị mất.
+Tất cả Architecture Decision Records (ADR-001 đến ADR-008) hiện tại MUST được giữ nguyên nội dung quyết định cốt lõi. Có thể gộp vào ít file hơn nhưng decision status, chosen option, rationale và rejected alternatives MUST không bị mất. Quyết định package ownership và quyền tái sử dụng source MUST được phân biệt với việc đổi stack, chọn dependency/fork hay tích hợp code; phần lịch sử bị thay thế MUST được nối rõ với quyết định mới.
 
 #### Scenario: ADR content preserved after consolidation
 - **WHEN** so sánh nội dung các ADR trước và sau consolidation
-- **THEN** mỗi ADR (001-007) MUST có decision status, chosen option, rationale, và rejected alternatives được giữ nguyên trong cấu trúc mới
+- **THEN** mỗi ADR (001-008) MUST có decision status, chosen option, rationale, và rejected alternatives được giữ nguyên trong cấu trúc mới
+
+#### Scenario: Reuse direction supersedes a historical no-copy statement
+- **GIVEN** quyết định mới cho phép tái sử dụng phù hợp và ADR cũ ghi giới hạn no-copy
+- **WHEN** package alignment được ghi nhận
+- **THEN** phần bị thay thế trỏ tới quyết định mới, nhưng không hàm ý source đã được copy, dependency/fork đã được chọn, hay stack đã đổi
 
 ### Requirement: Blueprint SHALL not duplicate content across files
 Mỗi khái niệm, quy tắc, hoặc quyết định kiến trúc MUST được định nghĩa tại đúng một vị trí. Các file khác muốn tham chiếu MUST sử dụng cross-reference link thay vì sao chép nội dung.
@@ -67,15 +72,54 @@ Tất cả các tài liệu trong `blueprint/` MUST nhất quán định nghĩa 
 - **THEN** tất cả đều thống nhất định nghĩa hai chế độ vận hành: Audit Mode và Judge Mode
 
 ### Requirement: Blueprint SHALL maintain uniform desktop and datastore technical stack
-Blueprint MUST thống nhất chọn Tauri 2 (theo ADR-007) làm desktop application wrapper và PostgreSQL (thông qua Drizzle ORM trong `packages/schema`) làm authoritative datastore duy nhất trên toàn bộ các tài liệu.
+Blueprint MUST thống nhất chọn Tauri 2 (theo ADR-007) làm desktop application wrapper và PostgreSQL qua Drizzle ORM làm authoritative datastore duy nhất. Bảng và migration MUST thuộc capability persistence trong `core`; package `schema` chỉ chứa data contract dùng chung và MUST NOT cấp quyền truy cập DB. Thay đổi stack cần quyết định superseding riêng.
 
 #### Scenario: Uniform desktop wrapper reference
 - **WHEN** kiểm tra các đề cập đến desktop wrapper trong `blueprint/README.md`, `blueprint/architecture/module-layout.md`, `blueprint/architecture/sequences.md`, và `blueprint/decisions/architecture-decisions.md`
-- **THEN** tất cả đều thống nhất là Tauri 2, không còn tham chiếu Electron mâu thuẫn
+- **THEN** Tauri 2 được xác định là lựa chọn Harness nhất quán
 
 #### Scenario: Authoritative datastore via Drizzle ORM
 - **WHEN** kiểm tra định nghĩa lưu trữ và cơ sở dữ liệu trong `blueprint/decisions/architecture-decisions.md` (ADR-008) và `blueprint/architecture/system-overview.md`
-- **THEN** PostgreSQL được xác nhận là authoritative datastore duy nhất và được quản lý schema thông qua Drizzle ORM
+- **THEN** PostgreSQL được xác nhận là authoritative datastore duy nhất, Drizzle ORM quản lý persistence do capability trong `core` sở hữu, và `schema` dùng chung không sở hữu DB tables/migrations
+
+### Requirement: Harness package responsibility map
+Blueprint MUST định nghĩa mười package `schema`, `protocol`, `core`, `llm`, `server`, `client`, `ui`, `app`, `desktop`, và `cli` tại một nguồn có thẩm quyền, gồm nhiệm vụ, nội dung, public surface và giới hạn. Định nghĩa MUST thể hiện contract Harness, không bắt buộc so sánh implementation với dự án ngoài.
+
+#### Scenario: A developer locates data and API definitions
+- **GIVEN** một data contract, API operation, database table và handler
+- **WHEN** developer tra module layout
+- **THEN** schema dữ liệu thuộc `schema`, API contract thuộc `protocol`, persistence thuộc capability trong `core`, và handler thuộc `server`
+
+#### Scenario: Package map is reviewed from Harness documentation
+- **GIVEN** reviewer dùng các tài liệu kiến trúc Harness
+- **WHEN** reviewer tra package map
+- **THEN** nhiệm vụ, public surface và boundary của cả mười package được xác định mà không cần một source đối chiếu ngoài
+
+### Requirement: Explicit dependency and transport documentation
+Blueprint MUST phân loại runtime import, type-only import và generation/build dependency, tách biệt chúng khỏi HTTP/IPC transport. Runtime graph MUST không có chu trình; browser runtime MUST NOT import backend, database hoặc scorer internals. CLI composition MAY dùng public core/server startup contracts.
+
+#### Scenario: Client generation and CLI startup are reviewed
+- **GIVEN** client contracts được generate và CLI có lệnh serve/start
+- **WHEN** reviewer kiểm tra dependency map
+- **THEN** generation dependency không đi vào browser runtime, CLI startup là composition entrypoint, và client gọi server qua transport thay vì import server implementation
+
+#### Scenario: Application and provider protocols are distinguished
+- **GIVEN** một operation API ứng dụng và một encoder/decoder giao thức model
+- **WHEN** reviewer xác định package owner
+- **THEN** API thuộc `protocol`, provider wire format thuộc `llm`, và core điều phối qua model port
+
+### Requirement: Package alignment preserves research and safety contracts
+Package alignment MUST giữ `CandidateFinding`/`SourceSnapshot` ở phía agent và `GroundTruthLabel` ở scorer riêng. Budget, terminal/failure semantics, exact sanitized trace, immutable configuration và experiment-drift controls SHALL tiếp tục được bảo toàn.
+
+#### Scenario: A shared schema or CLI import would expose labels
+- **GIVEN** shared schema hoặc CLI composition có thể kéo label hay scorer credential vào tiến trình thường
+- **WHEN** reviewer kiểm tra dependency closure
+- **THEN** thiết kế bị từ chối; scorer giữ entrypoint, schema projection và quyền lưu trữ riêng
+
+#### Scenario: Package boundaries preserve the Judge contract
+- **GIVEN** package boundary hoặc runtime composition có thể cấp thêm quyền cho Judge
+- **WHEN** reviewer kiểm tra package contract
+- **THEN** Judge vẫn chỉ đọc, verdict giữ trạng thái `unverified`, và budget/failure/recovery semantics được giữ nguyên
 
 ### Requirement: Blueprint SHALL present architectural flows at high level
 Sơ đồ tuần tự và tương tác kiến trúc trong `blueprint/architecture/sequences.md` MUST giữ ở mức tổng quan (high-level), thể hiện rõ luồng dữ liệu cho cả Audit Mode và Judge Mode, đồng thời loại bỏ các chi tiết triển khai mức quá thấp (như cơ chế cập nhật nhị phân hệ điều hành có chữ ký số hoặc logic PoC runner chi tiết).
@@ -87,4 +131,3 @@ Sơ đồ tuần tự và tương tác kiến trúc trong `blueprint/architectur
 #### Scenario: Premature OS update coordination removed
 - **WHEN** kiểm tra `blueprint/architecture/sequences.md`
 - **THEN** sơ đồ `Coordinated signed update` mức hệ điều hành được loại bỏ để tập trung vào kiến trúc runtime của Agent
-

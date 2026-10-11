@@ -52,6 +52,8 @@ Requirements: ORCH-05–ORCH-08, API-08–API-10, UI-06
 
 ### Component map
 
+These arrows describe collaboration/data flow; the separate [runtime import graph](module-layout.md#runtime-import-graph) governs package imports.
+
 ```mermaid
 flowchart LR
   UI[React/Vite renderer] --> GC[Generated runtime client]
@@ -87,8 +89,12 @@ The Tauri host is not a runtime composition root. It transports generated-client
 | `agent_runtime` | turn/continuation/context/budget contracts                      | context estimator and committed-history adapters          | Judge/Audit domain semantics                      |
 | `judge`         | candidate/Judge/verdict workflow contracts                      | prompt/verdict/evidence validators                        | provider SDK, raw filesystem                      |
 | `audit`         | repository/audit/report workflow contracts                      | audit prompt/report validators                            | provider SDK, raw filesystem                      |
+| `evaluation`   | frozen experiment / safe run execution contracts | safe experiment persistence in core | scorer imports and labels |
+| `scoring`      | separate scorer-entrypoint-only contract | restricted label/scoring persistence in core | shared schema/client/barrel exports |
 
 ### Outside-capability areas
+
+These are conceptual responsibilities, not a required Python tree or empty folder template. Safe shared schemas, generated clients and composition roots map to the [package layout](module-layout.md).
 
 | Area              | Allowed contents                                                        | Forbidden contents                                                     |
 | ----------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -110,16 +116,22 @@ The Tauri host is not a runtime composition root. It transports generated-client
 
 ### Process composition
 
+Daemon, worker, evaluator and scorer are separate entrypoints from one coordinated runtime release/lock/version. CLI serve may compose public server/core startup services; user commands use client/API. Startup does not bypass durable admission and must not import scoring. Desktop remains a transport client.
+
 | Process          | Runtime role                                                  | Persistent authority                                             | Forbidden closure                                                         |
 | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | daemon           | local API, source registration, run projections               | PostgreSQL through capability ports                              | provider direct                                                           |
 | worker           | claims work and executes Judge and Audit turns                | PostgreSQL run/claim/event state                                 | desktop                                                                   |
+| evaluator        | frozen experiment execution and safe result collection        | safe evaluation records through owning ports                    | scorer modules, labels and scorer credentials                            |
+| scorer           | isolated output/ground-truth comparison                        | restricted scoring schema and DB role                            | exports into ordinary runtime/client closures                           |
 | desktop renderer | display/control projection through generated client           | none; renderer cache is non-authoritative                        | Backend/DB/provider/tool imports and generic Tauri authority              |
 | Tauri host       | window/OS integration and protected local transport           | none; rendezvous/process signals are non-authoritative           | Judge/Audit policy, DB/provider/tool access, runtime lifetime ownership  |
 
+Daemon, worker, evaluator, ordinary CLI and renderer closures exclude scorer modules, label types and scorer credentials, including transitive barrel exports. Scorer schema projections and DB grants remain isolated.
+
 ### Integration rule
 
-Contract tests target public ports and canonical schemas. Every model-visible contract change needs owner/consumer review, a new version/digest, updated flags when result-affecting, and updated traceability before implementation acceptance. Full file-placement, table ownership and architecture-test rules are in `module-layout.md`.
+Contract tests target public ports and canonical schemas. Every model-visible contract change needs owner/consumer review, a new version/digest, updated flags when result-affecting, and updated traceability before implementation acceptance. Full file-placement, table ownership and architecture-test rules are in the authoritative [module layout](module-layout.md).
 
 ## Containers and Trust Boundaries
 
@@ -226,6 +238,8 @@ erDiagram
 
 ### Capability table/migration ownership
 
+Every table/migration below lives in its capability-owned backend area of core. The llm-owned model_gateway port uses a core persistence adapter, keeping llm independent of core. See [capability placement](module-layout.md#capability-placement-and-process-isolation). Infrastructure assembles contributions without owning business queries.
+
 | Capability        | Tables/migration namespace                                                                                                                                                            | Other capabilities use                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | `source_access` | `source_registration`, `source_snapshot`, managed-content metadata                                                                                                                | `source_access` public API only                         |
@@ -234,6 +248,8 @@ erDiagram
 | `agent_runtime` | `step`, context allocation, `tool_call` projection/reference                                                                                                                      | `agent_runtime` public API only                         |
 | `judge`         | `verdict`, `evidence`                                                                                                                                                             | `judge` public API only                                 |
 | `audit`         | `audit_report`, `finding`                                                                                                                                                             | `audit` public API only                                 |
+| `evaluation` | frozen manifests, safe execution/result references | evaluation public API only; no labels |
+| `scoring` | ground-truth labels, adjudication and scoring metadata in restricted schema | separate scorer entrypoint only |
 
 Foreign keys/references do not authorize cross-module SQL. Module migration metadata is composed by the migration registry; each table has exactly one owner.
 
@@ -520,7 +536,7 @@ Requirements: API-02, API-03, DATA-01–DATA-04
 
 ### Authority
 
-PostgreSQL is the sole authoritative datastore for source-snapshot metadata, run/config/lifecycle, work items, outbox records, claims/leases, ordered events, attempts, tool calls, verdicts, audit findings and reports. All database tables, models, and migrations are managed type-safely via Drizzle ORM in `@harness/schema`. Desktop cache, daemon/worker memory, filesystem rendezvous metadata and process exit status are projections/signals only.
+PostgreSQL is the sole authoritative datastore for source-snapshot metadata, run/config/lifecycle, work items, outbox records, claims/leases, ordered events, attempts, tool calls, verdicts, audit findings and reports. All database tables and migrations are managed through Drizzle ORM by their capability owners in `@harness/core`; `@harness/schema` contains safe shared data contracts and grants no database authority. Desktop cache, daemon/worker memory, filesystem rendezvous metadata and process exit status are projections/signals only.
 
 SQLite, Redis, and in-memory queues or state stores are not fallback authorities. They may not be silently introduced for packaging, polling, caching or scheduling.
 

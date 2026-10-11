@@ -3,6 +3,8 @@
 Normative: yes  
 Version: `sequences-v4`  
 
+Package roles and persistence ownership follow the [module layout](module-layout.md). Participants below show execution/data flow, not package imports; shared schema does not own DB access.
+
 ## Submission to terminal retrieval (Judge Mode)
 
 ```mermaid
@@ -10,7 +12,7 @@ sequenceDiagram
   actor U as Operator / Auditor
   participant API as API Server (@harness/server)
   participant APP as Core Engine (@harness/core)
-  participant DB as Database (PostgreSQL / @harness/schema)
+  participant DB as Database (PostgreSQL / core capability persistence)
   participant Q as JobQueue
   participant W as Worker
   U->>API: POST canonical request + Idempotency-Key
@@ -37,7 +39,7 @@ sequenceDiagram
   participant API as API Server (@harness/server)
   participant CORE as Core Engine (@harness/core)
   participant LLM as Model Gateway (@harness/llm)
-  participant DB as Database (PostgreSQL / @harness/schema)
+  participant DB as Database (PostgreSQL / core capability persistence)
 
   U->>UI: Select smart contract repository
   UI->>API: POST /sources/register (ephemeral path)
@@ -105,7 +107,7 @@ sequenceDiagram
   participant P as ModelGateway (@harness/llm)
   participant T as ToolRegistry
   participant W as WorkspacePolicy
-  participant E as EventSink (@harness/schema)
+  participant E as EventSink (core run_control persistence)
   loop until valid verdict, report or stop
     O->>C: preflight exact planned messages + output reserve
     C-->>O: model input or context_budget

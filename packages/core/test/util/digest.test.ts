@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { canonicalJson, digestOf, sha256Hex } from "../../src/util/digest"
+import { canonicalJson, digestOf, sha256Hex, textDigest } from "../../src/util/digest"
 
 describe("canonicalJson", () => {
   test("is independent of object key order at every depth", () => {
@@ -41,5 +41,12 @@ describe("digestOf", () => {
   test("is independent of key order and sensitive to values", () => {
     expect(digestOf({ a: 1, b: 2 })).toBe(digestOf({ b: 2, a: 1 }))
     expect(digestOf({ a: 1, b: 2 })).not.toBe(digestOf({ a: 1, b: 3 }))
+  })
+})
+
+describe("textDigest", () => {
+  test("hashes the raw text, not its JSON encoding", () => {
+    expect(textDigest("abc")).toBe("sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    expect(textDigest("abc")).not.toBe(digestOf("abc"))
   })
 })

@@ -6,6 +6,8 @@ export const VerdictReasonCodes = [
   "VALID_REQUIRES_EVIDENCE",
   "INVALID_REQUIRES_FAIL",
   "SCHEMA_VIOLATION",
+  /** A cited evidence span that the source snapshot cannot resolve; set by the harness, never by the schema. */
+  "EVIDENCE_UNRESOLVED",
 ] as const
 
 export type VerdictReasonCode = (typeof VerdictReasonCodes)[number]

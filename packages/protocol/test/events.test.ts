@@ -239,6 +239,11 @@ describe("event payloads", () => {
     expect(failure(event({ type: "verdict.validation_failed", payload }))[0].path).toEqual(["payload", "issues", 0])
   })
 
+  test("verdict.validation_failed accepts the harness evidence reason with an index path", () => {
+    const payload = { attempt: 2, issues: [{ reason: "EVIDENCE_UNRESOLVED", path: ["citesEvidence", 0, "filePath"] }] }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "verdict.validation_failed", payload })).success).toBe(true)
+  })
+
   test("context.allocated telemetry carries the content digest", () => {
     const { contentDigest: _omitted, ...rest } = telemetry
     const payload = { stepIndex: 1, telemetry: rest }

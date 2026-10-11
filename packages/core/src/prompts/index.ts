@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { sha256Hex } from "../util/digest"
+import { textDigest } from "../util/digest"
 
 export type PromptName = "judge-system.v1" | "max-steps.v1"
 
@@ -26,5 +26,5 @@ export const loadPrompt = (name: PromptName, directory = defaultDirectory): Load
   const path = join(directory, `${name}.txt`)
   const raw = readFileSync(path, "utf8").replaceAll("\r\n", "\n")
   const text = stripLeadingComments(raw)
-  return { text, digest: `sha256:${sha256Hex(text)}` }
+  return { text, digest: textDigest(text) }
 }

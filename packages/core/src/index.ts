@@ -1,4 +1,4 @@
-export { canonicalJson, digestOf, sha256Hex } from "./util/digest"
+export { canonicalJson, digestOf, sha256Hex, textDigest } from "./util/digest"
 export { createIdGenerator, systemIdSources } from "./util/id"
 export type { IdGenerator, IdGeneratorOptions } from "./util/id"
 export { loadPrompt } from "./prompts/index"
@@ -47,3 +47,5 @@ export type {
   ToolDispatcherOptions,
   ToolFailureKind,
 } from "./step/parallel-tool-dispatcher"
+export { MaxSchemaRepairs, synthesizeVerdict } from "./judge/verdict-synthesizer"
+export type { VerdictSynthesis, VerdictSynthesisDeps, VerdictSynthesisInput } from "./judge/verdict-synthesizer"

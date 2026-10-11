@@ -129,6 +129,11 @@ export interface RetryRunInput {
    * Returning a stop reason ends the call as `stopped` without another attempt.
    */
   beforeRetry?: (attempts: readonly AttemptRecord[]) => StopReason | undefined | Promise<StopReason | undefined>
+  /**
+   * Awaited right after each attempt is recorded, before any backoff wait, so the caller can persist and charge it
+   * even if a later attempt rejects or the worker stops while waiting.
+   */
+  onAttempt?: (attempt: AttemptRecord) => void | Promise<void>
 }
 
 export interface RetryPolicy {
@@ -142,6 +147,10 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
     const attempts: AttemptRecord[] = []
     let retries = 0
     let timeoutRetries = 0
+    const settle = async (attempt: AttemptRecord) => {
+      attempts.push(attempt)
+      await input.onAttempt?.(attempt)
+    }
 
     while (true) {
       const attemptIndex = attempts.length + 1
@@ -163,38 +172,38 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
 
       const error = response.error
       if (!error) {
-        attempts.push(record("none", 0))
+        await settle(record("none", 0))
         return { kind: "success", response, attempts }
       }
 
       const classification = classifyError(error, config)
       if (classification === "context_overflow") {
-        attempts.push(record("context_overflow", 0, error))
+        await settle(record("context_overflow", 0, error))
         return { kind: "context_overflow", error, attempts }
       }
       if (classification === "permanent") {
-        attempts.push(record("permanent", 0, error))
+        await settle(record("permanent", 0, error))
         return { kind: "failed", reason: "provider_permanent", error, attempts }
       }
       if (!deps.flags.enableInfraRetry) {
-        attempts.push(record("disabled", 0, error))
+        await settle(record("disabled", 0, error))
         return { kind: "failed", reason: "provider_transient_primary", error, attempts }
       }
 
       const exhausted =
         retries >= config.maxRetries || (error.isTimeout === true && timeoutRetries >= config.maxTimeoutRetries)
       if (exhausted) {
-        attempts.push(record("exhausted", 0, error))
+        await settle(record("exhausted", 0, error))
         return { kind: "failed", reason: "provider_retries_exhausted", error, attempts }
       }
 
       const backoffMs = retryDelayMs(retries + 1, config, deps.random)
       if (input.deadlineMs !== undefined && deps.clock.nowMs() + backoffMs >= input.deadlineMs) {
-        attempts.push(record("none", 0, error))
+        await settle(record("none", 0, error))
         return { kind: "stopped", reason: "wall_clock_timeout", error, attempts }
       }
 
-      attempts.push(record("retry", backoffMs, error))
+      await settle(record("retry", backoffMs, error))
       // An aborted or failed wait must not reject the call: the run decides from the cause what to commit.
       const slept = await deps.sleep.sleep(backoffMs, input.signal).then(
         () => true,

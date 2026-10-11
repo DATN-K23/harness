@@ -22,7 +22,7 @@ import { synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
 import { digestOf } from "../util/digest"
 import type { IdGenerator } from "../util/id"
-import type { CancellationBoundary } from "./cancellation"
+import { checkBoundary, type CancellationBoundary } from "./cancellation"
 import type { EventSink } from "./event-sink"
 import {
   StaleWrite,
@@ -178,6 +178,13 @@ export class JudgeStep {
         summaryPrompt: preparation.summaryPrompt,
         itemsToSummarize: preparation.itemsToSummarize,
       })
+    // A cancel requested while the engine was preparing must not pay for this step's provider attempt.
+    const afterPrepare = await checkBoundary(deps.cancellation, runId, "before_model", { signal: input.signal })
+    if (afterPrepare.kind === "cancel")
+      return finish(
+        { type: "failed", error: "cancelled while the context was being prepared", reason: "cancelled_by_user" },
+        { cancelledAt: afterPrepare.boundary },
+      )
     const clean = checked.data
     for (const transformation of clean.transformations ?? []) await persist("context.transformed", transformation)
     await persist("context.allocated", {
@@ -223,11 +230,14 @@ export class JudgeStep {
         deadlineMs: input.stopState.startedAtMs + input.limits.wallClockTimeoutMs,
         signal: input.signal,
         beforeRetry: stopBefore,
+        // Each attempt is charged and persisted as it happens, so a later rejection cannot lose its spend.
+        onAttempt: async (attempt) => {
+          progress.attempts = [...progress.attempts, attempt]
+          await persist("provider.attempted", attemptPayload(input.stepIndex, "reasoning", input.profileId, attempt))
+        },
       })
       .catch(asFault("worker_interrupted"))
     progress.attempts = retried.attempts
-    for (const attempt of retried.attempts)
-      await persist("provider.attempted", attemptPayload(input.stepIndex, input.profileId, attempt))
 
     if (retried.kind === "failed")
       return finish({

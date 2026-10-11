@@ -9,7 +9,7 @@ import {
 } from "@harness/protocol"
 import { type JudgeRunConfig, type JudgeRunInput, type JudgeRunResult } from "../../src/runner/judge-runner"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
-import { textResponse, usageOf } from "../../src/testing/scripted-model-gateway"
+import { errorResponse, textResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import {
   RunId,
   createWorld,
@@ -139,7 +139,8 @@ describe("JudgeRunner: compaction", () => {
     itemsToSummarize: input.items.filter((item) => !item.isPinned),
   })
 
-  test("compaction succeeds: context.compacted persisted, its attempt counted in the totals, run continues", async () => {
+  /** Step 1 calls a tool; step 2 first compacts (one summary attempt), then gives the verdict. */
+  const runCompacted = async () => {
     const world = createWorld()
     const engine = new ScriptedContextEngine([
       (input) => ({ status: "ready", preparedItems: input.items }),
@@ -149,7 +150,11 @@ describe("JudgeRunner: compaction", () => {
       usage: usageOf(50, 10, 0.005),
     })
     const w = world.worker({ engine, script: [readVault("call-1", 1, 5), summary, verdictText] })
-    const result = await w.start()
+    return { world, w, result: await w.start() }
+  }
+
+  test("compaction succeeds: context.compacted persisted, its attempt counted in the totals, run continues", async () => {
+    const { world, w, result } = await runCompacted()
 
     expect(result).toMatchObject({ kind: "committed", state: "completed" })
     expect(await world.events("context.compacted")).toHaveLength(1)
@@ -162,6 +167,16 @@ describe("JudgeRunner: compaction", () => {
     expect(result.usage.totalTokens).toBe(120 + 60 + 100)
     expect(tokens).toBe(result.usage.totalTokens)
     expect(cost).toBeCloseTo(result.usage.costUsd, 10)
+  })
+
+  test("attempt identity: compaction and reasoning attempts of one step have distinct (step, purpose, attempt)", async () => {
+    const { world, result } = await runCompacted()
+    const attempts = (await world.events("provider.attempted")).map((event) =>
+      EventPayloadSchemas["provider.attempted"].parse(event.payload),
+    )
+    const identities = attempts.map((attempt) => `${attempt.stepIndex}/${attempt.purpose}/${attempt.attemptIndex}`)
+    expect(identities).toEqual(["1/reasoning/1", "2/compaction/1", "2/reasoning/1"])
+    expect(attempts.reduce((sum, attempt) => sum + attempt.usage.totalTokens, 0)).toBe(result.usage.totalTokens)
   })
 
   test("compaction disabled: budget_exhausted(context_budget) and no summary attempt", async () => {
@@ -239,10 +254,11 @@ describe("JudgeRunner: recovery by hydration", () => {
 })
 
 describe("JudgeRunner: cooperative cancellation", () => {
-  // Polls: 1 before ingestion, 2 before the sandbox, 3 before step 1's model call, 4 before its tools, 5 before step 2.
+  // Polls: 1 before ingestion, 2 before the sandbox, 3 before step 1's prepare, 4 after it, 5 before its tools,
+  // 6 before step 2's prepare.
   test("cancel before the provider call of step 2: no attempt for step 2, cancelled, earlier events kept", async () => {
     const world = createWorld()
-    world.cancellation.requestOnPoll(5)
+    world.cancellation.requestOnPoll(6)
     const w = world.worker({ script: [readVault("call-1", 1, 5), verdictText] })
     const result = await w.start()
 
@@ -256,7 +272,7 @@ describe("JudgeRunner: cooperative cancellation", () => {
 
   test("cancel before tool dispatch: the tool never runs", async () => {
     const world = createWorld()
-    world.cancellation.requestOnPoll(4)
+    world.cancellation.requestOnPoll(5)
     const w = world.worker({ script: [readVault("call-1", 1, 5), verdictText] })
     const result = await w.start()
 
@@ -266,9 +282,74 @@ describe("JudgeRunner: cooperative cancellation", () => {
     const [cancelled] = await world.events("run.cancelled")
     expect(cancelled.payload.boundary).toBe("before_tool_dispatch")
   })
+
+  test("cancel requested while the engine prepares: no provider attempt for that step", async () => {
+    const world = createWorld()
+    // The poll before prepare has already passed when the request arrives.
+    const engine = new ScriptedContextEngine([
+      (input) => {
+        world.cancellation.request(RunId)
+        return { status: "ready", preparedItems: input.items }
+      },
+    ])
+    const w = world.worker({ engine, script: [verdictText] })
+    const result = await w.start()
+
+    expect(result).toMatchObject({ kind: "committed", state: "cancelled" })
+    expect(w.gateway.callCount).toBe(0)
+    expect(await world.events("step.started")).toHaveLength(0)
+    const [cancelled] = await world.events("run.cancelled")
+    expect(cancelled.payload.boundary).toBe("before_provider_call")
+  })
 })
 
 describe("JudgeRunner: never crashes the worker", () => {
+  test("a stage port rejected by the wall-clock abort ends budget_exhausted(wall_clock), not failed", async () => {
+    const world = createWorld()
+    const deadlines: Array<() => void> = []
+    const w = world.worker({
+      setTimer: (_ms, fire) => {
+        deadlines.push(fire)
+        return () => {}
+      },
+      // The deadline passes while the sandbox runs; the scripted sandbox then rejects on the aborted signal.
+      wrapSandbox: (sandbox) => ({
+        runSingleShot: (input, signal) => {
+          deadlines.forEach((fire) => fire())
+          return sandbox.runSingleShot(input, signal)
+        },
+        runStateProbe: (input, signal) => sandbox.runStateProbe(input, signal),
+      }),
+    })
+    const result = await w.start()
+
+    expect(result).toMatchObject({ kind: "committed", state: "budget_exhausted", terminalReason: "wall_clock" })
+    expect(await world.events("run.failed")).toHaveLength(0)
+  })
+
+  test("a gateway that rejects on its second attempt: the first attempt stays persisted and charged", async () => {
+    const world = createWorld()
+    const rateLimited = errorResponse(
+      { isRetryable: true, category: "rate_limit", message: "HTTP 429", statusCode: 429 },
+      { usage: usageOf(30, 0, 0.003) },
+    )
+    const w = world.worker({
+      script: [rateLimited],
+      wrapGateway: (gateway) => ({
+        executeAttempt: (request, signal) =>
+          request.attemptIndex === 1
+            ? gateway.executeAttempt(request, signal)
+            : Promise.reject(new Error("gateway adapter crashed")),
+      }),
+    })
+    const result = await w.start()
+
+    expect(result).toMatchObject({ kind: "committed", state: "failed", terminalReason: "worker_interrupted" })
+    const attempts = await world.events("provider.attempted")
+    expect(attempts.map((event) => event.payload.retryDecision)).toEqual(["retry"])
+    expect(result.usage.totalTokens).toBe(30)
+  })
+
   test("a tool registry that throws a non-Error value becomes a model-visible error and the run completes", async () => {
     const world = createWorld()
     const w = world.worker({ script: [readVault("call-1", 1, 5), verdictText] })

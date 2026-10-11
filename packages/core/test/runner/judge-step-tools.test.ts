@@ -101,7 +101,7 @@ describe("JudgeStep: tool branch", () => {
 
   test("a cancel before tool dispatch runs no tool", async () => {
     const h = await createHarness({ script: [toolCallResponse([call("c0", "list_dir", {})])] })
-    h.cancellation.requestOnPoll(1)
+    h.cancellation.requestOnPoll(2)
     const result = await h.step.execute(h.input())
     expect(result.cancelledAt).toBe("before_tool_dispatch")
     expect(h.registry.calls).toHaveLength(0)

@@ -10,13 +10,14 @@ import {
 import { demoLimits } from "./fixtures"
 import type { ScenarioSpec } from "./world"
 
-const poc =
-  "function testExploit() public { vault.deposit{value: 1 ether}(); attacker.attack(); /* no assertions */ }"
+const poc = "function testExploit() public { vault.deposit{value: 1 ether}(); attacker.attack(); /* no assertions */ }"
 
 const okIngestion: IngestionResult = {
   kind: "ok",
   pocCode: poc,
-  bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] }],
+  bceSlices: [
+    { filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] },
+  ],
 }
 
 const okSanitizer: SanitizerResult = {
@@ -31,7 +32,8 @@ const okSanitizer: SanitizerResult = {
 
 const okSandbox: SandboxResult = {
   exitCode: 0,
-  trace: "[PASS] testExploit() (gas: 214530)\n  Vault::withdraw(1 ether)\n    attacker::receive() -> Vault::withdraw(1 ether)",
+  trace:
+    "[PASS] testExploit() (gas: 214530)\n  Vault::withdraw(1 ether)\n    attacker::receive() -> Vault::withdraw(1 ether)",
   durationMs: 1840,
 }
 
@@ -59,17 +61,20 @@ export const confirmedVerdict = {
       filePath: "src/Vault.sol",
       startLine: 12,
       endLine: 15,
-      explanation: "the balance check passes again on re-entry because the decrement on line 15 runs after the call on line 13",
+      explanation:
+        "the balance check passes again on re-entry because the decrement on line 15 runs after the call on line 13",
     },
   ],
   report: {
-    executiveSummary: "A depositor can withdraw several times its balance in one transaction; the exploit PoC runs and the state delta confirms the loss.",
-    rootCause: "withdraw violates checks-effects-interactions: the low-level call on line 13 precedes the balance update on line 15.",
+    executiveSummary:
+      "A depositor can withdraw several times its balance in one transaction; the exploit PoC runs and the state delta confirms the loss.",
+    rootCause:
+      "withdraw violates checks-effects-interactions: the low-level call on line 13 precedes the balance update on line 15.",
     attackPath:
       "1. Deposit 1 ether. 2. Call withdraw(1 ether). 3. In receive(), call withdraw(1 ether) again while the balance is unchanged. 4. Repeat until the vault is drained.",
     impact: "Funds of every depositor are at risk; the probe measured 3 ether leaving the vault for a 1 ether deposit.",
     remediation:
-      "Update the balance before the external call or add a reentrancy guard.\n```diff\n-        (bool ok, ) = msg.sender.call{value: amount}(\"\");\n-        require(ok, \"transfer failed\");\n-        balances[msg.sender] -= amount;\n+        balances[msg.sender] -= amount;\n+        (bool ok, ) = msg.sender.call{value: amount}(\"\");\n+        require(ok, \"transfer failed\");\n```",
+      'Update the balance before the external call or add a reentrancy guard.\n```diff\n-        (bool ok, ) = msg.sender.call{value: amount}("");\n-        require(ok, "transfer failed");\n-        balances[msg.sender] -= amount;\n+        balances[msg.sender] -= amount;\n+        (bool ok, ) = msg.sender.call{value: amount}("");\n+        require(ok, "transfer failed");\n```',
   },
 }
 
@@ -171,7 +176,13 @@ const tier1: Pick<ScenarioSpec, "sanitizer"> = {
   sanitizer: { ...okSanitizer, hasSubmitterAssertions: true },
 }
 
-const mixed = (name: string, spec: Partial<ScenarioSpec>): ScenarioSpec => ({ ...base, ...tier1, name, script: [], ...spec })
+const mixed = (name: string, spec: Partial<ScenarioSpec>): ScenarioSpec => ({
+  ...base,
+  ...tier1,
+  name,
+  script: [],
+  ...spec,
+})
 
 /** The stress mixture: the judge scenarios plus every recovery path of the loop, each a distinct kind. */
 export const stressScenarios: ScenarioSpec[] = [
@@ -190,7 +201,8 @@ export const stressScenarios: ScenarioSpec[] = [
   }),
   mixed("retry-then-success", { script: [transient(503), transient(429), verdictEntry()] }),
   mixed("compaction", {
-    engine: () => new ScriptedContextEngine([(input) => ({ status: "ready", preparedItems: input.items }), summarizeUnpinned]),
+    engine: () =>
+      new ScriptedContextEngine([(input) => ({ status: "ready", preparedItems: input.items }), summarizeUnpinned]),
     script: [
       readVault("call-1", 11, 16),
       textResponse("Step 1 read Vault.sol lines 11-16: withdraw sends ether first.", { usage: usageOf(50, 10, 0.005) }),
@@ -202,9 +214,12 @@ export const stressScenarios: ScenarioSpec[] = [
     script: [readVault("call-1", 1, 5), readVault("call-2", 11, 16), verdictEntry()],
   }),
   mixed("schema-repair", {
-    script: [textResponse(JSON.stringify({ ...validVerdict, reasoning: "short" }), { usage: usageOf(80, 20, 0.02) }), verdictEntry()],
+    script: [
+      textResponse(JSON.stringify({ ...validVerdict, reasoning: "short" }), { usage: usageOf(80, 20, 0.02) }),
+      verdictEntry(),
+    ],
   }),
-  mixed("cancellation", { cancelOnPoll: 5, script: [readVault("call-1", 11, 16), verdictEntry()] }),
+  mixed("cancellation", { cancelOnPoll: 6, script: [readVault("call-1", 11, 16), verdictEntry()] }),
   mixed("worker-interruption-takeover", {
     interrupt: { atStep: 3, takeoverScript: [verdictEntry()] },
     script: [readVault("call-1", 1, 5), readVault("call-2", 11, 16), verdictEntry()],

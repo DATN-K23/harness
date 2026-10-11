@@ -73,6 +73,14 @@ export const CancellationBoundaries = [
 export const RetryDecisions = ["none", "retry", "permanent", "exhausted", "context_overflow", "disabled"] as const
 
 /**
+ * Why a provider attempt was made. A step's reasoning attempts and the compaction attempts made before it share the
+ * step index and each count from 1, so an attempt is identified by `(stepIndex, purpose, attemptIndex)`.
+ */
+export const AttemptPurposes = ["reasoning", "compaction"] as const
+
+export type AttemptPurpose = (typeof AttemptPurposes)[number]
+
+/**
  * A denied input as the model supplied it, relative to the snapshot. `..` segments are allowed because the
  * attempted traversal is exactly what gets recorded. Absolute host paths are rejected: `@harness/core` must replace
  * an absolute-looking denied input with the literal string `<absolute path redacted>` before appending the event.
@@ -102,6 +110,8 @@ export const EventPayloadSchemas = {
   "context.transformed": TransformationSchema,
   "provider.attempted": z.object({
     stepIndex: z.number().int().positive(),
+    /** Events written before the field existed were all reasoning attempts. */
+    purpose: z.enum(AttemptPurposes).default("reasoning"),
     attemptIndex: z.number().int().nonnegative(),
     profileId: z.string(),
     usage: TokenUsageSchema,

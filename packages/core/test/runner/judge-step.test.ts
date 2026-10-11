@@ -211,7 +211,8 @@ describe("JudgeStep: provider attempts", () => {
 
   test("cancel while waiting: no further attempt and the step reports cancellation", async () => {
     const h = await createHarness({ script: [errorResponse(http(429)), readVault()] })
-    h.cancellation.request("run-1")
+    // Poll 1 follows prepare; poll 2 is the retry policy's, after the backoff wait.
+    h.cancellation.requestOnPoll(2)
     const result = await h.step.execute(h.input())
     expect(result.cancelledAt).toBe("before_provider_call")
     expect(result.outcome).toMatchObject({ type: "failed", reason: "cancelled_by_user" })

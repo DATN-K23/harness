@@ -3,6 +3,7 @@ import { join } from "node:path"
 import {
   EventPayloadSchemas,
   type AntiCheatFinding,
+  type AttemptPurpose,
   type JudgeVerdict,
   type StateDelta,
   type TrajectoryEvent,
@@ -37,6 +38,12 @@ const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
 
 const verdictOf = (result: JudgeRunResult): JudgeVerdict | undefined =>
   result.kind === "committed" ? result.verdict : undefined
+
+/** The committed state and terminal reason, e.g. `budget_exhausted, max_steps`; the result kind when nothing committed. */
+const endedAs = (result: JudgeRunResult) => {
+  if (result.kind !== "committed") return result.kind
+  return result.terminalReason === undefined ? result.state : `${result.state}, ${result.terminalReason}`
+}
 
 const eventsOf = (events: readonly TrajectoryEvent[], type: TrajectoryEvent["type"]) =>
   events.filter((event) => event.type === type)
@@ -127,10 +134,9 @@ const proofSection = ({ execution, reason, stateDeltaTable, antiCheatReport }: E
 const dossier = (input: BundleInput, proof: ExploitProof) => {
   const verdict = verdictOf(input.result)
   if (verdict === undefined)
-    return `# Audit dossier: ${input.scenario}\n\nThe run ended without a verdict (${input.result.kind}), so there is nothing to report.\n`
+    return `# Audit dossier: ${input.scenario}\n\nThe run ended without a verdict (${endedAs(input.result)}), so there is nothing to report.\n`
   const { report, classification } = verdict
-  const section = (title: string, body: string | undefined, absent: string) =>
-    `## ${title}\n\n${body ?? absent}\n`
+  const section = (title: string, body: string | undefined, absent: string) => `## ${title}\n\n${body ?? absent}\n`
   const na = "Not applicable: no model analysis was produced for this scenario."
   return [
     `# Audit dossier: ${input.scenario}`,
@@ -208,9 +214,17 @@ const economics = ({ events, result }: BundleInput) => {
     }
     if (event.type === "context.allocated") {
       const { stepIndex, telemetry } = EventPayloadSchemas["context.allocated"].parse(event.payload)
-      const attempts = events
-        .filter((other) => other.type === "provider.attempted" && other.payload.stepIndex === stepIndex)
-        .map((other) => other.payload)
+      const attemptsOf = (purpose: AttemptPurpose) =>
+        events
+          .filter((other) => other.type === "provider.attempted")
+          .map((other) => EventPayloadSchemas["provider.attempted"].parse(other.payload))
+          .filter((payload) => payload.stepIndex === stepIndex && payload.purpose === purpose)
+      const tokensOf = (payloads: ReturnType<typeof attemptsOf>) =>
+        payloads.reduce((sum, payload) => sum + payload.usage.totalTokens, 0)
+      const costOf = (payloads: ReturnType<typeof attemptsOf>) =>
+        payloads.reduce((sum, payload) => sum + payload.costUsd, 0)
+      const attempts = attemptsOf("reasoning")
+      const compaction = attemptsOf("compaction")
       const room = telemetry.windowLimitTokens - telemetry.outputReserveTokens
       steps.push({
         stepIndex,
@@ -222,15 +236,18 @@ const economics = ({ events, result }: BundleInput) => {
         tokensSaved: telemetry.tokensSaved + pending.reduce((sum, change) => sum + change.tokensSaved, 0),
         transformations: pending,
         itemTokensByType: { ...added },
-        modelTokens: attempts.reduce((sum, payload) => sum + Number((payload.usage as { totalTokens: number }).totalTokens), 0),
-        costUsd: attempts.reduce((sum, payload) => sum + Number(payload.costUsd), 0),
+        modelTokens: tokensOf(attempts),
+        costUsd: costOf(attempts),
+        compactionTokens: tokensOf(compaction),
+        compactionCostUsd: costOf(compaction),
       })
       pending = []
     }
   }
   const tokensSaved = steps.reduce<number>((sum, step) => sum + (step as { tokensSaved: number }).tokensSaved, 0)
   return {
-    tokenizerNote: "Token counts come from the stand-in context engine (characters / 4), not the authoritative o200k_base count.",
+    tokenizerNote:
+      "Token counts come from the stand-in context engine (characters / 4), not the authoritative o200k_base count.",
     totals: { ...result.usage, tokensSaved },
     steps,
     ...(steps.length === 0
@@ -258,12 +275,15 @@ export const renderBundle = (input: BundleInput): Record<(typeof BundleFiles)[nu
   const proof = exploitProof(input)
   const verdict = verdictOf(input.result)
   return {
-    "01-verdict.json": json(verdict ?? { reason: `The run ended without a verdict (${input.result.kind}).` }),
+    "01-verdict.json": json(verdict ?? { reason: `The run ended without a verdict (${endedAs(input.result)}).` }),
     "02-dossier.md": dossier(input, proof),
     "03-trajectory.json": json({ summary: summaryOf(input), events: input.events }),
     "04-exploit-proof.json": json(proof),
     "05-context-economics.json": json(economics(input)),
-    "06-event-stream.jsonl": input.streamed.map((event) => JSON.stringify(event)).join("\n").concat("\n"),
+    "06-event-stream.jsonl": input.streamed
+      .map((event) => JSON.stringify(event))
+      .join("\n")
+      .concat("\n"),
     "07-reliability.json": json(reliability(input)),
   }
 }

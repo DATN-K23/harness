@@ -5,10 +5,13 @@ import {
   type EventType,
   type IngestionResult,
   type NewTrajectoryEvent,
+  type ModelGatewayPort,
   type RunStorePort,
+  type SandboxPort,
   type SandboxResult,
   type SanitizerResult,
 } from "@harness/protocol"
+import type { SetTimer } from "../../src/runner/cancellation"
 import { JudgeRunner, type JudgeRunConfig, type JudgeRunInput } from "../../src/runner/judge-runner"
 import { FakeClock, FakeSleep, SeededRandom } from "../../src/testing/deterministic"
 import { PassThroughContextEngine, ScriptedContextEngine } from "../../src/testing/fake-context-engines"
@@ -131,6 +134,11 @@ export interface WorkerOptions {
   ingestion?: IngestionResult
   sanitizer?: SanitizerResult
   sandbox?: SandboxResult
+  /** Wraps the scripted gateway or sandbox, e.g. to break a port's contract; the scripted fake stays inspectable. */
+  wrapGateway?: (gateway: ScriptedModelGateway) => ModelGatewayPort
+  wrapSandbox?: (sandbox: ScriptedSandbox) => SandboxPort
+  /** Defaults to a timer that never fires. */
+  setTimer?: SetTimer
 }
 
 export const createWorld = (options: { leaseMs?: number } = {}) => {
@@ -157,19 +165,19 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
     const runner = new JudgeRunner({
       store,
       contextEngine: engine,
-      gateway,
+      gateway: workerOptions.wrapGateway?.(gateway) ?? gateway,
       tools: registry,
       security: new RegexSecurityFilter(),
       snapshot: new InMemorySnapshot({ snapshotId: "snap-1", files }),
       ingestion,
       sanitizer,
-      sandbox,
+      sandbox: workerOptions.wrapSandbox?.(sandbox) ?? sandbox,
       cancellation,
       clock,
       random,
       sleep: new FakeSleep(clock),
       ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => random.bytes(size) }),
-      setTimer: () => () => {},
+      setTimer: workerOptions.setTimer ?? (() => () => {}),
     })
     const start = async (workerId = "worker-a", input = runInput()) => runner.run(await claim(workerId), input)
     return { runner, gateway, engine, registry, ingestion, sanitizer, sandbox, start }

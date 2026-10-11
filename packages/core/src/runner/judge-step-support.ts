@@ -1,4 +1,11 @@
-import type { EventPayload, EventType, ModelUsage, StaleReason, TerminalReason } from "@harness/protocol"
+import type {
+  AttemptPurpose,
+  EventPayload,
+  EventType,
+  ModelUsage,
+  StaleReason,
+  TerminalReason,
+} from "@harness/protocol"
 import type { EventSink } from "./event-sink"
 import type { AttemptRecord } from "./retry-policy"
 
@@ -48,10 +55,12 @@ export const persistTo =
 /** The `provider.attempted` record of one attempt; reasoning steps and compaction attempts are recorded alike. */
 export const attemptPayload = (
   stepIndex: number,
+  purpose: AttemptPurpose,
   profileId: string,
   attempt: AttemptRecord,
 ): EventPayload<"provider.attempted"> => ({
   stepIndex,
+  purpose,
   attemptIndex: attempt.attemptIndex,
   profileId,
   usage: attempt.usage,

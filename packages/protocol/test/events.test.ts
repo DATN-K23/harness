@@ -226,6 +226,13 @@ describe("event payloads", () => {
     expect(TrajectoryEventSchema.safeParse(event({ type: "provider.attempted", payload })).success).toBe(true)
   })
 
+  test("provider.attempted purpose defaults to reasoning for older events and rejects an unknown purpose", () => {
+    const base = payloads["provider.attempted"]
+    expect(EventPayloadSchemas["provider.attempted"].parse(base).purpose).toBe("reasoning")
+    const unknown = failure(event({ type: "provider.attempted", payload: { ...base, purpose: "chat" } }))
+    expect(unknown[0].path).toEqual(["payload", "purpose"])
+  })
+
   test("run.budget_exhausted uses blueprint budget reasons, not stop-reason names", () => {
     const payload = { reason: "max_steps_exceeded", observedLimits: ["max_steps"] }
     expect(failure(event({ type: "run.budget_exhausted", payload }))[0].path).toEqual(["payload", "reason"])

@@ -236,7 +236,12 @@ class RunExecution {
     const writer = this.writer
     if (writer === undefined || writer.state !== "running" || writer.terminalWritten)
       return { kind: "error", message, ...this.totals() }
-    return writer.commit({ state: "failed", reason, message }).then(
+    // A port that rejected because the deadline aborted the run signal ran out of wall clock; it did not break.
+    const terminal: TerminalCommit =
+      this.runSignal?.cause() === "wall_clock_timeout"
+        ? this.exhausted("wall_clock_timeout")
+        : { state: "failed", reason, message }
+    return writer.commit(terminal).then(
       (committed): JudgeRunResult => ({ kind: "committed", ...committed, ...this.totals() }),
       (second: unknown): JudgeRunResult => {
         if (second instanceof StaleWrite) return { kind: "stale", reason: second.reason, ...this.totals() }
@@ -506,10 +511,13 @@ class RunExecution {
         budget: this.budget(),
         deadlineMs: this.startedAtMs + config.limits.wallClockTimeoutMs,
         signal: this.signal,
-        beforeRetry: (attempts: readonly AttemptRecord[]) => this.stopReason(sumUsage(attempts)),
+        // Attempts are charged as they happen, so `spent` is already in the run usage.
+        beforeRetry: () => this.stopReason(),
+        charge: (attempt: AttemptRecord) => {
+          this.usage = addUsage(this.usage, sumUsage([attempt]))
+        },
       },
     )
-    this.usage = addUsage(this.usage, compaction.usage)
     if (compaction.kind === "terminal") {
       const { terminal } = compaction
       return terminal.state === "budget_exhausted" ? this.exhausted(terminal.reason) : terminal

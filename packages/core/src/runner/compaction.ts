@@ -2,7 +2,7 @@ import type { ContextEnginePort, ContextItem, ModelLimits, ModelUsage, RunBudget
 import type { IdGenerator } from "../util/id"
 import { applyCompaction } from "./history-hydrator"
 import { asFault, attemptPayload, bounded, sumUsage, type Persist } from "./judge-step-support"
-import type { RetryPolicy, RetryRunInput } from "./retry-policy"
+import type { AttemptRecord, RetryPolicy, RetryRunInput } from "./retry-policy"
 import type { TerminalCommit } from "./run-writer"
 
 export interface CompactionInput {
@@ -19,6 +19,8 @@ export interface CompactionInput {
   deadlineMs: number
   signal?: AbortSignal
   beforeRetry: RetryRunInput["beforeRetry"]
+  /** Charges one attempt to the run as soon as it is made, before it is persisted. */
+  charge: (attempt: AttemptRecord) => void
 }
 
 export interface CompactionDeps {
@@ -30,7 +32,7 @@ export interface CompactionDeps {
 
 export type Compaction =
   | { kind: "compacted"; items: ContextItem[]; usage: ModelUsage }
-  /** The run ends; `usage` is still charged to the run. Budget terminals carry only their own reason as observed. */
+  /** The run ends. Budget terminals carry only their own reason as observed. */
   | { kind: "terminal"; terminal: TerminalCommit; usage: ModelUsage }
 
 /**
@@ -59,10 +61,15 @@ export const compactContext = async (deps: CompactionDeps, input: CompactionInpu
       deadlineMs: input.deadlineMs,
       signal: input.signal,
       beforeRetry: input.beforeRetry,
+      onAttempt: async (attempt) => {
+        input.charge(attempt)
+        await deps.persist(
+          "provider.attempted",
+          attemptPayload(input.stepIndex, "compaction", input.profileId, attempt),
+        )
+      },
     })
     .catch(asFault("worker_interrupted"))
-  for (const attempt of retried.attempts)
-    await deps.persist("provider.attempted", attemptPayload(input.stepIndex, input.profileId, attempt))
   const usage = sumUsage(retried.attempts)
   const stop = (terminal: TerminalCommit): Compaction => ({ kind: "terminal", terminal, usage })
 

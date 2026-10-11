@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { InterruptedToolMessage } from "../../src/runner/history-hydrator"
 import { errorResponse, toolCallResponse, type ScriptedModelEntry } from "../../src/testing/scripted-model-gateway"
-import { createWorld, expectContiguous, readVault, runInput, verdictText } from "../helpers/runner-world"
+import { createWorld, expectContiguous, readVault, verdictText } from "../helpers/runner-world"
 
 // Task 7.3: every failure kind is data for the model; the run continues to a verdict and never ends on the failure.
 const toolCall = (name: string, args: Record<string, unknown>) =>

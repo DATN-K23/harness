@@ -13,10 +13,11 @@ Bun 1.3.14 is required (the workspace pins it in `packageManager`).
 bun install            # at the repo root
 ```
 
-On Windows with Git Bash, `bun` may not be on `PATH`; add the npm global directory first:
+On Windows with Git Bash, `bun` may not be on `PATH` when it was installed through npm; add the npm global directory
+first:
 
 ```sh
-export PATH="$PATH:/c/Users/NHAT DAT/AppData/Roaming/npm"
+export PATH="$PATH:$(cygpath "$(npm prefix -g)")"   # cygpath turns C:\... into the /c/... form Git Bash needs
 ```
 
 ## Commands
@@ -62,6 +63,10 @@ The loop is complete against fakes. Each real implementation belongs to another 
 
 `SourceSnapshotPort` (evidence lines for the verdict), `CancellationPort`, and the clock, random and sleep ports are also
 injected; `@harness/core/testing` has fakes for all of them.
+
+Event payloads are scanned for credential, label and scorer-metadata keys, with one deliberate exception:
+`tool.requested.arguments` is stored exactly as the model sent it and is exempt from the key scan, so a recorded call
+can always be replayed and audited.
 
 ## Running the contract tests against a real adapter
 

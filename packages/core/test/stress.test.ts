@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { RunStorePort } from "@harness/protocol"
 import { checkRunInvariants } from "../src/demo/invariants"
 import { runStress, writeReliabilityReport } from "../src/demo/reliability"
@@ -35,7 +37,10 @@ class DuplicatingStore implements RunStorePort {
 describe("stress", () => {
   test("100 seeded runs over the scenario mixture, 10 of them concurrent, are all crash-free", async () => {
     const report = await runStress()
-    const path = writeReliabilityReport(report)
+    const outputDir = mkdtempSync(join(tmpdir(), "harness-stress-"))
+    const path = writeReliabilityReport(report, outputDir)
+    const written = JSON.parse(readFileSync(path, "utf8"))
+    rmSync(outputDir, { recursive: true, force: true })
 
     expect(report.violations).toEqual([])
     expect(report.unhandledErrors).toEqual([])
@@ -43,7 +48,7 @@ describe("stress", () => {
     expect(report.concurrentBatch.size).toBe(10)
     expect(Object.keys(report.perScenario).sort()).toEqual(stressScenarios.map((spec) => spec.name).sort())
     expect(Object.values(report.terminalDistribution).reduce((sum, count) => sum + count, 0)).toBe(100)
-    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual(report)
+    expect(written).toEqual(report)
   })
 
   test("a store that duplicates a sequence makes the invariant check report a violation", async () => {

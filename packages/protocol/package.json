@@ -9,6 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build:browser-smoke": "bun build src/index.ts --target=browser --outdir ../../node_modules/.cache/protocol-browser-smoke",
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {

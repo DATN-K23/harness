@@ -10,7 +10,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "demo": "bun run src/demo/run-demo.ts"
   },
   "dependencies": {
     "@harness/protocol": "workspace:*"

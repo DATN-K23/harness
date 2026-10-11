@@ -85,7 +85,8 @@ export class InMemoryRunStore implements RunStorePort {
     if (run === undefined) return { kind: "unavailable", reason: "not_found" }
     if (isTerminal(run.record.state)) return { kind: "unavailable", reason: "terminal" }
     const now = this.clock.nowMs()
-    if (run.claim !== undefined && now < run.claim.expiresAtMs) return { kind: "unavailable", reason: "already_claimed" }
+    if (run.claim !== undefined && now < run.claim.expiresAtMs)
+      return { kind: "unavailable", reason: "already_claimed" }
     run.claimVersion += 1
     const claim: RunClaim = {
       runId: input.runId,
@@ -117,10 +118,7 @@ export class InMemoryRunStore implements RunStorePort {
     return { kind: "appended", event: structuredClone(event) }
   }
 
-  async transition(
-    input: Parameters<RunStorePort["transition"]>[0],
-    signal?: AbortSignal,
-  ): Promise<TransitionResult> {
+  async transition(input: Parameters<RunStorePort["transition"]>[0], signal?: AbortSignal): Promise<TransitionResult> {
     this.enter("transition", signal)
     const run = this.runs.get(input.claim.runId)
     if (run === undefined || !this.holds(run, input.claim)) return { kind: "stale", reason: "claim_lost" }
@@ -141,10 +139,7 @@ export class InMemoryRunStore implements RunStorePort {
     return run === undefined ? undefined : { ...run.record }
   }
 
-  async loadEvents(
-    input: { runId: string; afterSequence?: number },
-    signal?: AbortSignal,
-  ): Promise<TrajectoryEvent[]> {
+  async loadEvents(input: { runId: string; afterSequence?: number }, signal?: AbortSignal): Promise<TrajectoryEvent[]> {
     this.enter("loadEvents", signal)
     const after = input.afterSequence ?? 0
     return structuredClone((this.runs.get(input.runId)?.events ?? []).filter((event) => event.sequence > after))

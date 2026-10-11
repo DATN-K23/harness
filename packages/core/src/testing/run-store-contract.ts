@@ -155,7 +155,9 @@ export const runStoreContractTests = (makeHarness: () => RunStoreHarness | Promi
           event: newTestEvent("from-b"),
         })
         expect(appended.kind).toBe("appended")
-        expect((await harness.store.loadEvents({ runId: "run-1" })).map((event) => event.eventId)).toEqual(["evt-from-b"])
+        expect((await harness.store.loadEvents({ runId: "run-1" })).map((event) => event.eventId)).toEqual([
+          "evt-from-b",
+        ])
       })
 
       test("a forged token and an old claim version are both rejected", async () => {

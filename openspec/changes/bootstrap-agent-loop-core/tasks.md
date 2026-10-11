@@ -55,10 +55,10 @@
 
 ## 8. Demo and reliability evidence
 
-- [ ] 8.1 [Owner: TV1 with TV6; gate: C06] Implement `demo/bundle.ts` rendering the seven-pillar bundle (verdict JSON, deterministic dossier, trajectory ledger, exploit proof with state-delta table and anti-cheat report, context-economics report, event stream, reliability record) with explicit empty-section explanations. Evidence: snapshot-free structural tests per pillar for the confirmed-exploit and missing-PoC scenarios.
-- [ ] 8.2 [Owner: TV1; gate: C06] Implement `bun run demo` with the four scenarios, offline, printing a summary and writing bundles to the demo output directory. Evidence: command output pasted into this task; missing, cheating and failing PoC scenarios show 0 tokens.
-- [ ] 8.3 [Owner: TV1; gate: C08] Implement the 100-run stress test (fixed base seed, mixed scenarios, a concurrent batch, unhandled-rejection listener, invariant checks, faulty-store negative test) and write `reliability-report.json` with per-scenario counts and terminal distribution. Evidence: report shows 100 crash-free runs and 0 violations; the negative test fails as expected.
-- [ ] 8.4 [Owner: TV1; gate: C06] Add `packages/core/README.md` with the install, typecheck, test, demo and stress commands and the port-to-owner table (TV2, TV3, TV4, TV6) describing what each must implement. Evidence: another team member follows the README on a clean checkout.
+- [x] 8.1 [Owner: TV1 with TV6; gate: C06] Implement `demo/bundle.ts` rendering the seven-pillar bundle (verdict JSON, deterministic dossier, trajectory ledger, exploit proof with state-delta table and anti-cheat report, context-economics report, event stream, reliability record) with explicit empty-section explanations. Evidence: snapshot-free structural tests per pillar for the confirmed-exploit and missing-PoC scenarios.
+- [x] 8.2 [Owner: TV1; gate: C06] Implement `bun run demo` with the four scenarios, offline, printing a summary and writing bundles to the demo output directory. Evidence: command output pasted into this task; missing, cheating and failing PoC scenarios show 0 tokens.
+- [x] 8.3 [Owner: TV1; gate: C08] Implement the 100-run stress test (fixed base seed, mixed scenarios, a concurrent batch, unhandled-rejection listener, invariant checks, faulty-store negative test) and write `reliability-report.json` with per-scenario counts and terminal distribution. Evidence: report shows 100 crash-free runs and 0 violations; the negative test fails as expected.
+- [x] 8.4 [Owner: TV1; gate: C06] Add `packages/core/README.md` with the install, typecheck, test, demo and stress commands and the port-to-owner table (TV2, TV3, TV4, TV6) describing what each must implement. Evidence: another team member follows the README on a clean checkout.
 
 ## 9. Close-out
 

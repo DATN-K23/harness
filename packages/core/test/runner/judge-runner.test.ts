@@ -9,6 +9,7 @@ import {
   type EventType,
   type IngestionResult,
   type NewTrajectoryEvent,
+  type RunClaim,
   type RunStorePort,
   type SandboxResult,
   type SanitizerResult,
@@ -381,6 +382,27 @@ describe("JudgeRunner: recovery by hydration", () => {
     await expectContiguous(world)
   })
 
+  test("partial initial context (no trace, no allocation): failed with persistence_failure and no model call", async () => {
+    const world = createWorld({ leaseMs: 1_000 })
+    const a = world.worker({ script: [verdictText] })
+    world.store.failWhen(
+      (event) =>
+        event.type === "context.item_added" &&
+        EventPayloadSchemas["context.item_added"].parse(event.payload).item.type === "candidate_finding",
+      { sticky: true },
+    )
+    expect((await a.start("worker-a")).kind).toBe("error")
+    world.store.heal()
+    world.clock.advance(2_000)
+
+    const b = world.worker({ script: [verdictText] })
+    const result = await b.start("worker-b")
+    expect(result).toMatchObject({ kind: "committed", state: "failed", terminalReason: "persistence_failure" })
+    expect(a.gateway.callCount + b.gateway.callCount).toBe(0)
+    expect(b.ingestion.calls).toHaveLength(0)
+    expect(await world.events("run.failed")).toHaveLength(1)
+  })
+
   test("hydration mismatch: failed with persistence_failure and no model call", async () => {
     const { world } = await crashAtStepThree()
     const b = world.worker({ engine: new ScriptedContextEngine([{ status: "ready", preparedItems: [] }]) })
@@ -434,6 +456,15 @@ describe("JudgeRunner: never crashes the worker", () => {
     const toolResult = w.gateway.calls[1].items.find((item) => item.type === "tool_result")
     expect(toolResult?.toolMeta?.isError).toBe(true)
     expect(toolResult?.content).toContain("adapter exploded")
+  })
+
+  test("a malformed claim makes construction fail: run resolves with an error result instead of throwing", async () => {
+    const world = createWorld()
+    const w = world.worker()
+    const malformed = null as unknown as RunClaim
+    const result = await w.runner.run(malformed, runInput())
+    expect(result).toMatchObject({ kind: "error", runId: "unknown", lastStepIndex: 0 })
+    expect(await world.state()).toBe("queued")
   })
 
   test("a store that throws on the terminal write: the runner resolves with a failure result", async () => {

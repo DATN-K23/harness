@@ -116,10 +116,30 @@ export type JudgeRunResult = { runId: string } & RunTotals &
 export class JudgeRunner {
   constructor(private readonly deps: JudgeRunnerDeps) {}
 
-  run(claim: RunClaim, input: JudgeRunInput): Promise<JudgeRunResult> {
-    return new RunExecution(this.deps, claim, input).run()
+  async run(claim: RunClaim, input: JudgeRunInput): Promise<JudgeRunResult> {
+    // Construction loads the prompt and reads the claim and config; a failure there is returned, never thrown.
+    const started = await Promise.resolve()
+      .then(() => new RunExecution(this.deps, claim, input))
+      .then(
+        (execution) => ({ kind: "ready" as const, execution }),
+        (error: unknown) => ({ kind: "failed" as const, error }),
+      )
+    if (started.kind === "failed")
+      return {
+        kind: "error",
+        runId: runIdOf(claim),
+        message: `the run could not start: ${describeError(started.error)}`,
+        usage: zeroUsage,
+        lastStepIndex: 0,
+      }
+    return started.execution.run()
   }
 }
+
+const runIdOf = (claim: unknown) =>
+  typeof claim === "object" && claim !== null && "runId" in claim && typeof claim.runId === "string"
+    ? claim.runId
+    : "unknown"
 
 const zeroUsage: ModelUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }
 
@@ -256,6 +276,16 @@ class RunExecution {
     this.begin(started === undefined ? this.deps.clock.nowMs() : Date.parse(started.occurredAt))
     // Without a persisted initial context nothing past the stages happened; they make no model call and run again.
     if (history.items.length === 0) return this.write.commit(await this.fromStages())
+    // Before the first allocation the initial context is complete only once its last item, the trace, is persisted.
+    // Re-running the stages would duplicate the items already there, so a partial one fails closed.
+    const initialComplete =
+      history.lastAllocated !== undefined || history.items.some((item) => item.type === "execution_trace")
+    if (!initialComplete)
+      return this.write.commit({
+        state: "failed",
+        reason: "persistence_failure",
+        message: "the initial context was only partly persisted before the previous worker stopped",
+      })
 
     const { config } = this.input
     const check = await verifyHydration({

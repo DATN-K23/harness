@@ -148,6 +148,15 @@ describe("package manifests", () => {
     expect(resolved("@harness/core")).toBe(slash(join(coreDir, "src/index.ts")))
     expect(resolved("@harness/core/testing")).toBe(slash(join(coreDir, "src/testing/index.ts")))
   })
+
+  test("the public entry points expose the loop and the fakes another track builds on", async () => {
+    const coreApi = await import("@harness/core")
+    const testingApi = await import("@harness/core/testing")
+    const loop = ["JudgeRunner", "JudgeStep", "createRetryPolicy", "buildRunConfigSnapshot", "EventBus", "EventSink"]
+    const fakes = ["InMemoryRunStore", "ScriptedModelGateway", "ScriptedContextEngine", "InMemoryToolRegistry"]
+    expect(Object.keys(coreApi)).toEqual(expect.arrayContaining(loop))
+    expect(Object.keys(testingApi)).toEqual(expect.arrayContaining(fakes))
+  })
 })
 
 describe("dependency direction", () => {

@@ -88,3 +88,8 @@ export type {
 } from "./runner/history-hydrator"
 export { JudgeStep } from "./runner/judge-step"
 export type { JudgeStepDeps, JudgeStepInput, JudgeStepResult } from "./runner/judge-step"
+export { fastRejectVerdict } from "./runner/fast-reject"
+export type { FastReject, FastRejectReason } from "./runner/fast-reject"
+export type { CommittedRun, TerminalCommit } from "./runner/run-writer"
+export { JudgeRunner } from "./runner/judge-runner"
+export type { JudgeRunConfig, JudgeRunInput, JudgeRunResult, JudgeRunnerDeps } from "./runner/judge-runner"

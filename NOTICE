@@ -40,3 +40,5 @@ their attribution.
 - file: packages/protocol/tsconfig.json | source: packages/protocol/tsconfig.json | attribution: notice-only
 - file: packages/core/package.json | source: packages/protocol/package.json | attribution: notice-only
 - file: packages/core/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/core/src/util/id.ts | source: packages/schema/src/identifier.ts | attribution: header
+- file: packages/core/src/prompts/max-steps.v1.txt | source: packages/core/src/session/runner/max-steps.ts | attribution: header

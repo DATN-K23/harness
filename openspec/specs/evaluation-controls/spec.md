@@ -71,10 +71,10 @@ The blueprint MUST designate precision as the primary quality outcome and SHALL 
 - **THEN** it does not claim that the harness is better and reports the quality, cost, latency, completion, uncertainty, and contamination evidence as `mixed` or `inconclusive`
 
 ### Requirement: Accepted methodology and gated experiment profile
-The blueprint MUST mark ADR-003 accepted only at methodology scope and MUST keep each concrete result-bearing experiment profile proposed and ineligible until its contest/source-family manifest, accepted provider profile, prompt/schema/flag digests, token and wall-clock budgets, repeat count, schedule and inference parameters, conclusion thresholds, pricing, credential owner, paid-call ceiling, execution window, and TV5 approval are frozen. Any changed field MUST create a new experiment-profile version.
+The blueprint MUST keep each concrete result-bearing experiment profile proposed and ineligible until its contest/source-family manifest, accepted provider profile, prompt/schema/flag digests, token and wall-clock budgets, repeat count, schedule and inference parameters, conclusion thresholds, pricing, credential owner, paid-call ceiling, execution window, and TV5 approval are frozen. Any changed field MUST create a new experiment-profile version.
 
 #### Scenario: Incomplete experiment profile is submitted
-- **GIVEN** ADR-003 is accepted but the selected experiment profile lacks any required frozen field or approval
+- **GIVEN** the selected experiment profile lacks any required frozen field or approval
 - **WHEN** a result-bearing run is requested
 - **THEN** execution is rejected before network activity or provider cost while deterministic contract-validation packets remain available and are not reported as scientific results
 

@@ -41,7 +41,7 @@ Requirements: API-08–API-10, EVAL-11
 
 Capabilities: `run_control`, `model_gateway`, `source_access`, `agent_runtime`, `judge`, `evaluation`, isolated `scoring`, and future `audit`. Cross-package imports use the TypeScript monorepo packages `@harness/<package>` (e.g., `@harness/core`, `@harness/llm`, `@harness/protocol`, `@harness/schema`, `@harness/server`).
 
-Composition roots/process identities: `daemon` (or local API server), `worker`, `evaluator`, isolated `scorer`. CLI serve/start may wire public daemon startup; ordinary commands use client/API. `desktop` contains a web renderer and the ADR-007-selected Tauri 2 native host; neither is a local runtime composition root.
+Composition roots/process identities: `daemon` (or local API server), `worker`, `evaluator`, isolated `scorer`. CLI serve/start may wire public daemon startup; ordinary commands use client/API. `desktop` contains a web renderer and the selected Tauri 2 native host; neither is a local runtime composition root.
 
 Package roles, public subpaths and dependency rules are defined once in the [module layout](architecture/module-layout.md).
 

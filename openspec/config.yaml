@@ -40,9 +40,10 @@ context: |
     remaining real adapters and cross-provider matrix stay at C11-C12.
   - Audit mode, cross-run long-term memory, compaction, PoC execution,
     production multi-tenancy, Kubernetes, and MCP are outside this MVP.
-  - ADR-008 selects TypeScript/Bun/Turborepo, React, Tauri 2 and PostgreSQL via
-    Drizzle. ADR-009 aligns package ownership and authorizes selective OpenCode
-    reuse direction; it does not implement a port or change that stack.
+  - The blueprint selects TypeScript/Bun/Turborepo, React, Tauri 2 and PostgreSQL
+    via Drizzle. The module layout defines package ownership and authorizes
+    selective OpenCode reuse in principle; it does not implement a port or change
+    the selected stack.
   - Use blueprint/architecture/module-layout.md for the current package and
     capability map. Shared schema is safe data, protocol is the application API,
     and capability persistence lives in core. CLI startup has a narrow public

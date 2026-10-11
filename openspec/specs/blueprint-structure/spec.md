@@ -20,14 +20,14 @@ Blueprint MUST tổ chức theo cấu trúc phẳng ưu tiên, tối đa 2 cấp
 - **WHEN** duyệt cây thư mục `blueprint/`
 - **THEN** không có file nào nằm sâu quá `blueprint/<section>/<file>` (tức là KHÔNG có `blueprint/a/b/c.md`)
 
-### Requirement: Blueprint SHALL preserve ADR decisions
-Tất cả Architecture Decision Records (ADR-001 đến ADR-008) hiện tại MUST được giữ nguyên nội dung quyết định cốt lõi. Có thể gộp vào ít file hơn nhưng decision status, chosen option, rationale và rejected alternatives MUST không bị mất. Quyết định package ownership và quyền tái sử dụng source MUST được phân biệt với việc đổi stack, chọn dependency/fork hay tích hợp code; phần lịch sử bị thay thế MUST được nối rõ với quyết định mới.
+### Requirement: Blueprint SHALL preserve current architecture decisions
+Các lựa chọn kiến trúc còn hiệu lực MUST được ghi tại tài liệu blueprint có thẩm quyền, gồm stack, package ownership, provider boundary, runtime/desktop boundary và điều kiện tái sử dụng OpenCode. Quyết định tái sử dụng source MUST được phân biệt với đổi stack, chọn dependency/fork hay tích hợp code.
 
-#### Scenario: ADR content preserved after consolidation
-- **WHEN** so sánh nội dung các ADR trước và sau consolidation
-- **THEN** mỗi ADR (001-008) MUST có decision status, chosen option, rationale, và rejected alternatives được giữ nguyên trong cấu trúc mới
+#### Scenario: Current decisions are documented without a separate ADR archive
+- **WHEN** developer tra package layout và system overview
+- **THEN** tìm thấy lựa chọn kiến trúc hiện hành và các ranh giới cần triển khai mà không cần giữ lịch sử ADR đã supersede
 
-#### Scenario: Reuse direction supersedes a historical no-copy statement
+#### Scenario: Reuse direction is scoped
 - **GIVEN** quyết định mới cho phép tái sử dụng phù hợp và ADR cũ ghi giới hạn no-copy
 - **WHEN** package alignment được ghi nhận
 - **THEN** phần bị thay thế trỏ tới quyết định mới, nhưng không hàm ý source đã được copy, dependency/fork đã được chọn, hay stack đã đổi
@@ -72,14 +72,14 @@ Tất cả các tài liệu trong `blueprint/` MUST nhất quán định nghĩa 
 - **THEN** tất cả đều thống nhất định nghĩa hai chế độ vận hành: Audit Mode và Judge Mode
 
 ### Requirement: Blueprint SHALL maintain uniform desktop and datastore technical stack
-Blueprint MUST thống nhất chọn Tauri 2 (theo ADR-007) làm desktop application wrapper và PostgreSQL qua Drizzle ORM làm authoritative datastore duy nhất. Bảng và migration MUST thuộc capability persistence trong `core`; package `schema` chỉ chứa data contract dùng chung và MUST NOT cấp quyền truy cập DB. Thay đổi stack cần quyết định superseding riêng.
+Blueprint MUST thống nhất chọn Tauri 2 làm desktop application wrapper và PostgreSQL qua Drizzle ORM làm authoritative datastore duy nhất. Bảng và migration MUST thuộc capability persistence trong `core`; package `schema` chỉ chứa data contract dùng chung và MUST NOT cấp quyền truy cập DB. Thay đổi stack cần quyết định superseding riêng.
 
 #### Scenario: Uniform desktop wrapper reference
-- **WHEN** kiểm tra các đề cập đến desktop wrapper trong `blueprint/README.md`, `blueprint/architecture/module-layout.md`, `blueprint/architecture/sequences.md`, và `blueprint/decisions/architecture-decisions.md`
+- **WHEN** kiểm tra các đề cập đến desktop wrapper trong `blueprint/README.md`, `blueprint/architecture/module-layout.md`, `blueprint/architecture/sequences.md`, và `blueprint/architecture/system-overview.md`
 - **THEN** Tauri 2 được xác định là lựa chọn Harness nhất quán
 
 #### Scenario: Authoritative datastore via Drizzle ORM
-- **WHEN** kiểm tra định nghĩa lưu trữ và cơ sở dữ liệu trong `blueprint/decisions/architecture-decisions.md` (ADR-008) và `blueprint/architecture/system-overview.md`
+- **WHEN** kiểm tra định nghĩa lưu trữ và cơ sở dữ liệu trong `blueprint/architecture/module-layout.md` và `blueprint/architecture/system-overview.md`
 - **THEN** PostgreSQL được xác nhận là authoritative datastore duy nhất, Drizzle ORM quản lý persistence do capability trong `core` sở hữu, và `schema` dùng chung không sở hữu DB tables/migrations
 
 ### Requirement: Harness package responsibility map

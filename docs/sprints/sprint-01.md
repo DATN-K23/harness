@@ -9,7 +9,7 @@
 ## TV1 — Luồng Judge và model
 
 - [ ] Phác luồng một Judge run: nhận yêu cầu → worker → các lượt model/tool → verdict hoặc lý do dừng.
-- [ ] Đề xuất những hợp đồng TV2, TV3, TV6 cần từ agent loop và provider; chỉ ra phần ADR-002 còn theo Python.
+- [ ] Đề xuất những hợp đồng TV2, TV3, TV6 cần từ agent loop và provider; đối chiếu các hợp đồng hiện hành của provider port với cách triển khai TypeScript/Bun.
 
 **Mang tới buổi chốt:** một sơ đồ luồng và danh sách đầu vào/đầu ra, lỗi, điểm dừng cần thống nhất.
 

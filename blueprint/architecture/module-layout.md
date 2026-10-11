@@ -2,7 +2,8 @@
 
 Normative package map for the proposed Harness TypeScript/Bun modular monolith.
 This is a documentation contract: the ten package directories currently contain
-placeholders, not an implemented runtime. The current package ownership decision is recorded in ADR-009.
+placeholders, not an implemented runtime. This file is the authoritative current
+package ownership decision.
 
 ## Package responsibilities
 
@@ -102,7 +103,20 @@ execution and scorer execution retain their separate process roots.
 The package definitions describe responsibilities and boundaries. They do not change
 the project stack: React remains the presentation framework, Tauri 2 the desktop shell,
 and PostgreSQL with Drizzle the datastore. The provider integration strategy remains
-as recorded in the accepted ADRs. Any stack migration requires its own decision.
+direct official-SDK adapters behind the project-owned `llm` port; SDK types and hidden
+provider behavior do not cross that boundary. Bun and Turborepo manage the TypeScript
+monorepo. Any stack migration requires a separate explicit decision.
+
+### OpenCode reuse decision
+
+OpenCode is an inspected source reference and selective source reuse is authorized in
+principle. This does not make it a dependency or fork, and does not mean any code has
+already been copied or reviewed. Before each port, record the exact source revision and
+adaptation, review applicable license notices, dependencies and security, and verify
+the result against Harness contracts. Do not import upstream frameworks or product
+behavior by default. In particular, upstream retries, continuation, hosted tools,
+provider-owned conversation state or broader tool authority cannot bypass Harness
+attempt accounting, budgets, committed history, read-only tools or scorer isolation.
 
 ## Dependency matrix
 

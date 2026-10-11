@@ -46,10 +46,9 @@ OpenCode source without changing the React/Tauri/PostgreSQL choices.
 ## How to read
 
 1. [Vocabulary](vocabulary.md) defines domain and architecture terms.
-2. [Architecture decisions](decisions/architecture-decisions.md) retain history and ADR-009's scoped supersession.
-3. [Module layout](architecture/module-layout.md) determines code placement and allowed imports.
-4. [System overview](architecture/system-overview.md) defines processes, trust boundaries and persistence contracts.
-5. [Sequences](architecture/sequences.md) define runtime flows and lifecycle transitions.
+2. [Module layout](architecture/module-layout.md) defines current package ownership, import rules and OpenCode reuse gates.
+3. [System overview](architecture/system-overview.md) defines processes, trust boundaries and persistence contracts.
+4. [Sequences](architecture/sequences.md) define runtime flows and lifecycle transitions.
 
 This directory retains six Markdown files. Documentation acceptance is not proof of
 an implemented Judge, successful source port or completed evaluation. OpenSpec delta

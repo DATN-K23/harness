@@ -23,7 +23,7 @@
 
 **Demo:** cả nhóm giải thích được một Judge run, dữ liệu đi qua từng ranh giới và cách ghép các phần.
 
-**Đạt khi:** thống nhất hợp đồng đầu vào/đầu ra, ranh giới ground truth và source, dữ liệu trace cần lưu; ghi quyết định và câu hỏi còn mở. Đối chiếu tài liệu cũ với ADR-008 trước khi dùng để triển khai.
+**Đạt khi:** thống nhất hợp đồng đầu vào/đầu ra, ranh giới ground truth và source, dữ liệu trace cần lưu; ghi quyết định và câu hỏi còn mở. Đối chiếu các hợp đồng provider, persistence và module layout hiện hành trước khi dùng để triển khai.
 
 **Chuẩn bị song song:** thử khả năng build repo cho PoC; phác giao thức direct/Harness, corpus và ngân sách; thử đường đi desktop → runtime → PostgreSQL.
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   ModelUsageSchema,
   ProviderErrorCategories,
+  type ModelAttemptError,
   type ModelAttemptRequest,
   type ModelAttemptResponse,
   type ModelGatewayPort,
@@ -50,5 +51,16 @@ describe("ModelGatewayPort", () => {
     expect(ModelUsageSchema.safeParse({ ...usage, promptTokens: -1 }).success).toBe(false)
     expect(ModelUsageSchema.safeParse({ ...usage, costUsd: -0.5 }).success).toBe(false)
     expect(ModelUsageSchema.safeParse({ ...usage, totalTokens: 1.5 }).success).toBe(false)
+  })
+
+  test("a provider error may carry the Retry-After delay it saw, in milliseconds", () => {
+    const error: ModelAttemptError = {
+      isRetryable: true,
+      category: "rate_limit",
+      message: "429 too many requests",
+      statusCode: 429,
+      retryAfterMs: 30_000,
+    }
+    expect(error.retryAfterMs).toBe(30_000)
   })
 })

@@ -46,6 +46,8 @@ export interface ModelAttemptError {
   message: string
   statusCode?: number
   isTimeout?: boolean
+  /** The provider's Retry-After delay when it sent one; recorded on the attempt, never used to extend the wait. */
+  retryAfterMs?: number
 }
 
 export interface ModelAttemptResponse {

@@ -6,6 +6,7 @@ import {
   type ModelAttemptResponse,
   type ModelGatewayPort,
   type RetryConfig,
+  type StopReason,
 } from "@harness/protocol"
 import {
   classifyError,
@@ -172,6 +173,11 @@ describe("classifyError", () => {
   test("authentication and invalid-request categories stay permanent even if the message looks transient", () => {
     const lying: ModelAttemptError = { isRetryable: true, category: "authentication", message: "connection refused" }
     expect(classifyError(lying, DefaultRetryConfig)).toBe("permanent")
+  })
+
+  test("a rate_limit error without a status code is retryable even when the message matches no pattern", () => {
+    const limited: ModelAttemptError = { isRetryable: false, category: "rate_limit", message: "slow down" }
+    expect(classifyError(limited, DefaultRetryConfig)).toBe("retryable")
   })
 
   test("the retryable status list is configurable", () => {
@@ -492,6 +498,137 @@ describe("RetryPolicy.run", () => {
       const { policy, cancellation } = setup({ gateway })
       await policy.run({ request: baseRequest })
       expect(cancellation.polls).toBe(0)
+    })
+  })
+
+  describe("sleep abort guard", () => {
+    const rejectingSleep = (onSleep: () => void = () => {}) => ({
+      waits: [] as number[],
+      async sleep(ms: number) {
+        this.waits.push(ms)
+        onSleep()
+        throw new Error("sleep aborted")
+      },
+    })
+
+    test("a sleep that rejects ends the call as cancelled instead of rejecting", async () => {
+      const gateway = new ScriptedGateway(() => failure(http(429)))
+      const sleep = rejectingSleep()
+      const policy = createRetryPolicy({
+        gateway,
+        cancellation: new FakeCancellation(),
+        sleep,
+        random: fixedRandom(0),
+        clock: { nowMs: () => 0 },
+        config: DefaultRetryConfig,
+        flags: { enableInfraRetry: true },
+      })
+      const outcome = await policy.run({ request: baseRequest, deadlineMs: 100_000 })
+      expect(outcome.kind).toBe("cancelled")
+      expect(gateway.requests).toHaveLength(1)
+      expect(kinds(outcome)).toEqual(["retry"])
+    })
+
+    test("a sleep that rejects after the deadline passed ends the call as stopped with wall_clock_timeout", async () => {
+      let now = 0
+      const gateway = new ScriptedGateway(() => failure(http(429)))
+      const policy = createRetryPolicy({
+        gateway,
+        cancellation: new FakeCancellation(),
+        sleep: rejectingSleep(() => {
+          now = 10_000
+        }),
+        random: fixedRandom(0),
+        clock: { nowMs: () => now },
+        config: DefaultRetryConfig,
+        flags: { enableInfraRetry: true },
+      })
+      const outcome = await policy.run({ request: baseRequest, deadlineMs: 5_000 })
+      expect(outcome).toMatchObject({ kind: "stopped", reason: "wall_clock_timeout" })
+      expect(gateway.requests).toHaveLength(1)
+    })
+
+    test("a signal aborted with wall_clock_timeout during the wait ends the call as stopped", async () => {
+      const controller = new AbortController()
+      const gateway = new ScriptedGateway(() => failure(http(429)))
+      const sleep = new FakeSleep(() => controller.abort("wall_clock_timeout"))
+      const { policy } = setup({ gateway, sleep })
+      const outcome = await policy.run({ request: baseRequest, signal: controller.signal })
+      expect(outcome).toMatchObject({ kind: "stopped", reason: "wall_clock_timeout" })
+      expect(gateway.requests).toHaveLength(1)
+    })
+
+    test("a signal aborted for any other cause during the wait ends the call as cancelled", async () => {
+      const controller = new AbortController()
+      const gateway = new ScriptedGateway(() => failure(http(429)))
+      const sleep = new FakeSleep(() => controller.abort("cancelled"))
+      const { policy } = setup({ gateway, sleep })
+      const outcome = await policy.run({ request: baseRequest, signal: controller.signal })
+      expect(outcome.kind).toBe("cancelled")
+      expect(gateway.requests).toHaveLength(1)
+    })
+  })
+
+  describe("beforeRetry hook", () => {
+    test("is called before every retry with the attempt records so far, after the wait", async () => {
+      const gateway = new ScriptedGateway((call) => (call < 3 ? failure(http(503)) : success()))
+      const { policy, sleep } = setup({ gateway })
+      const seen: Array<{ attempts: number[]; waits: number }> = []
+      const outcome = await policy.run({
+        request: baseRequest,
+        beforeRetry: (attempts) => {
+          seen.push({ attempts: attempts.map((attempt) => attempt.attemptIndex), waits: sleep.waits.length })
+          return undefined
+        },
+      })
+      expect(outcome.kind).toBe("success")
+      expect(seen).toEqual([
+        { attempts: [1], waits: 1 },
+        { attempts: [1, 2], waits: 2 },
+      ])
+    })
+
+    test("a returned stop reason ends the call as stopped without another attempt", async () => {
+      const gateway = new ScriptedGateway(() => failure(http(503)))
+      const { policy } = setup({ gateway })
+      const outcome = await policy.run({ request: baseRequest, beforeRetry: () => "cost_budget_exhausted" })
+      expect(outcome).toMatchObject({ kind: "stopped", reason: "cost_budget_exhausted" })
+      expect(gateway.requests).toHaveLength(1)
+      expect(outcome.attempts).toHaveLength(1)
+    })
+
+    test("may be async and is not called when the first attempt succeeds", async () => {
+      const gateway = new ScriptedGateway(() => success())
+      const { policy } = setup({ gateway })
+      let calls = 0
+      const outcome = await policy.run({
+        request: baseRequest,
+        beforeRetry: async (): Promise<StopReason> => {
+          calls += 1
+          return "total_tokens_exhausted"
+        },
+      })
+      expect(outcome.kind).toBe("success")
+      expect(calls).toBe(0)
+    })
+
+    test("a cancel observed after the wait wins over the hook", async () => {
+      const cancellation = new FakeCancellation()
+      const sleep = new FakeSleep(() => {
+        cancellation.requested = true
+      })
+      const gateway = new ScriptedGateway(() => failure(http(429)))
+      const { policy } = setup({ gateway, sleep, cancellation })
+      let calls = 0
+      const outcome = await policy.run({
+        request: baseRequest,
+        beforeRetry: () => {
+          calls += 1
+          return "cost_budget_exhausted"
+        },
+      })
+      expect(outcome.kind).toBe("cancelled")
+      expect(calls).toBe(0)
     })
   })
 })

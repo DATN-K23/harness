@@ -70,13 +70,11 @@ export type ErrorClassification = "retryable" | "permanent" | "context_overflow"
 
 export type RetryDecision = (typeof RetryDecisions)[number]
 
-/** `retryAfterMs` is optional on the wire; the gateway fills it from a Retry-After header when it sees one. */
-export type RetryableAttemptError = ModelAttemptError & { retryAfterMs?: number }
-
 export const classifyError = (error: ModelAttemptError, config: RetryConfig): ErrorClassification => {
   if (isContextOverflow(error.message)) return "context_overflow"
   if (error.category === "authentication" || error.category === "invalid_request") return "permanent"
   if (error.isTimeout) return "retryable"
+  if (error.statusCode === undefined && error.category === "rate_limit") return "retryable"
   if (error.statusCode !== undefined)
     return config.retryableStatuses.includes(error.statusCode) ? "retryable" : "permanent"
   return error.isRetryable || RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(error.message))
@@ -107,12 +105,8 @@ export type RetryOutcome =
   | { kind: "failed"; reason: RetryFailureReason; error: ModelAttemptError; attempts: AttemptRecord[] }
   /** The step reports `budget_exhausted` with reason `context_budget`. */
   | { kind: "context_overflow"; error: ModelAttemptError; attempts: AttemptRecord[] }
-  | {
-      kind: "stopped"
-      reason: Extract<StopReason, "wall_clock_timeout">
-      error: ModelAttemptError
-      attempts: AttemptRecord[]
-    }
+  /** A stop condition held before a retry: the deadline, or a reason returned by `beforeRetry`. */
+  | { kind: "stopped"; reason: StopReason; error: ModelAttemptError; attempts: AttemptRecord[] }
   | { kind: "cancelled"; error: ModelAttemptError; attempts: AttemptRecord[] }
 
 export interface RetryPolicyDeps {
@@ -130,6 +124,11 @@ export interface RetryRunInput {
   /** Absolute wall-clock deadline of the run in clock milliseconds. */
   deadlineMs?: number
   signal?: AbortSignal
+  /**
+   * Called before every retry, after the backoff wait and the cancellation poll, with the attempt records so far.
+   * Returning a stop reason ends the call as `stopped` without another attempt.
+   */
+  beforeRetry?: (attempts: readonly AttemptRecord[]) => StopReason | undefined | Promise<StopReason | undefined>
 }
 
 export interface RetryPolicy {
@@ -147,7 +146,7 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
     while (true) {
       const attemptIndex = attempts.length + 1
       const response = await deps.gateway.executeAttempt({ ...input.request, attemptIndex }, input.signal)
-      const record = (decision: RetryDecision, backoffMs: number, error?: RetryableAttemptError): AttemptRecord => ({
+      const record = (decision: RetryDecision, backoffMs: number, error?: ModelAttemptError): AttemptRecord => ({
         attemptIndex,
         usage: {
           promptTokens: response.usage.promptTokens,
@@ -162,7 +161,7 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
         ...(error?.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),
       })
 
-      const error: RetryableAttemptError | undefined = response.error
+      const error = response.error
       if (!error) {
         attempts.push(record("none", 0))
         return { kind: "success", response, attempts }
@@ -196,10 +195,22 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
       }
 
       attempts.push(record("retry", backoffMs, error))
-      await deps.sleep.sleep(backoffMs, input.signal)
+      // An aborted or failed wait must not reject the call: the run decides from the cause what to commit.
+      const slept = await deps.sleep.sleep(backoffMs, input.signal).then(
+        () => true,
+        () => false,
+      )
+      if (!slept || input.signal?.aborted) {
+        const pastDeadline = input.deadlineMs !== undefined && deps.clock.nowMs() >= input.deadlineMs
+        if (pastDeadline || input.signal?.reason === "wall_clock_timeout")
+          return { kind: "stopped", reason: "wall_clock_timeout", error, attempts }
+        return { kind: "cancelled", error, attempts }
+      }
       if (await deps.cancellation.isRequested(input.request.runId, input.signal)) {
         return { kind: "cancelled", error, attempts }
       }
+      const stop = await input.beforeRetry?.([...attempts])
+      if (stop !== undefined) return { kind: "stopped", reason: stop, error, attempts }
       retries += 1
       if (error.isTimeout) timeoutRetries += 1
     }

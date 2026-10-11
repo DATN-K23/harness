@@ -47,11 +47,11 @@
 
 ## 7. Scenario and regression suite
 
-- [ ] 7.1 [Owner: TV1; gate: C05] Crash-recovery spike: worker A stops after step 2, worker B takes over after lease expiry and completes at step 3 with identical items and contiguous events. Evidence: test output attached to this task, including the stale-worker rejection.
-- [ ] 7.2 [Owner: TV1; gate: C06] Stop-precedence matrix: every pair and several triples of the six limits. Evidence: generated test table in the test output and telemetry assertions for the observed list.
-- [ ] 7.3 [Owner: TV1; gate: C05] Recovery scenarios: tool not found, malformed arguments, denied path, thrown failure, transient provider errors, interrupted tool left by a dead worker. Evidence: each scenario reaches a verdict or defined terminal state, zero unrecovered tool failures.
-- [ ] 7.4 [Owner: TV1; gate: C06] Flag matrix: for each of the eleven flags, one enabled and one disabled test showing the documented behavioral difference and the snapshot value and digest. Evidence: one test file per flag group, all passing.
-- [ ] 7.5 [Owner: TV1; gate: C08] Determinism: the same seed and flags produce identical event types, sequences and payload digests, and parallel dispatch equals sequential dispatch. Evidence: two-run comparison test.
+- [x] 7.1 [Owner: TV1; gate: C05] Crash-recovery spike: worker A stops after step 2, worker B takes over after lease expiry and completes at step 3 with identical items and contiguous events. Evidence: test output attached to this task, including the stale-worker rejection.
+- [x] 7.2 [Owner: TV1; gate: C06] Stop-precedence matrix: every pair and several triples of the six limits. Evidence: generated test table in the test output and telemetry assertions for the observed list.
+- [x] 7.3 [Owner: TV1; gate: C05] Recovery scenarios: tool not found, malformed arguments, denied path, thrown failure, transient provider errors, interrupted tool left by a dead worker. Evidence: each scenario reaches a verdict or defined terminal state, zero unrecovered tool failures.
+- [x] 7.4 [Owner: TV1; gate: C06] Flag matrix: for each of the eleven flags, one enabled and one disabled test showing the documented behavioral difference and the snapshot value and digest. Evidence: one test file per flag group, all passing.
+- [x] 7.5 [Owner: TV1; gate: C08] Determinism: the same seed and flags produce identical event types, sequences and payload digests, and parallel dispatch equals sequential dispatch. Evidence: two-run comparison test.
 
 ## 8. Demo and reliability evidence
 

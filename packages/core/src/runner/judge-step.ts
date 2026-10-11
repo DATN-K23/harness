@@ -24,7 +24,16 @@ import { digestOf } from "../util/digest"
 import type { IdGenerator } from "../util/id"
 import type { CancellationBoundary } from "./cancellation"
 import type { EventSink } from "./event-sink"
-import { StaleWrite, StepFault, asFault, bounded, describeError, persistTo, sumUsage } from "./judge-step-support"
+import {
+  StaleWrite,
+  StepFault,
+  asFault,
+  attemptPayload,
+  bounded,
+  describeError,
+  persistTo,
+  sumUsage,
+} from "./judge-step-support"
 import { runToolBranch, type ToolBranchContext } from "./judge-step-tools"
 import type { AttemptRecord, RetryOutcome, RetryPolicy } from "./retry-policy"
 import { evaluateStop, isForcedStep, type StopState } from "./stop-conditions"
@@ -218,17 +227,7 @@ export class JudgeStep {
       .catch(asFault("worker_interrupted"))
     progress.attempts = retried.attempts
     for (const attempt of retried.attempts)
-      await persist("provider.attempted", {
-        stepIndex: input.stepIndex,
-        attemptIndex: attempt.attemptIndex,
-        profileId: input.profileId,
-        usage: attempt.usage,
-        costUsd: attempt.costUsd,
-        latencyMs: Math.max(0, Math.round(attempt.latencyMs)),
-        ...(attempt.errorCategory === undefined ? {} : { errorCategory: attempt.errorCategory }),
-        retryDecision: attempt.retryDecision,
-        backoffMs: attempt.backoffMs,
-      })
+      await persist("provider.attempted", attemptPayload(input.stepIndex, input.profileId, attempt))
 
     if (retried.kind === "failed")
       return finish({

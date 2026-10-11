@@ -45,6 +45,23 @@ export const persistTo =
     if (appended.kind === "stale") throw new StaleWrite(appended.reason)
   }
 
+/** The `provider.attempted` record of one attempt; reasoning steps and compaction attempts are recorded alike. */
+export const attemptPayload = (
+  stepIndex: number,
+  profileId: string,
+  attempt: AttemptRecord,
+): EventPayload<"provider.attempted"> => ({
+  stepIndex,
+  attemptIndex: attempt.attemptIndex,
+  profileId,
+  usage: attempt.usage,
+  costUsd: attempt.costUsd,
+  latencyMs: Math.max(0, Math.round(attempt.latencyMs)),
+  ...(attempt.errorCategory === undefined ? {} : { errorCategory: attempt.errorCategory }),
+  retryDecision: attempt.retryDecision,
+  backoffMs: attempt.backoffMs,
+})
+
 /** Tokens and cost of every attempt, failed ones included: this is what the run budget is charged. */
 export const sumUsage = (attempts: readonly AttemptRecord[]): ModelUsage =>
   attempts.reduce(

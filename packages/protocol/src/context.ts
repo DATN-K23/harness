@@ -70,7 +70,7 @@ export interface RunBudget {
   costCeilingUsd: number
 }
 
-const TransformationSchema = z.object({
+export const TransformationSchema = z.object({
   action: z.enum(["masked", "dropped_empty", "superseded", "truncated"]),
   targetItemId: z.string(),
   tokensBefore: z.number(),
@@ -78,7 +78,7 @@ const TransformationSchema = z.object({
   replacementNote: z.string(),
 })
 
-const PrepareTelemetrySchema = z.object({
+export const PrepareTelemetrySchema = z.object({
   tokenizer: z.literal("o200k_base"),
   policyVersion: z.string(),
   estimatedInputTokens: z.number(),

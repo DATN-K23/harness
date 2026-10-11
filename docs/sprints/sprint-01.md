@@ -1,6 +1,6 @@
 # Sprint 1 — Chốt nền móng
 
-[Kế hoạch toàn dự án](team-roadmap.md)
+[Kế hoạch toàn dự án](../team-roadmap.md)
 
 **Mục tiêu chung:** cả nhóm mô tả được một Judge run từ lúc nhận finding đến verdict, biết dữ liệu nào đi qua từng ranh giới và thống nhất phần việc có thể bắt đầu ở sprint sau.
 

@@ -8,13 +8,12 @@ context: |
   static analyzers and a general-purpose agent; RQ3 later compares at least three
   real providers.
 
-  Required reading order before project work:
-  1. docs/idea.md
-  2. docs/00-START-HERE.md
-  3. docs/01-glossary.md
-  4. docs/02-roles.md
-  5. docs/04-working-rules.md
-  6. docs/05-timeline-guide.md and docs/timeline.csv
+  Required reading before project work:
+  1. docs/idea.md for the research motivation and scope.
+  2. docs/sprints/sprint-01.md for the current sprint tasks and open decisions.
+  3. docs/Roles.md for team ownership.
+  4. blueprint/README.md and blueprint/architecture/module-layout.md for the
+     current architecture and package boundaries.
 
   Non-negotiable research controls:
   - The agent may receive canonical CandidateFinding data and an immutable

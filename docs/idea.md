@@ -163,4 +163,4 @@ Xử lý được chúng một cách minh bạch — kể cả khi số liệu k
 
 ---
 
-**Tiếp theo:** [Start Here](00-START-HERE.md) — thứ tự đọc tài liệu và phạm vi làm việc của nhóm.
+**Tiếp theo:** [Sprint 1](sprints/sprint-01.md) — đầu việc hiện tại của từng thành viên và những quyết định nhóm cần chốt.

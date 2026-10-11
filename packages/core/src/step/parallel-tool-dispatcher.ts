@@ -9,12 +9,13 @@ import type {
 import { isAbsoluteLooking, normalizeBlockedInput, type EventSink } from "../runner/event-sink"
 
 export const ToolFailureKinds = [
+  "missing_file",
   "unknown_tool",
   "invalid_arguments",
-  "denied_path",
+  "denied",
   "thrown",
-  "malformed_result",
   "tool_error",
+  "malformed",
 ] as const
 
 export type ToolFailureKind = (typeof ToolFailureKinds)[number]
@@ -25,7 +26,10 @@ export const SecurityRuleIds = {
   pathDenied: "snapshot.path_denied",
 } as const
 
-/** Raw outcome of one call, before any security filtering or shaping (that is the step's job). */
+/**
+ * Raw outcome of one call, before any security filtering or shaping (that is the step's job). `result.content` may
+ * echo secrets or host paths from a tool or an error; only the step may persist or publish it, after the filter.
+ */
 export interface DispatchedCall {
   callIndex: number
   callId: string
@@ -33,8 +37,8 @@ export interface DispatchedCall {
   arguments: Record<string, unknown>
   result: ToolExecutionResult
   durationMs: number
-  /** Set when `result` was produced or rewritten by the dispatcher's normalization of a failure. */
-  failure?: ToolFailureKind
+  /** Set for every `isError` result: why the call failed. Absent for a successful call. */
+  failureKind?: ToolFailureKind
 }
 
 export type SettleResult = { kind: "continue" } | { kind: "stale"; reason: StaleReason }
@@ -43,9 +47,10 @@ export interface DispatchInput {
   calls: readonly ModelToolCall[]
   signal?: AbortSignal
   /**
-   * Awaited once per call, in `callIndex` order, after the dispatcher persisted that call's own failure events and
-   * before the next call is settled. The step persists `tool.completed` here (it owns filtering, shaping and the item
-   * id), so every call's events stay in index order whichever call finished first.
+   * Awaited once per call, in `callIndex` order, after the dispatcher persisted that call's `security.blocked` (if any)
+   * and before the next call is settled. The dispatcher itself persists only `tool.requested` and `security.blocked`:
+   * the step persists `tool.completed` and `tool.failed` here, after running the security filter on `result.content`
+   * (a stored event cannot be redacted later), so every call's events stay in index order whichever finished first.
    */
   onResult?: (call: DispatchedCall) => Promise<SettleResult>
 }
@@ -65,13 +70,20 @@ export interface ToolDispatcherOptions {
 }
 
 const PathArgumentKeys = ["path", "filePath", "file", "directory", "dir"] as const
-const MaxArgumentsChars = 400
+const MaxArgumentsChars = 500
 const MaxThrownChars = 300
-const MaxEventMessageChars = 2000
+const NextStepMarker = "Suggested next step:"
+const NoPathArgument = "<no path argument>"
 
 const bounded = (text: string, limit: number) => (text.length > limit ? `${text.slice(0, limit)}...` : text)
 
-const describeArguments = (args: Record<string, unknown>) => bounded(JSON.stringify(args) ?? "{}", MaxArgumentsChars)
+const describeArguments = (args: Record<string, unknown>) => {
+  try {
+    return bounded(JSON.stringify(args) ?? "{}", MaxArgumentsChars)
+  } catch {
+    return "[arguments cannot be displayed]"
+  }
+}
 
 const describeThrown = (value: unknown) => {
   const text = (() => {
@@ -162,7 +174,25 @@ const pathViolation = (args: Record<string, unknown>) => {
 }
 
 const deniedMessage = (toolName: string, key: string, input: string, reason: string) =>
-  `Access denied for ${toolName}: ${key} "${normalizeBlockedInput(input)}" is ${reason}, which is outside the allowed source snapshot. Use a path relative to the snapshot root, for example one listed by list_dir.`
+  `Access denied for ${toolName}: ${key} "${normalizeBlockedInput(input)}" is ${reason}, which is outside the allowed source snapshot. ${NextStepMarker} use a path relative to the snapshot root, for example one listed by list_dir.`
+
+const nextStepFor = (kind: ToolFailureKind, call: IndexedCall, availableTools: string) => {
+  if (kind === "unknown_tool") return `list the available tools (${availableTools}) and call one of them.`
+  if (pathArgument(call.arguments) !== undefined)
+    return "verify the path with list_dir or glob, then call the tool again with a path that exists in the snapshot."
+  return "adjust the arguments and retry, or use a different tool."
+}
+
+/** Every failed result states what happened (the content), the argument values and what to do next. */
+const withContract = (result: ToolExecutionResult, kind: ToolFailureKind, call: IndexedCall, availableTools: string) =>
+  result.content.includes(NextStepMarker)
+    ? result
+    : {
+        ...result,
+        content: `${result.content}\nArguments: ${describeArguments(call.arguments)}\n${NextStepMarker} ${nextStepFor(kind, call, availableTools)}`,
+      }
+
+const missingFile = /\b(?:not found|enoent|no such file)\b/i
 
 const failureOf = (message: string) => ({ content: message, isError: true }) satisfies ToolExecutionResult
 
@@ -170,7 +200,13 @@ const looksDenied = (content: string) => /^\s*access denied\b/i.test(content)
 
 type Prepared =
   | { kind: "run"; call: IndexedCall }
-  | { kind: "refused"; call: IndexedCall; failure: ToolFailureKind; result: ToolExecutionResult; block?: BlockedInput }
+  | {
+      kind: "refused"
+      call: IndexedCall
+      failureKind: ToolFailureKind
+      result: ToolExecutionResult
+      block?: BlockedInput
+    }
 
 interface BlockedInput {
   ruleId: string
@@ -184,6 +220,12 @@ interface IndexedCall {
   arguments: Record<string, unknown>
 }
 
+interface Normalized {
+  result: ToolExecutionResult
+  failureKind?: ToolFailureKind
+  block?: BlockedInput
+}
+
 type Executed =
   | { kind: "result"; result: ToolExecutionResult; durationMs: number }
   | { kind: "thrown"; error: unknown; durationMs: number }
@@ -193,8 +235,10 @@ type Executed =
  * `tool.requested` is persisted in that order before anything executes; calls run under `Promise.allSettled` (or one
  * by one when parallel dispatch is off); results are settled in `callIndex` order whichever finished first. A thrown
  * value, a rejection, an unknown tool, invalid arguments, a denied path or an error result becomes a
- * `ToolExecutionResult` with `isError: true` that says what happened, the relevant argument values and what to do
- * next. Tool execution never throws; only event-store infrastructure faults propagate.
+ * `ToolExecutionResult` with `isError: true` that says what happened, the argument values and a
+ * `Suggested next step:`. The dispatcher persists only `tool.requested` and `security.blocked` (normalized input);
+ * `tool.completed` and `tool.failed` are the step's, written from `onResult` after the security filter ran. Tool
+ * execution never throws; only event-store infrastructure faults propagate.
  */
 export class ParallelToolDispatcher {
   constructor(private readonly options: ToolDispatcherOptions) {}
@@ -219,12 +263,19 @@ export class ParallelToolDispatcher {
     }
 
     const definitions = this.options.registry.definitions()
+    const availableTools = definitions.map((tool) => tool.name).join(", ")
     const prepared = calls.map((call) => this.prepare(call, definitions))
     const settled: DispatchedCall[] = []
 
     if (!this.options.enableParallelToolDispatch) {
       for (const item of prepared) {
-        const stale = await this.settle(item, await this.execute(item, input.signal), settled, input.onResult)
+        const stale = await this.settle(
+          item,
+          await this.execute(item, input.signal),
+          settled,
+          availableTools,
+          input.onResult,
+        )
         if (stale !== undefined) return { kind: "stale", reason: stale, calls: settled }
       }
       return { kind: "dispatched", calls: settled }
@@ -235,35 +286,31 @@ export class ParallelToolDispatcher {
       const outcome = outcomes[index]
       const executed: Executed | undefined =
         outcome.status === "fulfilled" ? outcome.value : { kind: "thrown", error: outcome.reason, durationMs: 0 }
-      const stale = await this.settle(item, executed, settled, input.onResult)
+      const stale = await this.settle(item, executed, settled, availableTools, input.onResult)
       if (stale !== undefined) return { kind: "stale", reason: stale, calls: settled }
     }
     return { kind: "dispatched", calls: settled }
   }
 
   private prepare(call: IndexedCall, definitions: readonly ToolDefinition[]): Prepared {
-    const refuse = (failure: ToolFailureKind, message: string, block?: BlockedInput): Prepared => ({
+    const refuse = (failureKind: ToolFailureKind, message: string, block?: BlockedInput): Prepared => ({
       kind: "refused",
       call,
-      failure,
+      failureKind,
       result: failureOf(message),
       block,
     })
     const definition = definitions.find((candidate) => candidate.name === call.toolName)
-    if (definition === undefined)
-      return refuse(
-        "unknown_tool",
-        `Tool "${call.toolName}" does not exist. Arguments: ${describeArguments(call.arguments)}. Available tools: ${definitions.map((tool) => tool.name).join(", ")}. Call one of the available tools instead.`,
-      )
+    if (definition === undefined) return refuse("unknown_tool", `Tool "${call.toolName}" does not exist.`)
     const problem = argumentProblem(definition, call.arguments)
     if (problem !== undefined)
       return refuse(
         "invalid_arguments",
-        `Invalid arguments for ${call.toolName}: ${problem}. Arguments: ${describeArguments(call.arguments)}. Expected: ${usageOf(definition)}. Correct the arguments and call ${call.toolName} again.`,
+        `Invalid arguments for ${call.toolName}: ${problem}. Expected: ${usageOf(definition)}.`,
       )
     const violation = pathViolation(call.arguments)
     if (violation !== undefined)
-      return refuse("denied_path", deniedMessage(call.toolName, violation.key, violation.input, violation.reason), {
+      return refuse("denied", deniedMessage(call.toolName, violation.key, violation.input, violation.reason), {
         ruleId: violation.ruleId,
         input: violation.input,
       })
@@ -285,46 +332,46 @@ export class ParallelToolDispatcher {
     }
   }
 
-  private normalize(item: Prepared, executed: Executed) {
+  private normalize(item: Prepared, executed: Executed): Normalized {
     const { call } = item
-    if (item.kind === "refused") return { result: item.result, failure: item.failure, block: item.block }
+    if (item.kind === "refused") return { result: item.result, failureKind: item.failureKind, block: item.block }
     if (executed.kind === "thrown")
       return {
-        failure: "thrown" as const,
+        failureKind: "thrown",
         result: failureOf(
-          `Tool "${call.toolName}" failed with an unexpected error: ${describeThrown(executed.error)}. Arguments: ${describeArguments(call.arguments)}. The tool did not complete; retry with corrected arguments or use a different tool.`,
+          `Tool "${call.toolName}" failed with an unexpected error: ${describeThrown(executed.error)}. The tool did not complete.`,
         ),
       }
     const { result } = executed
     if (!isRecord(result) || typeof result.content !== "string" || typeof result.isError !== "boolean")
       return {
-        failure: "malformed_result" as const,
-        result: failureOf(
-          `Tool "${call.toolName}" returned a result the harness could not read. Arguments: ${describeArguments(call.arguments)}. Retry the call or use a different tool.`,
-        ),
+        failureKind: "malformed",
+        result: failureOf(`Tool "${call.toolName}" returned a result the harness could not read.`),
       }
-    if (!result.isError) return { result, failure: undefined }
+    if (!result.isError) return { result }
     if (looksDenied(result.content)) {
       const path = pathArgument(call.arguments)
-      const input = path?.value ?? ""
+      const block = { ruleId: SecurityRuleIds.pathDenied, input: path?.value ?? NoPathArgument }
+      if (path === undefined) return { failureKind: "denied", result, block }
       return {
-        failure: "denied_path" as const,
-        result: failureOf(deniedMessage(call.toolName, path?.key ?? "path", input, "not permitted")),
-        block: { ruleId: SecurityRuleIds.pathDenied, input },
+        failureKind: "denied",
+        result: failureOf(deniedMessage(call.toolName, path.key, path.value, "not permitted")),
+        block,
       }
     }
     const content =
-      result.content.trim() === ""
-        ? `Tool "${call.toolName}" reported an error without details. Arguments: ${describeArguments(call.arguments)}. Retry with different arguments or use another tool.`
-        : result.content
-    return { failure: "tool_error" as const, result: { ...result, content } }
+      result.content.trim() === "" ? `Tool "${call.toolName}" reported an error without details.` : result.content
+    const failureKind =
+      pathArgument(call.arguments) !== undefined && missingFile.test(content) ? "missing_file" : "tool_error"
+    return { failureKind, result: { ...result, content } }
   }
 
-  /** Persists the call's failure events, then lets the step persist its own. Returns a stale reason to stop. */
+  /** Persists the call's `security.blocked` (if any), then lets the step persist its own. Returns a stale reason to stop. */
   private async settle(
     item: Prepared,
     executed: Executed,
     settled: DispatchedCall[],
+    availableTools: string,
     onResult: DispatchInput["onResult"],
   ): Promise<StaleReason | undefined> {
     const { sink } = this.options
@@ -332,9 +379,12 @@ export class ParallelToolDispatcher {
     const normalized = this.normalize(item, executed)
     const dispatched: DispatchedCall = {
       ...call,
-      result: normalized.result,
+      result:
+        normalized.failureKind === undefined
+          ? normalized.result
+          : withContract(normalized.result, normalized.failureKind, call, availableTools),
       durationMs: executed.durationMs,
-      ...(normalized.failure === undefined ? {} : { failure: normalized.failure }),
+      ...(normalized.failureKind === undefined ? {} : { failureKind: normalized.failureKind }),
     }
 
     if (normalized.block !== undefined) {
@@ -345,16 +395,6 @@ export class ParallelToolDispatcher {
         callId: call.callId,
       })
       if (blocked.kind === "stale") return blocked.reason
-    }
-    if (normalized.failure !== undefined) {
-      const failed = await sink.append("tool.failed", {
-        callIndex: call.callIndex,
-        callId: call.callId,
-        toolName: call.toolName,
-        durationMs: executed.durationMs,
-        message: bounded(normalized.result.content, MaxEventMessageChars),
-      })
-      if (failed.kind === "stale") return failed.reason
     }
     settled.push(dispatched)
     const hook = await onResult?.(dispatched)

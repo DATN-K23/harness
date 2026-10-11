@@ -3,6 +3,7 @@ import {
   AbsolutePathRedactedPlaceholder,
   type ModelToolCall,
   type RunStorePort,
+  type SecurityFilterPort,
   type ToolCall,
   type ToolDefinition,
   type ToolExecutionResult,
@@ -19,6 +20,7 @@ import {
 } from "../../src/step/parallel-tool-dispatcher"
 import { FakeClock, SeededRandom } from "../../src/testing/deterministic"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
+import { RegexSecurityFilter } from "../../src/testing/regex-security-filter"
 import { InMemoryToolRegistry } from "../../src/testing/in-memory-tool-registry"
 import { createIdGenerator } from "../../src/util/id"
 
@@ -61,7 +63,7 @@ const echoDefinition: ToolDefinition = {
   description: "echo",
   parameters: {
     type: "object",
-    properties: { text: { type: "string" }, times: { type: "integer" } },
+    properties: { text: { type: "string" }, times: { type: "integer" }, path: { type: "string" } },
     required: ["text"],
     additionalProperties: false,
   },
@@ -106,18 +108,22 @@ const deferred = () => {
 
 const eventSummary = (stored: TrajectoryEvent[]) => stored.map((event) => `${event.type}`)
 
-const completedHook = (sink: EventSink) => async (dispatched: DispatchedCall) => {
-  if (dispatched.result.isError) return { kind: "continue" as const }
-  const appended = await sink.append("tool.completed", {
-    callIndex: dispatched.callIndex,
-    callId: dispatched.callId,
-    toolName: dispatched.toolName,
-    durationMs: dispatched.durationMs,
-    isTruncated: false,
-    itemId: `item-${dispatched.callIndex}`,
-  })
-  return appended.kind === "stale" ? appended : { kind: "continue" as const }
-}
+/** What the step does in `onResult`: filter the content first, then persist `tool.completed` or `tool.failed`. */
+const completedHook =
+  (sink: EventSink, filter: SecurityFilterPort = new RegexSecurityFilter()) =>
+  async (entry: DispatchedCall) => {
+    const identity = { callIndex: entry.callIndex, callId: entry.callId, toolName: entry.toolName }
+    const filtered = await filter.filterSecrets(entry.result.content)
+    const appended = entry.result.isError
+      ? await sink.append("tool.failed", { ...identity, durationMs: entry.durationMs, message: filtered.content })
+      : await sink.append("tool.completed", {
+          ...identity,
+          durationMs: entry.durationMs,
+          isTruncated: false,
+          itemId: `item-${entry.callIndex}`,
+        })
+    return appended.kind === "stale" ? appended : { kind: "continue" as const }
+  }
 
 const dispatched = (outcome: DispatchOutcome) => {
   if (outcome.kind !== "dispatched") throw new Error(`expected dispatched, got ${outcome.kind}`)
@@ -315,13 +321,13 @@ describe("parallel and sequential agree", () => {
   test("the script produces the expected event types in index order", async () => {
     const { stored, calls } = await runScript(true)
     expect(stored.slice(0, 9).every((event) => event.type === "tool.requested")).toBe(true)
-    expect(calls.map((entry) => entry.failure)).toEqual([
+    expect(calls.map((entry) => entry.failureKind)).toEqual([
       undefined,
-      "tool_error",
+      "missing_file",
       undefined,
       "unknown_tool",
-      "denied_path",
-      "denied_path",
+      "denied",
+      "denied",
       undefined,
       "thrown",
       "invalid_arguments",
@@ -356,7 +362,7 @@ describe("tool failure becomes model-visible data", () => {
       clock: context.clock,
       enableParallelToolDispatch: parallel,
     })
-    const outcome = await dispatcher.dispatch({ calls: [toolCall] })
+    const outcome = await dispatcher.dispatch({ calls: [toolCall], onResult: completedHook(context.sink) })
     const [only] = dispatched(outcome)
     return { entry: only, stored: await events(context.store) }
   }
@@ -364,7 +370,7 @@ describe("tool failure becomes model-visible data", () => {
   test("missing file names the path and says how to find it, and persists tool.failed", async () => {
     const { entry, stored } = await run(call("c-0", "read_file", { path: "src/Nope.sol" }))
     expect(entry.result.isError).toBe(true)
-    expect(entry.failure).toBe("tool_error")
+    expect(entry.failureKind).toBe("missing_file")
     expect(entry.result.content).toContain("src/Nope.sol")
     expect(entry.result.content).toMatch(/not found/i)
     expect(entry.result.content).toMatch(/list_dir|glob/)
@@ -375,12 +381,12 @@ describe("tool failure becomes model-visible data", () => {
 
   test("unknown tool: says what happened, the arguments and what to call instead", async () => {
     const { entry, stored } = await run(call("c-0", "delete_everything", { path: "src" }))
-    expect(entry.failure).toBe("unknown_tool")
+    expect(entry.failureKind).toBe("unknown_tool")
     expect(entry.result.isError).toBe(true)
     expect(entry.result.content).toContain('Tool "delete_everything" does not exist')
     expect(entry.result.content).toContain('{"path":"src"}')
     expect(entry.result.content).toContain("read_file, grep, glob, list_dir")
-    expect(entry.result.content).toMatch(/instead/)
+    expect(entry.result.content).toContain("Suggested next step: list the available tools")
     expect(eventSummary(stored)).toEqual(["tool.requested", "tool.failed"])
   })
 
@@ -397,11 +403,11 @@ describe("tool failure becomes model-visible data", () => {
   ])("invalid arguments (%s) state the problem, the values and the expected shape", async (_label, args, problem) => {
     const registry = new InMemoryToolRegistry({ files })
     const { entry, stored } = await run(call("c-0", "read_file", args), registry)
-    expect(entry.failure).toBe("invalid_arguments")
+    expect(entry.failureKind).toBe("invalid_arguments")
     expect(entry.result.content).toContain(problem)
     expect(entry.result.content).toContain(JSON.stringify(args))
     expect(entry.result.content).toContain("path (string, required)")
-    expect(entry.result.content).toMatch(/call read_file again/)
+    expect(entry.result.content).toContain("Suggested next step:")
     expect(registry.calls).toEqual([])
     expect(eventSummary(stored)).toEqual(["tool.requested", "tool.failed"])
   })
@@ -409,7 +415,7 @@ describe("tool failure becomes model-visible data", () => {
   test("additionalProperties false rejects unexpected arguments", async () => {
     const registry = new ControlledRegistry({ echo: async () => ok("never") })
     const { entry } = await run(call("c-0", "echo", { text: "a", extra: true }), registry)
-    expect(entry.failure).toBe("invalid_arguments")
+    expect(entry.failureKind).toBe("invalid_arguments")
     expect(entry.result.content).toContain('unexpected argument "extra"')
     expect(registry.started).toEqual([])
   })
@@ -423,7 +429,7 @@ describe("tool failure becomes model-visible data", () => {
   ])("absolute path %j is refused with a redacted security.blocked event", async (path, ruleId) => {
     const registry = new InMemoryToolRegistry({ files })
     const { entry, stored } = await run(call("c-0", "read_file", { path }), registry)
-    expect(entry.failure).toBe("denied_path")
+    expect(entry.failureKind).toBe("denied")
     expect(registry.calls).toEqual([])
     expect(eventSummary(stored)).toEqual(["tool.requested", "security.blocked", "tool.failed"])
     expect(stored[1].payload).toEqual({
@@ -440,7 +446,7 @@ describe("tool failure becomes model-visible data", () => {
   test("traversal is refused before execution; the recorded input is the trimmed relative attempt", async () => {
     const registry = new InMemoryToolRegistry({ files })
     const { entry, stored } = await run(call("c-0", "list_dir", { path: "  ../../outside  " }), registry)
-    expect(entry.failure).toBe("denied_path")
+    expect(entry.failureKind).toBe("denied")
     expect(registry.calls).toEqual([])
     expect(stored[1].payload).toEqual({
       ruleId: SecurityRuleIds.pathTraversal,
@@ -456,7 +462,7 @@ describe("tool failure becomes model-visible data", () => {
     const registry = new InMemoryToolRegistry({ files, deniedPrefixes: ["secrets"] })
     const { entry, stored } = await run(call("c-0", "read_file", { path: "secrets/key.txt" }), registry)
     expect(registry.calls).toHaveLength(1)
-    expect(entry.failure).toBe("denied_path")
+    expect(entry.failureKind).toBe("denied")
     expect(entry.result.isError).toBe(true)
     expect(entry.result.content).toContain("secrets/key.txt")
     expect(entry.result.content).not.toContain("hunter2")
@@ -470,25 +476,94 @@ describe("tool failure becomes model-visible data", () => {
     expect(stored[1].payload.ruleId).toBeTruthy()
   })
 
-  test("a registry refusal that echoes a host path is rewritten so no host path survives", async () => {
+  test("a registry denial with no path argument keeps the registry text and records a valid placeholder input", async () => {
     const registry = new ControlledRegistry({
       echo: async () => ({ content: "Access denied: C:\\host\\secret.txt", isError: true }),
     })
     const { entry, stored } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBe("denied_path")
-    expect(JSON.stringify([entry, stored])).not.toContain("host")
+    expect(entry.failureKind).toBe("denied")
+    expect(entry.result.content).toContain("Access denied: C:\\host\\secret.txt")
+    expect(entry.result.content).toContain('Arguments: {"text":"x"}')
+    expect(entry.result.content).toContain("Suggested next step:")
+    expect(stored[1].type).toBe("security.blocked")
+    expect(stored[1].payload).toEqual({
+      ruleId: SecurityRuleIds.pathDenied,
+      input: "<no path argument>",
+      toolName: "echo",
+      callId: "c-0",
+    })
+  })
+
+  test("a bare ENOENT from the registry gets the arguments and a next step appended", async () => {
+    const registry = new ControlledRegistry({ echo: async () => ({ content: "ENOENT", isError: true }) })
+    const { entry } = await run(call("c-0", "echo", { text: "x", path: "src/Gone.sol" }), registry)
+    expect(entry.failureKind).toBe("missing_file")
+    expect(entry.result.isError).toBe(true)
+    expect(entry.result.content).toBe(
+      'ENOENT\nArguments: {"text":"x","path":"src/Gone.sol"}\nSuggested next step: verify the path with list_dir or glob, then call the tool again with a path that exists in the snapshot.',
+    )
+  })
+
+  test("a bare error without a path argument is told to adjust the arguments and retry", async () => {
+    const registry = new ControlledRegistry({ echo: async () => ({ content: "failed", isError: true }) })
+    const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
+    expect(entry.failureKind).toBe("tool_error")
+    expect(entry.result.content).toBe(
+      'failed\nArguments: {"text":"x"}\nSuggested next step: adjust the arguments and retry, or use a different tool.',
+    )
+  })
+
+  test("content that already carries the next-step marker passes through unchanged", async () => {
+    const content = "Something broke. Suggested next step: call list_dir first."
+    const registry = new ControlledRegistry({ echo: async () => ({ content, isError: true, filePath: "a.sol" }) })
+    const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
+    expect(entry.result).toEqual({ content, isError: true, filePath: "a.sol" })
+  })
+
+  test("huge arguments are bounded in the message", async () => {
+    const registry = new ControlledRegistry({ echo: async () => ({ content: "failed", isError: true }) })
+    const big = await run(call("c-1", "echo", { text: "y".repeat(5_000) }), registry)
+    expect(big.entry.result.content.length).toBeLessThan(700)
+  })
+
+  test("every kind of failure carries the next-step marker", async () => {
+    const registry = new ControlledRegistry({
+      echo: async (toolCall) => {
+        if (toolCall.callId === "t") throw new Error("boom")
+        if (toolCall.callId === "m") return { isError: true } as unknown as ToolExecutionResult
+        return { content: "", isError: true }
+      },
+    })
+    const cases = [
+      call("t", "echo", { text: "a" }),
+      call("m", "echo", { text: "a" }),
+      call("e", "echo", { text: "a" }),
+      call("u", "missing_tool"),
+      call("i", "echo", {}),
+      call("d", "echo", { text: "a", path: "../x" }),
+    ]
+    const kinds = await Promise.all(cases.map((toolCall) => run(toolCall, registry)))
+    expect(kinds.map(({ entry }) => entry.failureKind)).toEqual([
+      "thrown",
+      "malformed",
+      "tool_error",
+      "unknown_tool",
+      "invalid_arguments",
+      "denied",
+    ])
+    kinds.forEach(({ entry }) => expect(entry.result.content).toContain("Suggested next step:"))
   })
 
   test("a thrown Error becomes an error result naming the error, the arguments and a next step", async () => {
     const registry = new InMemoryToolRegistry({ files })
     registry.throwOn("read_file", new TypeError("adapter exploded"))
     const { entry, stored } = await run(call("c-0", "read_file", { path: "src/Vault.sol" }), registry)
-    expect(entry.failure).toBe("thrown")
+    expect(entry.failureKind).toBe("thrown")
     expect(entry.result.isError).toBe(true)
     expect(entry.result.content).toContain("TypeError: adapter exploded")
     expect(entry.result.content).toContain('{"path":"src/Vault.sol"}')
-    expect(entry.result.content).toMatch(/retry with corrected arguments or use a different tool/)
-    expect(entry.result.content).not.toContain("at ")
+    expect(entry.result.content).toContain("Suggested next step: verify the path with list_dir or glob")
+    expect(entry.result.content).not.toContain("\n    at ")
     expect(eventSummary(stored)).toEqual(["tool.requested", "tool.failed"])
   })
 
@@ -505,7 +580,7 @@ describe("tool failure becomes model-visible data", () => {
       },
     })
     const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBe("thrown")
+    expect(entry.failureKind).toBe("thrown")
     expect(entry.result.content).toContain(shown)
   })
 
@@ -524,7 +599,7 @@ describe("tool failure becomes model-visible data", () => {
       },
     })
     const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBe("thrown")
+    expect(entry.failureKind).toBe("thrown")
     expect(entry.result.content).toContain("a value that cannot be displayed")
   })
 
@@ -532,7 +607,7 @@ describe("tool failure becomes model-visible data", () => {
     const registry = () => new ControlledRegistry({ echo: () => Promise.reject(new Error("socket hang up")) })
     const on = await run(call("c-0", "echo", { text: "x" }), registry(), true)
     const off = await run(call("c-0", "echo", { text: "x" }), registry(), false)
-    expect(on.entry.failure).toBe("thrown")
+    expect(on.entry.failureKind).toBe("thrown")
     expect(on.entry.result.content).toContain("Error: socket hang up")
     expect(off.entry).toEqual(on.entry)
   })
@@ -553,7 +628,7 @@ describe("tool failure becomes model-visible data", () => {
       echo: async () => ({ isError: false }),
     })
     const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBe("malformed_result")
+    expect(entry.failureKind).toBe("malformed")
     expect(entry.result.isError).toBe(true)
     expect(entry.result.content).toContain('{"text":"x"}')
   })
@@ -561,7 +636,7 @@ describe("tool failure becomes model-visible data", () => {
   test("an error result with no content still says something useful", async () => {
     const registry = new ControlledRegistry({ echo: async () => ({ content: "  ", isError: true }) })
     const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBe("tool_error")
+    expect(entry.failureKind).toBe("tool_error")
     expect(entry.result.content).toContain("reported an error without details")
     expect(entry.result.content).toContain('{"text":"x"}')
   })
@@ -588,8 +663,58 @@ describe("tool failure becomes model-visible data", () => {
     const long = Array.from({ length: 500 }, (_, index) => `line ${index} ${secret}`).join("\n")
     const registry = new ControlledRegistry({ echo: async () => ok(long) })
     const { entry } = await run(call("c-0", "echo", { text: "x" }), registry)
-    expect(entry.failure).toBeUndefined()
+    expect(entry.failureKind).toBeUndefined()
     expect(entry.result).toEqual({ content: long, isError: false })
+  })
+})
+
+describe("secrets in failures never reach events from the dispatcher", () => {
+  const secret = "sk-live-abcdefghijklmnopqrstuvwxyz012345"
+
+  const failing = async (withStepHook: boolean) => {
+    const context = await harness()
+    const registry = new ControlledRegistry({
+      echo: async (toolCall) => {
+        if (toolCall.callId === "c-0") throw new Error(`upstream rejected key ${secret} at C:\Users\victim\key.pem`)
+        return { content: `failed with ${secret}`, isError: true }
+      },
+    })
+    const dispatcher = new ParallelToolDispatcher({
+      registry,
+      sink: context.sink,
+      clock: context.clock,
+      enableParallelToolDispatch: true,
+    })
+    const outcome = await dispatcher.dispatch({
+      calls: [call("c-0", "echo", { text: "a" }), call("c-1", "echo", { text: "b" })],
+      onResult: withStepHook ? completedHook(context.sink) : undefined,
+    })
+    return { calls: dispatched(outcome), stored: await events(context.store), published: context.published }
+  }
+
+  test("with no onResult hook only tool.requested is stored or published; the secret stays in the returned result", async () => {
+    const { calls, stored, published } = await failing(false)
+    expect(stored.map((event) => event.type)).toEqual(["tool.requested", "tool.requested"])
+    expect(JSON.stringify(stored)).not.toContain(secret)
+    expect(JSON.stringify(published)).not.toContain(secret)
+    expect(JSON.stringify(stored)).not.toContain("victim")
+    expect(JSON.stringify(published)).not.toContain("victim")
+    expect(calls[0].result.content).toContain(secret)
+    expect(calls.map((entry) => entry.failureKind)).toEqual(["thrown", "tool_error"])
+  })
+
+  test("a step that filters in onResult stores only the redacted text, in the stored events and on the bus", async () => {
+    const { stored, published } = await failing(true)
+    const failed = stored.filter((event) => event.type === "tool.failed")
+    expect(failed).toHaveLength(2)
+    expect(failed[1].payload.message).toContain("[REDACTED]")
+    expect(JSON.stringify(stored)).not.toContain(secret)
+    expect(JSON.stringify(published)).not.toContain(secret)
+  })
+
+  test("the dispatcher never writes tool.completed or tool.failed itself", async () => {
+    const { stored } = await failing(false)
+    expect(stored.some((event) => event.type === "tool.failed" || event.type === "tool.completed")).toBe(false)
   })
 })
 

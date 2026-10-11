@@ -72,6 +72,19 @@ export const CancellationBoundaries = [
 
 export const RetryDecisions = ["none", "retry", "permanent", "exhausted", "context_overflow", "disabled"] as const
 
+/**
+ * A denied input as the model supplied it, relative to the snapshot. `..` segments are allowed because the
+ * attempted traversal is exactly what gets recorded. Absolute host paths are rejected: `@harness/core` must replace
+ * an absolute-looking denied input with the literal string `<absolute path redacted>` before appending the event.
+ */
+export const AbsolutePathRedactedPlaceholder = "<absolute path redacted>"
+
+const absoluteHostPath = /^(?:[\\/]|[A-Za-z]:|file:\/\/)/i
+
+const NormalizedRelativeInputSchema = z
+  .string()
+  .refine((input) => !absoluteHostPath.test(input), { message: "input must be relative, not an absolute host path" })
+
 const OpenPayloadSchema = z.record(z.string(), z.unknown())
 
 const ToolIdentitySchema = z.object({
@@ -114,7 +127,7 @@ export const EventPayloadSchemas = {
   "tool.failed": ToolIdentitySchema.extend({ durationMs: z.number().int().nonnegative(), message: z.string() }),
   "security.blocked": z.object({
     ruleId: z.string(),
-    input: z.string(),
+    input: NormalizedRelativeInputSchema,
     toolName: z.string().optional(),
     callId: z.string().optional(),
   }),
@@ -157,6 +170,7 @@ export type EventPayload<Type extends EventType> = z.infer<(typeof EventPayloadS
 
 const payloadSchemas: Record<EventType, z.ZodType> = EventPayloadSchemas
 
+/** Keys compared after lower-casing and dropping everything that is not a letter (`API-KEY` -> `apikey`). */
 const forbiddenPayloadKeys: ReadonlySet<string> = new Set([
   "label",
   "labels",
@@ -170,7 +184,21 @@ const forbiddenPayloadKeys: ReadonlySet<string> = new Set([
   "password",
   "secret",
   "credentials",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+  "authorization",
+  "bearer",
+  "privatekey",
 ])
+
+/**
+ * Raw model-supplied subtrees are recorded as data and must always be recordable, so the key scan skips them.
+ * Every other, system-authored payload field is scanned.
+ */
+const modelSuppliedFields: Partial<Record<EventType, readonly string[]>> = {
+  "tool.requested": ["arguments"],
+}
 
 const forbiddenKeyPaths = (value: unknown, path: Array<string | number>): Array<Array<string | number>> => {
   if (Array.isArray(value)) return value.flatMap((item, index) => forbiddenKeyPaths(item, [...path, index]))
@@ -203,11 +231,13 @@ export const TrajectoryEventSchema = z
           message: issue.message,
         }),
       )
-    forbiddenKeyPaths(event.payload, ["payload"]).forEach((path) =>
+    const exempt = modelSuppliedFields[event.type] ?? []
+    const scanned = Object.fromEntries(Object.entries(event.payload).filter(([key]) => !exempt.includes(key)))
+    forbiddenKeyPaths(scanned, ["payload"]).forEach((path) =>
       ctx.addIssue({
         code: "custom",
         path,
-        message: "payload must not contain host paths, credentials, labels or scorer metadata",
+        message: "payload must not contain credentials, labels, ground truth or scorer metadata",
       }),
     )
   })

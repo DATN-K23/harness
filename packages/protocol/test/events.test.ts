@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
+  AbsolutePathRedactedPlaceholder,
   EventPayloadSchemas,
   EventTypes,
   RunStates,
@@ -250,17 +251,93 @@ describe("event payloads", () => {
 })
 
 describe("payload content rules", () => {
-  test("rejects ground-truth, scorer and credential keys at any depth", () => {
+  const systemPayload = (key: string) => ({ nested: [{ [key]: "x" }] })
+
+  test("rejects ground-truth, scorer and credential keys at any depth of a system-authored payload", () => {
     const keys = ["groundTruth", "label", "adjudicationReport", "score", "scorerMetadata", "hostPath", "apiKey"]
     keys.forEach((key) => {
-      const payload = { ...payloads["tool.requested"], arguments: { nested: [{ [key]: "x" }] } }
-      const issues = failure(event({ type: "tool.requested", payload }))
-      expect(issues[0].path).toEqual(["payload", "arguments", "nested", 0, key])
+      const issues = failure(event({ type: "run.accepted", payload: systemPayload(key) }))
+      expect(issues[0].path).toEqual(["payload", "nested", 0, key])
+    })
+  })
+
+  test("normalizes key spelling before matching (case, hyphen, underscore)", () => {
+    const keys = ["api_key", "API-KEY", "Ground-Truth", "groundTruth", "ground_truth", "SCORER_METADATA", "Host-Path"]
+    keys.forEach((key) => {
+      expect(failure(event({ type: "run.accepted", payload: systemPayload(key) }))[0].path).toEqual([
+        "payload",
+        "nested",
+        0,
+        key,
+      ])
+    })
+  })
+
+  test("rejects the credential key family in a system-authored payload", () => {
+    const keys = [
+      "token",
+      "accessToken",
+      "access_token",
+      "refreshToken",
+      "authorization",
+      "bearer",
+      "password",
+      "privateKey",
+      "private_key",
+      "secret",
+    ]
+    keys.forEach((key) => {
+      expect(failure(event({ type: "run.accepted", payload: systemPayload(key) }))[0].path).toEqual([
+        "payload",
+        "nested",
+        0,
+        key,
+      ])
     })
   })
 
   test("does not mistake ordinary keys for forbidden ones", () => {
-    const payload = { ...payloads["tool.requested"], arguments: { path: "src/A.sol", pattern: "labelled", total: 3 } }
+    const payload = { nested: { path: "src/A.sol", pattern: "labelled", totalTokens: 3, promptTokens: 1 } }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "run.accepted", payload })).success).toBe(true)
+  })
+
+  test("tool.requested arguments are model-supplied data and stay recordable with any key names", () => {
+    const args = { label: "a", score: 3, nested: [{ token: "t", groundTruth: "g", api_key: "k" }] }
+    const payload = { ...payloads["tool.requested"], arguments: args }
     expect(TrajectoryEventSchema.safeParse(event({ type: "tool.requested", payload })).success).toBe(true)
+  })
+
+  test("the model-supplied exemption covers only tool.requested arguments, not its system fields", () => {
+    const payload = { ...payloads["tool.requested"], label: "x" }
+    expect(failure(event({ type: "tool.requested", payload }))[0].path).toEqual(["payload", "label"])
+  })
+})
+
+describe("security.blocked input", () => {
+  const blocked = (input: string) => event({ type: "security.blocked", payload: { ruleId: "r", input } })
+
+  test("accepts relative inputs, including a recorded traversal attempt", () => {
+    expect(TrajectoryEventSchema.safeParse(blocked("src/A.sol")).success).toBe(true)
+    expect(TrajectoryEventSchema.safeParse(blocked("../../etc/passwd")).success).toBe(true)
+    expect(TrajectoryEventSchema.safeParse(blocked("..\\secrets.txt")).success).toBe(true)
+  })
+
+  test("accepts the absolute-path-redacted placeholder", () => {
+    expect(AbsolutePathRedactedPlaceholder).toBe("<absolute path redacted>")
+    expect(TrajectoryEventSchema.safeParse(blocked(AbsolutePathRedactedPlaceholder)).success).toBe(true)
+  })
+
+  test.each([
+    ["posix absolute", "/home/dev/project/src/A.sol"],
+    ["root slash", "/"],
+    ["leading backslash", "\\Users\\dev\\A.sol"],
+    ["drive letter with backslash", "C:\\Users\\dev\\A.sol"],
+    ["drive letter with slash", "d:/work/A.sol"],
+    ["bare drive letter", "C:"],
+    ["UNC", "\\\\server\\share\\A.sol"],
+    ["file url", "file:///home/dev/A.sol"],
+    ["upper-case file url", "FILE://host/A.sol"],
+  ])("rejects an absolute host path (%s)", (_name, input) => {
+    expect(failure(blocked(input))[0].path).toEqual(["payload", "input"])
   })
 })

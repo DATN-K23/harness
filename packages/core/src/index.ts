@@ -55,5 +55,21 @@ export type {
 } from "./step/parallel-tool-dispatcher"
 export { MaxSchemaRepairs, synthesizeVerdict } from "./judge/verdict-synthesizer"
 export type { VerdictSynthesis, VerdictSynthesisDeps, VerdictSynthesisInput } from "./judge/verdict-synthesizer"
+export {
+  RunStateProbeToolName,
+  buildInitialContext,
+  composeTools,
+  createProbeCounter,
+  selectTier,
+  stateProbeFor,
+} from "./judge/adjudication-step"
+export type {
+  AdjudicationTier,
+  InitialContextInput,
+  ProbeCounter,
+  SanitizedPoc,
+  StateProbe,
+  StateProbeOptions,
+} from "./judge/adjudication-step"
 export { JudgeStep } from "./runner/judge-step"
 export type { JudgeStepDeps, JudgeStepInput, JudgeStepResult } from "./runner/judge-step"

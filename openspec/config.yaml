@@ -11,7 +11,7 @@ context: |
   Required reading before project work:
   1. docs/idea.md for the research motivation and scope.
   2. docs/sprints/sprint-01.md for the current sprint tasks and open decisions.
-  3. docs/Roles.md for team ownership.
+  3. docs/core-team-timeline.md for team organization and core delivery stages.
   4. blueprint/README.md and blueprint/architecture/module-layout.md for the
      current architecture and package boundaries.
 
@@ -50,8 +50,10 @@ context: |
   - Implementation/provider/baseline readiness gates still require their own
     evidence; package documentation is not proof those gates are complete.
 
-  Team ownership: TV1 agent loop/provider ports; TV2 context; TV3 tools/skills;
-  TV4 security/verification; TV5 data/evaluation; TV6 API/persistence/UI/demo.
+  Team organization: four core developers work together on each delivery stage;
+  one researcher designs mode pipelines and audits the product. The researcher
+  has not yet been assigned to a specific member. TV6 owns application/demo.
+  See docs/core-team-timeline.md for responsibilities and stage outputs.
   Timeline dates and status are planning data, not proof of completion.
 
 rules:

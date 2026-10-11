@@ -276,7 +276,7 @@ export const createHarness = async (options: HarnessOptions) => {
     }
   }
 
-  return { clock, store, gateway, registry, engine, cancellation, sleep, log, step, input, events, drive }
+  return { clock, store, sink, gateway, registry, engine, cancellation, sleep, log, step, input, events, drive }
 }
 
 export const payloadsOf = (events: readonly TrajectoryEvent[]) => events.map((event) => event.payload)

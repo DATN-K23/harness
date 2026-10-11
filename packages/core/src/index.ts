@@ -71,5 +71,20 @@ export type {
   StateProbe,
   StateProbeOptions,
 } from "./judge/adjudication-step"
+export {
+  InterruptedToolMessage,
+  applyCompaction,
+  hydrateHistory,
+  interruptedToolItems,
+  verifyHydration,
+} from "./runner/history-hydrator"
+export type {
+  AllocationPoint,
+  HydratedHistory,
+  Hydration,
+  HydrationCheck,
+  PendingToolCall,
+  VerifyHydrationInput,
+} from "./runner/history-hydrator"
 export { JudgeStep } from "./runner/judge-step"
 export type { JudgeStepDeps, JudgeStepInput, JudgeStepResult } from "./runner/judge-step"

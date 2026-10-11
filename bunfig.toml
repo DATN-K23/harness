@@ -1,0 +1,8 @@
+# Adapted from OpenCode bunfig.toml @ 3f393d78bf (MIT License, Copyright (c) 2025 opencode). See NOTICE.
+[install]
+exact = true
+# Only install newly resolved package versions published at least 3 days ago.
+minimumReleaseAge = 259200
+
+[test]
+root = "./do-not-run-tests-from-root"

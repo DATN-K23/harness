@@ -8,3 +8,7 @@ docs/blueprint/
 superpowers/
 opencode_docs/
 data/
+node_modules/
+dist/
+.turbo/
+demo-output/

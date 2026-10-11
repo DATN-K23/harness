@@ -62,8 +62,17 @@
 
 ## 9. Close-out
 
-- [ ] 9.1 [Owner: TV1; gate: before archive] Run `bun run typecheck`, package tests, `bun run demo` and the stress test from a clean install and record the outputs under this section. Evidence: the recorded command output with exit codes.
+- [x] 9.1 [Owner: TV1; gate: before archive] Run `bun run typecheck`, package tests, `bun run demo` and the stress test from a clean install and record the outputs under this section. Evidence: the recorded command output with exit codes.
 - [ ] 9.2 [Owner: TV1 with project owner; gate: before archive] Take approval gates G1-G6 from `design.md` to the team (Sprint review) and record each decision here; draft, but do not mark accepted, the ADR-008 amendment for gate G3. Evidence: decision list with date and approver, or a recorded deferral with owner.
 - [ ] 9.3 [Owner: TV2, TV3, TV4, TV6 reviewers; gate: before archive] Each owning track reviews the port it must implement and records agreement or requested changes. Evidence: one recorded sign-off line per port.
 - [ ] 9.4 [Owner: another team member; gate: Definition of Done] Reproduce install, test and demo on a second machine. Evidence: their command log or screenshot.
 - [ ] 9.5 [Owner: TV1; gate: Definition of Done] Update `docs/timeline.csv` status for the TV1 items this change actually completes, citing the evidence, without claiming Judge MVP completion. Evidence: reviewed diff of the timeline entry.
+
+### Verification evidence (9.1, branch `agent-loop-core` @ d1ef7b5, Bun 1.3.14)
+
+- `bun run typecheck` (root, turbo): 2 of 2 tasks successful, exit 0.
+- `cd packages/core && bun test`: 554 pass, 0 fail (32 files). `cd packages/protocol && bun test`: 129 pass, 0 fail (9 files). `bun run test` at the root (turbo) passes.
+- `cd packages/protocol && bun run build:browser-smoke`: bundles for the browser target (0.43 MB).
+- `cd packages/core && bun run demo`: confirmed-exploit completed (EXPLOIT_CONFIRMED, 3 steps, 2460 tokens, $0.0520); missing-poc, cheating-poc, failing-poc completed with MISSING_POC, NON_FAITHFUL_OVERRIDE, EXECUTION_FAILED at 0 tokens.
+- `cd packages/core && bun run stress`: 100/100 runs crash-free, 0 invariant violations, 0 unhandled errors (base seed 20261011, last 10 runs concurrent; terminal states: 91 completed, 9 cancelled).
+- Remaining items 9.2-9.5 are team/human gates (approval gates G1-G6, per-track port sign-off, second-machine reproduction, timeline update) and are intentionally left unchecked.

@@ -4,106 +4,141 @@
 
 ## 1. Summary
 
-In smart contract auditing and automated triage, **Audit Mode** and **Judge Mode** share a unified ultimate objective: **conclusively confirming or rejecting a suspected bug report with executable proof**.
+In smart contract auditing and automated triage, **Audit Mode** and **Judge Mode** share a unified ultimate objective: **conclusively confirming or rejecting a suspected bug report with grounded proof**.
 
-However, they operate under fundamentally inverted assumptions:
+However, they operate under fundamentally different paradigms:
 
-- **Audit Mode** is a generative discovery pipeline: it scans code, generates candidate findings, and requires an iterative repair loop because models writing exploits from scratch make frequent errors.
-- **Judge Mode** is a strict adjudication platform: it evaluates an external submission. The burden of proof lies entirely on the submitter. **Zero repair loops are needed.** The agent stitches the submitter's PoC into the project's `BaseTest` template and runs it in a single shot. If it fails, it is rejected immediately.
+- **Audit Mode** is a generative discovery pipeline: it scans code, hypothesizes candidate bugs from scratch, and requires an iterative repair loop to synthesize workable exploits.
+- **Judge Mode** is an adjudication platform: it evaluates human-authored contest submissions consisting of vulnerability narratives (root cause, attack scenario, impact claims) and optional proof-of-concept (PoC) code.
+
+To avoid the cognitive traps of forward-only LLM reasoning (such as hallucination snowballing, context anxiety, and confirmation bias), Judge Mode integrates **Bidirectional Report Verification** with **Empirical Sandbox Witness Execution**:
+
+1. **Forward Exploration Prompting:** Traces from public entry points forward along the submitted attack path to verify reachability.
+2. **Backward Precondition Prompting:** Starts from the claimed impact state (such as drained funds, insolvency, or broken invariants) and deduces backward through required statements, guards, and access modifiers to establish necessary preconditions.
+3. **Consensus & Witness Resolution:** When forward and backward reasoning align, the verdict is reached directly with high confidence. When reasoning diverges or claims remain disputed, the engine dispatches the contested condition to the SmartPoC execution sandbox as a targeted witness test.
 
 ```mermaid
 flowchart TB
  subgraph AuditMode["Audit Mode (Generative Discovery & Synthesis)"]
-        A2["LLM Auditor / Static Scanner"]
         A1["Entire Codebase / Repository"]
+        A2["LLM Auditor / Static Scanner"]
         A3["BCE AST Slicing"]
         A4["LLM Synthesizes PoC from Scratch"]
-        A5["GRE"]
+        A5["GRE Repair Loop"]
         A6["Synthetic DV State Injection"]
         A7["Precision Filtered Findings"]
   end
- subgraph JudgeMode["Judge Mode (Zero-Bias Single-Shot Adjudication)"]
-        J2["Report Ingestion Gate"]
-        J1["Contest Report Markdown\n+ Source Snapshot"]
-        J3["IMMEDIATE REJECT\nReason: MISSING_POC"]
-        J4["Sanitize & Anti-Cheat Filter"]
-        J5["IMMEDIATE REJECT\nReason: NON_FAITHFUL_OVERRIDE"]
-        J6["Template Stitcher into BaseTest.t.sol"]
-        J7["Single-Shot Docker Sandbox Execution\nforge test --match-test"]
-        J8["IMMEDIATE REJECT\nReason: EXECUTION_FAILED"]
-        J9{"Has Submitter Assertions?"}
-        J10["Tier 1: Semantic Submitter Oracle Check\nVerify Asserts Executed in Trace"]
-        J11["Tier 2: SmartPoC DV Fallback\nInject State Probes & Check Delta S"]
-        J12["Normative Judge Verdict\nvalid/invalid + PASS/FAIL + Traces"]
+ subgraph JudgeMode["Judge Mode (Bidirectional Adjudication Engine)"]
+        J1["Contest Submission\nNarrative + Optional PoC"]
+        J2["Report Deconstruction Gate\nExtract Root Cause, Impact State, PoC"]
+        J3["BCE AST & Call-Graph Slicing"]
+        J4["Forward Exploration Prompt\nTrace Call Path & Reachability"]
+        J5["Backward Precondition Prompt\nDeduce from Impact State to Guards"]
+        J6{"Static Consensus?"}
+        J7["High Confidence Static Verdict"]
+        J8["SmartPoC Witness Execution\nDocker Sandbox / Foundry Trace"]
+        J9["Normative Judge Verdict\nvalid/invalid + PASS/FAIL + Traces"]
   end
     A1 --> A2
-    A2 -- Machine JSON Warning\nNo PoC, No Oracle --> A3
+    A2 -- Machine JSON Warning --> A3
     A3 --> A4
     A4 --> A5
     A5 --> A6
     A6 --> A7
     J1 --> J2
-    J2 -- No PoC Code Block --> J3
-    J2 -- PoC Found --> J4
-    J4 -- Override / ffi Detected --> J5
-    J4 -- Clean PoC --> J6
-    J6 --> J7
-    J7 -- "Exit Code != 0 / Revert / Error" --> J8
-    J7 -- "Exit Code == 0" --> J9
-    J9 -- Yes: Has Asserts --> J10
-    J9 -- No: Lacks Asserts --> J11
-    J10 --> J12
-    J11 --> J12
+    J2 --> J3
+    J3 --> J4
+    J3 --> J5
+    J4 --> J6
+    J5 --> J6
+    J6 -- Full Agreement --> J7
+    J6 -- Disputed / Needs PoC Proof --> J8
+    J7 --> J9
+    J8 --> J9
 ```
 
-By removing repair loops, Judge Mode eliminates judge bias, slashes token costs, and ensures strict adherence to competitive audit platform rules.
+This bidirectional approach grounds report verification in sound program analysis principles while leveraging SmartPoC execution to eliminate subjective human and model bias.
 
 ---
 
 ## 2. In-Depth Comparative Analysis: Audit Mode vs. Judge Mode
 
-| Dimension | Audit Mode (Verification Layer) | Judge Mode (SmartPoC as Whole Agent) |
+| Dimension | Audit Mode (Verification Layer) | Judge Mode (Autonomous Adjudication Agent) |
 | :-- | :-- | :-- |
-| **Primary Mission** | **Vulnerability Discovery & Noise Reduction:** Scan code, brainstorm bugs, and eliminate hallucinations before human review. | **Adjudication & Verification:** Assess an existing finding submitted by a security researcher (e.g., Code4rena/Sherlock) and determine if it is real, exploitable, and in-scope. |
-| **Input Artifact** | **Machine-Generated Structured Findings:** High-format JSON (e.g., `implicated_functions`, `contract`, `vulnerability_type`, abstract invariants). | **Human-Authored Contest Submissions:** Semi-structured Markdown containing natural language narratives, attack paths, affected code permalinks, and **mandatory embedded PoC snippet**. |
-| **PoC Availability** | **None (0%):** Static analyzers and scanner models generate descriptions, never runnable Foundry tests. | **Mandatory (100%):** Submissions without an executable PoC snippet are **immediately rejected** via the Fast-Reject Ingestion Gate. |
-| **Core Technical Hurdle** | **Context Slicing & Cold-Start Generation:** Constructing exploit preconditions from scratch without drowning in repo context. | **Anti-Cheating, Template Stitching & Semantic Oracles:** Detecting tampered/mocked bytecode, cleanly stitching into `BaseTest`, and proving state deltas represent true exploits. |
-| **Role of BCE** _(Bug-Context Extraction)_ | Same | Same |
-| **Execution Loop** | **Iterative Repair Loop:** Necessary because model-authored code contains frequent syntax errors. | **No Repair Loops:** Single execution in Docker sandbox. Fails immediately on compiler error, test revert, or failed assert.  |
-| **Role of DV** _(Differential Verification)_ | **Synthetic Oracle:** Automatically infers trigger functions and observable variables to detect abnormal state shifts. | **Two-Tier Oracle Adjudication:** • _Tier 1:_ Semantically validates submitter's native assertions in trace.• _Tier 2:_ Synthesizes pre/post state queries as fallback if assertions are missing. |
-| **Output Contract** | Filtered candidate list (`CONFIRMED_VULNERABLE` / `REJECTED_FALSE_POSITIVE`). | Official[`JudgeVerdict`](file:///C:/Code/DATN/harness/blueprint/contracts/judge-verdict.schema.json) with `validity`, `severity`, `evidence` digests, and `verification_status: PASS |
+| **Primary Mission** | **Vulnerability Discovery & Noise Reduction:** Scan code, brainstorm bugs, and eliminate false alarms before human review. | **Adjudication & Verification:** Assess an external contest submission (Code4rena/Sherlock) and determine whether the reported defect and impact are genuine, reachable, and in scope. |
+| **Input Artifact** | **Machine-Generated Structured Findings:** High-format JSON (such as implicated functions, contract names, vulnerability categories). | **Human-Authored Contest Submissions:** Semi-structured Markdown detailing vulnerability logic, root causes, attack paths, affected code permalinks, and optional embedded PoC scripts. |
+| **PoC Availability** | **None (0%):** Static analyzers and scanner models generate textual descriptions, never runnable Foundry tests. | **Variable:** Submissions may include full Foundry tests, partial snippets, or purely textual/mathematical proofs. PoCs are validated against report claims rather than serving as a blind filter. |
+| **Core Technical Hurdle** | **Context Slicing & Cold-Start Generation:** Constructing exploit preconditions from scratch without getting lost in repository scale. | **Context Anxiety & Narrative Grounding:** Overcoming LLM confirmation bias and cascading hallucinations across long descriptions through bidirectional verification. |
+| **Role of BCE** _(Bug-Context Extraction)_ | Extracts implicated functions and helper dependencies to fit LLM prompt windows. | Slices target contract AST and call graphs to ground report permalinks and map backward call chains from state mutations back to external entry points. |
+| **Execution Loop** | **Iterative Repair Loop (GRE):** Multi-turn repair loop required because generative exploit authoring from scratch has high syntax error rates. | **Targeted Witness Execution:** Single-shot or focused witness execution in an isolated Docker sandbox. Used to validate submitter PoCs or empirically resolve disputed constraints. |
+| **Role of DV** _(Differential Verification)_ | Injects synthetic state probes to measure state shifts produced by generated exploits. | **Two-Tier Oracle Adjudication:** Validates submitter assertions against report claims in execution traces, or synthesizes state checks across disputed impact variables. |
+| **Output Contract** | Filtered candidate list (`CONFIRMED_VULNERABLE` / `REJECTED_FALSE_POSITIVE`). | Official[`JudgeVerdict`](file:///C:/Code/DATN/harness/blueprint/contracts/judge-verdict.schema.json) with validity, severity, rationale, source evidence citations, and verification status. |
 
 ---
 
 ## 3. Architectural Blueprint: The SmartPoC Judge Agent
 
-The proposed SmartPoC Judge Agent is structured into 5 cohesive stages:
+The SmartPoC Judge Agent is structured into 5 cohesive stages:
 
 ### Detailed Component Roles
 
-#### 1. Report Ingestion Gate (`modules/judge/application/report_ingestion.py`)
+#### 1. Report Deconstruction & Ingestion Gate (`modules/judge/application/report_ingestion.py`)
 
-- **Fast-Reject PoC Extractor:** Scans submitted markdown for executable code blocks (Solidity/Foundry tests). If no PoC code block exists, immediately emits an `invalid` verdict with reason `MISSING_POC` without wasting LLM or Docker resources.
-- **BCE:** Operates **strictly on repository source code**: resolves cited contracts and functions into actual repository AST objects and slices call-graph dependencies.
-- **Full PoC Preservation:** The submitter's PoC code is **passed in full** without slicing, preserving all test functions, submitter helper contracts, custom attacker contracts, interface declarations, and setup logic.
+- **Structured Claim Decomposition:** Parses the submitter's Markdown report into explicit semantic components: target contracts, functions, root cause claims, attack steps, claimed impact state (such as token balance loss or paused state), and embedded PoC code blocks.
+- **Repository AST Binding via BCE:** Resolves cited contracts, line ranges, and functions against the target repository's AST using [`BugContextExtractionModule`](file:///C:/Code/DATN/harness/runtime/src/harness/modules/verification/application/bce.py#L7-L12), constructing a focused semantic slice of the code.
+- **PoC Ingestion:** If an embedded PoC exists, it is isolated and preserved alongside the narrative claims for downstream validation.
 
-#### 2. Pre-Execution Sanitizer & Template Stitcher (`modules/verification/application/sanitizer.py`)
+#### 2. Bidirectional Semantic Verification Engine (`modules/judge/application/bidirectional_verifier.py`)
 
-- **Anti-Cheating AST Filter:** Rejects test scripts attempting to override target contract methods, mock internal variables, or invoke `vm.ffi`.
-- **Foundry Template Stitching:** Uses the target repo's existing test scaffold (`test/BaseTest.t.sol` or `test/TestSetup.t.sol`) where all compiler pragmas, imports, remappings, and contract instantiations are already configured. The agent simply extracts the test function body (`function test...`) and helper contracts, injecting them directly into the template. No pragma or remapping normalization needed.
+This engine decomposes semantic adjudication into two targeted prompt stages, followed by a consensus arbiter:
 
-#### 3. Single-Shot Sandbox Execution (`modules/verification/adapters/docker_sandbox.py`)
+##### A. Forward Exploration Prompt (`prompts/forward_verification.md`)
 
-- **Single-Shot Run:** Mounts the stitched test file into an ephemeral Docker container (`--network none`) and runs `forge test --match-test <name> -vvvv`.
-- **Immediate Rejection on Non-Zero Exit Code:** If compilation fails or the test reverts, the pipeline terminates immediately with an `invalid` verdict (`EXECUTION_FAILED`).
+- **Objective:** Evaluate whether an attacker starting at a public entry point can execute through the report's attack scenario to reach the vulnerable code.
+- **Input Context Components:**
+  1. `report_attack_scenario`: Step-by-step caller actions, parameters, and claimed exploit narrative extracted from the submission.
+  2. `bce_source_slice`: Sliced Solidity source code directly output by the BCE module (implicated contracts, functions, dependencies, and storage variables).
+  3. `caller_profile`: Caller privilege assumptions (unprivileged external address, token holder, or specific role).
+- **Instruction Directives (Reasoning Scaffolding):**
+  1. _Entry Access Check:_ Verify if the starting function is callable by the assumed caller profile without role or access restrictions.
+  2. _Forward Path Stepping:_ Trace each instruction sequentially. Check parameter constraints, state requirements, and internal function invocations.
+  3. _Revert / Obstacle Detection:_ Identify if any branch condition, arithmetic operation, or require statement causes an unavoidable transaction revert.
 
-#### 4. Two-Tier Action-State Differential Verification (`modules/verification/application/dv.py`)
+##### B. Backward Exploit Reconstruction Prompt (`prompts/backward_verification.md`)
 
-- **Tier 1 (Native Submitter Oracle Evaluation):** When the submitter's PoC contains assertions (`assertEq`, `assertGt`, `vm.expectRevert`), the agent extracts their semantic hypothesis, inspects the Foundry execution trace (`-vvvv`) to confirm the assertions executed, and verifies that the assert proves unauthorized impact rather than benign mechanics.
-- **Tier 2 (Synthetic DV Injection Fallback):** When the PoC lacks assertions (e.g. executes steps without asserting, or only relies on `console.log`), SmartPoC DV activates as a fallback: it infers target state variables from the report, instruments pre/post state queries (`emit log_named_uint`), executes, and evaluates $\Delta S$.
-- **Severity Calibration:** Evaluates verified impact: High for permanent capital loss/insolvency; Medium for temporary denial of service or state lock.
+- **Objective:** Actively reconstruct and synthesize the bug sequence working backward from the claimed impact. Rather than passively evaluating control flow, the model acts as an inverse engineer: given the target impact, it derives which state transitions, function calls, and caller preconditions must occur in reverse order to produce that outcome.
+- **Input Context Components:**
+  1. `claimed_impact`: The specific state corruption or invariant failure claimed in the submission (for example: "drain 10 ETH from Vault", "mint unbacked shares", or "permanently freeze withdrawals").
+  2. `bce_source_slice`: Sliced Solidity source code directly output by the BCE module (implicated contracts, functions, dependencies, and storage variables).
+  3. `caller_profile`: Caller privilege assumptions (unprivileged external address, token holder, or specific role).
+- **Instruction Directives (Active Reverse Reconstruction):**
+  1. _Sink Identification:_ Identify the exact Solidity statement and enclosing function that can execute the state change representing the claimed impact.
+  2. _Inverse State Derivation:_ Determine what contract storage values and caller arguments must exist immediately prior to this statement to prevent a revert.
+  3. _Call Sequence Synthesis (Reverse Step-Back):_ Reconstruct which sequence of prior transactions or function invocations (such as prior deposits, flash loan borrows, or manipulated state) can set up those required values.
+  4. _Unprivileged Boundary Grounding:_ Trace this reconstructed call sequence backward until it reaches an unprivileged external caller (`msg.sender`).
+  5. _Guard Refutation & Feasibility Check:_ If an inescapable modifier (such as `onlyOwner`), an active reentrancy lock, or an invariant check makes the reconstructed sequence impossible, classify the bug as refuted.
+
+##### C. Meet-in-the-Middle Consensus Arbiter
+
+The arbiter cross-references both reasoning outputs:
+
+- **Consensus Valid:** `forward_reachability == REACHABLE` and `backward_status == RECONSTRUCTED`. High confidence valid finding.
+- **Consensus Invalid:** Either engine identifies an explicit blocking guard (`forward_reachability == UNREACHABLE` or `backward_status == BLOCKED`). The finding is refuted without wasting sandbox resources.
+- **Disputed / Inconclusive:** When results diverge or backward reconstruction is `INCOMPLETE` (the model cannot find a complete backward path, but cannot prove it impossible). The dispute is flagged and dispatched to Stage 3 for empirical witness execution.
+
+#### 3. Pre-Execution Sanitizer & Template Stitcher (`modules/verification/application/sanitizer.py`)
+
+- **Anti-Cheat Validation:** Scans any submitter-provided PoC code to reject unauthorized cheats (such as bytecode overrides of target contracts, mock rewrites, or `vm.ffi` invocations).
+- **Template Stitching:** Inserts the test logic into the target repository's native test harness (`test/BaseTest.t.sol`), inheriting pre-configured imports, compiler settings, and environment setup.
+- **SmartPoC Witness Synthesis:** When a report lacks a PoC or when bidirectional analysis yields an unresolved dispute, SmartPoC synthesizes a minimal Foundry test script specifically designed to test the disputed constraint.
+
+#### 4. Sandbox Execution & Trace Adjudication (`modules/verification/adapters/docker_sandbox.py` & `modules/verification/application/dv.py`)
+
+- **Isolated Sandbox Execution:** Mounts the stitched test into an ephemeral, non-networked Docker container and executes `forge test --match-test <test_name> -vvvv`.
+- **Trace & Assertion Verification:** Inspects the resulting call trace to confirm that the execution exercised the cited functions and satisfied the relevant assertions without unintended reverts.
+- **Differential State Verification (DV):** Compares pre- and post-execution state variables against the claimed impact state, confirming that an unauthorized state change actually occurred.
 
 #### 5. Verdict & Evidence Synthesis (`modules/judge/application/verdict_synthesizer.py`)
 
-- Formulates normative [`judge-verdict-v1`](file:///C:/Code/DATN/harness/blueprint/contracts/judge-verdict.schema.json).
-- Returns `validity: "valid"` with `verification_status: "PASS"` on genuine exploits, or `validity: "invalid"` with `verification_status: "FAIL"` on unrepairable, failing, or non-impactful submissions.
+- Formulates the final normative [`JudgeVerdict`](file:///C:/Code/DATN/harness/blueprint/contracts/judge-verdict.schema.json).
+- Populates `validity`, `severity`, source evidence citations with exact line numbers, and detailed rationale combining static bidirectional reasoning with dynamic trace evidence.

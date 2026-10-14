@@ -93,3 +93,11 @@ export type { FastReject, FastRejectReason } from "./runner/fast-reject"
 export type { CommittedRun, TerminalCommit } from "./runner/run-writer"
 export { JudgeRunner } from "./runner/judge-runner"
 export type { JudgeRunConfig, JudgeRunInput, JudgeRunResult, JudgeRunnerDeps } from "./runner/judge-runner"
+export { SingleTurnRunner, validateSingleTurnInput } from "./runner/single-turn-runner"
+export type {
+  InputValidationResult,
+  SingleTurnRunInput,
+  SingleTurnRunResult,
+  SingleTurnRunnerDeps,
+} from "./runner/single-turn-runner"
+export { getRun, getRunHistory } from "./runner/run-queries"

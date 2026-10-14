@@ -1,5 +1,6 @@
 // Adapted from OpenCode packages/cli/src/commands/view.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { RunStorePort } from "@harness/protocol"
+import { getRun, getRunHistory } from "@harness/core"
 import { redactSecrets } from "../redaction"
 
 export interface ViewCommandOptions {
@@ -28,7 +29,7 @@ export async function executeViewCommand(
     }
   }
 
-  const run = await deps.store.loadRun(runId)
+  const run = await getRun(runId, deps.store)
 
   if (!run) {
     return {
@@ -37,7 +38,7 @@ export async function executeViewCommand(
     }
   }
 
-  const events = await deps.store.loadEvents({ runId })
+  const events = await getRunHistory(runId, deps.store)
   const secrets = deps.secrets ?? []
 
   const lines = [
@@ -55,9 +56,7 @@ export async function executeViewCommand(
   if (events.length === 0) {
     lines.push("  (no events recorded)")
   } else {
-    // Events ordered by sequence
-    const sorted = [...events].sort((a, b) => a.sequence - b.sequence)
-    for (const evt of sorted) {
+    for (const evt of events) {
       const timeStr = evt.occurredAt
       const payloadStr = JSON.stringify(evt.payload)
       const sanitizedPayload = redactSecrets(payloadStr, secrets)

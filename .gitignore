@@ -2,6 +2,8 @@
 .claude/
 .codex/
 .agents/
+.opencode/
+data/
 .opencode_reference/
 superpowers/
 opencode_docs/

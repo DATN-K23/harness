@@ -8,7 +8,9 @@
   "scripts": {
     "typecheck": "bun turbo typecheck",
     "test": "bun turbo test",
-    "demo": "bun run --cwd packages/core demo"
+    "demo": "bun run --cwd packages/core demo",
+    "cli:run": "bun run --cwd packages/cli dev -- run",
+    "cli:view": "bun run --cwd packages/cli dev -- view"
   },
   "workspaces": {
     "packages": [

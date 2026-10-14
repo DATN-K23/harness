@@ -20,18 +20,17 @@ The repository SHALL contain a root `package.json` that declares `packages/*` as
 - **THEN** the check fails naming the package and dependency
 
 ### Requirement: Protocol and core package manifests
-`packages/protocol` SHALL be named `@harness/protocol` and `packages/core` SHALL be named `@harness/core`. Each SHALL be `private`, `type: module`, license MIT, and expose its source through an `exports` map. `@harness/core` SHALL additionally expose a `testing` subpath containing the deterministic fakes. The `.gitkeep` markers in these two packages SHALL be removed once real files exist; the other eight package directories SHALL remain unchanged.
+`packages/protocol` SHALL be named `@harness/protocol`, `packages/core` SHALL be named `@harness/core`, `packages/cli` SHALL be named `@harness/cli`, `packages/schema` SHALL be named `@harness/schema`, `packages/llm` SHALL be named `@harness/llm`, and `packages/server` SHALL be named `@harness/server`. Each SHALL be `private`, `type: module`, license MIT, and expose its source through an `exports` map. `@harness/core` SHALL additionally expose a `testing` subpath containing deterministic fakes. The `.gitkeep` markers in these populated packages SHALL be removed once real manifest and source files exist; the remaining package directories (`packages/client`, `packages/ui`, `packages/app`, `packages/desktop`) SHALL remain untouched with their `.gitkeep`.
 
 #### Scenario: Public import paths resolve
 - **GIVEN** an installed workspace
-- **WHEN** a script imports `@harness/protocol` and `@harness/core` and `@harness/core/testing`
+- **WHEN** a script imports `@harness/protocol`, `@harness/core`, `@harness/core/testing`, `@harness/schema`, `@harness/llm`, or `@harness/cli`
 - **THEN** each import resolves to a module in the corresponding package without relative cross-package paths
 
 #### Scenario: Other packages are untouched
 - **GIVEN** the change is applied
-- **WHEN** the tracked files under `packages/schema`, `packages/llm`, `packages/server`, `packages/cli`, `packages/client`, `packages/ui`, `packages/app` and `packages/desktop` are listed
-- **THEN** each directory still contains only its `.gitkeep`
-
+- **WHEN** the tracked files under `packages/client`, `packages/ui`, `packages/app` and `packages/desktop` are listed
+- **THEN** each directory still contains only its `.gitkeep` marker
 ### Requirement: Dependency direction and browser safety
 `@harness/protocol` SHALL have no dependency on any other `@harness/*` package and SHALL NOT import `node:*`, `bun:*`, or any filesystem, process, network or crypto module. `@harness/core` MAY depend on `@harness/protocol` only among internal packages. No package SHALL import another package's non-exported internals.
 
@@ -65,3 +64,11 @@ Every source or configuration file adapted from the OpenCode repository SHALL be
 - **GIVEN** the dependency graph of the workspace
 - **WHEN** it is searched for packages whose name starts with `@opencode-ai/` or paths pointing to the OpenCode checkout
 - **THEN** no such dependency or path exists
+
+### Requirement: Root workspace scripts for operational flow
+The repository root `package.json` SHALL expose runnable scripts `cli:run`, `cli:view`, and `db:migrate` that delegate to the corresponding workspace packages (`@harness/cli` and `@harness/schema`).
+
+#### Scenario: Running CLI commands from root delegates to workspace packages
+- **GIVEN** a configured workspace with dependencies installed
+- **WHEN** a developer invokes `bun run cli:run -- --prompt "test prompt"` or `bun run cli:view -- --id <runId>`
+- **THEN** Turborepo or Bun delegates command execution to `@harness/cli` with all command arguments preserved

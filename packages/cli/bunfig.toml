@@ -1,0 +1,3 @@
+# Adapted from OpenCode bunfig.toml @ 3f393d78bf (MIT License). See NOTICE.
+[test]
+root = "."

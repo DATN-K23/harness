@@ -11,8 +11,32 @@
         "typescript": "catalog:",
       },
     },
+    "packages/cli": {
+      "name": "@harness/cli",
+      "dependencies": {
+        "@harness/core": "workspace:*",
+        "@harness/protocol": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@harness/core",
+      "dependencies": {
+        "@harness/protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/llm": {
+      "name": "@harness/llm",
       "dependencies": {
         "@harness/protocol": "workspace:*",
       },
@@ -33,6 +57,28 @@
         "typescript": "catalog:",
       },
     },
+    "packages/schema": {
+      "name": "@harness/schema",
+      "dependencies": {
+        "@harness/protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/server": {
+      "name": "@harness/server",
+      "dependencies": {
+        "@harness/protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
   },
   "catalog": {
     "@tsconfig/bun": "1.0.9",
@@ -41,9 +87,17 @@
     "zod": "4.1.8",
   },
   "packages": {
+    "@harness/cli": ["@harness/cli@workspace:packages/cli"],
+
     "@harness/core": ["@harness/core@workspace:packages/core"],
 
+    "@harness/llm": ["@harness/llm@workspace:packages/llm"],
+
     "@harness/protocol": ["@harness/protocol@workspace:packages/protocol"],
+
+    "@harness/schema": ["@harness/schema@workspace:packages/schema"],
+
+    "@harness/server": ["@harness/server@workspace:packages/server"],
 
     "@tsconfig/bun": ["@tsconfig/bun@1.0.9", "", {}, "sha512-4M0/Ivfwcpz325z6CwSifOBZYji3DFOEpY6zEUt0+Xi2qRhzwvmqQN9XAHJh3OVvRJuAqVTLU2abdCplvp6mwQ=="],
 

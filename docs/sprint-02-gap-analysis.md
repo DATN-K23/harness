@@ -104,18 +104,18 @@ Dưới đây là danh sách chi tiết các công việc bắt buộc phải tr
   * Cung cấp các hàm `getRun(runId)` và `getRunHistory(runId)` thông qua `RunStorePort` để CLI (A) gọi hiển thị.
 
 ### 4.3. Track C — PostgreSQL/Drizzle và lưu dữ liệu (Dev C phụ trách)
-- [ ] **Cài đặt thư viện tại `packages/schema`:**
+- [x] **Cài đặt thư viện tại `packages/schema`:**
   * Cài đặt `drizzle-orm`, `drizzle-kit`, driver kết nối (ví dụ `postgres` hoặc `pg`, `@types/pg`).
-- [ ] **Thiết kế Schema Drizzle:**
+- [x] **Thiết kế Schema Drizzle:**
   * Bảng `runs`: `id` (text/uuid PK), `prompt` (text), `state` (varchar: pending/running/completed/failed), `model_profile` (varchar), `result_content` (text nullable), `error_message` (text nullable), `prompt_tokens` (int), `completion_tokens` (int), `cost_usd` (numeric), `latency_ms` (int), `created_at`, `updated_at`.
   * Bảng `events`: `id`, `run_id` (FK), `sequence` (int), `event_type` (varchar), `payload` (jsonb), `timestamp`.
   * Bảng `model_attempts`: Lưu từng lần gọi provider (request an toàn không chứa key, response an toàn, finish reason, usage, latency, lỗi nếu có).
-- [ ] **Tạo và chạy Migration:**
+- [x] **Tạo và chạy Migration:**
   * Cấu hình `drizzle.config.ts`, tạo migration SQL đầu tiên (`drizzle-kit generate`), script chạy migration (`drizzle-kit migrate` hoặc `bun run db:migrate`).
-- [ ] **Hiện thực hoá adapter `PostgresRunStore`:**
+- [x] **Hiện thực hoá adapter `PostgresRunStore`:**
   * Triển khai adapter `PostgresRunStore` đáp ứng interface `RunStorePort` từ `@harness/protocol`.
   * Chạy bộ test conformance `runStoreContractTests(createPostgresStore)` từ `@harness/core/testing` để bảo đảm adapter tuân thủ đúng yêu cầu CAS và sequence.
-- [ ] **Đảm bảo tính an toàn dữ liệu:**
+- [x] **Đảm bảo tính an toàn dữ liệu:**
   * Tuyệt đối không lưu API Key vào DB; sanitize request/response trước khi lưu.
 
 ### 4.4. Track D — Tích hợp API model thật (Dev D phụ trách)

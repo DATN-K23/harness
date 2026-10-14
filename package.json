@@ -10,7 +10,8 @@
     "test": "bun turbo test",
     "demo": "bun run --cwd packages/core demo",
     "cli:run": "bun run --cwd packages/cli dev -- run",
-    "cli:view": "bun run --cwd packages/cli dev -- view"
+    "cli:view": "bun run --cwd packages/cli dev -- view",
+    "db:migrate": "bun run --cwd packages/schema db:migrate"
   },
   "workspaces": {
     "packages": [

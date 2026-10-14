@@ -5,18 +5,27 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./schema": "./src/db/schema.ts",
+    "./client": "./src/db/client.ts",
+    "./store": "./src/store/postgres-run-store.ts"
   },
   "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run src/db/migrate.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test"
   },
   "dependencies": {
-    "@harness/protocol": "workspace:*"
+    "@harness/protocol": "workspace:*",
+    "drizzle-orm": "0.38.4",
+    "postgres": "3.4.5"
   },
   "devDependencies": {
+    "@harness/core": "workspace:*",
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
+    "drizzle-kit": "0.30.5",
     "typescript": "catalog:"
   }
 }

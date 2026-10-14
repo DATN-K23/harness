@@ -32,25 +32,34 @@ describe("run-queries", () => {
     test("returns events sorted in strictly ascending sequence order even if store returns out of order", async () => {
       const runId = "run-events-order"
       const event1: TrajectoryEvent = {
+        eventId: "evt-1",
         sequence: 1,
         runId,
+        schemaVersion: 1,
         occurredAt: "2026-10-14T10:00:01.000Z",
         type: "run.queued",
         payload: { prompt: "hello" },
+        payloadDigest: "digest-1",
       }
       const event2: TrajectoryEvent = {
+        eventId: "evt-2",
         sequence: 2,
         runId,
+        schemaVersion: 1,
         occurredAt: "2026-10-14T10:00:02.000Z",
         type: "run.started",
         payload: { callIndex: 1 },
+        payloadDigest: "digest-2",
       }
       const event3: TrajectoryEvent = {
+        eventId: "evt-3",
         sequence: 3,
         runId,
+        schemaVersion: 1,
         occurredAt: "2026-10-14T10:00:03.000Z",
         type: "run.completed",
         payload: { state: "completed" },
+        payloadDigest: "digest-3",
       }
 
       // Mock store that returns out-of-order events

@@ -57,6 +57,12 @@ their attribution.
 - file: packages/schema/package.json | source: packages/schema/package.json | attribution: notice-only
 - file: packages/schema/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/schema/src/index.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/db/schema.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/db/client.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/db/migrate.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/db/index.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/store/postgres-run-store.ts | source: packages/schema/src/index.ts | attribution: header
+- file: packages/schema/src/store/redaction.ts | source: packages/schema/src/index.ts | attribution: header
 - file: packages/llm/package.json | source: packages/llm/package.json | attribution: notice-only
 - file: packages/llm/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/llm/src/index.ts | source: packages/llm/src/index.ts | attribution: header

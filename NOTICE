@@ -76,3 +76,7 @@ their attribution.
 - file: packages/server/package.json | source: packages/server/package.json | attribution: notice-only
 - file: packages/server/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/server/src/index.ts | source: packages/server/src/index.ts | attribution: header
+- file: packages/core/src/context/token-estimator.ts | source: packages/core/src/session/token-estimator.ts | attribution: header
+- file: packages/core/src/context/context-engine.ts | source: packages/core/src/session/context-engine.ts | attribution: header
+- file: packages/core/src/context/compaction.ts | source: packages/core/src/session/compaction.ts | attribution: header
+- file: packages/core/src/context/index.ts | source: packages/core/src/session/index.ts | attribution: header

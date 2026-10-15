@@ -20,13 +20,17 @@ The blueprint MUST define opaque `SourceSnapshot` registration, contest identity
 - **THEN** the shell grants no model/tool authority, the runtime rejects unsafe or mutable registration states, and successful run-facing records retain an opaque snapshot ID, immutable revision and digest without the raw host path
 
 ### Requirement: Purpose-built bounded tool contracts
-The blueprint SHALL define versioned `read_file`, `list_dir`, `glob`, and text-search inputs, outputs, limits, deterministic ordering, truncation markers, and model-actionable errors. It MUST exclude generic shell and network tools.
+The blueprint SHALL define versioned `read_file`, `list_dir`, `glob`, and text-search inputs, outputs, limits, deterministic ordering, truncation markers, and model-actionable errors. It MUST exclude generic shell and network tools. Tool definitions, schemas, and execution handlers MUST be organized within `packages/core/src/tool/` with a centralized `ToolRegistry` managing parameter validation and error normalization.
 
 #### Scenario: Tool catalog is validated
 - **GIVEN** the tool contract and description catalog
 - **WHEN** a reviewer checks each exposed operation
 - **THEN** every operation is read-only, rooted, bounded, versioned, and independently dispatchable through the registry
 
+#### Scenario: Tools and registry reside in dedicated tool module
+- **GIVEN** the implementation of source tools in `packages/core/src/tool/`
+- **WHEN** tool registration and parameter schemas are loaded
+- **THEN** tool handlers (`read_file`, `grep`, `glob`, `list_dir`) are modularly isolated and dispatchable through `ToolRegistry` without coupling to test fixtures
 ### Requirement: Canonical path authorization and ground-truth denial
 The blueprint MUST define rejection before I/O for absolute paths, traversal encodings, symlink escapes, unauthorized aliases, and any path resolving outside the authorized source root; it MUST require a separate safe security event.
 

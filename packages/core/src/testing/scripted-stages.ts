@@ -2,14 +2,12 @@ import type {
   CancellationPort,
   IngestionPort,
   IngestionResult,
-  SandboxPort,
-  SandboxResult,
   SanitizerPort,
   SanitizerResult,
   StageInput,
-  StateProbeResult,
   CandidateFinding,
 } from "@harness/protocol"
+export { ScriptedSandbox, type ScriptedSandboxResults } from "../sandbox/scripted-sandbox"
 
 /** Results are returned verbatim, one per call; once the list is used up the last one repeats. */
 class ResultScript<Result> {
@@ -75,34 +73,6 @@ export class ScriptedSanitizer implements SanitizerPort {
   }
 }
 
-export interface ScriptedSandboxResults {
-  singleShot?: readonly [SandboxResult, ...SandboxResult[]]
-  stateProbe?: readonly [StateProbeResult, ...StateProbeResult[]]
-}
-
-export class ScriptedSandbox implements SandboxPort {
-  readonly singleShotCalls: Array<StageInput & { testFile: string }> = []
-  readonly stateProbeCalls: Array<StageInput & { probedTestFile: string }> = []
-  private readonly singleShot: ResultScript<SandboxResult>
-  private readonly stateProbe: ResultScript<StateProbeResult>
-
-  constructor(results: ScriptedSandboxResults) {
-    this.singleShot = new ResultScript("ScriptedSandbox.runSingleShot", results.singleShot)
-    this.stateProbe = new ResultScript("ScriptedSandbox.runStateProbe", results.stateProbe)
-  }
-
-  async runSingleShot(input: StageInput & { testFile: string }, signal?: AbortSignal) {
-    signal?.throwIfAborted()
-    this.singleShotCalls.push(structuredClone(input))
-    return this.singleShot.next()
-  }
-
-  async runStateProbe(input: StageInput & { probedTestFile: string }, signal?: AbortSignal) {
-    signal?.throwIfAborted()
-    this.stateProbeCalls.push(structuredClone(input))
-    return this.stateProbe.next()
-  }
-}
 
 /** Cancellation is requested for a run id, or from a given poll number onward. */
 export class FakeCancellation implements CancellationPort {

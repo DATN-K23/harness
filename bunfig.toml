@@ -5,4 +5,4 @@ exact = true
 minimumReleaseAge = 259200
 
 [test]
-root = "./do-not-run-tests-from-root"
+root = "."

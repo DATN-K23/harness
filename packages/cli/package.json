@@ -15,6 +15,7 @@
   "dependencies": {
     "@harness/core": "workspace:*",
     "@harness/protocol": "workspace:*",
+    "@harness/llm": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

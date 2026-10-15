@@ -66,6 +66,13 @@ their attribution.
 - file: packages/llm/package.json | source: packages/llm/package.json | attribution: notice-only
 - file: packages/llm/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/llm/src/index.ts | source: packages/llm/src/index.ts | attribution: header
+- file: packages/llm/src/pricing/model-pricing.ts | source: packages/llm/src/index.ts | attribution: header
+- file: packages/llm/src/pricing/index.ts | source: packages/llm/src/index.ts | attribution: header
+- file: packages/llm/src/errors/provider-error.ts | source: packages/llm/src/provider-error.ts | attribution: header
+- file: packages/llm/src/errors/index.ts | source: packages/llm/src/index.ts | attribution: header
+- file: packages/llm/src/gateway/message-converter.ts | source: packages/core/src/session/runner/to-llm-message.ts | attribution: header
+- file: packages/llm/src/gateway/real-model-gateway.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/llm/src/gateway/index.ts | source: packages/llm/src/index.ts | attribution: header
 - file: packages/server/package.json | source: packages/server/package.json | attribution: notice-only
 - file: packages/server/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/server/src/index.ts | source: packages/server/src/index.ts | attribution: header

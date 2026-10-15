@@ -5,16 +5,21 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./gateway": "./src/gateway/index.ts",
+    "./pricing": "./src/pricing/index.ts",
+    "./errors": "./src/errors/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test --pass-with-no-tests"
+    "test": "bun test"
   },
   "dependencies": {
-    "@harness/protocol": "workspace:*"
+    "@harness/protocol": "workspace:*",
+    "openai": "4.86.1"
   },
   "devDependencies": {
+    "@harness/core": "workspace:*",
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
     "typescript": "catalog:"

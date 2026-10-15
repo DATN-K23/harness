@@ -119,19 +119,18 @@ Dưới đây là danh sách chi tiết các công việc bắt buộc phải tr
   * Tuyệt đối không lưu API Key vào DB; sanitize request/response trước khi lưu.
 
 ### 4.4. Track D — Tích hợp API model thật (Dev D phụ trách)
-- [ ] **Cài đặt SDK và cấu hình tại `packages/llm`:**
+- [x] **Cài đặt SDK và cấu hình tại `packages/llm`:**
   * Thống nhất chọn provider (ví dụ: OpenAI SDK, Anthropic SDK hoặc Gemini).
   * Cài đặt SDK chính thức vào `packages/llm`.
-- [ ] **Hiện thực hoá adapter `RealModelGateway`:**
+- [x] **Hiện thực hoá adapter `RealModelGateway`:**
   * Viết class `RealModelGateway` triển khai interface `ModelGatewayPort` (`packages/protocol/src/model-gateway.ts`).
   * Nhận `ModelAttemptRequest`, chuyển đổi thành định dạng request của provider SDK.
   * Thiết lập timeout bằng `AbortSignal` / `AbortController`.
   * **Tắt tính năng retry ngầm** của SDK (ví dụ trên OpenAI: `maxRetries: 0`) để B quản lý số lần gọi chính xác.
-- [ ] **Chuẩn hoá kết quả và xử lý lỗi:**
+- [x] **Chuẩn hoá kết quả và xử lý lỗi:**
   * Trả về `ModelAttemptResponse` chuẩn: `attemptId`, `finishReason`, `content`, `usage` (`promptTokens`, `completionTokens`, `totalTokens`, `costUsd`), `latencyMs`.
   * Tính toán `costUsd` dựa theo bảng giá niêm yết của model đã chọn (nếu provider không trả chi phí).
   * Bắt các lỗi HTTP/mạng (401, 429, 500, ECONNRESET, timeout), chuẩn hoá về `ModelAttemptError` với đúng `category` (`transport`, `rate_limit`, `authentication`, `invalid_request`) và `isRetryable`, đảm bảo không để lộ API key trong message.
-
 ### 4.5. Hạng mục Cả nhóm cần thống nhất trước khi code
 - [ ] **Chốt cấu hình kỹ thuật:**
   * Provider & Model cụ thể (ví dụ: `OpenAI gpt-4o-mini` hoặc `Gemini 1.5 Flash` vì chi phí thấp và tốc độ nhanh).

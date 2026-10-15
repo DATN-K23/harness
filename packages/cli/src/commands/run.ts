@@ -2,6 +2,7 @@
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
 import { SingleTurnRunner } from "@harness/core"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse } from "@harness/core/testing"
+import { RealModelGateway } from "@harness/llm"
 import type { RuntimeConfig } from "../config"
 import { redactSecrets } from "../redaction"
 
@@ -53,11 +54,18 @@ export async function executeRunCommand(
   const store = deps.store ?? new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
   const gateway =
     deps.gateway ??
-    new ScriptedModelGateway([
-      textResponse("Hello from Harness CLI mock runner.", {
-        usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40, costUsd: 0.0001 },
-      }),
-    ])
+    (deps.config?.modelApiKey
+      ? new RealModelGateway({
+          apiKey: deps.config.modelApiKey,
+          model: deps.config.modelName,
+          timeoutMs: deps.config.modelTimeoutMs,
+          secrets,
+        })
+      : new ScriptedModelGateway([
+          textResponse("Hello from Harness CLI mock runner.", {
+            usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40, costUsd: 0.0001 },
+          }),
+        ]))
 
   const runner = new SingleTurnRunner({
     store,

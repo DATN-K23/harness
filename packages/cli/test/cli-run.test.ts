@@ -65,4 +65,34 @@ describe("executeRunCommand", () => {
     expect(output).toContain("Category:     authentication")
     expect(output).not.toContain(apiKey)
   })
+
+  test("instantiates RealModelGateway when modelApiKey is in config and gateway is not injected", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const apiKey = "sk-test-live-key-999999999999"
+
+    // Invoking with invalid key against real gateway should safely fail with authentication category without crashing
+    const { exitCode, result, output } = await executeRunCommand(
+      {
+        prompt: "Test prompt with real gateway",
+        model: "gpt-4o-mini",
+      },
+      {
+        store,
+        config: {
+          databaseUrl: "postgresql://localhost:5432/test",
+          providerName: "openai",
+          modelName: "gpt-4o-mini",
+          modelApiKey: apiKey,
+          modelTimeoutMs: 1000,
+          modelMaxOutputTokens: 256,
+        },
+      },
+    )
+
+    expect(exitCode).toBe(1)
+    expect(result?.state).toBe("failed")
+    expect(["authentication", "transport"]).toContain(result?.errorCategory as string)
+    expect(output).toContain("State:        failed")
+    expect(output).not.toContain(apiKey)
+  })
 })

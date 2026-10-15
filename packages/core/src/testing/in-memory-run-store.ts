@@ -130,6 +130,22 @@ export class InMemoryRunStore implements RunStorePort {
     record.state = input.nextState
     record.stateVersion += 1
     if (input.terminalReason !== undefined) record.terminalReason = input.terminalReason
+    if (input.prompt !== undefined) record.prompt = input.prompt
+    if (input.modelProfile !== undefined) record.modelProfile = input.modelProfile
+    if (input.resultContent !== undefined) record.resultContent = input.resultContent
+    if (input.errorMessage !== undefined) record.errorMessage = input.errorMessage
+    if (input.errorCategory !== undefined) record.errorCategory = input.errorCategory
+    if (input.promptTokens !== undefined) record.promptTokens = input.promptTokens
+    if (input.completionTokens !== undefined) record.completionTokens = input.completionTokens
+    if (input.totalTokens !== undefined) {
+      record.totalTokens = input.totalTokens
+    } else if (input.promptTokens !== undefined || input.completionTokens !== undefined) {
+      const p = input.promptTokens ?? record.promptTokens ?? 0
+      const c = input.completionTokens ?? record.completionTokens ?? 0
+      record.totalTokens = p + c
+    }
+    if (input.costUsd !== undefined) record.costUsd = input.costUsd
+    if (input.latencyMs !== undefined) record.latencyMs = input.latencyMs
     return { kind: "transitioned", stateVersion: record.stateVersion }
   }
 

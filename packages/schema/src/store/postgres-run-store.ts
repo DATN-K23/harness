@@ -141,13 +141,7 @@ export class PostgresRunStore implements RunStorePort {
   }
 
   async transition(
-    input: {
-      claim: RunClaim
-      expectedState: RunState
-      expectedStateVersion: number
-      nextState: RunState
-      terminalReason?: TerminalReason
-    },
+    input: Parameters<RunStorePort["transition"]>[0],
     signal?: AbortSignal,
   ): Promise<TransitionResult> {
     signal?.throwIfAborted()
@@ -166,14 +160,41 @@ export class PostgresRunStore implements RunStorePort {
       }
 
       const nextVersion = run.stateVersion + 1
+      const updateData: Record<string, unknown> = {
+        state: input.nextState,
+        stateVersion: nextVersion,
+        terminalReason: input.terminalReason ?? null,
+        updatedAt: new Date(this.clock.nowMs()),
+      }
+
+      if (input.prompt !== undefined) {
+        updateData.prompt = redactSecrets(input.prompt)
+      }
+      if (input.modelProfile !== undefined) {
+        updateData.modelProfile = input.modelProfile
+      }
+      if (input.resultContent !== undefined) {
+        updateData.resultContent = redactSecrets(input.resultContent)
+      }
+      if (input.errorMessage !== undefined) {
+        updateData.errorMessage = redactSecrets(input.errorMessage)
+      }
+      if (input.promptTokens !== undefined) {
+        updateData.promptTokens = input.promptTokens
+      }
+      if (input.completionTokens !== undefined) {
+        updateData.completionTokens = input.completionTokens
+      }
+      if (input.costUsd !== undefined) {
+        updateData.costUsd = String(input.costUsd)
+      }
+      if (input.latencyMs !== undefined) {
+        updateData.latencyMs = input.latencyMs
+      }
+
       const [updated] = await tx
         .update(runs)
-        .set({
-          state: input.nextState,
-          stateVersion: nextVersion,
-          terminalReason: input.terminalReason ?? null,
-          updatedAt: new Date(this.clock.nowMs()),
-        })
+        .set(updateData)
         .where(eq(runs.id, input.claim.runId))
         .returning()
 
@@ -188,11 +209,25 @@ export class PostgresRunStore implements RunStorePort {
     signal?.throwIfAborted()
     const [run] = await this.client.db.select().from(runs).where(eq(runs.id, runId))
     if (!run) return undefined
+    const totalTokens =
+      run.promptTokens !== null && run.completionTokens !== null && run.promptTokens !== undefined && run.completionTokens !== undefined
+        ? run.promptTokens + run.completionTokens
+        : undefined
+
     return {
       runId: run.id,
       state: run.state as RunState,
       stateVersion: run.stateVersion,
       ...(run.terminalReason ? { terminalReason: run.terminalReason as TerminalReason } : {}),
+      ...(run.prompt !== null && run.prompt !== undefined ? { prompt: run.prompt } : {}),
+      ...(run.modelProfile !== null && run.modelProfile !== undefined ? { modelProfile: run.modelProfile } : {}),
+      ...(run.resultContent !== null && run.resultContent !== undefined ? { resultContent: run.resultContent } : {}),
+      ...(run.errorMessage !== null && run.errorMessage !== undefined ? { errorMessage: run.errorMessage } : {}),
+      ...(run.promptTokens !== null && run.promptTokens !== undefined ? { promptTokens: run.promptTokens } : {}),
+      ...(run.completionTokens !== null && run.completionTokens !== undefined ? { completionTokens: run.completionTokens } : {}),
+      ...(totalTokens !== undefined ? { totalTokens } : {}),
+      ...(run.costUsd !== null && run.costUsd !== undefined ? { costUsd: run.costUsd } : {}),
+      ...(run.latencyMs !== null && run.latencyMs !== undefined ? { latencyMs: run.latencyMs } : {}),
     }
   }
 

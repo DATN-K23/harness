@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { executeRunCommand } from "../src/commands/run"
+import { runCli } from "../src/index"
 import { InMemoryRunStore, ScriptedModelGateway, errorResponse, textResponse } from "@harness/core/testing"
 
 describe("executeRunCommand", () => {
@@ -94,5 +95,94 @@ describe("executeRunCommand", () => {
     expect(["authentication", "transport"]).toContain(result?.errorCategory as string)
     expect(output).toContain("State:        failed")
     expect(output).not.toContain(apiKey)
+  })
+
+  test("runCli surfaces ConfigValidationError when required env vars are missing without --mock", async () => {
+    const prevEnv = { ...process.env }
+    delete process.env.DATABASE_URL
+    delete process.env.PROVIDER_NAME
+    delete process.env.MODEL_NAME
+    delete process.env.MODEL_API_KEY
+
+    const errLogs: string[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      errLogs.push(args.map(String).join(" "))
+    }
+
+    try {
+      const exitCode = await runCli(["run", "--prompt", "test without config"])
+      expect(exitCode).toBe(1)
+      expect(errLogs.join("\n")).toContain("Invalid runtime configuration")
+      expect(errLogs.join("\n")).toContain("DATABASE_URL")
+    } finally {
+      console.error = originalError
+      process.env = prevEnv
+    }
+  })
+
+  test("runCli supports --mock flag without throwing or requiring config", async () => {
+    const prevEnv = { ...process.env }
+    delete process.env.DATABASE_URL
+    delete process.env.PROVIDER_NAME
+    delete process.env.MODEL_NAME
+    delete process.env.MODEL_API_KEY
+
+    const outLogs: string[] = []
+    const originalLog = console.log
+    console.log = (...args: unknown[]) => {
+      outLogs.push(args.map(String).join(" "))
+    }
+
+    try {
+      const exitCode = await runCli(["run", "--prompt", "hello mock", "--mock"])
+      expect(exitCode).toBe(0)
+      expect(outLogs.join("\n")).toContain("Run Execution Summary")
+      expect(outLogs.join("\n")).toContain("Hello from Harness CLI mock runner.")
+    } finally {
+      console.log = originalLog
+      process.env = prevEnv
+    }
+  })
+
+  test("runCli view requires DATABASE_URL unless --mock is specified", async () => {
+    const prevEnv = { ...process.env }
+    delete process.env.DATABASE_URL
+
+    const errLogs: string[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      errLogs.push(args.map(String).join(" "))
+    }
+
+    try {
+      const exitCode = await runCli(["view", "--id", "run-123"])
+      expect(exitCode).toBe(1)
+      expect(errLogs.join("\n")).toContain("Error: DATABASE_URL is required to inspect persistent runs. Use --mock for in-memory testing.")
+    } finally {
+      console.error = originalError
+      process.env = prevEnv
+    }
+  })
+
+  test("runCli view supports --mock flag", async () => {
+    const prevEnv = { ...process.env }
+    delete process.env.DATABASE_URL
+
+    const outLogs: string[] = []
+    const originalLog = console.log
+    console.log = (...args: unknown[]) => {
+      outLogs.push(args.map(String).join(" "))
+    }
+
+    try {
+      const exitCode = await runCli(["view", "--id", "run-mock-123", "--mock"])
+      // Run is not found in fresh mock store, but it executes through view command without DATABASE_URL error
+      expect(exitCode).toBe(1)
+      expect(outLogs.join("\n")).toContain("Error: Run 'run-mock-123' not found in persistent store.")
+    } finally {
+      console.log = originalLog
+      process.env = prevEnv
+    }
   })
 })

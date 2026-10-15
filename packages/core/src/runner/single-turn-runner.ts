@@ -177,7 +177,13 @@ export class SingleTurnRunner {
     try {
       // 2. Register run if seedRun exists
       if ("seedRun" in this.deps.store && typeof this.deps.store.seedRun === "function") {
-        this.deps.store.seedRun(runId, "queued")
+        await Promise.resolve(
+          (this.deps.store as { seedRun: (id: string, state?: string, prompt?: string) => unknown }).seedRun(
+            runId,
+            "queued",
+            input.prompt,
+          ),
+        )
       }
 
       // 3. Claim run
@@ -261,6 +267,14 @@ export class SingleTurnRunner {
           expectedState: "running",
           expectedStateVersion: stateVersion,
           nextState: "completed",
+          prompt: input.prompt,
+          modelProfile: profileId,
+          resultContent: redactedContent,
+          promptTokens: response.usage.promptTokens,
+          completionTokens: response.usage.completionTokens,
+          totalTokens: response.usage.totalTokens,
+          costUsd: response.usage.costUsd,
+          latencyMs,
         })
         if (finalTransition.kind === "transitioned") {
           stateVersion = finalTransition.stateVersion
@@ -307,6 +321,11 @@ export class SingleTurnRunner {
         expectedStateVersion: stateVersion,
         nextState: "failed",
         terminalReason,
+        prompt: input.prompt,
+        modelProfile: profileId,
+        errorMessage: sanitizedMsg,
+        errorCategory,
+        latencyMs,
       })
       if (finalTransition.kind === "transitioned") {
         stateVersion = finalTransition.stateVersion
@@ -346,6 +365,11 @@ export class SingleTurnRunner {
               expectedStateVersion: stateVersion,
               nextState: "failed",
               terminalReason,
+              prompt: input.prompt,
+              modelProfile: profileId,
+              errorMessage: sanitizedMsg,
+              errorCategory,
+              latencyMs,
             })
           }
         } catch {

@@ -17,11 +17,13 @@
         "@harness/core": "workspace:*",
         "@harness/llm": "workspace:*",
         "@harness/protocol": "workspace:*",
+        "@harness/schema": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@tsconfig/bun": "catalog:",
         "@types/bun": "catalog:",
+        "postgres": "3.4.5",
         "typescript": "catalog:",
       },
     },

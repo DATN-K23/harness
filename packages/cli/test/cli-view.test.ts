@@ -58,4 +58,76 @@ describe("executeViewCommand", () => {
     expect(output).toContain("run.queued")
     expect(output).toContain("Test prompt inspection")
   })
+
+  test("displays rich run record with all metadata and redacts secrets", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const runId = "run-rich-202"
+    const secretKey = "super-secret-key-999"
+
+    store.seedRun(runId, "queued")
+    const claimResult = await store.claim({ runId, workerId: "test-worker" })
+    if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+    await store.transition({
+      claim: claimResult.claim,
+      expectedState: "queued",
+      expectedStateVersion: claimResult.stateVersion,
+      nextState: "completed",
+      terminalReason: "wall_clock",
+      modelProfile: "claude-3-5-sonnet",
+      latencyMs: 1250,
+      costUsd: 0.0035,
+      promptTokens: 150,
+      completionTokens: 80,
+      totalTokens: 230,
+      prompt: `Analyze this contract with ${secretKey}`,
+      resultContent: `Contract analysis report with ${secretKey}`,
+    })
+
+    const { exitCode, output } = await executeViewCommand({ id: runId }, { store, secrets: [secretKey] })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`Run ID:       ${runId}`)
+    expect(output).toContain("State:        completed")
+    expect(output).toContain("Version:      2")
+    expect(output).toContain("Terminal:     wall_clock")
+    expect(output).toContain("Model:        claude-3-5-sonnet")
+    expect(output).toContain("Latency:      1250ms")
+    expect(output).toContain("Cost:         $0.003500")
+    expect(output).toContain("Tokens:       230 (prompt: 150, completion: 80)")
+    expect(output).toContain("Prompt:")
+    expect(output).toContain("Model Output:")
+    expect(output).not.toContain(secretKey)
+    expect(output).toContain("[REDACTED]")
+  })
+
+  test("displays rich run record for failed run with error and category redacted", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const runId = "run-failed-303"
+    const secretToken = "ghp_leakedSecretToken"
+
+    store.seedRun(runId, "queued")
+    const claimResult = await store.claim({ runId, workerId: "test-worker" })
+    if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+    await store.transition({
+      claim: claimResult.claim,
+      expectedState: "queued",
+      expectedStateVersion: claimResult.stateVersion,
+      nextState: "failed",
+      terminalReason: "provider_permanent",
+      errorCategory: "authentication",
+      errorMessage: `Failed using token ${secretToken}`,
+    })
+
+    const { exitCode, output } = await executeViewCommand({ id: runId }, { store, secrets: [secretToken] })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`Run ID:       ${runId}`)
+    expect(output).toContain("State:        failed")
+    expect(output).toContain("Terminal:     provider_permanent")
+    expect(output).toContain("Error (authentication):")
+    expect(output).not.toContain(secretToken)
+    expect(output).toContain("[REDACTED]")
+  })
 })

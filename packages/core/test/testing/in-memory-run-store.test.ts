@@ -160,3 +160,37 @@ describe("InMemoryRunStore stored events", () => {
     expect(loaded.payload).toEqual({ label: "copy" })
   })
 })
+
+describe("InMemoryRunStore outcome persistence", () => {
+  test("transition updates and loadRun returns outcome fields", async () => {
+    const { store, claim, stateVersion } = await startedRun()
+    const res = await store.transition({
+      claim,
+      expectedState: "running",
+      expectedStateVersion: stateVersion,
+      nextState: "completed",
+      prompt: "test prompt",
+      modelProfile: "gpt-4o",
+      resultContent: "completed successfully",
+      errorMessage: undefined,
+      errorCategory: undefined,
+      promptTokens: 10,
+      completionTokens: 20,
+      costUsd: "0.005",
+      latencyMs: 120,
+    })
+    expect(res.kind).toBe("transitioned")
+
+    const run = await store.loadRun("run-1")
+    expect(run).toBeDefined()
+    expect(run?.state).toBe("completed")
+    expect(run?.prompt).toBe("test prompt")
+    expect(run?.modelProfile).toBe("gpt-4o")
+    expect(run?.resultContent).toBe("completed successfully")
+    expect(run?.promptTokens).toBe(10)
+    expect(run?.completionTokens).toBe(20)
+    expect(run?.totalTokens).toBe(30)
+    expect(run?.costUsd).toBe("0.005")
+    expect(run?.latencyMs).toBe(120)
+  })
+})

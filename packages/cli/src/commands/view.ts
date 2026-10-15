@@ -49,6 +49,15 @@ export async function executeViewCommand(
     `State:        ${run.state}`,
     `Version:      ${run.stateVersion}`,
     ...(run.terminalReason ? [`Terminal:     ${run.terminalReason}`] : []),
+    ...(run.modelProfile ? [`Model:        ${run.modelProfile}`] : []),
+    ...(run.latencyMs !== undefined ? [`Latency:      ${run.latencyMs}ms`] : []),
+    ...(run.costUsd !== undefined ? [`Cost:         ${typeof run.costUsd === "number" ? `$${run.costUsd.toFixed(6)}` : run.costUsd}`] : []),
+    ...(run.totalTokens !== undefined || run.promptTokens !== undefined || run.completionTokens !== undefined
+      ? [`Tokens:       ${run.totalTokens ?? 0} (prompt: ${run.promptTokens ?? 0}, completion: ${run.completionTokens ?? 0})`]
+      : []),
+    ...(run.prompt ? ["Prompt:", redactSecrets(run.prompt, secrets)] : []),
+    ...(run.resultContent ? ["Model Output:", redactSecrets(run.resultContent, secrets)] : []),
+    ...(run.errorMessage ? [`Error (${run.errorCategory ?? "unknown"}):`, redactSecrets(run.errorMessage, secrets)] : []),
     "----------------------------------------",
     `Trajectory Events (${events.length} recorded):`,
   ]

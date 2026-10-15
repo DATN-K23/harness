@@ -20,6 +20,12 @@ describe("parseCliArgs", () => {
     expect(parsed.id).toBe("run-12345")
   })
 
+  test("parses mock flag correctly", () => {
+    expect(parseCliArgs(["run", "--mock"]).mock).toBe(true)
+    expect(parseCliArgs(["view", "--id", "run-123", "--mock"]).mock).toBe(true)
+    expect(parseCliArgs(["run"]).mock).toBe(false)
+  })
+
   test("parses help flag correctly", () => {
     expect(parseCliArgs(["--help"]).help).toBe(true)
     expect(parseCliArgs(["-h"]).help).toBe(true)

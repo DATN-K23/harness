@@ -169,5 +169,50 @@ describe("Secret Sanitization", () => {
         await client.close()
       }
     })
+    test("PostgresRunStore persists outcome fields and redacts secrets on transition", async () => {
+      const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
+      const store = new PostgresRunStore({ client })
+      await store.clear()
+
+      try {
+        await store.seedRun("run-outcome-test", "queued")
+        const claimResult = await store.claim({ runId: "run-outcome-test", workerId: "worker-outcome" })
+        if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+        const transitionResult = await store.transition({
+          claim: claimResult.claim,
+          expectedState: claimResult.state,
+          expectedStateVersion: claimResult.stateVersion,
+          nextState: "completed",
+          terminalReason: "wall_clock",
+          prompt: "API key was sk-1234567890abcdef12345678 in prompt",
+          modelProfile: "gpt-4o",
+          resultContent: "Response with sk-abcdef1234567890123456 token",
+          errorMessage: "Failed with sk-error1234567890abcdef123",
+          promptTokens: 10,
+          completionTokens: 25,
+          costUsd: "0.001250",
+          latencyMs: 350,
+        })
+        expect(transitionResult.kind).toBe("transitioned")
+
+        const loadedRun = await store.loadRun("run-outcome-test")
+        expect(loadedRun).toBeDefined()
+        expect(loadedRun?.state).toBe("completed")
+        expect(loadedRun?.terminalReason).toBe("wall_clock")
+        expect(loadedRun?.prompt).toBe("API key was [REDACTED] in prompt")
+        expect(loadedRun?.modelProfile).toBe("gpt-4o")
+        expect(loadedRun?.resultContent).toBe("Response with [REDACTED] token")
+        expect(loadedRun?.errorMessage).toBe("Failed with [REDACTED]")
+        expect(loadedRun?.promptTokens).toBe(10)
+        expect(loadedRun?.completionTokens).toBe(25)
+        expect(loadedRun?.totalTokens).toBe(35)
+        expect(loadedRun?.costUsd).toBe("0.001250")
+        expect(loadedRun?.latencyMs).toBe(350)
+      } finally {
+        await store.clear()
+        await client.close()
+      }
+    })
   }
 })

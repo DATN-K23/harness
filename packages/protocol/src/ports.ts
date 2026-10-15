@@ -129,11 +129,22 @@ export interface RunClaim {
   claimVersion: number
 }
 
+// Adapted from OpenCode packages/core/src/session/runner/llm.ts @ 3f393d78bf (MIT License). See NOTICE.
 export interface RunRecord {
   runId: string
   state: RunState
   stateVersion: number
   terminalReason?: TerminalReason
+  prompt?: string
+  modelProfile?: string
+  resultContent?: string
+  errorMessage?: string
+  errorCategory?: string
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  costUsd?: string | number
+  latencyMs?: number
 }
 
 export type ClaimResult =
@@ -163,6 +174,16 @@ export interface RunStorePort {
       expectedStateVersion: number
       nextState: RunState
       terminalReason?: TerminalReason
+      prompt?: string
+      modelProfile?: string
+      resultContent?: string
+      errorMessage?: string
+      errorCategory?: string
+      promptTokens?: number
+      completionTokens?: number
+      totalTokens?: number
+      costUsd?: string | number
+      latencyMs?: number
     },
     signal?: AbortSignal,
   ): Promise<TransitionResult>

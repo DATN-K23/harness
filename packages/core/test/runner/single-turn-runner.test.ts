@@ -319,5 +319,118 @@ describe("SingleTurnRunner", () => {
 
     const runRecord = await store.loadRun(result.runId)
     expect(runRecord?.state).toBe("failed")
+    expect(runRecord?.prompt).toBe("Will throw internally")
+    expect(runRecord?.errorMessage).toContain("Unexpected network socket failure")
+    expect(runRecord?.errorCategory).toBe("internal_error")
+  })
+
+  test("awaits asynchronous seedRun before claim", async () => {
+    let seedRunFinished = false
+    let claimInvokedAfterSeed = false
+
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1_000 } })
+    const asyncStore = {
+      ...store,
+      async seedRun(runId: string, state = "queued", _prompt = "") {
+        await Promise.resolve()
+        await Promise.resolve()
+        seedRunFinished = true
+        store.seedRun(runId, state as "queued")
+      },
+      async claim(input: { runId: string; workerId: string }) {
+        if (seedRunFinished) {
+          claimInvokedAfterSeed = true
+        }
+        return store.claim(input)
+      },
+      transition: store.transition.bind(store),
+      appendEvent: store.appendEvent.bind(store),
+      loadRun: store.loadRun.bind(store),
+      loadEvents: store.loadEvents.bind(store),
+    }
+
+    const gateway = new ScriptedModelGateway([
+      textResponse("Async seed test response", {
+        usage: { promptTokens: 5, completionTokens: 10, totalTokens: 15, costUsd: 0.0001 },
+      }),
+    ])
+
+    const runner = new SingleTurnRunner({
+      store: asyncStore as unknown as InMemoryRunStore,
+      gateway,
+      clock: { nowMs: () => 1_000 },
+    })
+
+    const result = await runner.execute({
+      prompt: "Testing async seedRun execution order",
+    })
+
+    expect(result.state).toBe("completed")
+    expect(claimInvokedAfterSeed).toBe(true)
+  })
+
+  test("records full execution metrics on completion in store.loadRun", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1_000 } })
+    const gateway = new ScriptedModelGateway([
+      textResponse("Result text for metrics test", {
+        usage: { promptTokens: 20, completionTokens: 30, totalTokens: 50, costUsd: 0.0015 },
+      }),
+    ])
+
+    const runner = new SingleTurnRunner({
+      store,
+      gateway,
+      clock: { nowMs: () => 1_000 },
+    })
+
+    const result = await runner.execute({
+      prompt: "Analyze security vulnerability",
+      profileId: "gpt-4o-audit",
+    })
+
+    expect(result.state).toBe("completed")
+
+    const runRecord = await store.loadRun(result.runId)
+    expect(runRecord).toBeDefined()
+    expect(runRecord?.prompt).toBe("Analyze security vulnerability")
+    expect(runRecord?.resultContent).toBe("Result text for metrics test")
+    expect(runRecord?.promptTokens).toBe(20)
+    expect(runRecord?.completionTokens).toBe(30)
+    expect(runRecord?.totalTokens).toBe(50)
+    expect(runRecord?.costUsd).toBe(0.0015)
+    expect(runRecord?.latencyMs).toBe(0)
+    expect(runRecord?.modelProfile).toBe("gpt-4o-audit")
+  })
+
+  test("records prompt, errorMessage, errorCategory, and latency on provider failure", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1_000 } })
+    const gateway = new ScriptedModelGateway([
+      errorResponse({
+        category: "rate_limit",
+        message: "Rate limit exceeded: 429",
+        isRetryable: true,
+      }),
+    ])
+
+    const runner = new SingleTurnRunner({
+      store,
+      gateway,
+      clock: { nowMs: () => 1_000 },
+    })
+
+    const result = await runner.execute({
+      prompt: "Trigger rate limit",
+      profileId: "claude-sonnet",
+    })
+
+    expect(result.state).toBe("failed")
+
+    const runRecord = await store.loadRun(result.runId)
+    expect(runRecord).toBeDefined()
+    expect(runRecord?.prompt).toBe("Trigger rate limit")
+    expect(runRecord?.errorMessage).toBe("Rate limit exceeded: 429")
+    expect(runRecord?.errorCategory).toBe("rate_limit")
+    expect(runRecord?.modelProfile).toBe("claude-sonnet")
+    expect(runRecord?.latencyMs).toBe(0)
   })
 })

@@ -7,7 +7,7 @@ Provides single-turn prompt execution orchestration, pre-flight input validation
 ## Requirements
 
 ### Requirement: Single-turn execution orchestration
-The system SHALL provide a `SingleTurnRunner` that coordinates a single-turn prompt execution against a `ModelGatewayPort` and persists state and events via `RunStorePort`. The runner MUST initialize or claim a run in `pending` or `queued` state, transition to `running`, record invocation events (`run.queued`, `run.started`), invoke exactly one attempt on `ModelGatewayPort`, record the outcome event (`model.completed` or `model.failed`), and transition the terminal run state to `completed` or `failed` with Compare-and-Set concurrency guards.
+The system SHALL provide a `SingleTurnRunner` that coordinates a single-turn prompt execution against a `ModelGatewayPort` and persists state and events via `RunStorePort`. The runner MUST initialize or claim a run in `pending` or `queued` state, transition to `running`, record invocation events (`run.queued`, `run.started`), invoke exactly one attempt on `ModelGatewayPort`, record the outcome event (`provider.attempted` or `provider.failed`), and transition the terminal run state to `completed` or `failed` with Compare-and-Set concurrency guards. When `seedRun` is available on the store, the runner MUST asynchronously await its completion before issuing the initial claim to eliminate race conditions against relational databases.
 
 #### Scenario: Successful execution end-to-end
 - **GIVEN** a valid prompt and model configuration
@@ -19,6 +19,15 @@ The system SHALL provide a `SingleTurnRunner` that coordinates a single-turn pro
 - **WHEN** the runner handles the error response
 - **THEN** a `model.failed` event is recorded, the run state transitions to `failed` with the sanitized error message, and no unhandled rejection is thrown
 
+#### Scenario: Asynchronous run registration avoids claim race condition
+- **GIVEN** a persistent database store where `seedRun` performs asynchronous insertion
+- **WHEN** the runner initiates execution with a generated `runId`
+- **THEN** the initial insert completes before `claim()` is executed, acquiring the claim successfully without `not_found` errors
+
+#### Scenario: Terminal run outcomes are fully persisted
+- **GIVEN** a successful model execution
+- **WHEN** the runner transitions the run to `completed`
+- **THEN** the store's run record reflects the original prompt, response content, prompt tokens, completion tokens, cost in USD, latency in milliseconds, and the terminal state
 ### Requirement: Input validation and constraint bounds
 The runner MUST validate all input parameters before dispatching any provider attempt. If the prompt is empty, exceeds the maximum configured character limit, or if limits (timeout, max tokens) are invalid, the runner SHALL reject execution or record a terminal `failed` state with a validation error reason without invoking `ModelGatewayPort`.
 
@@ -41,7 +50,7 @@ When a provider attempt times out, encounters an unrecoverable transport error, 
 - **THEN** the runner records an interrupted failure event, updates the run state to `failed` with reason `timeout`, and does not issue a subsequent attempt
 
 ### Requirement: Persistent run and history inspection query
-The system SHALL provide programmatic query functions (`getRun` and `getRunHistory`) that accept a `runId` and `RunStorePort`. `getRun` MUST return the persistent `RunRecord` including its terminal state, version, and error or completion details. `getRunHistory` MUST return all recorded trajectory events sorted strictly in ascending sequence order (`sequence: 1..N`).
+The system SHALL provide programmatic query functions (`getRun` and `getRunHistory`) that accept a `runId` and `RunStorePort`. `getRun` MUST return the persistent `RunRecord` including its terminal state, version, original prompt, model profile, result content or error details, token usage, cost, and latency. `getRunHistory` MUST return all recorded trajectory events sorted strictly in ascending sequence order (`sequence: 1..N`).
 
 #### Scenario: Query existing run and trajectory history
 - **GIVEN** an existing completed or failed run in the persistent store with multiple events
@@ -53,6 +62,10 @@ The system SHALL provide programmatic query functions (`getRun` and `getRunHisto
 - **WHEN** `getRun` is invoked
 - **THEN** `null` is returned without throwing an unhandled exception
 
+#### Scenario: Inspect complete run record across process restart
+- **GIVEN** a run executed and stored in PostgreSQL by an earlier process
+- **WHEN** `getRun` is invoked with the `runId` on a newly created `PostgresRunStore`
+- **THEN** the returned run record contains the original prompt, terminal state, model output, token counts, cost in USD, and latency
 ### Requirement: Secret sanitization and ground-truth isolation
 All events, stored outputs, and error messages emitted during single-turn execution MUST sanitize API keys and credential secrets. The single-turn runner MUST NOT accept, process, or persist any ground-truth labels, adjudication reports, or scoring metadata.
 

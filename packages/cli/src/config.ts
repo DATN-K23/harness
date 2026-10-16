@@ -1,5 +1,34 @@
 // Adapted from OpenCode packages/core/src/config.ts @ 3f393d78bf (MIT License). See NOTICE.
+import { existsSync } from "node:fs"
+import { dirname, resolve } from "node:path"
 import { z } from "zod"
+
+export function findRootEnvFile(startDir: string = process.cwd()): string | undefined {
+  let curr = resolve(startDir)
+  while (true) {
+    const candidate = resolve(curr, ".env")
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(curr)
+    if (parent === curr) break
+    curr = parent
+  }
+  return undefined
+}
+
+let envLoaded = false
+
+export function ensureRootEnvLoaded(): void {
+  if (envLoaded || process.env.NODE_ENV === "test") return
+  envLoaded = true
+  const envPath = findRootEnvFile(process.cwd()) ?? findRootEnvFile(import.meta.dir)
+  if (envPath && typeof process.loadEnvFile === "function") {
+    try {
+      process.loadEnvFile(envPath)
+    } catch {
+      // Ignore error loading env file
+    }
+  }
+}
 
 export const SupportedProviders = ["openai", "anthropic", "google", "openrouter"] as const
 export type SupportedProvider = (typeof SupportedProviders)[number]
@@ -60,6 +89,9 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
  * Fails fast with ConfigValidationError if required keys are missing or invalid.
  */
 export function loadRuntimeConfig(env: Record<string, string | undefined> = process.env): RuntimeConfig {
+  if (env === process.env) {
+    ensureRootEnvLoaded()
+  }
   const rawInput = {
     databaseUrl: env.DATABASE_URL,
     providerName: env.PROVIDER_NAME,

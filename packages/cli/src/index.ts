@@ -1,6 +1,6 @@
 // Adapted from OpenCode packages/cli/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { parseArgs } from "node:util"
-import { ConfigValidationError, loadRuntimeConfig } from "./config"
+import { ConfigValidationError, ensureRootEnvLoaded, loadRuntimeConfig } from "./config"
 import { executeRunCommand } from "./commands/run"
 import { executeViewCommand } from "./commands/view"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse } from "@harness/core/testing"
@@ -74,6 +74,8 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<nu
     console.log(HelpMessage.trim())
     return 0
   }
+  ensureRootEnvLoaded()
+
 
   if (parsed.command === "run") {
     let config

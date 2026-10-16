@@ -58,6 +58,7 @@ export async function executeRunCommand(
       ? new RealModelGateway({
           apiKey: deps.config.modelApiKey,
           model: deps.config.modelName,
+          baseURL: deps.config.modelBaseUrl ?? process.env.MODEL_BASE_URL ?? process.env.OPENAI_BASE_URL,
           timeoutMs: deps.config.modelTimeoutMs,
           secrets,
         })

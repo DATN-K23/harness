@@ -15,3 +15,6 @@ dist/
 demo-output/
 .DS_Store
 zinn/
+.env
+.env.*
+!.env.example

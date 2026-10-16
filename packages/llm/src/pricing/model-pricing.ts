@@ -24,6 +24,13 @@ export const MODEL_PRICING_TABLE: Record<string, ModelPricing> = {
     inputCostPerToken: 2.5 / 1_000_000,
     outputCostPerToken: 10.0 / 1_000_000,
   },
+  "gemini-3.8-flash": {
+    model: "gemini-3.8-flash",
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.6,
+    inputCostPerToken: 0.15 / 1_000_000,
+    outputCostPerToken: 0.6 / 1_000_000,
+  },
 }
 
 /**
@@ -43,6 +50,10 @@ export function getModelPricing(model: string): ModelPricing | undefined {
 
   if (normalized.startsWith("gpt-4o")) {
     return MODEL_PRICING_TABLE["gpt-4o"]
+  }
+
+  if (normalized.includes("gemini") && normalized.includes("flash")) {
+    return MODEL_PRICING_TABLE["gemini-3.8-flash"]
   }
 
   return undefined

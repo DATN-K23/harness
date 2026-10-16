@@ -32,6 +32,18 @@ export interface SingleTurnRunnerDeps {
   idGenerator?: IdGenerator
   secrets?: string[]
 }
+interface ModelAttemptRecorder {
+  recordModelAttempt(input: Record<string, unknown>): Promise<void>
+}
+
+function hasModelAttemptRecorder(store: unknown): store is ModelAttemptRecorder {
+  return (
+    typeof store === "object" &&
+    store !== null &&
+    "recordModelAttempt" in store &&
+    typeof (store as Record<string, unknown>).recordModelAttempt === "function"
+  )
+}
 
 export type InputValidationResult =
   | { valid: true }
@@ -260,6 +272,23 @@ export class SingleTurnRunner {
           usage: response.usage,
           latencyMs,
         })
+        if (hasModelAttemptRecorder(this.deps.store)) {
+          await this.deps.store.recordModelAttempt({
+            id: idGen.next("att_"),
+            runId,
+            attemptNumber: 1,
+            provider: profileId.includes("gemini") ? "google" : "openai",
+            model: profileId,
+            promptTokens: response.usage.promptTokens,
+            completionTokens: response.usage.completionTokens,
+            totalTokens: response.usage.totalTokens,
+            costUsd: response.usage.costUsd,
+            latencyMs,
+            finishReason: response.finishReason,
+            requestJson: { prompt: input.prompt },
+            responseJson: response.content ? { content: response.content } : null,
+          })
+        }
 
         // Transition store to "completed"
         const finalTransition = await this.deps.store.transition({
@@ -314,6 +343,24 @@ export class SingleTurnRunner {
         reason: terminalReason,
         message: sanitizedMsg,
       })
+      if (hasModelAttemptRecorder(this.deps.store)) {
+        await this.deps.store.recordModelAttempt({
+          id: idGen.next("att_"),
+          runId,
+          attemptNumber: 1,
+          provider: profileId.includes("gemini") ? "google" : "openai",
+          model: profileId,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          costUsd: 0,
+          latencyMs,
+          finishReason: "error",
+          requestJson: { prompt: input.prompt },
+          errorMessage: sanitizedMsg,
+          errorCategory,
+        })
+      }
 
       const finalTransition = await this.deps.store.transition({
         claim,

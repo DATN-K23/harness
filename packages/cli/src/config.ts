@@ -16,6 +16,7 @@ export const RuntimeConfigSchema = z.object({
   providerName: z.string().min(1, "PROVIDER_NAME cannot be empty"),
   modelName: z.string().min(1, "MODEL_NAME cannot be empty"),
   modelApiKey: z.string().min(1, "MODEL_API_KEY cannot be empty"),
+  modelBaseUrl: z.string().optional(),
   modelTimeoutMs: z
     .preprocess((val) => {
       if (val === undefined || val === null || val === "") return DefaultModelTimeoutMs
@@ -49,6 +50,7 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   providerName: "PROVIDER_NAME",
   modelName: "MODEL_NAME",
   modelApiKey: "MODEL_API_KEY",
+  modelBaseUrl: "MODEL_BASE_URL",
   modelTimeoutMs: "MODEL_TIMEOUT_MS",
   modelMaxOutputTokens: "MODEL_MAX_OUTPUT_TOKENS",
 }
@@ -63,6 +65,7 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     providerName: env.PROVIDER_NAME,
     modelName: env.MODEL_NAME,
     modelApiKey: env.MODEL_API_KEY,
+    modelBaseUrl: env.MODEL_BASE_URL ?? env.OPENAI_BASE_URL,
     modelTimeoutMs: env.MODEL_TIMEOUT_MS,
     modelMaxOutputTokens: env.MODEL_MAX_OUTPUT_TOKENS,
   }

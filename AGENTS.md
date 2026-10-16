@@ -56,9 +56,9 @@ Harness implements a **Hexagonal Architecture (Ports and Adapters)**, maintainin
   - `prompts/`: Versioned prompt templates (`judge-system.v1.txt`, `max-steps.v1.txt`) and digest verification.
   - `demo/`: 4-scenario offline demo runner and 100-run reliability stress test harness.
   - `testing/`: In-memory test doubles and parametric contract suites (`runStoreContractTests`).
-- **`@harness/schema`**: Persistence adapter for PostgreSQL via Drizzle ORM and `postgres.js`. Implements `RunStorePort` with optimistic locking, lease expiration, versioned transitions, and recursive secret sanitization.
-- **`@harness/llm`**: Model provider adapter implementing `ModelGatewayPort` via OpenAI SDK. Enforces zero internal retries (`maxRetries: 0`), AbortSignal timeouts, model pricing registries, and normalized error mapping.
-- **`@harness/cli`**: Headless CLI composition root providing commands for executing runs (`run`) and inspecting historical trajectories (`view`), wiring real PostgreSQL/OpenAI adapters or falling back to `--mock`.
+- **`@harness/schema`**: Persistence adapter for PostgreSQL via Drizzle ORM and `postgres.js`. Implements `RunStorePort` with optimistic locking (CAS), lease expiration, versioned transitions, and recursive secret sanitization across 3 tables: `runs`, `events`, `model_attempts`.
+- **`@harness/llm`**: Model provider adapter implementing `ModelGatewayPort` via OpenAI SDK. Enforces zero internal retries (`maxRetries: 0`), AbortSignal timeouts, model pricing registries, and normalized error mapping. Supports custom proxy routers (e.g. 9router / OpenRouter) via `MODEL_BASE_URL`.
+- **`@harness/cli`**: Headless CLI composition root providing commands for executing runs (`run`) and inspecting historical trajectories (`view`), wiring real PostgreSQL/OpenAI adapters or falling back to `--mock`. Features automatic upward `.env` resolution.
 - **`@harness/server`**: Local runtime server package exporting `SERVER_VERSION = 1` for downstream client/desktop integration.
 
 ### Execution & Data Flow
@@ -67,7 +67,7 @@ Harness implements a **Hexagonal Architecture (Ports and Adapters)**, maintainin
 3. **Append-Only Trajectory**: Every action appends an immutable `TrajectoryEvent` (`run.queued`, `run.started`, `provider.attempted`, etc.) with strictly monotonic sequence numbers ($1, 2, \dots, N$) and SHA-256 payload digests.
 4. **Provider Invocation**: `ModelGatewayPort.executeAttempt` executes a single attempt with AbortSignal timeout; internal SDK retries are disabled.
 5. **Compare-And-Set (CAS) Transitions**: State transitions require matching `expectedState` and `expectedStateVersion`, advancing to `running` then terminal `completed` or `failed`.
-6. **Outcome Persistence**: Terminal transitions simultaneously persist model response text, error details, token usage, USD cost, and latency into the database.
+6. **Outcome Persistence**: Terminal transitions simultaneously persist model response text, error details, token usage, USD cost, and latency into the `runs` table, while individual provider calls are recorded in `model_attempts`.
 
 ---
 
@@ -94,7 +94,7 @@ Harness implements a **Hexagonal Architecture (Ports and Adapters)**, maintainin
 │   │   ├── db/            # Drizzle schema (runs, events, model_attempts), client, migrate
 │   │   └── store/         # PostgresRunStore (CAS, lease, sequence), secret redaction
 │   ├── llm/src/
-│   │   ├── gateway/       # RealModelGateway (OpenAI API integration)
+│   │   ├── gateway/       # RealModelGateway (OpenAI API integration, custom base URL)
 │   │   ├── pricing/       # Model token pricing table and cost calculator
 │   │   └── errors/        # Provider error classification and secret scrubbing
 │   ├── cli/src/           # CLI entry point, argument parsing, config validation, run/view commands
@@ -261,7 +261,7 @@ When porting or adapting components from the OpenCode upstream reference reposit
 - `packages/schema/src/db/schema.ts`: Drizzle ORM table definitions (`runs`, `events`, `model_attempts`).
 - `packages/llm/src/gateway/real-model-gateway.ts`: Real model gateway utilizing OpenAI SDK.
 - `packages/cli/src/index.ts`: Composition root for CLI command dispatch and lifecycle teardown.
-- `packages/cli/src/config.ts`: Zod validation schema for environment variables.
+- `packages/cli/src/config.ts`: Zod validation schema for environment variables with upward `.env` resolution.
 
 ---
 

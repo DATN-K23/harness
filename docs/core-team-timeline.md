@@ -1,5 +1,7 @@
 # Lộ trình cả nhóm cùng xây core Harness
 
+**Cập nhật Sprint 3:** gộp nội dung các chặng **3 và 4–5** trong bảng dưới thành một sprint. Xem [Sprint 3 — Source thật, tools và tool calling](sprints/sprint-03.md) để biết phân công A–D và phần bổ sung từ Sprint 2. Các số chặng trong bảng vẫn giữ theo lộ trình ban đầu để đối chiếu; lịch các chặng tiếp theo sẽ được cập nhật khi nhóm chốt.
+
 | Sprint dự kiến | Bốn người cùng code | Nghiên cứu pipeline và audit | Đầu ra và điều kiện chuyển chặng |
 |---|---|---|---|
 | **1** | **Chốt luồng core và cách dùng lại OpenCode.** Thống nhất run, snapshot, model request/response, tool call/result, verdict và event. Chọn một provider/model đầu tiên, cách cấu hình API key và giới hạn gọi API. Xác định phần OpenCode cần tham khảo hoặc tái sử dụng. | Phác pipeline Judge và Audit, phần dùng chung/riêng, bằng chứng cần có và điều kiện kết luận. Đối chiếu contract với blueprint, ghi quyết định còn mở. | Cả nhóm giải thích được một run từ đầu đến cuối và thống nhất contract tối thiểu. Có phạm vi gọi model thật ở sprint 2 và ngân sách dự kiến. |

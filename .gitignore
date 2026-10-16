@@ -4,8 +4,8 @@
 .agents/
 .omp/
 ../docs/blueprint-new-vi.md
+.opencode/
 .opencode_reference/
-docs/blueprint/
 superpowers/
 opencode_docs/
 data/
@@ -14,3 +14,4 @@ dist/
 .turbo/
 demo-output/
 .DS_Store
+zinn/

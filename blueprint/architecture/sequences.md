@@ -3,17 +3,31 @@
 Normative: yes  
 Version: `sequences-v4`  
 
+Package roles and persistence ownership follow the [module layout](module-layout.md). Participants below show execution/data flow, not package imports; shared schema does not own DB access.
+
+## Source registration shared by Judge and Audit
+
+Both modes read an immutable `SourceSnapshot` through bounded source tools. The
+repository-registration steps are shown in the Audit sequence below; they are a
+shared source-access flow, not an Audit-only capability. Judge run submission
+uses the resulting `source_snapshot_id` together with its `CandidateFinding`.
+
 ## Submission to terminal retrieval (Judge Mode)
+
+Judge evaluates a supplied finding against source code. It reads the same kind
+of immutable snapshot used by Audit, but its exploration is scoped to deciding
+that finding rather than discovering vulnerabilities across the repository.
+The shared model/tool iteration is described in [Provider and tool iteration](#provider-and-tool-iteration).
 
 ```mermaid
 sequenceDiagram
   actor U as Operator / Auditor
   participant API as API Server (@harness/server)
   participant APP as Core Engine (@harness/core)
-  participant DB as Database (PostgreSQL / @harness/schema)
+  participant DB as Database (PostgreSQL / core capability persistence)
   participant Q as JobQueue
   participant W as Worker
-  U->>API: POST canonical request + Idempotency-Key
+  U->>API: POST CandidateFinding + source_snapshot_id + config + Idempotency-Key
   API->>APP: validate and create
   APP->>DB: resolve snapshot/config and atomic accepted record
   APP->>Q: enqueue run_id
@@ -30,6 +44,10 @@ Invariant: configuration is persisted before enqueue; queue payload contains onl
 
 ## Autonomous Audit Mode flow
 
+This sequence includes the shared repository-registration flow for clarity.
+The same registration operation can produce the snapshot later selected by a
+Judge run.
+
 ```mermaid
 sequenceDiagram
   actor U as Operator / Auditor
@@ -37,7 +55,7 @@ sequenceDiagram
   participant API as API Server (@harness/server)
   participant CORE as Core Engine (@harness/core)
   participant LLM as Model Gateway (@harness/llm)
-  participant DB as Database (PostgreSQL / @harness/schema)
+  participant DB as Database (PostgreSQL / core capability persistence)
 
   U->>UI: Select smart contract repository
   UI->>API: POST /sources/register (ephemeral path)
@@ -65,10 +83,10 @@ sequenceDiagram
   CORE->>CORE: Compile structured AuditReport
   CORE->>DB: Commit findings, AuditReport & CAS running -> completed
   UI->>API: GET /runs/{run_id}/report
-  API-->>UI: Return completed AuditReport & verified findings
+  API-->>UI: Return completed AuditReport & discovered/classified findings
 ```
 
-Invariant: Audit Mode operates purely on immutable snapshots through read-only tools; all intermediate reasoning, tool calls, and discovered findings are durably recorded in PostgreSQL.
+Invariant: Audit Mode operates purely on immutable snapshots through read-only tools; all intermediate reasoning, tool calls, and discovered findings are durably recorded in PostgreSQL. The report wording does not imply independent PoC verification; that belongs to a separate VerificationRunner flow.
 
 ## Tauri discovery, protected transport, and host exit
 
@@ -98,6 +116,10 @@ Invariant: renderer input cannot choose an arbitrary endpoint, credential, execu
 
 ## Provider and tool iteration
 
+This shared loop applies to both Judge and Audit. Judge uses tool results to
+assess its input `CandidateFinding`; Audit uses them to explore the repository
+and discover new findings. Their run inputs and terminal outputs remain distinct.
+
 ```mermaid
 sequenceDiagram
   participant O as Orchestrator (@harness/core)
@@ -105,7 +127,7 @@ sequenceDiagram
   participant P as ModelGateway (@harness/llm)
   participant T as ToolRegistry
   participant W as WorkspacePolicy
-  participant E as EventSink (@harness/schema)
+  participant E as EventSink (core run_control persistence)
   loop until valid verdict, report or stop
     O->>C: preflight exact planned messages + output reserve
     C-->>O: model input or context_budget

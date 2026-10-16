@@ -8,13 +8,12 @@ context: |
   static analyzers and a general-purpose agent; RQ3 later compares at least three
   real providers.
 
-  Required reading order before project work:
-  1. docs/idea.md
-  2. docs/00-START-HERE.md
-  3. docs/01-glossary.md
-  4. docs/02-roles.md
-  5. docs/04-working-rules.md
-  6. docs/05-timeline-guide.md and docs/timeline.csv
+  Required reading before project work:
+  1. docs/idea.md for the research motivation and scope.
+  2. docs/sprints/sprint-01.md for the current sprint tasks and open decisions.
+  3. docs/core-team-timeline.md for team organization and core delivery stages.
+  4. blueprint/README.md and blueprint/architecture/module-layout.md for the
+     current architecture and package boundaries.
 
   Non-negotiable research controls:
   - The agent may receive canonical CandidateFinding data and an immutable
@@ -41,11 +40,21 @@ context: |
     remaining real adapters and cross-provider matrix stay at C11-C12.
   - Audit mode, cross-run long-term memory, compaction, PoC execution,
     production multi-tenancy, Kubernetes, and MCP are outside this MVP.
-  - No technology stack is selected yet. Do not scaffold implementation before
-    the stack and provider/baseline ADR readiness gates are approved.
+  - The blueprint selects TypeScript/Bun/Turborepo, React, Tauri 2 and PostgreSQL
+    via Drizzle. The module layout defines package ownership and authorizes
+    selective OpenCode reuse in principle; it does not implement a port or change
+    the selected stack.
+  - Use blueprint/architecture/module-layout.md for the current package and
+    capability map. Shared schema is safe data, protocol is the application API,
+    and capability persistence lives in core. CLI startup has a narrow public
+    composition seam; scorer reachability and credentials remain isolated.
+  - Implementation/provider/baseline readiness gates still require their own
+    evidence; package documentation is not proof those gates are complete.
 
-  Team ownership: TV1 agent loop/provider ports; TV2 context; TV3 tools/skills;
-  TV4 security/verification; TV5 data/evaluation; TV6 API/persistence/UI/demo.
+  Team organization: four core developers work together on each delivery stage;
+  one researcher designs mode pipelines and audits the product. The researcher
+  has not yet been assigned to a specific member. TV6 owns application/demo.
+  See docs/core-team-timeline.md for responsibilities and stage outputs.
   Timeline dates and status are planning data, not proof of completion.
 
 rules:

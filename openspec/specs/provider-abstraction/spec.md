@@ -49,7 +49,7 @@ The blueprint MUST define a provider profile separately from the provider-integr
 #### Scenario: Incomplete real profile is selected
 - **GIVEN** the OpenAI `real-primary` profile is missing its exact model snapshot, knowledge-cutoff evidence, pricing version, credential owner, paid-call ceiling, capability digest, or approval
 - **WHEN** a run or fidelity spike requests that profile
-- **THEN** the blueprint requires rejection before network activity or provider cost, while both deterministic profiles remain usable and ADR-002 remains accepted at integration-strategy scope
+- **THEN** the blueprint requires rejection before network activity or provider cost, while both deterministic profiles remain usable and the direct official-SDK strategy remains the accepted integration boundary
 
 ### Requirement: Observable single-attempt provider boundary
 Each provider-port invocation defined by the blueprint MUST execute at most one externally billable provider attempt and return one normalized response or error. Provider-side automatic retries MUST be disabled where configurable; otherwise the adapter SHALL expose each native attempt without loss and MUST fail conformance when attempt count, usage, latency, cost, or retry behavior cannot be observed accurately. Retry policy and subsequent attempts belong outside the adapter and count against immutable run budgets.

@@ -17,11 +17,11 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 **Đầu ra:** repository thật được nhập thành snapshot cố định; run và tools truy cập source bằng snapshot ID cùng đường dẫn tương đối.
 
-**Phối hợp:** B dùng thao tác đọc/liệt kê của A; C nối đăng ký và chọn snapshot vào CLI. A cùng D thống nhất cách lưu thông tin và liên kết snapshot với run. Đường dẫn gốc trên máy chỉ dùng lúc đăng ký, không đi vào request model hoặc trace.
+**Phối hợp:** B dùng thao tác đọc/liệt kê của A; D nối đăng ký và chọn snapshot vào CLI. A phụ trách lưu metadata snapshot, cùng C thống nhất liên kết snapshot với run. Đường dẫn gốc trên máy chỉ dùng lúc đăng ký, không đi vào request model hoặc trace.
 
 ## B — Bộ tool đọc source
 
-- [ ] Tìm hiểu cách mô tả tool cho model, kiểm tra tham số và chọn đúng hàm thực thi. Đối chiếu registry/handler hiện có với thao tác đọc snapshot của A.
+- [ ] Định nghĩa mỗi tool bằng tên, mô tả, tham số được nhận và hàm thực thi; cung cấp qua registry để C lấy danh sách tool được phép dùng. Đối chiếu registry/handler hiện có với thao tác đọc snapshot của A.
 - [ ] Hoàn thiện bốn tool trên snapshot thật: `read_file` đọc file, `list_dir` liệt kê thư mục, `glob` tìm đường dẫn theo mẫu và `grep` tìm nội dung.
 - [ ] Kiểm tra tham số và quyền trước khi chạy; trả lỗi rõ ràng khi tool không tồn tại, file thiếu, đường dẫn bị chặn hoặc hết thời gian.
 - [ ] Giới hạn dung lượng đọc, số kết quả và thời gian tìm kiếm; đánh dấu khi kết quả bị cắt. Kết quả giữ snapshot, đường dẫn và dòng nguồn để truy ngược; nội dung source được xử lý như dữ liệu không đáng tin và không làm lộ secret.
@@ -30,34 +30,53 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 **Phối hợp:** A cung cấp source; B cung cấp mô tả tool và cách gọi cho C/D. C quyết định lúc chạy tool; D chuyển mô tả tool sang định dạng API model.
 
-## C — Runner và CLI tích hợp
+## C — Runner và lịch sử thực thi
 
 - [ ] Tìm hiểu luồng runner hiện tại và cách đưa kết quả tool vào lịch sử cho lần gọi model tiếp theo. Giữ luồng gọi model một lượt để dùng làm baseline.
-- [ ] Nối CLI đăng ký repository, chọn snapshot và chạy prompt. Chuẩn bị thông tin source ban đầu có giới hạn để model biết phạm vi được đọc.
+- [ ] Cung cấp thao tác chạy với prompt, snapshot ID và giới hạn để D nối CLI. Chuẩn bị thông tin source ban đầu có giới hạn để model biết phạm vi được đọc.
+- [ ] Chuẩn bị request tối thiểu cho từng lượt: instruction, prompt, thông tin source, lịch sử model/tool và danh sách tool được phép dùng lấy từ B. Ghép theo cấu trúc chung của Harness để gửi qua gateway của D; phần này làm cơ sở tách context ở chặng sau.
 - [ ] Mở rộng runner: gọi model → ghi yêu cầu tool → chạy tool của B → ghi kết quả/lỗi → gửi lại model → nhận phản hồi. Mỗi kết quả phải gắn đúng với lời gọi tool tương ứng.
 - [ ] Đặt giới hạn số lượt model, số tool call và tổng thời gian; kiểm tra trước thao tác tiếp theo, dừng với lý do rõ ràng khi hết mức.
-- [ ] Nối thao tác lưu attempt của D vào trước/sau mỗi lần gọi model; truyền giới hạn output từ cấu hình tới gateway. Xử lý lỗi lưu dữ liệu hoặc mất quyền cập nhật run, tránh tiếp tục chạy hay báo hoàn thành khi dữ liệu chưa được ghi thành công.
-- [ ] Mở rộng lệnh xem run để đọc lại snapshot, từng lần gọi model, tool request/result và lý do dừng từ DB sau khi mở lại chương trình.
+- [ ] Dùng lại phần lưu attempts thành viên đã bổ sung, nối vào chuỗi nhiều lượt và kiểm tra mỗi lần gọi có bản ghi đúng, không ghi trùng. Truyền giới hạn output từ đầu vào tới gateway; xử lý lỗi lưu dữ liệu hoặc mất quyền cập nhật run trước khi thực hiện thao tác tiếp theo.
+- [ ] Hoàn thiện lưu/đọc lịch sử nhiều lượt: liên kết run, snapshot, attempt, tool request/result và lý do dừng theo đúng thứ tự. Cung cấp dữ liệu để D hiển thị qua lệnh xem run; bổ sung lưu trữ nếu luồng tool còn thiếu dữ liệu.
 
 **Đầu ra:** chạy được cả chuỗi source → model → tool → model, có giới hạn và lịch sử xem lại được.
 
-**Phối hợp:** C ghép các phần A/B/D tại CLI và runner, chủ trì chạy tích hợp. Mỗi người cùng xử lý lỗi thuộc phần mình khi ghép.
+**Phối hợp:** C sở hữu runner, trạng thái và lịch sử thực thi; D sở hữu CLI và gateway. C chốt thao tác chạy/xem cùng ví dụ dữ liệu sớm để D làm song song. C/D cùng ghép luồng thật, mỗi người xử lý lỗi thuộc phần mình.
 
-## D — Giao tiếp model và lưu từng attempt
+## D — Chuyển đổi request/response của provider và CLI
 
-- [ ] Tìm hiểu tool calling của provider đã chọn: gửi danh sách tool, nhận yêu cầu gọi tool và gửi kết quả về model ở lượt tiếp theo.
-- [ ] Mở rộng gateway để nhận mô tả tool, lịch sử và giới hạn output. Trả rõ model đang trả lời, yêu cầu tool, bị cắt do giới hạn hay gặp lỗi; gateway chuyển đổi dữ liệu, runner của C điều phối việc thực thi.
-- [ ] Hoàn thiện việc lưu/đọc từng attempt — mỗi lần gọi API model. Ghi dấu vết trước khi gọi, bổ sung kết quả hoặc lỗi sau khi gọi; thể hiện được lần gọi chưa rõ kết quả nếu chương trình gián đoạn.
-- [ ] Dùng lại bảng `model_attempts` và phần lưu trữ đã có; bổ sung dữ liệu/migration cần thiết. Lưu request/response đã loại secret, model, usage, thời gian và chi phí; thiếu usage/chi phí thì ghi rõ chưa xác định.
+- [ ] Tìm hiểu định dạng API tool calling của provider: cách biểu diễn message, định nghĩa tool, yêu cầu gọi tool và kết quả tool.
+- [ ] Nhận request đã được C chuẩn bị theo cấu trúc chung của Harness, chuyển messages, tool definitions và giới hạn output sang đúng trường SDK/API rồi gửi đi. Giữ đúng nội dung, thứ tự lịch sử và mã liên kết lời gọi/kết quả tool.
+- [ ] Chuyển response của provider về cấu trúc chung cho C: text trả lời, tool call ID, tên tool, arguments, usage và lý do kết thúc. Phân biệt yêu cầu tool, trả lời hoàn tất, bị cắt do giới hạn và lỗi; báo dữ liệu không hợp lệ để C xử lý.
+- [ ] Hoàn thiện cấu hình provider, key và model; kiểm tra tool calling thực tế. Trả thông tin model, usage và lỗi theo cấu trúc chung để C lưu vào lịch sử.
+- [ ] Nối CLI đăng ký repository qua A, chọn snapshot và chạy prompt qua C. Kiểm tra cấu hình thiếu/sai, cung cấp lệnh và cấu hình mẫu để các máy dùng cùng một luồng.
+- [ ] Mở rộng lệnh xem run từ dữ liệu C cung cấp: snapshot, từng lượt model, tool đã gọi, kết quả/lỗi và lý do dừng. Hiển thị usage/chi phí chưa xác định rõ ràng; đọc lại được từ tiến trình mới.
 - [ ] Truyền giới hạn output vào tham số SDK/API thật ở mọi lượt. Giữ timeout, phân loại lỗi và tắt retry ngầm của SDK; đối chiếu dấu kiểm tra dữ liệu với đúng nội dung cuối cùng được lưu.
+- [ ] Chuẩn bị hướng dẫn chạy và ca tích hợp cho gateway/CLI: model gọi tool rồi trả lời, cấu hình sai, lỗi provider và hết thời gian. Cùng C đối chiếu phản hồi gateway với attempts và lịch sử đã lưu.
 
-**Đầu ra:** model thật nhận được danh sách tool và giới hạn output; từng lần gọi có bản ghi để tra cứu, kể cả khi lỗi hoặc gián đoạn.
+**Đầu ra:** gateway hỗ trợ tool calling thật và bộ lệnh đăng ký source → chạy → xem lại dùng được; cấu hình, giới hạn và lỗi có thể kiểm tra xuyên suốt từ CLI tới provider.
 
-**Phối hợp:** D cùng C chốt request/response và thời điểm lưu attempt. D phụ trách gateway và lưu attempt, C chịu trách nhiệm gọi các thao tác này trong runner; A phối hợp phần lưu snapshot.
+**Phối hợp:** D dùng thao tác đăng ký source của A, mô tả tool của B và thao tác chạy/xem của C. D sở hữu CLI/composition và gateway; C sở hữu điều phối và lưu lịch sử. D trả usage/model/error đã chuẩn hóa để C lưu đúng.
 
-## Bổ sung phần còn thiếu của Sprint 2
+## Phân biệt tools, chuẩn bị context và gateway
 
-- [ ] **Lưu attempt từ runner — D chủ trì, C phối hợp:** nối thao tác lưu vào luồng thật để mỗi lần gọi API có bản ghi tương ứng trong `model_attempts`, đọc lại được theo run.
+| Phần | Trách nhiệm | Ví dụ với `read_file` |
+|---|---|---|
+| **B — Tools** | Định nghĩa tool làm được gì, nhận tham số gì và thực thi ra sao | Viết mô tả/schema của `read_file` và hàm đọc file qua snapshot của A |
+| **C — Chuẩn bị request trong Sprint 3** | Ghép nội dung model được thấy ở lượt hiện tại theo cấu hình và quyền đã chốt | Đưa định nghĩa `read_file` vào request; ở lượt sau ghép lời gọi tool cùng nội dung/lỗi trả về vào lịch sử |
+| **D — Gateway** | Chuyển request chung sang định dạng provider và chuyển response về định dạng chung | Ánh xạ định nghĩa sang trường tools của API, giữ call ID khi gửi kết quả; giải mã tool call trả về cho C |
+| **Context ở chặng sau** | Tách việc chuẩn bị request thành thành phần riêng, quản lý ngân sách context, lựa chọn lịch sử và xử lý vượt giới hạn | Quyết định phần source/history nào được đưa vào lượt tiếp theo và dành chỗ cho output theo chính sách đã chốt |
+
+**Ví dụ cả luồng:** B cung cấp định nghĩa `read_file` → C ghép request → D chuyển định dạng và gọi API → model yêu cầu đọc một file → D trả tool call về C → C kiểm tra và gọi tool của B → C ghi kết quả, ghép request tiếp theo → D gửi request đó tới provider.
+
+Việc chọn source, lịch sử và tool được đưa vào request thuộc bước chuẩn bị request/context. Việc quyết định chạy tool hay dừng thuộc runner. D phụ trách biểu diễn đúng những dữ liệu đó theo API của provider; B thực thi tool và kiểm tra quyền trước khi đọc.
+
+## Cập nhật phần chuyển tiếp từ Sprint 2
+
+**Attempts:** theo cập nhật của leader, thành viên đã bổ sung phần này. Sprint 3 dùng lại implementation đó; cần xác định commit/nhánh chứa thay đổi khi ghép, không phân công làm mới chức năng lưu attempt. Việc kiểm tra dưới đây tập trung vào chuỗi model–tool nhiều lượt.
+
+- [ ] **Tích hợp attempts đã có — C chủ trì, D phối hợp:** ghép bản bổ sung, kiểm tra mỗi lần gọi trong chuỗi nhiều lượt có bản ghi tương ứng, đọc lại được và không ghi trùng; kiểm tra cả lỗi và gián đoạn.
 - [ ] **Truyền giới hạn output — D chủ trì, C phối hợp:** nối đủ đường cấu hình → CLI → runner → gateway → API provider; kiểm tra giá trị thực sự có trong request gửi đi.
 - [ ] **Usage/chi phí — D cùng C:** sửa cách lưu và hiển thị để phân biệt chưa xác định với chi phí bằng 0.
 - [ ] **Các điểm cần xác minh thêm — C cùng D:** kiểm tra ghi trạng thái/event nhất quán, xử lý cập nhật bị từ chối, lọc secret và dấu kiểm tra dữ liệu. Sửa các lỗi xác nhận được trong luồng tích hợp.
@@ -65,16 +84,18 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 ## Cả nhóm thống nhất trước khi code riêng
 
-- [ ] Chọn provider/model có quota và hỗ trợ tool calling; chốt ngân sách, giới hạn output, số lượt, số tool call và thời gian chạy. Nếu chọn Gemini, tính rõ phần adapter cần bổ sung cho D.
+- [ ] Chọn provider/model có quota và hỗ trợ tool calling; chốt ngân sách, giới hạn output, số lượt, số tool call và thời gian chạy. D phụ trách tích hợp provider đã chọn.
 - [ ] Chọn repository Solidity nhỏ để ghép thử; giữ đáp án và dữ liệu đánh giá ngoài snapshot agent đọc được.
-- [ ] Chốt bốn chỗ giao tiếp bằng ví dụ thành công và lỗi: source của A → B/C; tool của B → C; runner của C → gateway của D; runner của C → lưu trữ của D. Thống nhất tên hàm, dữ liệu và mã liên kết run/snapshot/attempt/tool call.
+- [ ] Chốt giao tiếp bằng ví dụ thành công và lỗi: source của A → tools/runner/CLI; tool của B → runner của C; runner của C → gateway của D; CLI của D → thao tác chạy/xem của C. C đối chiếu contract lưu trữ và attempts đã có; cả nhóm thống nhất mã liên kết run/snapshot/attempt/tool call.
 - [ ] Chốt vị trí đặt code và người sửa contracts/migration chung. Đối chiếu khác biệt giữa blueprint mới và code hiện có; việc chuyển toàn bộ package cần được tính thành phạm vi riêng nếu nhóm chọn thực hiện.
 
-**Cách làm song song:** sau khi chốt giao tiếp, A làm snapshot, B làm tools, C làm điều phối và CLI, D làm gateway/lưu attempt. Mỗi người kiểm thử phần mình; dùng dữ liệu kiểm thử để làm độc lập và ghép bằng source, provider, DB thật trong sprint.
+**Cách làm song song:** sau khi chốt giao tiếp, A làm snapshot, B làm tools, C làm runner/lịch sử, D làm gateway/CLI. C đưa ví dụ dữ liệu chạy/xem sớm; D có thể dựng CLI và kiểm tra gateway độc lập trong lúc C làm runner. Mỗi người kiểm thử phần mình và ghép bằng source, provider, DB thật trong sprint.
 
-**Ghép sớm:** A/B/C nối đăng ký repository và đọc file qua tool; C/D nối một lượt model thật có giới hạn output và lưu attempt để khép hai thiếu sót Sprint 2. Tiếp đó ghép model tự yêu cầu `read_file`, nhận kết quả và trả lời; mở rộng sang các tool còn lại cùng ca lỗi.
+**Ưu tiên có sớm:** A có snapshot thật đọc được; B có mô tả tool và `read_file`; C có thao tác chạy/xem cùng ví dụ dữ liệu; D có gateway nhận tool definitions và CLI gọi được các thao tác đã chốt. Mỗi người hoàn thành bản tối thiểu trước khi mở rộng phần mình.
 
-**Review chéo:** A/B kiểm tra snapshot và quyền đọc; C/D kiểm tra luồng model và lưu trữ. Khi snapshot ổn định, A hỗ trợ phần lưu/đọc lại dữ liệu, B hỗ trợ ca tool calling để chia tải tích hợp cho C/D.
+**Ghép sớm:** A/D nối đăng ký repository trên CLI, A/B nối đọc file qua tool; C/D nối một lượt model thật có giới hạn output và dùng lại attempts đã bổ sung. Tiếp đó ghép model tự yêu cầu `read_file`, nhận kết quả, trả lời và xem lịch sử; mở rộng sang các tool còn lại cùng ca lỗi.
+
+**Review chéo:** A/B kiểm tra snapshot và quyền đọc; C/D kiểm tra luồng model, lịch sử và CLI. Khi snapshot ổn định, A hỗ trợ C phần lưu/đọc lại dữ liệu, B hỗ trợ D ca tool calling.
 
 **Kết quả cần đạt:** chuỗi thật chạy được và xem lại sau restart; sửa source gốc không đổi snapshot; giới hạn có hiệu lực; lỗi tool/provider/DB giải thích được qua lịch sử. Các ca vượt quyền, file thiếu/lớn và dữ liệu nhạy cảm được kiểm tra trước khi coi sprint hoàn thành.
 

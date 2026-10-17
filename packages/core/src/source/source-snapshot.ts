@@ -67,4 +67,27 @@ export interface SourceSnapshotOptions {
   deniedPrefixes?: readonly string[]
 }
 
+export const DEFAULT_DENIED_PREFIXES: readonly string[] = [
+  ".git",
+  ".env",
+  ".github",
+  "node_modules",
+  "adjudication",
+  "test/ground-truth",
+  "ground-truth",
+]
+
+export const isDeniedSourceFile = (relativePath: string, extraDeniedPrefixes: readonly string[] = []): boolean => {
+  const denied = [...DEFAULT_DENIED_PREFIXES, ...extraDeniedPrefixes]
+  const checked = checkSnapshotPath(relativePath, denied)
+  if (checked.kind === "denied") return true
+
+  // Check filename patterns (e.g. .env*, *.pem, *.key, id_rsa)
+  const filename = checked.path.split("/").pop() ?? ""
+  if (filename.startsWith(".env")) return true
+  if (filename.endsWith(".pem") || filename.endsWith(".key") || filename === "id_rsa") return true
+
+  return false
+}
+
 export type { SnapshotReadResult, SourceSnapshotPort }

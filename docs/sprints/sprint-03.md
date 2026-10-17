@@ -10,10 +10,10 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 ## A — Repository và snapshot
 
-- [ ] Tìm hiểu cách chuyển repository thành snapshot: một bản source cố định mà run dùng để phân tích, có mã riêng và danh sách file để tra cứu.
-- [ ] Làm thao tác đăng ký repository và tạo snapshot. Chốt file nào được nhập; giữ secret, nhãn đáp án và dữ liệu chấm điểm ngoài vùng agent được đọc.
-- [ ] Cung cấp cách liệt kê và đọc file theo snapshot ID. Kiểm tra quyền trước khi đọc; chặn đường dẫn đi ra ngoài snapshot và symlink vượt phạm vi.
-- [ ] Bảo đảm sửa repository gốc không làm đổi snapshot đã tạo. Lưu thông tin để sau khi mở lại chương trình vẫn đọc đúng snapshot; xử lý tạo dở dang, snapshot không tồn tại và việc dọn dữ liệu còn được run sử dụng.
+- [x] Tìm hiểu cách chuyển repository thành snapshot: một bản source cố định mà run dùng để phân tích, có mã riêng và danh sách file để tra cứu.
+- [x] Làm thao tác đăng ký repository và tạo snapshot. Chốt file nào được nhập; giữ secret, nhãn đáp án và dữ liệu chấm điểm ngoài vùng agent được đọc.
+- [x] Cung cấp cách liệt kê và đọc file theo snapshot ID. Kiểm tra quyền trước khi đọc; chặn đường dẫn đi ra ngoài snapshot và symlink vượt phạm vi.
+- [x] Bảo đảm sửa repository gốc không làm đổi snapshot đã tạo. Lưu thông tin để sau khi mở lại chương trình vẫn đọc đúng snapshot; xử lý tạo dở dang, snapshot không tồn tại và việc dọn dữ liệu còn được run sử dụng.
 
 **Đầu ra:** repository thật được nhập thành snapshot cố định; run và tools truy cập source bằng snapshot ID cùng đường dẫn tương đối.
 

@@ -4,7 +4,8 @@ import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
 import { checkSnapshotPath, isDeniedSourceFile, comparePaths, splitLines } from "../../source/source-snapshot"
 
 export const DEFAULT_MAX_GREP_MATCHES = 100
-export const DEFAULT_GREP_TIMEOUT_MS = 2000
+// Set from task 3.5: regex matching on the three Sprint-3 snapshots has p95 <= 7.8 ms, so max(1000, 10 x p95) = 1000.
+export const DEFAULT_GREP_TIMEOUT_MS = 1000
 export const DEFAULT_MAX_GREP_SCAN_BYTES = 50 * 1024 * 1024
 export const DEFAULT_MAX_GREP_LINE_CHARS = 500
 

@@ -30,7 +30,7 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   - Bounds: configurable per-file 1 MiB (skip, `too_large`), file count 20,000 and total 200 MiB (fail), binary files (NUL byte in the first 8 KB, skip, `binary`).
   - Add optional `skipped: [{path, reason}]` and `warnings` to `SnapshotManifest`, with validation and serialization, so old manifests stay valid.
   - Evidence: a symlink + 2 MiB file test; a test loading an old manifest that has neither field.
-- [ ] 2.3 [Owner: A; gate: before archive] Survey about 10 contest repositories from the TV5 corpus and record the results here:
+- [x] 2.3 [Owner: A; gate: before archive] Survey about 10 contest repositories from the TV5 corpus and record the results here:
   - the count of symlinks and junctions;
   - the largest `.sol` file size;
   - the count of report-like names.
@@ -55,7 +55,7 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   - Bounds: hard timeout (provisional default 2,000 ms, configurable), 50 MiB scan cap, 500 characters per matched line.
   - On timeout, terminate the worker and return the model-actionable error; mark the other bounds as truncation.
   - Evidence: a `^(a+)+$` test on a 40-`a` line that returns within timeout + 1 s with the timeout error; the existing grep tests still pass.
-- [ ] 3.5 [Owner: B with Research; Q3; gate: before archive] Measure `grep` on the 3 Sprint-3 Solidity repositories with the patterns `function\s+\w+`, `transfer\(` and `onlyOwner`.
+- [x] 3.5 [Owner: B with Research; Q3; gate: before archive] Measure `grep` on the 3 Sprint-3 Solidity repositories with the patterns `function\s+\w+`, `transfer\(` and `onlyOwner`.
   - Set the default timeout to max(1,000 ms, 10 × p95) and the scan cap from the largest repository.
   - Record the measurement table here and update the defaults.
 
@@ -133,3 +133,34 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   | Identical re-ingest | — | Returns the same content-addressed ID |
 
 - Still open: 2.3 and 3.5 need the TV5 corpus and the Sprint-3 Solidity repositories, which are not present locally; 5.4 needs TV5/Research confirmation of Q1, Q2 and Q6.
+
+### Survey evidence (2.3) and grep measurement (3.5), 2026-10-18
+
+Data: `D:\DATN\harness-verification-data` @ `154a79e`. The data repository holds 3 contests, not the 10 the task assumed. Each contest's `src/` was ingested with the real `SnapshotManager` at default limits.
+
+| Contest | Source files / MiB | Snapshot files / MiB | Symlinks | Largest `.sol` | `.sol` > 1 MiB | Skipped | Report-like names in `src/` |
+|---|---|---|---|---|---|---|---|
+| 2025-11-megapot | 182 / 3.97 | 162 / 2.50 | 0 | `lib/forge-std/src/safeconsole.sol` 412 KiB | 0 | 2 denied, 15 binary | `4naly3er-report.md`, `2025-11-megapot_V12.md` (bot report, not flagged), `discord-export/` (1.1 MiB, ingested), `documentation/auditor-intro.md`, Zellic audit PDF (binary) |
+| 2026-03-chainlink | 148 / 1.25 | 146 / 0.68 | 0 | `test/poc/C4PoC.t.sol` 38.6 KiB | 0 | 1 denied, 1 binary | `4naly3er-report.md`; `on-report/` test code (false-positive name) |
+| 2026-03-intuition | 199 / 3.34 | 196 / 2.26 | 0 | `src/protocol/MultiVault.sol` 75.3 KiB | 0 | 1 denied, 2 binary | `4naly3er-report.md`, two V12 `*findings*.md`, `POST-MORTEM.md` (not flagged), `audits/` PDFs, `.claude/commands/audit-*.md` |
+
+Decisions:
+
+- **Q4 (symlinks):** 0 symlinks in all 3 repositories, so skipping them costs nothing. No follow-up needed.
+- **Q8 (file size):** largest `.sol` is 412 KiB, so the 1 MiB limit stays.
+- **Q1 (report-like files):** see the design's task 5.4 research. A scorer-side check found that 1 of 15 valid finding titles appears verbatim in a default whole-`src/` snapshot: intuition M-01, through a V12 findings file. With `includeRoots` set to code directories, 0 of 15 titles leak.
+
+grep measurement (3.5), 20 runs per pattern, patterns `function\s+\w+`, `transfer\(`, `onlyOwner`:
+
+| Contest | Regex match only, p95 / max (ms) | Whole `grep` call, p95 / max (ms) | Read all files (ms) | Scanned MiB |
+|---|---|---|---|---|
+| megapot | 4.5 / 7.2 | 614 / 768 | 650 | 2.50 |
+| chainlink | 2.7 / 3.5 | 372 / 1175 | 93 | 0.67 |
+| intuition | 7.8 / 8.1 | 305 / 370 | 108 | 2.26 |
+
+Results:
+
+- The default timeout is now `max(1000, 10 × 7.8) = 1000 ms` (`DEFAULT_GREP_TIMEOUT_MS`). The timeout covers the worker phase: spawn (about 20 ms), data transfer and matching.
+- The scan cap stays at 50 MiB, which is 20× the largest snapshot.
+- A whole `grep` call is dominated by reading and digest-verifying every file on each call (up to about 650 ms). Caching verified file contents per snapshot is a possible later optimisation, not a correctness issue.
+- Core tests still pass: 753 pass.

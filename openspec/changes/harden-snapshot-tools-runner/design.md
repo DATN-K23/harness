@@ -126,7 +126,7 @@ Other bounds:
 
 `glob` and `grep` limits are passed separately. The same worker code serves the snapshot and in-memory backends.
 
-**Resolved question 3.** 2,000 ms and 50 MiB are provisional defaults. Before the change is archived, Track B with Research measures `grep` on the 3 Solidity repositories chosen for Sprint 3. The patterns are `function\s+\w+`, `transfer\(` and `onlyOwner`. The timeout is then set to the larger of 1,000 ms and 10 × the observed p95 scan time, and the measurement table is recorded in task 5.3.
+**Resolved question 3.** Task 3.5 measured `grep` on the three contests in `harness-verification-data` and found regex-matching p95 of at most 7.8 ms. The default timeout is therefore now 1,000 ms, and the scan cap stays at 50 MiB. The original procedure was: Before the change is archived, Track B with Research measures `grep` on the 3 Solidity repositories chosen for Sprint 3. The patterns are `function\s+\w+`, `transfer\(` and `onlyOwner`. The timeout is then set to the larger of 1,000 ms and 10 × the observed p95 scan time, and the measurement table is recorded in task 5.3.
 
 The effective tool limits are exposed by `ToolRegistry.limits()`:
 
@@ -234,13 +234,104 @@ A new test `packages/core/test/runner/disk-chain-e2e.test.ts` runs the full chai
 |---|---|---|---|---|
 | 1 | Block report-like file names? | No silent blocking; ingest `source/` or `includeRoots`; warn on report-like names in the manifest and CLI | D4 | TV5, Track A |
 | 2 | Final answer over budget: `completed` or `budget_exhausted`? | `completed` plus telemetry; a pre-call check that the remaining token budget covers `maxOutputTokens` keeps overruns small | D9 | Track C, TV5 |
-| 3 | grep timeout and scan cap | Provisional 2 s and 50 MiB; set from measured p95 on 3 repositories; limits recorded per run | D7 | Track B, Research |
-| 4 | Follow internal symlinks? | Skip all and record; revisit after surveying about 10 contest repositories | D4 | Track A |
+| 3 | grep timeout and scan cap | 1,000 ms (= max(1000, 10 × measured p95 7.8 ms)) and 50 MiB; limits recorded per run | D7, task 3.5 | Done |
+| 4 | Follow internal symlinks? | Skip all and record; survey found 0 symlinks in 3 contests | D4, task 2.3 | Done |
 | 5 | Sanitize source content? | Two tiers: full for system/model text, credentials-only for snapshot content | D8 | Track C, B |
 | 6 | Random or content IDs? | Content-addressed default ID; idempotent for identical content; conflict error otherwise | D2 | Track A, TV5 |
 | 7 | Who answers "is it in use"? | Optional `RunStorePort.findActiveRunsBySnapshot` plus `snapshotInUse(store)`; CLI passes it | D3 | Track A, C, D |
-| 8 | Files over 1 MiB | Keep the default; configurable; listed to the model as present-but-unreadable | D4 | Track A |
+| 8 | Files over 1 MiB | Keep the default (largest `.sol` observed: 412 KiB); configurable; listed to the model as present-but-unreadable | D4, task 2.3 | Done |
+
+## Task 5.4 research: proposals for Q1, Q2 and Q6
+
+Evidence comes from `D:\DATN\harness-verification-data` at commit `154a79e`, which holds 3 contests. The survey and the scorer-side leak check are described in the 2.3 / 3.5 evidence in tasks.md. The proposals below need TV5/Research confirmation before they become requirements; their implementation is listed as a separate follow-up change at the end of this section.
+
+### Q1. Report-like files and ground truth inside the ingested source
+
+**Finding.** A contest's `src/` is not pure source code.
+
+| Contamination source | Contests | How the current policy treats it |
+|---|---|---|
+| Bot static-analysis reports (`4naly3er-report.md`) | 3/3 | Warning only |
+| AI-audit bot reports (V12): `2025-11-megapot_V12.md` and two intuition `*findings*.md` files | 2/3 | Warning on the intuition files; the megapot file is not even flagged |
+| Previous audit reports (PDF) | 2/3 | Skipped as binary, by luck |
+| Discord export: 1.1 MiB of HTML/TXT warden discussion | 1/3 | Ingested |
+| `POST-MORTEM.md` | 1/3 | Ingested, not flagged |
+| Sponsor AI prompts in `.claude/commands/audit-*.md` (prompt-injection surface) | 1/3 | Ingested |
+
+A scorer-side check compared finding titles against snapshot content; the titles stay on the scorer side.
+
+- **Default whole-`src/` snapshot:** **1 of 15 valid finding titles appears verbatim.** It is intuition M-01, inside a V12 findings file.
+- **`includeRoots` limited to code directories:** **0 of 15** leak.
+
+A manifest warning is therefore not enough: this is exactly the ground-truth leakage risk the project lists first.
+
+**Proposal.** All four layers sit outside the agent's control.
+
+1. **Code-only ingestion profile per contest.** TV5's corpus manifest declares `includeRoots` for every contest. The default profile is `contracts`, `src`, `lib`, `test`, `tests` and `script`, plus build config (`foundry.toml`, `remappings.txt`). Evaluation runs refuse a snapshot ingested without a profile.
+2. **Wider hard-deny defaults**, applied to non-code files only (`.md`, `.txt`, `.html`, `.pdf`, `.json`), so code such as Chainlink's `on-report/onReport.t.sol` is not hit.
+   - Directories: `audits`, `discord-export`, `.claude`, `.cursor`.
+   - File names containing `findings`, `_v12`, `post-mortem`/`postmortem`, `4naly3er`, or `audit-report`/`audit report`.
+   - Report-like warnings stay for whatever remains.
+3. **Scorer-side contamination preflight (TV5).** Before an evaluation batch, normalise every valid and invalid finding title of the contest and fail the batch if any title occurs in the snapshot. This turns the leak check above into a gate. It runs on the scorer side, which is allowed to see ground truth.
+4. **Known issues as an explicit input (Research decision).** Under Code4rena rules, issues already in the bot reports are out of scope, so a Judge could legitimately use them.
+   - Default: exclude them from the snapshot.
+   - If Research wants a "known-issues-aware" arm, supply a curated known-issues list as a separate input with its own config flag (rule R1), never through the snapshot.
+
+**Owners:** TV5 and Track A for items 1-3; Research for item 4.
+
+### Q2. A final answer that crosses a budget: `completed` or `budget_exhausted`
+
+**Finding.** The pre-call guard stops when the remaining token budget is below `maxOutputTokens`, but it does not estimate the final call's *prompt* tokens. A final answer can therefore overrun the token budget by up to one full prompt. The cost ceiling has no equivalent guard.
+
+Prior art supports `completed`: OpenCode's step limit forces a final text answer and treats it as completion.
+
+**Proposal.**
+
+- **Keep `completed`** with the output and `observedLimits`. A budget is a safety stop, not part of the task's success criteria, and discarding a paid answer distorts RQ1 precision and recall.
+- **Tighten the guards** so overruns stay small and comparable across arms. Before each provider attempt, require:
+  - `remainingTokens ≥ estimatedPromptTokens + maxOutputTokens`, using TV2's `o200k_base` estimate once available and chars/4 until then;
+  - `remainingCost ≥ estimatedCost(prompt, maxOutputTokens)`, using the pricing table in `@harness/llm`.
+- **TV5 reporting rule:**
+  - report actual spend, including any overrun;
+  - report the number of runs with a non-empty `observedLimits`;
+  - add a sensitivity table that excludes those runs;
+  - apply the same budgets and guards to the direct (single-turn) baseline, so RQ1 compares like with like.
+
+**Owners:** Track C for the guards; TV5 for the reporting rule.
+
+### Q6. Content-addressed snapshot IDs and reproducibility
+
+**Finding.**
+
+- Re-ingesting identical content returned the same ID (verification probe).
+- The three contests produced three distinct IDs.
+- Ingestion took 0.45–1.1 s per contest.
+- With a 48-bit ID prefix, the chance of an accidental collision among 10,000 snapshots is about 2 × 10⁻⁷. A collision is never silent; it fails with `SnapshotExistsError`.
+
+**Risks.**
+
+1. The ID describes the content, not its provenance.
+2. Changing the deny rules changes the file set and therefore the ID. This is good for reproducibility but must be recorded.
+3. Identical content in two contests shares one snapshot. This is harmless deduplication, because runs reference `snapshotId` and experiments reference contests.
+
+**Proposal.**
+
+- Adopt content IDs.
+- TV5's frozen corpus manifest maps each contest to: the data-repository commit (`154a79e`), the contest directory, the `includeRoots` profile, the ingestion policy version, `snapshotId` and `treeDigest`.
+- Add an `ingestionPolicyVersion` field to the snapshot manifest. It is recorded but kept out of the digest, so it serves as an audit trail without making identical file sets differ.
+- A reproducibility check re-ingests every contest from the pinned data commit and asserts the IDs are unchanged.
+
+**Owners:** TV5 and Track A.
+
+### Proposed follow-up change (after confirmation)
+
+A separate change, for example `contamination-guard-and-budget-estimates`, would implement:
+
+- the code-only profile requirement and the wider hard-deny list (Q1 items 1-2);
+- the scorer-side contamination preflight (Q1 item 3);
+- prompt- and cost-aware pre-call guards (Q2);
+- `ingestionPolicyVersion` in the manifest (Q6).
 
 ## Open Questions
 
-None blocking implementation. Questions 1, 3 and 4 above carry an explicit measurement or survey step before archive (task 5.4).
+Q1, Q2 and Q6 have the proposals above and wait for TV5/Research confirmation (task 5.4). Q1 item 4, whether a Judge arm may see known issues, is a research-design decision.

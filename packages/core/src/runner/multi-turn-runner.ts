@@ -10,6 +10,7 @@ import {
   type ContextItem,
   type EventPayload,
   type EventType,
+  type ModelAttemptRequest,
   type ModelAttemptResponse,
   type ModelGatewayPort,
   type ModelToolCall,
@@ -33,6 +34,7 @@ import { hydrateHistory, interruptedToolItems } from "./history-hydrator"
 import { sha256Hex } from "../util/digest"
 import { createIdGenerator, systemIdSources, type IdGenerator } from "../util/id"
 import { sanitizeSourceContent, sanitizeSystemText } from "../util/sanitize"
+import { estimateTokens } from "../context/token-estimator"
 
 export interface ToolApprovalPort {
   decide(call: ModelToolCall, ctx: Record<string, unknown>): Promise<"allow" | "deny">
@@ -83,6 +85,8 @@ export interface MultiTurnRunnerDeps {
   secrets?: readonly string[]
   idGenerator?: IdGenerator
   skippedFiles?: () => Promise<Array<{ path: string; reason: string }>>
+  estimatePromptTokens?: (request: ModelAttemptRequest) => number
+  estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
 }
 
 const defaultBudgetLimits: BudgetLimits = {
@@ -505,18 +509,6 @@ export class MultiTurnRunner {
         break
       }
 
-      if (
-        input.maxOutputTokens !== undefined &&
-        limits.totalTokenBudget - totalTokens < input.maxOutputTokens
-      ) {
-        terminalState = "budget_exhausted"
-        terminalReason = "total_tokens"
-        terminalObservedLimits = ["total_tokens"]
-        recovery.observedLimits = terminalObservedLimits
-        isTerminated = true
-        break
-      }
-
       // Record step.started event
       const appendStepStarted = await safeAppend("step.started", {
         stepIndex,
@@ -558,6 +550,26 @@ export class MultiTurnRunner {
         seed: input.seed,
         secrets,
       })
+
+      const estimatedPromptTokens = this.deps.estimatePromptTokens?.(request) ??
+        estimateTokens(JSON.stringify({ items: request.items, tools: request.tools }) ?? "")
+      const outputTokens = input.maxOutputTokens ?? 0
+      const preCallLimits: BudgetTerminalReason[] = []
+      if (limits.totalTokenBudget - totalTokens < estimatedPromptTokens + outputTokens) {
+        preCallLimits.push("total_tokens")
+      }
+      const estimatedCostUsd = this.deps.estimateCostUsd?.(profileId, estimatedPromptTokens, outputTokens)
+      if (estimatedCostUsd !== undefined && estimatedCostUsd > limits.costCeilingUsd - costUsd) {
+        preCallLimits.push("cost_budget")
+      }
+      if (preCallLimits.length > 0) {
+        terminalState = "budget_exhausted"
+        terminalReason = preCallLimits[0]
+        terminalObservedLimits = preCallLimits
+        recovery.observedLimits = preCallLimits
+        isTerminated = true
+        break
+      }
 
       const attemptStartTime = clock.nowMs()
       const elapsedMs = Math.max(0, attemptStartTime - startTime)
@@ -764,7 +776,7 @@ export class MultiTurnRunner {
       if (limits.maxToolCalls !== undefined && completedToolCalls + toolCalls.length > limits.maxToolCalls) {
         terminalState = "budget_exhausted"
         terminalReason = "max_tool_calls"
-        terminalObservedLimits = ["max_tool_calls"]
+        terminalObservedLimits = [...new Set<BudgetTerminalReason>([...terminalObservedLimits, "max_tool_calls"])]
         recovery.observedLimits = terminalObservedLimits
         finalOutput = response.content
         isTerminated = true

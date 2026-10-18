@@ -11,6 +11,7 @@ import {
   SnapshotIntegrityError,
 } from "../../src/source/snapshot-errors"
 import { SnapshotManager } from "../../src/source/snapshot-manager"
+import { digestOf } from "../../src/util/digest"
 import { snapshotInUse } from "../../src/source/snapshot-usage"
 
 describe("Track A snapshot hardening", () => {
@@ -63,6 +64,39 @@ describe("Track A snapshot hardening", () => {
     expect(await fs.readFile(path.join(first.snapshotDir, "manifest.json"), "utf8")).toContain(
       first.manifest.treeDigest,
     )
+  })
+
+  it("records the ingestion policy outside the tree digest and loads legacy manifests", async () => {
+    await fs.mkdir(path.join(sourceDir, "contracts"), { recursive: true })
+    await fs.writeFile(path.join(sourceDir, "contracts", "Vault.sol"), "contract Vault {}\n")
+
+    const created = await SnapshotManager.ingestRepository({ sourceDir, storageDir })
+    const treeLines = Object.keys(created.manifest.files)
+      .sort()
+      .map((filePath) => filePath + ":" + created.manifest.files[filePath]!.digest)
+      .join("\n")
+
+    expect(created.manifest.ingestionPolicyVersion).toBe("ingest-policy-v2")
+    const persisted = await SnapshotManager.loadSnapshotManifest(storageDir, created.snapshotId)
+    expect(persisted.ingestionPolicyVersion).toBe("ingest-policy-v2")
+    expect(created.manifest.treeDigest).toBe(digestOf(treeLines))
+
+    const legacyId = "legacy-policy-manifest"
+    const legacyDir = path.join(storageDir, legacyId)
+    await fs.mkdir(legacyDir, { recursive: true })
+    await fs.writeFile(
+      path.join(legacyDir, "manifest.json"),
+      JSON.stringify({
+        snapshotId: legacyId,
+        createdAt: new Date().toISOString(),
+        treeDigest: digestOf(""),
+        files: {},
+      }),
+      "utf8",
+    )
+
+    const legacy = await SnapshotManager.loadSnapshotManifest(storageDir, legacyId)
+    expect(legacy.ingestionPolicyVersion).toBeUndefined()
   })
 
   it("gives changed content a new ID and keeps the original snapshot readable", async () => {
@@ -184,6 +218,47 @@ describe("Track A snapshot hardening", () => {
     expect(created.manifest.skipped).toContainEqual({ path: "contracts/.ENV", reason: "denied" })
     expect(created.manifest.skipped).not.toContainEqual({ path: "lib/forge-std/.git/config", reason: "denied" })
     expect(created.manifest.skipped).not.toContainEqual({ path: "lib/dep/node_modules/x/index.js", reason: "denied" })
+  })
+
+  it("hard-denies report files and discussion directories without denying source code names", async () => {
+    const deniedFiles = [
+      "4naly3er-report.md",
+      "2025-11-megapot_V12.md",
+      "code_423n4_x_findings.md",
+      "POST-MORTEM.md",
+      "postmortem.json",
+      "audit-report.html",
+      "an audit report.htm",
+    ]
+    await fs.mkdir(path.join(sourceDir, "reports"), { recursive: true })
+    for (const filename of deniedFiles) {
+      await fs.writeFile(path.join(sourceDir, "reports", filename), "report content")
+    }
+    await fs.mkdir(path.join(sourceDir, "lib", "Discord-Export"), { recursive: true })
+    await fs.mkdir(path.join(sourceDir, "vendor", ".claude", "commands"), { recursive: true })
+    await fs.mkdir(path.join(sourceDir, "test", ".CURSOR"), { recursive: true })
+    await fs.mkdir(path.join(sourceDir, "nested", "AuDiTs"), { recursive: true })
+    await fs.writeFile(path.join(sourceDir, "lib", "Discord-Export", "chat.txt"), "discussion")
+    await fs.writeFile(path.join(sourceDir, "vendor", ".claude", "commands", "audit-solidity.md"), "prompt")
+    await fs.writeFile(path.join(sourceDir, "test", ".CURSOR", "rules.json"), "rules")
+    await fs.writeFile(path.join(sourceDir, "nested", "AuDiTs", "Report.pdf"), "pdf")
+    const retainedCodePath = "test/unit/on-report/onReport.t.sol"
+    await fs.mkdir(path.dirname(path.join(sourceDir, retainedCodePath)), { recursive: true })
+    await fs.writeFile(path.join(sourceDir, retainedCodePath), "contract OnReportTest {}")
+
+    const created = await SnapshotManager.ingestRepository({ sourceDir, storageDir })
+    const expectedDenied = [
+      ...deniedFiles.map((filename) => ({ path: "reports/" + filename, reason: "denied" })),
+      { path: "lib/Discord-Export", reason: "denied" },
+      { path: "vendor/.claude", reason: "denied" },
+      { path: "test/.CURSOR", reason: "denied" },
+      { path: "nested/AuDiTs", reason: "denied" },
+    ]
+
+    expect(created.manifest.skipped).toEqual(expect.arrayContaining(expectedDenied))
+    expect(Object.keys(created.manifest.files)).toEqual([retainedCodePath])
+    expect(created.manifest.skipped?.some((entry) => entry.path.includes("chat.txt"))).toBe(false)
+    expect(created.manifest.skipped?.some((entry) => entry.path.includes("Report.pdf"))).toBe(false)
   })
 
   it("restricts ingestion to include roots and flags ingested report-like names", async () => {

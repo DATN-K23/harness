@@ -41,6 +41,16 @@ export interface ContestManifestEntry {
   readonly publicationDate?: string
   readonly cutoffContamination?: ContaminationBucket
   readonly findingCount?: number
+  readonly ingestion?: {
+    readonly dataRepoCommit: string
+    readonly contestDir: string
+    readonly includeRoots: readonly string[]
+    readonly ingestionPolicyVersion: string
+    readonly snapshotId?: string
+    readonly treeDigest?: string
+  }
+  /** Scorer-only path to valid/invalid finding markdown files. */
+  readonly findingsDir?: string
 }
 
 /** Complete corpus manifest governing contest-level partitioning and freeze state. */

@@ -93,6 +93,7 @@ export class SnapshotManager {
         snapshotId,
         createdAt: new Date().toISOString(),
         treeDigest,
+        ingestionPolicyVersion: "ingest-policy-v2",
         files: state.files,
         ...(state.skipped.length > 0 ? { skipped: state.skipped } : {}),
         ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),

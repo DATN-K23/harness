@@ -140,6 +140,25 @@ describe("ToolRegistry with SourceSnapshotPort", () => {
     expect(snapshotSearched.content).toBe('No matches for "snapshot".')
   })
 
+  test("applies the hard-deny policy to file maps while retaining report-like code paths", async () => {
+    const policyRegistry = new ToolRegistry({
+      files: {
+        "reports/4naly3er-report.md": "bot report",
+        "vendor/.claude/commands/audit.md": "prompt text",
+        "test/unit/on-report/onReport.t.sol": "contract OnReportTest {}",
+      },
+    })
+
+    const denied = await policyRegistry.execute(call("read_file", { path: "reports/4naly3er-report.md" }))
+    const listed = await policyRegistry.execute(call("glob", { pattern: "**/*" }))
+
+    expect(denied.isError).toBe(true)
+    expect(denied.content).not.toContain("bot report")
+    expect(listed.content).toContain("test/unit/on-report/onReport.t.sol")
+    expect(listed.content).not.toContain("4naly3er-report.md")
+    expect(listed.content).not.toContain(".claude")
+  })
+
   test("exposes read-only snapshot identity and effective tool limits", () => {
     const configuredRegistry = new ToolRegistry({
       files: {},

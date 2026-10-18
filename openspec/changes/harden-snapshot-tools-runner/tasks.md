@@ -118,28 +118,46 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 Decided by the user on 2026-10-18 (design D11-D13). `D:\DATN\harness-verification-data` is read-only: nothing may be written there.
 
-- [ ] 6.1 [Owner: A; Q1] Add the hard-deny rules for report and discussion artifacts (design D11) to `isDeniedSourceFile` and the registry deny policy.
+- [x] 6.1 [Owner: A; Q1] Add the hard-deny rules for report and discussion artifacts (design D11) to `isDeniedSourceFile` and the registry deny policy.
   - Directories: `audits`, `discord-export`, `.claude`, `.cursor`.
   - Files with the non-code extensions `.md`, `.txt`, `.html`, `.htm`, `.pdf` and `.json` whose names contain one of the listed fragments.
   - Code files are never denied by name.
   - Evidence: the two spec scenarios.
-- [ ] 6.2 [Owner: A; Q6] Write `ingestionPolicyVersion: "ingest-policy-v2"` into new manifests.
+- [x] 6.2 [Owner: A; Q6] Write `ingestionPolicyVersion: "ingest-policy-v2"` into new manifests.
   - Keep it outside the tree digest; old manifests stay valid.
   - Evidence: the spec scenario; a test that an old manifest without the field still loads.
-- [ ] 6.3 [Owner: C; Q2] Add two optional dependencies to `MultiTurnRunnerDeps` and apply the two pre-call guards (design D12).
+- [x] 6.3 [Owner: C; Q2] Add two optional dependencies to `MultiTurnRunnerDeps` and apply the two pre-call guards (design D12).
   - `estimatePromptTokens`: defaults to `estimateTokens` over the serialised request.
   - `estimateCostUsd`: optional cost estimator.
   - Evidence: the three spec scenarios.
-- [ ] 6.4 [Owner: A with TV5; Q1, Q6] Extend the corpus manifest and add two evaluation helpers in `packages/core/src/eval/`.
+- [x] 6.4 [Owner: A with TV5; Q1, Q6] Extend the corpus manifest and add two evaluation helpers in `packages/core/src/eval/`.
   - Add the `ingestion` object and `findingsDir` to `ContestManifestEntry`.
   - `ingestContestForEvaluation`: refuses an entry without `includeRoots` and only reads the data.
   - `checkSnapshotContamination`: the scorer-side title check.
   - Evidence: the refusal and leak/clean scenarios, on temp fixtures only.
-- [ ] 6.5 [Owner: A with TV5; Q1, Q6] Add the `corpus:verify` script and commit the pinned corpus manifest.
+- [x] 6.5 [Owner: A with TV5; Q1, Q6] Add the `corpus:verify` script and commit the pinned corpus manifest.
   - The script takes `--data-root` or `HARNESS_VERIFICATION_DATA` and stores snapshots in `data/snapshots/`.
   - Commit `config/corpus/verification-data.manifest.json` for the three contests at `154a79e`, using the default code-only profile.
   - Generate `snapshotId` and `treeDigest` with one run of the script, then confirm them with a second run.
   - Evidence: `corpus:verify` passes with 0 leaks, and `git status` in the data repository is clean before and after.
+
+### Verification evidence (section 6, branch `agent-loop-core`, Bun 1.3.14, 2026-10-18)
+
+- `bun run typecheck`: 6 of 6 packages successful.
+- `bun run test` (turbo): protocol 135, core 763, schema 5 (+1 skipped), llm 13, cli 29 (+1 skipped). 0 failures.
+- The data repository was at `154a79e` with 0 changed files before the first run and after the second.
+- `corpus:verify --update` filled the manifest. A second run without `--update` reproduced every value and exited 0:
+
+  | Contest | Files | Snapshot ID | ID and digest match | Leaks |
+  |---|---|---|---|---|
+  | 2025-11-megapot | 107 | `snap_c23510d25db6` | true | 0 |
+  | 2026-03-chainlink | 129 | `snap_b1b7a6f8ee78` | true | 0 |
+  | 2026-03-intuition | 131 | `snap_7b39800b606a` | true | 0 |
+
+- Snapshots are under `data/snapshots/`, which git ignores. The manifest contains no host path.
+- Finding layout found at run time: each contest has only `finding/valid/`, and that folder also holds `report.md`, the aggregated contest report page.
+  - The script now treats a missing `invalid/` folder as empty and skips `report.md`.
+  - Titles are read only from the per-finding files.
 
 ### Verification evidence (5.3, branch `agent-loop-core`, Bun 1.3.14, 2026-10-18)
 

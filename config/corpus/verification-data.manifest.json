@@ -1,0 +1,69 @@
+{
+  "manifestVersion": "verification-data-v1",
+  "frozen": false,
+  "contests": [
+    {
+      "contestId": "2025-11-megapot",
+      "split": "test",
+      "findingsDir": "finding",
+      "ingestion": {
+        "dataRepoCommit": "154a79e",
+        "contestDir": "2025-11-megapot",
+        "includeRoots": [
+          "contracts",
+          "src",
+          "lib",
+          "test",
+          "tests",
+          "script"
+        ],
+        "ingestionPolicyVersion": "ingest-policy-v2",
+        "snapshotId": "snap_c23510d25db6",
+        "treeDigest": "sha256:c23510d25db61ec39ea927f9e654c5d2dfe7d2784ce86df9ff8986dbed4d36dc"
+      }
+    },
+    {
+      "contestId": "2026-03-chainlink",
+      "split": "test",
+      "findingsDir": "finding",
+      "ingestion": {
+        "dataRepoCommit": "154a79e",
+        "contestDir": "2026-03-chainlink",
+        "includeRoots": [
+          "contracts",
+          "src",
+          "lib",
+          "test",
+          "tests",
+          "script"
+        ],
+        "ingestionPolicyVersion": "ingest-policy-v2",
+        "snapshotId": "snap_b1b7a6f8ee78",
+        "treeDigest": "sha256:b1b7a6f8ee784f3b392e508f861844a84d5e37da161cb2c0d90e2a59a755c50f"
+      }
+    },
+    {
+      "contestId": "2026-03-intuition",
+      "split": "test",
+      "findingsDir": "finding",
+      "ingestion": {
+        "dataRepoCommit": "154a79e",
+        "contestDir": "2026-03-intuition",
+        "includeRoots": [
+          "contracts",
+          "src",
+          "lib",
+          "test",
+          "tests",
+          "script"
+        ],
+        "ingestionPolicyVersion": "ingest-policy-v2",
+        "snapshotId": "snap_7b39800b606a",
+        "treeDigest": "sha256:7b39800b606adde668ed2de2848a9bd4e0a7600c8c0bcd38e22d2aef911c498d"
+      }
+    }
+  ],
+  "metadata": {
+    "splitAssignment": "Contest-level split assignment is left to TV5."
+  }
+}

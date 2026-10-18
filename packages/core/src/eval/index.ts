@@ -33,3 +33,13 @@ export type {
   SplitValidationResult,
   SplitViolationCode,
 } from "./corpus-loader"
+
+export { ingestContestForEvaluation } from "./evaluation-ingest"
+export type { IngestContestForEvaluationInput } from "./evaluation-ingest"
+export { checkSnapshotContamination } from "./contamination"
+export type {
+  SnapshotContaminationInput,
+  SnapshotContaminationLeak,
+  SnapshotContaminationResult,
+  SnapshotFindingTitle,
+} from "./contamination"

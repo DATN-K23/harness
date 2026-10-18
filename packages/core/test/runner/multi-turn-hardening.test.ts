@@ -115,6 +115,8 @@ const makeRunner = (input: {
   snapshot?: Snapshot
   clock?: { nowMs: () => number }
   skippedFiles?: () => Promise<Array<{ path: string; reason: string }>>
+  estimatePromptTokens?: (request: ModelAttemptRequest) => number
+  estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
 }) => {
   const store = input.store ?? new InMemoryRunStore({ clock: input.clock ?? { nowMs: () => 1000 } })
   const snapshot = input.snapshot ?? new Snapshot()
@@ -127,6 +129,8 @@ const makeRunner = (input: {
       snapshot,
       clock: input.clock,
       skippedFiles: input.skippedFiles,
+      estimatePromptTokens: input.estimatePromptTokens,
+      estimateCostUsd: input.estimateCostUsd,
     }),
     store,
     snapshot,
@@ -299,6 +303,60 @@ describe("multi-turn runner hardening", () => {
     expect(result.terminalReason).toBe("total_tokens")
     expect(gateway.calls).toBe(1)
     expect(registry.calls).toHaveLength(1)
+  })
+
+  test("stops before a provider call when the estimated prompt cannot fit the remaining token budget", async () => {
+    const gateway = new QueueGateway([answer()])
+    const { runner } = makeRunner({ gateway, estimatePromptTokens: () => 1500 })
+
+    const result = await runner.execute({
+      prompt: "Audit",
+      snapshotId: "snapshot-1",
+      limits: { ...limits, totalTokenBudget: 1000 },
+    })
+
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("total_tokens")
+    expect(result.observedLimits).toContain("total_tokens")
+    expect(gateway.calls).toBe(0)
+  })
+
+  test("stops before a provider call when estimated cost exceeds the remaining cost budget", async () => {
+    const gateway = new QueueGateway([answer()])
+    const { runner } = makeRunner({
+      gateway,
+      estimatePromptTokens: () => 100,
+      estimateCostUsd: () => 0.01,
+    })
+
+    const result = await runner.execute({
+      prompt: "Audit",
+      snapshotId: "snapshot-1",
+      limits: { ...limits, costCeilingUsd: 0.001 },
+    })
+
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("cost_budget")
+    expect(result.observedLimits).toContain("cost_budget")
+    expect(gateway.calls).toBe(0)
+  })
+
+  test("allows a provider call when pricing is unknown and the request fits the token budget", async () => {
+    const gateway = new QueueGateway([answer()])
+    const { runner } = makeRunner({
+      gateway,
+      estimatePromptTokens: () => 100,
+      estimateCostUsd: () => undefined,
+    })
+
+    const result = await runner.execute({
+      prompt: "Audit",
+      snapshotId: "snapshot-1",
+      limits: { ...limits, costCeilingUsd: 0.0001 },
+    })
+
+    expect(result.state).toBe("completed")
+    expect(gateway.calls).toBe(1)
   })
 
   test("announces skipped too-large files but hides denied and symlink paths", async () => {

@@ -15,6 +15,7 @@ export interface SnapshotManifest {
   snapshotId: string
   createdAt: string
   treeDigest: string
+  ingestionPolicyVersion?: string
   files: Record<string, SnapshotFileEntry>
   skipped?: SnapshotSkippedEntry[]
   warnings?: SnapshotWarningEntry[]
@@ -35,6 +36,13 @@ export function validateManifest(data: unknown): SnapshotManifest {
     throw new Error("Invalid or missing treeDigest in manifest (expected sha256:<64 hex>)")
   }
   if (typeof obj.files !== "object" || obj.files === null) throw new Error("Invalid or missing files in manifest")
+
+  if (
+    obj.ingestionPolicyVersion !== undefined &&
+    (typeof obj.ingestionPolicyVersion !== "string" || obj.ingestionPolicyVersion.length === 0)
+  ) {
+    throw new Error("Invalid ingestionPolicyVersion in manifest")
+  }
 
   const validatedFiles: Record<string, SnapshotFileEntry> = {}
   for (const [filePath, entry] of Object.entries(obj.files as Record<string, unknown>)) {
@@ -60,6 +68,9 @@ export function validateManifest(data: unknown): SnapshotManifest {
     snapshotId: obj.snapshotId,
     createdAt: obj.createdAt,
     treeDigest: obj.treeDigest,
+    ...(obj.ingestionPolicyVersion !== undefined
+      ? { ingestionPolicyVersion: obj.ingestionPolicyVersion as string }
+      : {}),
     files: validatedFiles,
     ...(skipped !== undefined ? { skipped } : {}),
     ...(warnings !== undefined ? { warnings } : {}),
@@ -96,6 +107,9 @@ export function serializeManifest(manifest: SnapshotManifest): string {
       snapshotId: manifest.snapshotId,
       createdAt: manifest.createdAt,
       treeDigest: manifest.treeDigest,
+      ...(manifest.ingestionPolicyVersion !== undefined
+        ? { ingestionPolicyVersion: manifest.ingestionPolicyVersion }
+        : {}),
       files: sortedFiles,
       ...(manifest.skipped !== undefined ? { skipped: manifest.skipped } : {}),
       ...(manifest.warnings !== undefined ? { warnings: manifest.warnings } : {}),

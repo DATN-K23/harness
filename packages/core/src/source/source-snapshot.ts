@@ -79,12 +79,29 @@ export const DEFAULT_DENIED_PREFIXES: readonly string[] = [
   "scoring",
 ]
 
+const deniedDirectoryNames = new Set([
+  ...DEFAULT_DENIED_PREFIXES.map((prefix) => prefix.toLowerCase()),
+  "audits",
+  "discord-export",
+  ".claude",
+  ".cursor",
+])
+const reportExtensions = new Set([".md", ".txt", ".html", ".htm", ".pdf", ".json"])
+const reportNameFragments = [
+  "findings",
+  "_v12",
+  "post-mortem",
+  "postmortem",
+  "4naly3er",
+  "audit-report",
+  "audit report",
+]
+
 export const isDeniedSourceFile = (relativePath: string, extraDeniedPrefixes: readonly string[] = []): boolean => {
   const checked = checkSnapshotPath(relativePath)
   if (checked.kind === "denied") return true
 
   const segments = checked.path.split("/").map((segment) => segment.toLowerCase())
-  const deniedDirectoryNames = new Set(DEFAULT_DENIED_PREFIXES.map((prefix) => prefix.toLowerCase()))
   if (segments.some((segment) => deniedDirectoryNames.has(segment))) return true
 
   const normalizedPath = checked.path.toLowerCase()
@@ -97,6 +114,9 @@ export const isDeniedSourceFile = (relativePath: string, extraDeniedPrefixes: re
   const filename = segments.at(-1) ?? ""
   if (filename.startsWith(".env")) return true
   if (filename.endsWith(".pem") || filename.endsWith(".key") || filename.startsWith("id_rsa")) return true
+
+  const extension = filename.match(/\.[^.]+$/)?.[0] ?? ""
+  if (reportExtensions.has(extension) && reportNameFragments.some((fragment) => filename.includes(fragment))) return true
 
   return false
 }

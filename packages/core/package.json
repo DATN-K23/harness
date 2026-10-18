@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "demo": "bun run src/demo/run-demo.ts",
-    "stress": "bun run src/demo/run-stress.ts"
+    "stress": "bun run src/demo/run-stress.ts",
+    "corpus:verify": "bun run src/eval/corpus-verify.ts"
   },
   "dependencies": {
     "@harness/protocol": "workspace:*"

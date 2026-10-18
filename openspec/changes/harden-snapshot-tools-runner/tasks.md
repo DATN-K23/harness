@@ -75,7 +75,7 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   - On resume, compare the stored run's `snapshotId` and `prompt` with the input and fail with `invalid_input` on mismatch; stop swallowing `seedRun` errors silently.
   - Enforce `maxPromptLength` (default 100,000) before snapshot access.
   - Evidence: the two binding scenarios plus an oversized-prompt test, with gateway call count 0 in each.
-- [ ] 4.3 [Owner: C; Q2] Enforce budgets after each response and before each attempt.
+- [x] 4.3 [Owner: C; Q2] Enforce budgets after each response and before each attempt.
   - Re-evaluate stop conditions after usage is added, before approval and dispatch.
   - Before each provider attempt, stop with `total_tokens` when the remaining token budget is smaller than `maxOutputTokens`.
   - A final text answer still completes, with exhausted limits recorded in terminal telemetry.
@@ -103,13 +103,33 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 ## 5. Cross-cutting and verification
 
-- [ ] 5.1 [Owner: D] Fix the `@harness/cli` typecheck by narrowing `process` to a local type with an optional `loadEnvFile` in `packages/cli/src/config.ts`.
+- [x] 5.1 [Owner: D] Fix the `@harness/cli` typecheck by narrowing `process` to a local type with an optional `loadEnvFile` in `packages/cli/src/config.ts`.
   - Evidence: `bun turbo typecheck` 6/6 successful.
-- [ ] 5.2 [Owner: C with A and B] Add `packages/core/test/runner/disk-chain-e2e.test.ts`, which runs in-process with no network or database:
+- [x] 5.2 [Owner: C with A and B] Add `packages/core/test/runner/disk-chain-e2e.test.ts`, which runs in-process with no network or database:
   1. Ingest a temp repository and build a `DiskSourceSnapshot` and a bound `ToolRegistry`.
   2. Run `MultiTurnRunner` with a scripted gateway that calls `read_file`, then answers, against `InMemoryRunStore`.
   3. Assert the ordered history, the bound snapshot, that source content reaches the model unchanged, and that no absolute host path appears in any event or request.
   - Evidence: the test passes.
-- [ ] 5.3 [Owner: C; gate: before archive] Run `bun turbo typecheck`, `bun turbo test`, `bun run demo` and `bun run --cwd packages/core stress`, and record the outputs here.
+- [x] 5.3 [Owner: C; gate: before archive] Run `bun turbo typecheck`, `bun turbo test`, `bun run demo` and `bun run --cwd packages/core stress`, and record the outputs here.
   - Re-run the review's reproduction probes: nested `.git`, `..` ID, `read_file` default truncation, host-path error, `grep` ReDoS. Record that each now behaves as specified.
 - [ ] 5.4 [Owner: A, B, C; gate: before archive] Update the Track B checkboxes in `docs/sprints/sprint-03.md` to reflect reality, and note this change under the Track A/B/C sections. Record the outcomes of tasks 2.3 and 3.5, and get TV5/Research confirmation for Q1, Q2 and Q6.
+
+### Verification evidence (5.3, branch `agent-loop-core`, Bun 1.3.14, 2026-10-18)
+
+- `bun run typecheck`: 6 of 6 packages successful (the `@harness/cli` `loadEnvFile` error is fixed).
+- `bun run test` (turbo): protocol 135, core 753, schema 5 (+1 skipped, no PostgreSQL), llm 13, cli 29 (+1 skipped). 0 failures.
+- `bun run demo`: confirmed-exploit completed (3 steps, 2460 tokens). missing-poc, cheating-poc and failing-poc completed at 0 tokens.
+- `bun run --cwd packages/core stress`: 100/100 crash-free, 0 invariant violations (seed 20261011).
+- Review reproduction probes re-run:
+
+  | Probe | Before | Now |
+  |---|---|---|
+  | Nested `.git` / `node_modules` | Ingested | Recorded once as skipped `denied`, contents not copied |
+  | Snapshot ID `..`, `a/b`, `` | Path escaped storage | `InvalidSnapshotIdError` before any fs call; storage parent intact |
+  | `read_file` on 3,000 lines | No marker | `isTruncated` true, marker present, `lineRange` `[1,2000]` |
+  | Missing snapshot error | Host path in message | `Snapshot "missing" not found.` |
+  | `grep` with a 1 ms limit | — | Worker terminated, timeout error after 24 ms |
+  | `grep ^(a+)+$` with default limit | — | Returns in about 0.8 s (JavaScriptCore stops the backtracking itself) |
+  | Identical re-ingest | — | Returns the same content-addressed ID |
+
+- Still open: 2.3 and 3.5 need the TV5 corpus and the Sprint-3 Solidity repositories, which are not present locally; 5.4 needs TV5/Research confirmation of Q1, Q2 and Q6.

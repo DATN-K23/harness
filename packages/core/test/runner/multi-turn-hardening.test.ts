@@ -472,6 +472,7 @@ describe("multi-turn runner hardening", () => {
 
     expect(result.state).toBe("completed")
     expect(result.output).toBe("Done")
+    expect(result.observedLimits).toContain("cost_budget")
   })
 })
 

@@ -21,9 +21,10 @@ export function ensureRootEnvLoaded(): void {
   if (envLoaded || process.env.NODE_ENV === "test") return
   envLoaded = true
   const envPath = findRootEnvFile(process.cwd()) ?? findRootEnvFile(import.meta.dir)
-  if (envPath && typeof process.loadEnvFile === "function") {
+  const processWithEnvFileLoader = process as typeof process & { loadEnvFile?: (path: string) => void }
+  if (envPath && typeof processWithEnvFileLoader.loadEnvFile === "function") {
     try {
-      process.loadEnvFile(envPath)
+      processWithEnvFileLoader.loadEnvFile(envPath)
     } catch {
       // Ignore error loading env file
     }

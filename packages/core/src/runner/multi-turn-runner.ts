@@ -70,6 +70,7 @@ export interface MultiTurnRunResult {
   toolCallsExecuted: number
   usage: ModelUsage
   latencyMs: number
+  observedLimits: BudgetTerminalReason[]
 }
 
 export interface MultiTurnRunnerDeps {
@@ -102,6 +103,7 @@ interface ExecutionRecovery {
   usage: ModelUsage
   stepsExecuted: number
   toolCallsExecuted: number
+  observedLimits: BudgetTerminalReason[]
 }
 
 const sanitizeModelValue = (value: unknown, secrets: readonly string[]): unknown => {
@@ -136,6 +138,7 @@ export class MultiTurnRunner {
         usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
         stepsExecuted: 0,
         toolCallsExecuted: 0,
+        observedLimits: [],
       }
       if (input.runId === undefined) runId = idGen.next("run_")
       recovery.startedAtMs = clock.nowMs()
@@ -151,6 +154,7 @@ export class MultiTurnRunner {
           toolCallsExecuted: 0,
           usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
           latencyMs: 0,
+          observedLimits: [],
         }
       }
       try {
@@ -165,6 +169,7 @@ export class MultiTurnRunner {
           toolCallsExecuted: recovery.toolCallsExecuted,
           usage: recovery.usage,
           latencyMs: 0,
+          observedLimits: [],
         }
       }
     }
@@ -380,6 +385,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: "persistence_failure",
           eventSink,
           error: "Stored run history could not be hydrated",
@@ -407,6 +413,7 @@ export class MultiTurnRunner {
                 expectedStateVersion: stateVersion,
                 nextState: "failed",
                 runId,
+                observedLimits: recovery.observedLimits,
                 terminalReason: "work_handoff_failure",
                 eventSink,
                 error: `Failed to persist recovered tool item: ${app.reason}`,
@@ -453,6 +460,7 @@ export class MultiTurnRunner {
             expectedStateVersion: stateVersion,
             nextState: "failed",
             runId,
+            observedLimits: recovery.observedLimits,
             terminalReason: "work_handoff_failure",
             eventSink,
             error: `Failed to persist initial context item: ${appInit.reason}`,
@@ -492,6 +500,7 @@ export class MultiTurnRunner {
       if (stopEvaluation.selected !== undefined) {
         terminalReason = StopReasonToTerminalReason[stopEvaluation.selected]
         terminalObservedLimits = stopEvaluation.observed.map((reason) => StopReasonToTerminalReason[reason])
+        recovery.observedLimits = terminalObservedLimits
         isTerminated = true
         break
       }
@@ -503,6 +512,7 @@ export class MultiTurnRunner {
         terminalState = "budget_exhausted"
         terminalReason = "total_tokens"
         terminalObservedLimits = ["total_tokens"]
+        recovery.observedLimits = terminalObservedLimits
         isTerminated = true
         break
       }
@@ -518,6 +528,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: "work_handoff_failure",
           eventSink,
           error: `Failed to persist step.started: ${appendStepStarted.reason}`,
@@ -579,6 +590,14 @@ export class MultiTurnRunner {
       recovery.usage = { promptTokens, completionTokens, totalTokens, costUsd }
       recovery.stepsExecuted = stepIndex
       recovery.toolCallsExecuted = completedToolCalls
+      stopState.startedAtMs = startTime
+      stopState.completedSteps = stepIndex
+      stopState.completedToolCalls = completedToolCalls
+      stopState.costUsd = costUsd
+      stopState.totalTokens = totalTokens
+      recovery.observedLimits = evaluateStop(stopState, limits, clock.nowMs()).observed.map(
+        (reason) => StopReasonToTerminalReason[reason],
+      )
 
       // Persist the attempt row before the matching provider.attempted event.
       if (
@@ -620,6 +639,7 @@ export class MultiTurnRunner {
             expectedStateVersion: stateVersion,
             nextState: "failed",
             runId,
+            observedLimits: recovery.observedLimits,
             terminalReason: "persistence_failure",
             eventSink,
             error: `Failed to persist model attempt: ${attemptErr instanceof Error ? attemptErr.message : String(attemptErr)}`,
@@ -648,6 +668,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: "work_handoff_failure",
           eventSink,
           error: `Failed to persist provider.attempted: ${appendAttempt.reason}`,
@@ -674,6 +695,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: providerTerminalReason,
           eventSink,
           error: response.error?.message ?? "Provider execution failed",
@@ -698,6 +720,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: "work_handoff_failure",
           eventSink,
           error: `Failed to persist model.responded: ${appendResponded.reason}`,
@@ -720,6 +743,7 @@ export class MultiTurnRunner {
       terminalObservedLimits = responseStopEvaluation.observed.map(
         (reason) => StopReasonToTerminalReason[reason],
       )
+      recovery.observedLimits = terminalObservedLimits
 
       const hasToolCalls = response.toolCalls !== undefined && response.toolCalls.length > 0
       if (!hasToolCalls) {
@@ -741,6 +765,7 @@ export class MultiTurnRunner {
         terminalState = "budget_exhausted"
         terminalReason = "max_tool_calls"
         terminalObservedLimits = ["max_tool_calls"]
+        recovery.observedLimits = terminalObservedLimits
         finalOutput = response.content
         isTerminated = true
         break
@@ -827,6 +852,7 @@ export class MultiTurnRunner {
           expectedStateVersion: stateVersion,
           nextState: "failed",
           runId,
+          observedLimits: recovery.observedLimits,
           terminalReason: "work_handoff_failure",
           eventSink,
           error: `Claim lost during tool dispatch: ${dispatchOutcome.reason}`,
@@ -890,6 +916,7 @@ export class MultiTurnRunner {
         toolCallsExecuted: completedToolCalls,
         usage: { promptTokens, completionTokens, totalTokens, costUsd },
         latencyMs: totalLatencyMs,
+        observedLimits: terminalObservedLimits,
       }
     }
 
@@ -902,6 +929,7 @@ export class MultiTurnRunner {
       toolCallsExecuted: completedToolCalls,
       usage: { promptTokens, completionTokens, totalTokens, costUsd },
       latencyMs: totalLatencyMs,
+      observedLimits: terminalObservedLimits,
     }
   }
 
@@ -950,6 +978,7 @@ export class MultiTurnRunner {
       toolCallsExecuted: recovery.toolCallsExecuted,
       usage: recovery.usage,
       latencyMs: Math.max(0, recovery.clock.nowMs() - recovery.startedAtMs),
+      observedLimits: recovery.observedLimits,
     }
   }
   private failEarly(runId: string, error: string, terminalReason: TerminalReason): MultiTurnRunResult {
@@ -962,6 +991,7 @@ export class MultiTurnRunner {
       toolCallsExecuted: 0,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
       latencyMs: 0,
+      observedLimits: [],
     }
   }
 
@@ -978,6 +1008,7 @@ export class MultiTurnRunner {
     toolCallsExecuted: number
     usage: ModelUsage
     latencyMs: number
+    observedLimits?: BudgetTerminalReason[]
   }): Promise<MultiTurnRunResult> {
     const safeError = opts.error === undefined ? undefined : sanitizeSystemText(opts.error)
     if (opts.nextState === "failed" && opts.eventSink) {
@@ -1014,6 +1045,7 @@ export class MultiTurnRunner {
         toolCallsExecuted: opts.toolCallsExecuted,
         usage: opts.usage,
         latencyMs: opts.latencyMs,
+        observedLimits: opts.observedLimits ?? [],
       }
     }
 
@@ -1027,6 +1059,7 @@ export class MultiTurnRunner {
       toolCallsExecuted: opts.toolCallsExecuted,
       usage: opts.usage,
       latencyMs: opts.latencyMs,
+      observedLimits: opts.observedLimits ?? [],
     }
   }
 }

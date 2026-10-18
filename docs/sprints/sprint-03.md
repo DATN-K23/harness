@@ -19,16 +19,20 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 **Phối hợp:** B dùng thao tác đọc/liệt kê của A; D nối đăng ký và chọn snapshot vào CLI. A phụ trách lưu metadata snapshot, cùng C thống nhất liên kết snapshot với run. Đường dẫn gốc trên máy chỉ dùng lúc đăng ký, không đi vào request model hoặc trace.
 
+**Sau review 18/10 (change `harden-snapshot-tools-runner`):** snapshot ID được kiểm tra và giữ trong thư mục lưu; ID theo nội dung, ghi-một-lần, kiểm tra digest khi đọc; chặn `.git`/`node_modules`/ground truth ở mọi cấp, không phân biệt hoa thường; bỏ qua symlink; giới hạn kích thước; chỉ xoá snapshot khi không còn run dùng. Còn mở: khảo sát ~10 repo contest (task 2.3).
+
 ## B — Bộ tool đọc source
 
-- [ ] Định nghĩa mỗi tool bằng tên, mô tả, tham số được nhận và hàm thực thi; cung cấp qua registry để C lấy danh sách tool được phép dùng. Đối chiếu registry/handler hiện có với thao tác đọc snapshot của A.
-- [ ] Hoàn thiện bốn tool trên snapshot thật: `read_file` đọc file, `list_dir` liệt kê thư mục, `glob` tìm đường dẫn theo mẫu và `grep` tìm nội dung.
-- [ ] Kiểm tra tham số và quyền trước khi chạy; trả lỗi rõ ràng khi tool không tồn tại, file thiếu, đường dẫn bị chặn hoặc hết thời gian.
-- [ ] Giới hạn dung lượng đọc, số kết quả và thời gian tìm kiếm; đánh dấu khi kết quả bị cắt. Kết quả giữ snapshot, đường dẫn và dòng nguồn để truy ngược; nội dung source được xử lý như dữ liệu không đáng tin và không làm lộ secret.
+- [x] Định nghĩa mỗi tool bằng tên, mô tả, tham số được nhận và hàm thực thi; cung cấp qua registry để C lấy danh sách tool được phép dùng. Đối chiếu registry/handler hiện có với thao tác đọc snapshot của A.
+- [x] Hoàn thiện bốn tool trên snapshot thật: `read_file` đọc file, `list_dir` liệt kê thư mục, `glob` tìm đường dẫn theo mẫu và `grep` tìm nội dung.
+- [x] Kiểm tra tham số và quyền trước khi chạy; trả lỗi rõ ràng khi tool không tồn tại, file thiếu, đường dẫn bị chặn hoặc hết thời gian.
+- [x] Giới hạn dung lượng đọc, số kết quả và thời gian tìm kiếm; đánh dấu khi kết quả bị cắt. Kết quả giữ snapshot, đường dẫn và dòng nguồn để truy ngược; nội dung source được xử lý như dữ liệu không đáng tin và không làm lộ secret.
 
 **Đầu ra:** bốn tool đọc/tìm kiếm source thật, có giới hạn và cấu trúc kết quả/lỗi thống nhất. Bộ tool của sprint này chỉ có quyền đọc.
 
 **Phối hợp:** A cung cấp source; B cung cấp mô tả tool và cách gọi cho C/D. C quyết định lúc chạy tool; D chuyển mô tả tool sang định dạng API model.
+
+**Sau review 18/10 (change `harden-snapshot-tools-runner`):** registry luôn áp chính sách chặn mặc định; lỗi không lộ đường dẫn máy chủ; `read_file` luôn đánh dấu khi bị cắt và báo đúng khoảng dòng; `grep` chạy trong worker có timeout và giới hạn quét; giới hạn `glob`/`grep` tách riêng. Còn mở: đo `grep` trên 3 repo Solidity để chốt mặc định (task 3.5).
 
 ## C — Runner và lịch sử thực thi
 
@@ -43,6 +47,8 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 **Đầu ra:** chạy được cả chuỗi source → model → tool → model, có giới hạn và lịch sử xem lại được.
 
 **Phối hợp:** C sở hữu runner, trạng thái và lịch sử thực thi; D sở hữu CLI và gateway. C chốt thao tác chạy/xem cùng ví dụ dữ liệu sớm để D làm song song. C/D cùng ghép luồng thật, mỗi người xử lý lỗi thuộc phần mình.
+
+**Sau review 18/10 (change `harden-snapshot-tools-runner`):** bộ lọc hai mức (không sửa nội dung source, chỉ che credential); runner bị ràng buộc đúng snapshot của registry và kiểm tra khi resume; kiểm tra ngân sách sau mỗi phản hồi và trước mỗi lần gọi; khôi phục thời gian/số tool call khi resume; thứ tự ghi kết quả tool và attempt an toàn khi crash; phân loại lỗi provider tạm thời/vĩnh viễn; `execute` không bao giờ reject; có test đầu-cuối snapshot đĩa → registry → runner.
 
 ## D — Chuyển đổi request/response của provider và CLI
 

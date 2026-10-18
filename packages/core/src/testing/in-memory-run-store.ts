@@ -230,6 +230,12 @@ export class InMemoryRunStore implements RunStorePort {
     return run === undefined ? undefined : { ...run.record }
   }
 
+  async findActiveRunsBySnapshot(snapshotId: string): Promise<string[]> {
+    return Array.from(this.runs.values())
+      .filter(({ record }) => record.snapshotId === snapshotId && !isTerminal(record.state))
+      .map(({ record }) => record.runId)
+  }
+
   async loadEvents(input: { runId: string; afterSequence?: number }, signal?: AbortSignal): Promise<TrajectoryEvent[]> {
     this.enter("loadEvents", signal)
     const after = input.afterSequence ?? 0

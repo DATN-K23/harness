@@ -66,7 +66,7 @@ Ingestion SHALL apply the following rules, and SHALL record every skipped path a
 #### Scenario: Nested denied directories are excluded
 - **GIVEN** a repository containing `lib/forge-std/.git/config`, `lib/dep/node_modules/x/index.js` and `contracts/.ENV`
 - **WHEN** it is ingested
-- **THEN** none of those files is in the snapshot manifest or storage, and each is listed as skipped with reason `denied`
+- **THEN** none of those files is in the snapshot manifest or storage, and the manifest lists the denied directory (`lib/forge-std/.git`, `lib/dep/node_modules`) or denied file (`contracts/.ENV`) as skipped with reason `denied`, without enumerating the contents of denied directories
 
 #### Scenario: Symlink and oversized files are skipped
 - **GIVEN** a repository containing a symlink to a file inside the repository and a 2 MiB source file

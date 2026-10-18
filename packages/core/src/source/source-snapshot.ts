@@ -75,17 +75,28 @@ export const DEFAULT_DENIED_PREFIXES: readonly string[] = [
   "adjudication",
   "test/ground-truth",
   "ground-truth",
+  "groundtruth",
+  "scoring",
 ]
 
 export const isDeniedSourceFile = (relativePath: string, extraDeniedPrefixes: readonly string[] = []): boolean => {
-  const denied = [...DEFAULT_DENIED_PREFIXES, ...extraDeniedPrefixes]
-  const checked = checkSnapshotPath(relativePath, denied)
+  const checked = checkSnapshotPath(relativePath)
   if (checked.kind === "denied") return true
 
-  // Check filename patterns (e.g. .env*, *.pem, *.key, id_rsa)
-  const filename = checked.path.split("/").pop() ?? ""
+  const segments = checked.path.split("/").map((segment) => segment.toLowerCase())
+  const deniedDirectoryNames = new Set(DEFAULT_DENIED_PREFIXES.map((prefix) => prefix.toLowerCase()))
+  if (segments.some((segment) => deniedDirectoryNames.has(segment))) return true
+
+  const normalizedPath = checked.path.toLowerCase()
+  const denied = extraDeniedPrefixes.map((prefix) =>
+    prefix.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "").toLowerCase(),
+  )
+  if (denied.some((prefix) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))) return true
+
+  // Check filename patterns (e.g. .env*, *.pem, *.key, id_rsa*)
+  const filename = segments.at(-1) ?? ""
   if (filename.startsWith(".env")) return true
-  if (filename.endsWith(".pem") || filename.endsWith(".key") || filename === "id_rsa") return true
+  if (filename.endsWith(".pem") || filename.endsWith(".key") || filename.startsWith("id_rsa")) return true
 
   return false
 }

@@ -15,7 +15,7 @@ import {
   type TerminalReason,
   type TrajectoryEvent,
 } from "@harness/protocol"
-import { and, asc, eq, gt, sql } from "drizzle-orm"
+import { and, asc, eq, gt, notInArray, sql } from "drizzle-orm"
 import { createDatabaseClient, type DatabaseClient } from "../db/client"
 import { events, modelAttempts, runs } from "../db/schema"
 import { redactSecrets, sanitizeSecrets } from "./redaction"
@@ -230,6 +230,14 @@ export class PostgresRunStore implements RunStorePort {
       ...(run.costUsd !== null && run.costUsd !== undefined ? { costUsd: run.costUsd } : {}),
       ...(run.latencyMs !== null && run.latencyMs !== undefined ? { latencyMs: run.latencyMs } : {}),
     }
+  }
+
+  async findActiveRunsBySnapshot(snapshotId: string): Promise<string[]> {
+    const matchingRuns = await this.client.db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.snapshotId, snapshotId), notInArray(runs.state, [...TerminalRunStates])))
+    return matchingRuns.map((run) => run.id)
   }
 
   async loadEvents(input: { runId: string; afterSequence?: number }, signal?: AbortSignal): Promise<TrajectoryEvent[]> {

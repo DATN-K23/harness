@@ -1,173 +1,303 @@
+import { randomUUID } from "node:crypto"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { digestOf } from "../util/digest"
-import { createIdGenerator, systemIdSources } from "../util/id"
-import { parseManifest, serializeManifest, type SnapshotFileEntry, type SnapshotManifest } from "./manifest"
+import {
+  parseManifest,
+  serializeManifest,
+  type SnapshotFileEntry,
+  type SnapshotManifest,
+  type SnapshotSkippedEntry,
+  type SnapshotWarningEntry,
+} from "./manifest"
 import { checkSnapshotPath, isDeniedSourceFile, splitLines } from "./source-snapshot"
+import { SnapshotExistsError, SnapshotInUseError } from "./snapshot-errors"
+import { resolveSnapshotDir } from "./snapshot-path"
 
 export interface IngestRepositoryOptions {
   sourceDir: string
   storageDir: string
   snapshotId?: string
   extraDeniedPrefixes?: readonly string[]
+  includeRoots?: readonly string[]
+  maxFileBytes?: number
+  maxFiles?: number
+  maxTotalBytes?: number
 }
-
 export interface IngestResult {
   snapshotId: string
   snapshotDir: string
   manifest: SnapshotManifest
 }
+export interface DeleteSnapshotOptions {
+  isInUse: (snapshotId: string) => Promise<boolean>
+}
 
-const defaultIdGen = createIdGenerator(systemIdSources)
+const DefaultMaxFileBytes = 1024 * 1024
+const DefaultMaxFiles = 20_000
+const DefaultMaxTotalBytes = 200 * 1024 * 1024
+const reportLikeFragments = ["finding", "report", "judg", "adjudic", "ground", "label", "score"]
+
+interface IngestState {
+  files: Record<string, SnapshotFileEntry>
+  skipped: SnapshotSkippedEntry[]
+  warnings: SnapshotWarningEntry[]
+  fileCount: number
+  totalBytes: number
+}
 
 export class SnapshotManager {
-  /**
-   * Recursively walks source directory, filters prohibited files, copies allowed files
-   * to storageDir/<snapshotId>, computes file digests and tree digest, and writes manifest.json.
-   */
   static async ingestRepository(options: IngestRepositoryOptions): Promise<IngestResult> {
     const { sourceDir, storageDir, extraDeniedPrefixes = [] } = options
     const resolvedSource = path.resolve(sourceDir)
+    const storageRoot = path.resolve(storageDir)
 
-    // Check sourceDir existence
-    const stat = await fs.stat(resolvedSource).catch(() => null)
-    if (!stat || !stat.isDirectory()) {
-      throw new Error(`Source repository directory does not exist or is not a directory: "${sourceDir}"`)
+    if (options.snapshotId !== undefined) resolveSnapshotDir(storageRoot, options.snapshotId)
+
+    const includeRoots = normalizeIncludeRoots(options.includeRoots)
+    const maxFileBytes = validateLimit("maxFileBytes", options.maxFileBytes ?? DefaultMaxFileBytes)
+    const maxFiles = validateLimit("maxFiles", options.maxFiles ?? DefaultMaxFiles)
+    const maxTotalBytes = validateLimit("maxTotalBytes", options.maxTotalBytes ?? DefaultMaxTotalBytes)
+
+    const sourceStat = await fs.lstat(resolvedSource).catch(() => null)
+    if (!sourceStat || !sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
+      throw new Error("Source repository directory does not exist or is not a directory")
     }
 
-    const snapshotId = options.snapshotId ?? defaultIdGen.next("snap_")
-    const targetDir = path.join(path.resolve(storageDir), snapshotId)
-    const stagingDir = path.join(path.resolve(storageDir), `.tmp-${snapshotId}`)
-
-    // Clean any prior staging dir
-    await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {})
-    await fs.mkdir(stagingDir, { recursive: true })
-
-    const files: Record<string, SnapshotFileEntry> = {}
+    await fs.mkdir(storageRoot, { recursive: true })
+    const stagingDir = path.join(storageRoot, ".tmp-" + randomUUID())
+    await fs.mkdir(stagingDir)
+    const state: IngestState = { files: {}, skipped: [], warnings: [], fileCount: 0, totalBytes: 0 }
 
     try {
       await SnapshotManager.copyFilesRecursive({
         currentDir: resolvedSource,
-        baseSourceDir: resolvedSource,
+        relativeDir: "",
         stagingDir,
-        files,
+        state,
         extraDeniedPrefixes,
+        includeRoots,
+        maxFileBytes,
+        maxFiles,
+        maxTotalBytes,
       })
 
-      // Compute aggregate tree digest
-      // Sorted path:digest list
-      const lines = Object.keys(files)
+      const treeLines = Object.keys(state.files)
         .sort()
-        .map((p) => `${p}:${files[p]!.digest}`)
+        .map((filePath) => filePath + ":" + state.files[filePath]!.digest)
         .join("\n")
-
-      const treeDigest = digestOf(lines)
-
+      const treeDigest = digestOf(treeLines)
+      const snapshotId = options.snapshotId ?? "snap_" + treeDigest.slice("sha256:".length, "sha256:".length + 12)
+      const targetDir = resolveSnapshotDir(storageRoot, snapshotId)
       const manifest: SnapshotManifest = {
         snapshotId,
         createdAt: new Date().toISOString(),
         treeDigest,
-        files,
+        files: state.files,
+        ...(state.skipped.length > 0 ? { skipped: state.skipped } : {}),
+        ...(state.warnings.length > 0 ? { warnings: state.warnings } : {}),
       }
 
-      // Write manifest.json inside stagingDir
-      const manifestPath = path.join(stagingDir, "manifest.json")
-      await fs.writeFile(manifestPath, serializeManifest(manifest), "utf8")
-
-      // Atomically move stagingDir to targetDir
-      await fs.rm(targetDir, { recursive: true, force: true }).catch(() => {})
-      await fs.rename(stagingDir, targetDir)
-
-      return {
-        snapshotId,
-        snapshotDir: targetDir,
-        manifest,
+      await fs.writeFile(path.join(stagingDir, "manifest.json"), serializeManifest(manifest), "utf8")
+      const existing = await SnapshotManager.findExistingSnapshot(targetDir, snapshotId)
+      if (existing) {
+        await fs.rm(stagingDir, { recursive: true, force: true })
+        if (existing.treeDigest !== treeDigest) throw new SnapshotExistsError(snapshotId)
+        return { snapshotId, snapshotDir: targetDir, manifest: existing }
       }
+
+      try {
+        await fs.rename(stagingDir, targetDir)
+      } catch (error) {
+        const raced = await SnapshotManager.findExistingSnapshot(targetDir, snapshotId)
+        if (!raced) throw error
+        await fs.rm(stagingDir, { recursive: true, force: true })
+        if (raced.treeDigest !== treeDigest) throw new SnapshotExistsError(snapshotId)
+        return { snapshotId, snapshotDir: targetDir, manifest: raced }
+      }
+      return { snapshotId, snapshotDir: targetDir, manifest }
     } catch (error) {
       await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {})
       throw error
     }
   }
 
-  /**
-   * Loads and validates the manifest of an existing snapshot.
-   */
   static async loadSnapshotManifest(storageDir: string, snapshotId: string): Promise<SnapshotManifest> {
-    const manifestPath = path.join(path.resolve(storageDir), snapshotId, "manifest.json")
+    const snapshotDir = resolveSnapshotDir(storageDir, snapshotId)
+    const manifestPath = path.join(snapshotDir, "manifest.json")
     const content = await fs.readFile(manifestPath, "utf8").catch(() => null)
-    if (!content) {
-      throw new Error(`Snapshot not found: "${snapshotId}" (checked "${manifestPath}")`)
-    }
-
+    if (!content) throw new Error("Snapshot not found: \"" + snapshotId + "\"")
     try {
-      const manifest = parseManifest(content)
-      return manifest
-    } catch (err) {
-      throw new Error(`Corrupted snapshot manifest for "${snapshotId}": ${(err as Error).message}`)
+      return parseManifest(content)
+    } catch (error) {
+      throw new Error("Corrupted snapshot manifest for \"" + snapshotId + "\": " + (error as Error).message)
     }
   }
 
-  /**
-   * Deletes a snapshot from storage directory.
-   */
-  static async deleteSnapshot(storageDir: string, snapshotId: string): Promise<void> {
-    const snapshotDir = path.join(path.resolve(storageDir), snapshotId)
+  static async deleteSnapshot(storageDir: string, snapshotId: string, options: DeleteSnapshotOptions): Promise<void> {
+    const snapshotDir = resolveSnapshotDir(storageDir, snapshotId)
+    if (await options.isInUse(snapshotId)) throw new SnapshotInUseError(snapshotId)
     await fs.rm(snapshotDir, { recursive: true, force: true }).catch(() => {})
+  }
+
+  static async cleanupStaging(storageDir: string): Promise<void> {
+    const storageRoot = path.resolve(storageDir)
+    const entries = await fs.readdir(storageRoot, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return []
+      throw error
+    })
+    for (const entry of entries) {
+      if (!entry.name.startsWith(".tmp-")) continue
+      const stagingPath = path.join(storageRoot, entry.name)
+      const stat = await fs.lstat(stagingPath).catch(() => null)
+      if (stat?.isDirectory() && !stat.isSymbolicLink()) {
+        await fs.rm(stagingPath, { recursive: true, force: true })
+      }
+    }
+  }
+
+  private static async findExistingSnapshot(snapshotDir: string, snapshotId: string): Promise<SnapshotManifest | null> {
+    const stat = await fs.lstat(snapshotDir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null
+      throw error
+    })
+    if (!stat) return null
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new SnapshotExistsError(snapshotId)
+
+    try {
+      const content = await fs.readFile(path.join(snapshotDir, "manifest.json"), "utf8")
+      const manifest = parseManifest(content)
+      if (manifest.snapshotId !== snapshotId) throw new SnapshotExistsError(snapshotId)
+      return manifest
+    } catch (error) {
+      if (error instanceof SnapshotExistsError) throw error
+      throw new SnapshotExistsError(snapshotId)
+    }
   }
 
   private static async copyFilesRecursive(params: {
     currentDir: string
-    baseSourceDir: string
+    relativeDir: string
     stagingDir: string
-    files: Record<string, SnapshotFileEntry>
+    state: IngestState
     extraDeniedPrefixes: readonly string[]
+    includeRoots: readonly string[] | undefined
+    maxFileBytes: number
+    maxFiles: number
+    maxTotalBytes: number
   }): Promise<void> {
     const entries = await fs.readdir(params.currentDir, { withFileTypes: true })
-
     for (const entry of entries) {
-      const fullPath = path.join(params.currentDir, entry.name)
-      const relPath = path.relative(params.baseSourceDir, fullPath).replaceAll("\\", "/")
-
-      // Prevent traversal / absolute / symlink escapes
-      const checked = checkSnapshotPath(relPath)
+      const sourcePath = path.join(params.currentDir, entry.name)
+      const relativePath = params.relativeDir ? params.relativeDir + "/" + entry.name : entry.name
+      const checked = checkSnapshotPath(relativePath)
       if (checked.kind === "denied") continue
-
-      if (isDeniedSourceFile(relPath, params.extraDeniedPrefixes)) {
+      if (isDeniedSourceFile(checked.path, params.extraDeniedPrefixes)) {
+        await recordDeniedTree(sourcePath, checked.path, params.state.skipped)
         continue
       }
 
-      if (entry.isSymbolicLink()) {
-        // Resolve real path to verify it does not escape baseSourceDir
-        const realTarget = await fs.realpath(fullPath).catch(() => null)
-        if (!realTarget) continue
-        const relToSource = path.relative(params.baseSourceDir, realTarget)
-        if (relToSource.startsWith("..") || path.isAbsolute(relToSource)) {
-          // Symlink escapes source root -> denied
-          continue
-        }
+      const stat = await fs.lstat(sourcePath)
+      if (stat.isSymbolicLink()) {
+        params.state.skipped.push({ path: checked.path, reason: "symlink" })
+        continue
+      }
+      if (!isIncludedPath(checked.path, params.includeRoots, stat.isDirectory())) {
+        params.state.skipped.push({ path: checked.path, reason: "denied" })
+        continue
       }
 
-      if (entry.isDirectory()) {
+      if (stat.isDirectory()) {
         await SnapshotManager.copyFilesRecursive({
           ...params,
-          currentDir: fullPath,
+          currentDir: sourcePath,
+          relativeDir: checked.path,
         })
-      } else if (entry.isFile() || entry.isSymbolicLink()) {
-        const content = await fs.readFile(fullPath, "utf8")
-        const digest = digestOf(content)
-        const lineCount = splitLines(content).length
-        const byteSize = Buffer.byteLength(content, "utf8")
+        continue
+      }
+      if (!stat.isFile()) continue
 
-        const destPath = path.join(params.stagingDir, relPath)
-        await fs.mkdir(path.dirname(destPath), { recursive: true })
-        await fs.writeFile(destPath, content, "utf8")
+      params.state.fileCount += 1
+      if (params.state.fileCount > params.maxFiles) {
+        throw new Error("Snapshot ingestion exceeded the maximum file count of " + params.maxFiles)
+      }
+      if (stat.size > params.maxFileBytes) {
+        params.state.skipped.push({ path: checked.path, reason: "too_large" })
+        continue
+      }
 
-        params.files[relPath] = {
-          digest,
-          lineCount,
-          byteSize,
-        }
+      const bytes = await fs.readFile(sourcePath)
+      if (bytes.byteLength > params.maxFileBytes) {
+        params.state.skipped.push({ path: checked.path, reason: "too_large" })
+        continue
+      }
+      const prefix = bytes.subarray(0, Math.min(bytes.byteLength, 8 * 1024))
+      if (prefix.includes(0)) {
+        params.state.skipped.push({ path: checked.path, reason: "binary" })
+        continue
+      }
+      if (params.state.totalBytes + bytes.byteLength > params.maxTotalBytes) {
+        throw new Error("Snapshot ingestion exceeded the maximum total size of " + params.maxTotalBytes + " bytes")
+      }
+
+      const content = bytes.toString("utf8")
+      const digest = digestOf(content)
+      const destination = path.join(params.stagingDir, checked.path)
+      await fs.mkdir(path.dirname(destination), { recursive: true })
+      await fs.writeFile(destination, content, "utf8")
+      params.state.files[checked.path] = {
+        digest,
+        lineCount: splitLines(content).length,
+        byteSize: Buffer.byteLength(content, "utf8"),
+      }
+      params.state.totalBytes += bytes.byteLength
+
+      const filename = path.posix.basename(checked.path).toLowerCase()
+      if (reportLikeFragments.some((fragment) => filename.includes(fragment))) {
+        params.state.warnings.push({ path: checked.path, reason: "report_like_name" })
       }
     }
+  }
+}
+
+function normalizeIncludeRoots(includeRoots: readonly string[] | undefined): readonly string[] | undefined {
+  if (includeRoots === undefined) return undefined
+  return includeRoots.map((includeRoot) => {
+    const checked = checkSnapshotPath(includeRoot)
+    if (checked.kind === "denied") throw new Error("Include roots must be relative paths inside the repository")
+    return checked.path
+  })
+}
+
+function isIncludedPath(
+  relativePath: string,
+  includeRoots: readonly string[] | undefined,
+  isDirectory: boolean,
+): boolean {
+  if (includeRoots === undefined) return true
+  return includeRoots.some((root) => {
+    if (root === "" || relativePath === root || relativePath.startsWith(root + "/")) return true
+    return isDirectory && root.startsWith(relativePath + "/")
+  })
+}
+
+function validateLimit(name: string, value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(name + " must be a non-negative safe integer")
+  return value
+}
+
+export const cleanupStaging = (storageDir: string): Promise<void> => SnapshotManager.cleanupStaging(storageDir)
+
+async function recordDeniedTree(
+  absolutePath: string,
+  relativePath: string,
+  skipped: SnapshotSkippedEntry[],
+): Promise<void> {
+  skipped.push({ path: relativePath, reason: "denied" })
+  const stat = await fs.lstat(absolutePath).catch(() => null)
+  if (!stat?.isDirectory() || stat.isSymbolicLink()) return
+  const entries = await fs.readdir(absolutePath, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    await recordDeniedTree(path.join(absolutePath, entry.name), relativePath + "/" + entry.name, skipped)
   }
 }

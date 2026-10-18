@@ -52,6 +52,21 @@ if (postgresAvailable) {
     }
 
     runStoreContractTests(makeHarness)
+
+    test("findActiveRunsBySnapshot excludes terminal runs", async () => {
+      const suffix = Date.now().toString()
+      const activeRunId = "run-snapshot-active-" + suffix
+      const completedRunId = "run-snapshot-completed-" + suffix
+      const snapshotId = "snapshot-reference-" + suffix
+      await store.seedRun(activeRunId, "running", "", snapshotId)
+      await store.seedRun(completedRunId, "completed", "", snapshotId)
+      try {
+        expect(await store.findActiveRunsBySnapshot(snapshotId)).toEqual([activeRunId])
+      } finally {
+        await client.db.delete(runs).where(eq(runs.id, activeRunId))
+        await client.db.delete(runs).where(eq(runs.id, completedRunId))
+      }
+    })
   })
 } else {
   describe.skip("PostgresRunStore Conformance (PostgreSQL unavailable)", () => {

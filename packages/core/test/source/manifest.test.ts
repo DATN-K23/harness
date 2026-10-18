@@ -26,6 +26,16 @@ describe("manifest serialization & schema parsing", () => {
     expect(parsed).toEqual(validManifest)
   })
 
+  it("serializes skipped paths and warnings while retaining the old manifest shape", () => {
+    const withPolicyMetadata: SnapshotManifest = {
+      ...validManifest,
+      skipped: [{ path: "contracts/.ENV", reason: "denied" }],
+      warnings: [{ path: "src/docs/report.md", reason: "report_like_name" }],
+    }
+    expect(parseManifest(serializeManifest(withPolicyMetadata))).toEqual(withPolicyMetadata)
+    expect(parseManifest(serializeManifest(validManifest))).toEqual(validManifest)
+  })
+
   it("rejects invalid digest formats", () => {
     const invalid = {
       ...validManifest,

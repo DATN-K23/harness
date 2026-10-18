@@ -4,18 +4,18 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 ## 1. Track A: snapshot identity and storage
 
-- [ ] 1.1 [Owner: A] Add `resolveSnapshotDir(storageDir, id)` and `InvalidSnapshotIdError` in `packages/core/src/source/`.
+- [x] 1.1 [Owner: A] Add `resolveSnapshotDir(storageDir, id)` and `InvalidSnapshotIdError` in `packages/core/src/source/`.
   - ID pattern: `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`; the resolved path must be a direct child of the storage root.
   - Use it in `SnapshotManager.ingestRepository`, `loadSnapshotManifest`, `deleteSnapshot` and the `DiskSourceSnapshot` constructor.
   - Evidence: a test for IDs `..`, `a/b` and `` (empty) in which nothing outside a temp storage root is touched and the error has no absolute path.
-- [ ] 1.2 [Owner: A; Q6] Make ingestion content-addressed and write-once.
+- [x] 1.2 [Owner: A; Q6] Make ingestion content-addressed and write-once.
   - Compute `treeDigest` in staging, then use `snap_<treeDigest[0..12]>` when no ID is given.
   - If the target exists with the same digest, discard staging and return the existing snapshot. If it exists with a different digest, throw `SnapshotExistsError`. Never `rm` an existing target.
   - Add `cleanupStaging(storageDir)` for `.tmp-*` directories.
   - Evidence: the three spec scenarios (idempotent re-ingest, edited source gets a new ID while the old one still reads the original, explicit-ID conflict), plus an interrupted-staging test.
-- [ ] 1.3 [Owner: A] Verify integrity in `DiskSourceSnapshot.readLines`: recompute `digestOf(content)`, compare it with the manifest, and on mismatch throw `SnapshotIntegrityError` (relative path only).
+- [x] 1.3 [Owner: A] Verify integrity in `DiskSourceSnapshot.readLines`: recompute `digestOf(content)`, compare it with the manifest, and on mismatch throw `SnapshotIntegrityError` (relative path only).
   - Evidence: a tamper test where the modified content is not returned; an old random-ID snapshot is still readable.
-- [ ] 1.4 [Owner: A with C; Q7] Add an optional `findActiveRunsBySnapshot(snapshotId): Promise<string[]>` to `RunStorePort` in `@harness/protocol` (additive).
+- [x] 1.4 [Owner: A with C; Q7] Add an optional `findActiveRunsBySnapshot(snapshotId): Promise<string[]>` to `RunStorePort` in `@harness/protocol` (additive).
   - Implement it in `InMemoryRunStore` and in `PostgresRunStore` (`snapshot_id = $1 AND state NOT IN` terminal states; no migration).
   - Export `snapshotInUse(store)` from core.
   - Change `deleteSnapshot(storageDir, id, { isInUse })` so the usage check is required and in-use snapshots are refused with `SnapshotInUseError`.

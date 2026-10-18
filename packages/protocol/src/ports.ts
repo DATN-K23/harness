@@ -164,6 +164,7 @@ export type TransitionResult = { kind: "transitioned"; stateVersion: number } | 
 
 /** Every mutation carries the claim and expected state version; a stale write returns `stale` and changes nothing. */
 export interface RunStorePort {
+  findActiveRunsBySnapshot?(snapshotId: string): Promise<string[]>
   claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult>
   appendEvent(
     input: { claim: RunClaim; expectedStateVersion: number; event: NewTrajectoryEvent },

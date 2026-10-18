@@ -112,7 +112,34 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   - Evidence: the test passes.
 - [x] 5.3 [Owner: C; gate: before archive] Run `bun turbo typecheck`, `bun turbo test`, `bun run demo` and `bun run --cwd packages/core stress`, and record the outputs here.
   - Re-run the review's reproduction probes: nested `.git`, `..` ID, `read_file` default truncation, host-path error, `grep` ReDoS. Record that each now behaves as specified.
-- [ ] 5.4 [Owner: A, B, C; gate: before archive] Update the Track B checkboxes in `docs/sprints/sprint-03.md` to reflect reality, and note this change under the Track A/B/C sections. Record the outcomes of tasks 2.3 and 3.5, and get TV5/Research confirmation for Q1, Q2 and Q6.
+- [x] 5.4 [Owner: A, B, C; gate: before archive] Update the Track B checkboxes in `docs/sprints/sprint-03.md` to reflect reality, and note this change under the Track A/B/C sections. Record the outcomes of tasks 2.3 and 3.5, and get TV5/Research confirmation for Q1, Q2 and Q6. (The user adopted the Q1, Q2 and Q6 proposals on 2026-10-18; see section 6.)
+
+## 6. Adopted task 5.4 proposals (Q1, Q2, Q6)
+
+Decided by the user on 2026-10-18 (design D11-D13). `D:\DATN\harness-verification-data` is read-only: nothing may be written there.
+
+- [ ] 6.1 [Owner: A; Q1] Add the hard-deny rules for report and discussion artifacts (design D11) to `isDeniedSourceFile` and the registry deny policy.
+  - Directories: `audits`, `discord-export`, `.claude`, `.cursor`.
+  - Files with the non-code extensions `.md`, `.txt`, `.html`, `.htm`, `.pdf` and `.json` whose names contain one of the listed fragments.
+  - Code files are never denied by name.
+  - Evidence: the two spec scenarios.
+- [ ] 6.2 [Owner: A; Q6] Write `ingestionPolicyVersion: "ingest-policy-v2"` into new manifests.
+  - Keep it outside the tree digest; old manifests stay valid.
+  - Evidence: the spec scenario; a test that an old manifest without the field still loads.
+- [ ] 6.3 [Owner: C; Q2] Add two optional dependencies to `MultiTurnRunnerDeps` and apply the two pre-call guards (design D12).
+  - `estimatePromptTokens`: defaults to `estimateTokens` over the serialised request.
+  - `estimateCostUsd`: optional cost estimator.
+  - Evidence: the three spec scenarios.
+- [ ] 6.4 [Owner: A with TV5; Q1, Q6] Extend the corpus manifest and add two evaluation helpers in `packages/core/src/eval/`.
+  - Add the `ingestion` object and `findingsDir` to `ContestManifestEntry`.
+  - `ingestContestForEvaluation`: refuses an entry without `includeRoots` and only reads the data.
+  - `checkSnapshotContamination`: the scorer-side title check.
+  - Evidence: the refusal and leak/clean scenarios, on temp fixtures only.
+- [ ] 6.5 [Owner: A with TV5; Q1, Q6] Add the `corpus:verify` script and commit the pinned corpus manifest.
+  - The script takes `--data-root` or `HARNESS_VERIFICATION_DATA` and stores snapshots in `data/snapshots/`.
+  - Commit `config/corpus/verification-data.manifest.json` for the three contests at `154a79e`, using the default code-only profile.
+  - Generate `snapshotId` and `treeDigest` with one run of the script, then confirm them with a second run.
+  - Evidence: `corpus:verify` passes with 0 leaks, and `git status` in the data repository is clean before and after.
 
 ### Verification evidence (5.3, branch `agent-loop-core`, Bun 1.3.14, 2026-10-18)
 

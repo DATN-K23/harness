@@ -101,3 +101,21 @@ Provider failures with category `rate_limit` or `transport` SHALL end the run wi
 - **GIVEN** a run store whose `claim` throws
 - **WHEN** the run is executed
 - **THEN** the returned promise resolves with a `failed` result and does not reject
+
+### Requirement: Prompt- and cost-aware pre-call guards
+Before each provider attempt, the runner SHALL estimate the request's prompt tokens. It SHALL stop with the total-token reason when the remaining token budget is smaller than the estimated prompt tokens plus the maximum output tokens. When a cost estimator is supplied and returns a value, the runner SHALL stop with the cost reason when the estimated cost of the attempt exceeds the remaining cost budget. An estimator that cannot price the model SHALL disable only the cost check.
+
+#### Scenario: Large prompt cannot fit the remaining budget
+- **GIVEN** a remaining token budget of 1,000, no output-token limit, and a next request whose estimated prompt is 1,500 tokens
+- **WHEN** the runner prepares the attempt
+- **THEN** no attempt is made and the run ends `budget_exhausted` with the total-token reason
+
+#### Scenario: Estimated cost exceeds the remaining cost budget
+- **GIVEN** a remaining cost budget of 0.001 USD and a cost estimator that prices the next attempt at 0.01 USD
+- **WHEN** the runner prepares the attempt
+- **THEN** no attempt is made and the run ends `budget_exhausted` with the cost reason
+
+#### Scenario: Unknown pricing disables only the cost check
+- **GIVEN** a cost estimator that returns `undefined` for the run's model
+- **WHEN** the runner prepares an attempt that fits the token budget
+- **THEN** the attempt is made

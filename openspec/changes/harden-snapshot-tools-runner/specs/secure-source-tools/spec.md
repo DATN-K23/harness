@@ -111,3 +111,29 @@ Source tools SHALL mark every truncation and SHALL bound search time, as follows
 - **WHEN** `grep` runs a model-supplied pattern
 - **THEN** the worker is terminated, the call returns promptly with an error result telling the model to use a more specific pattern, and the process is never blocked by the pattern
 
+### Requirement: Hard-deny for report and discussion artifacts
+Ingestion and the tool registry SHALL deny the following, at any depth and case-insensitively:
+
+- every file under a directory named `audits`, `discord-export`, `.claude` or `.cursor`;
+- every file with extension `.md`, `.txt`, `.html`, `.htm`, `.pdf` or `.json` whose name contains `findings`, `_v12`, `post-mortem`, `postmortem`, `4naly3er`, `audit-report` or `audit report`.
+
+Source-code files SHALL NOT be denied by these name rules.
+
+#### Scenario: Bot and AI-audit reports never enter the snapshot
+- **GIVEN** a repository containing `4naly3er-report.md`, `2025-11-megapot_V12.md`, `code_423n4_x_findings.md`, `POST-MORTEM.md`, `discord-export/chat.txt`, `.claude/commands/audit-solidity.md` and `audits/Report.pdf`
+- **WHEN** it is ingested
+- **THEN** none of those files is in the snapshot, and each is listed as skipped with reason `denied`
+
+#### Scenario: Code with a report-like name is kept
+- **GIVEN** a repository containing `test/unit/on-report/onReport.t.sol`
+- **WHEN** it is ingested
+- **THEN** the file is in the snapshot
+
+### Requirement: Ingestion policy version in the manifest
+Every manifest written by ingestion SHALL record the ingestion policy version (`ingest-policy-v2` for this change). The version SHALL be excluded from the tree digest. Manifests without the field SHALL remain valid.
+
+#### Scenario: Policy version is recorded without changing the digest
+- **GIVEN** a repository ingested once
+- **WHEN** its manifest is read
+- **THEN** it records `ingestionPolicyVersion: "ingest-policy-v2"`, and its tree digest equals the digest computed over the file paths and file digests alone
+

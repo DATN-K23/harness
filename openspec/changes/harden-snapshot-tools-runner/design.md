@@ -243,7 +243,7 @@ A new test `packages/core/test/runner/disk-chain-e2e.test.ts` runs the full chai
 
 ## Task 5.4 research: proposals for Q1, Q2 and Q6
 
-Evidence comes from `D:\DATN\harness-verification-data` at commit `154a79e`, which holds 3 contests. The survey and the scorer-side leak check are described in the 2.3 / 3.5 evidence in tasks.md. The proposals below need TV5/Research confirmation before they become requirements; their implementation is listed as a separate follow-up change at the end of this section.
+Evidence comes from `D:\DATN\harness-verification-data` at commit `154a79e`, which holds 3 contests. The survey and the scorer-side leak check are described in the 2.3 / 3.5 evidence in tasks.md. The user adopted these proposals on 2026-10-18 (see "Adopted" below); they are implemented as decisions D11-D13.
 
 ### Q1. Report-like files and ground truth inside the ingested source
 
@@ -323,15 +323,67 @@ Prior art supports `completed`: OpenCode's step limit forces a final text answer
 
 **Owners:** TV5 and Track A.
 
-### Proposed follow-up change (after confirmation)
+### Adopted (2026-10-18)
 
-A separate change, for example `contamination-guard-and-budget-estimates`, would implement:
+The user adopted the Q1, Q2 and Q6 proposals for implementation in this change, instead of a separate follow-up change. They become decisions D11-D13 below. Q1 item 4 keeps its default: known issues are excluded from the snapshot by the hard-deny list, and no known-issues arm is built.
 
-- the code-only profile requirement and the wider hard-deny list (Q1 items 1-2);
-- the scorer-side contamination preflight (Q1 item 3);
-- prompt- and cost-aware pre-call guards (Q2);
-- `ingestionPolicyVersion` in the manifest (Q6).
+`D:\DATN\harness-verification-data` is strictly read-only. Every artifact this change writes stays inside the `harness` repository:
+
+- The pinned corpus manifest is committed under `config/corpus/`.
+- Snapshots go to `data/snapshots/`, which git already ignores.
+- The data root is passed at run time with `--data-root` or the `HARNESS_VERIFICATION_DATA` environment variable, never committed, so no host path enters the repository.
+
+### D11. Contamination guard (Q1, Tracks A and C with TV5)
+
+**Hard-deny for report and discussion artifacts.** This applies at any depth and case-insensitively, inside `isDeniedSourceFile`.
+
+- **Directories:** `audits`, `discord-export`, `.claude`, `.cursor`. Every file under them is denied.
+- **Non-code files:** files with extension `.md`, `.txt`, `.html`, `.htm`, `.pdf` or `.json` are denied when their name contains `findings`, `_v12`, `post-mortem`, `postmortem`, `4naly3er`, `audit-report` or `audit report`.
+
+Code files (`.sol`, `.ts`, `.js` and others) are never denied by name. Chainlink's `on-report/onReport.t.sol` therefore stays in the snapshot. Report-like warnings remain for whatever is left.
+
+**Code-only ingestion profile.** `ContestManifestEntry` gains:
+
+- an `ingestion` object: `dataRepoCommit`, `contestDir`, `includeRoots` (required, non-empty), `ingestionPolicyVersion`, `snapshotId`, `treeDigest`;
+- a scorer-only `findingsDir`.
+
+`ingestContestForEvaluation({ entry, dataRoot, storageDir })` refuses an entry without `includeRoots`. It reads `<dataRoot>/<contestDir>/src` only through ingestion and never writes under `dataRoot`. The default profile is:
+
+- roots: `contracts`, `src`, `lib`, `test`, `tests`, `script`;
+- root files: `foundry.toml`, `remappings.txt`.
+
+**Scorer-side contamination preflight.** `checkSnapshotContamination({ snapshot, snapshotId, findings })` lives in `packages/core/src/eval/contamination.ts`.
+
+- It normalises each finding title (lower-case, non-alphanumerics collapsed to single spaces, at least 12 characters) and searches the normalised content of every snapshot file.
+- It returns `{ clean: boolean, leaks: [{ findingId, paths }] }`.
+- Finding titles enter this function only on the scorer side; they never reach the runner, the tools or the events.
+
+### D12. Prompt- and cost-aware pre-call guards (Q2, Track C)
+
+`MultiTurnRunnerDeps` gains two optional estimators:
+
+- `estimatePromptTokens(request)`, defaulting to `estimateTokens` (chars/4) over the serialised request items and tools;
+- `estimateCostUsd(profileId, promptTokens, outputTokens)`, which returns `undefined` when pricing is unknown.
+
+Before each provider attempt the runner checks two conditions.
+
+| Condition | Stop reason |
+|---|---|
+| `remainingTokens < estimatedPromptTokens + (maxOutputTokens ?? 0)` | `total_tokens` |
+| `estimateCostUsd` is provided and returns a number greater than the remaining cost budget | `cost_budget` |
+
+A final text answer still completes with `observedLimits`, as in D9. Wiring the `@harness/llm` pricing table into `estimateCostUsd` is Track D's CLI composition; core only defines the dependency.
+
+### D13. Ingestion policy version, pinned manifest and reproducibility (Q6, Track A with TV5)
+
+- `SnapshotManifest` gains an optional `ingestionPolicyVersion`, written by ingestion as `ingest-policy-v2`. It is recorded but kept out of the tree digest.
+- `config/corpus/verification-data.manifest.json` pins the three contests of `harness-verification-data` at `154a79e`. For each contest it records `contestDir`, `includeRoots`, `findingsDir`, policy version, `snapshotId` and `treeDigest`. The values come from the run described in task 6.5.
+- `bun run --cwd packages/core corpus:verify -- --data-root <path>` checks every contest:
+  1. re-ingest it into `data/snapshots/`;
+  2. assert that `snapshotId` and `treeDigest` equal the manifest;
+  3. run the contamination preflight against `<contestDir>/<findingsDir>` titles, read only;
+  4. exit non-zero on any mismatch or leak.
 
 ## Open Questions
 
-Q1, Q2 and Q6 have the proposals above and wait for TV5/Research confirmation (task 5.4). Q1 item 4, whether a Judge arm may see known issues, is a research-design decision.
+Q1 item 4, whether a Judge arm may see known issues, remains a research-design decision. The default is exclusion.

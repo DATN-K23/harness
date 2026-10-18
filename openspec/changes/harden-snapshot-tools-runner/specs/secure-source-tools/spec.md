@@ -106,7 +106,8 @@ Source tools SHALL mark every truncation and SHALL bound search time, as follows
 - **WHEN** `read_file` reads it
 - **THEN** 2,000 lines are returned, `isTruncated` is true, the marker is present, and `lineRange` is `[1, 2000]`
 
-#### Scenario: Catastrophic pattern times out
-- **GIVEN** a snapshot file with a line of 40 `a` characters followed by `!`
-- **WHEN** `grep` runs the pattern `^(a+)+$` with the default time limit
-- **THEN** the call returns within the time limit plus a small margin, with an error result telling the model to use a more specific pattern
+#### Scenario: Search exceeding the time limit is stopped
+- **GIVEN** a registry whose grep time limit is shorter than the time the scan needs
+- **WHEN** `grep` runs a model-supplied pattern
+- **THEN** the worker is terminated, the call returns promptly with an error result telling the model to use a more specific pattern, and the process is never blocked by the pattern
+

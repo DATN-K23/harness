@@ -32,7 +32,7 @@ export class DiskSourceSnapshot implements SourceSnapshotPort {
     if (this.manifest) return this.manifest
     const manifestPath = path.join(this.snapshotDir, "manifest.json")
     const content = await fs.readFile(manifestPath, "utf8").catch(() => null)
-    if (!content) throw new Error("Snapshot not found: \"" + this.snapshotId + "\" (checked \"" + manifestPath + "\")")
+    if (!content) throw new Error("Snapshot not found: \"" + this.snapshotId + "\"")
     this.manifest = parseManifest(content)
     return this.manifest
   }

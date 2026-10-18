@@ -1,6 +1,6 @@
 // Adapted from OpenCode packages/core/src/tool/handlers/glob.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
-import { checkSnapshotPath, comparePaths, globToRegExp } from "../../source/source-snapshot"
+import { checkSnapshotPath, isDeniedSourceFile, comparePaths, globToRegExp } from "../../source/source-snapshot"
 
 export const DEFAULT_MAX_GLOB_MATCHES = 500
 
@@ -21,21 +21,26 @@ export async function handleGlob(
 ): Promise<ToolExecutionResult> {
   const { pattern } = args
   if (typeof pattern !== "string" || pattern === "")
-    return failure(`Invalid arguments for glob: pattern must be a non-empty string (received ${JSON.stringify(args)}). Expected {"pattern": string, for example "**/*.sol"}.`)
+    return failure('Invalid arguments for glob: pattern must be a non-empty string. Expected {"pattern": string, for example "**/*.sol"}.')
 
-  const matcher = globToRegExp(pattern)
+  const checkedPattern = checkSnapshotPath(pattern)
+  if (checkedPattern.kind === "denied" || isDeniedSourceFile(checkedPattern.path, ctx.deniedPrefixes))
+    return failure("Access denied: glob pattern is outside the allowed source snapshot.")
 
+  const matcher = globToRegExp(checkedPattern.path)
   let visiblePaths: string[] = []
   if (ctx.snapshot && ctx.snapshotId) {
     visiblePaths = await ctx.snapshot.listFiles({ snapshotId: ctx.snapshotId }, signal)
   } else if (ctx.files) {
     visiblePaths = [...ctx.files.keys()]
-      .filter((path) => checkSnapshotPath(path, ctx.deniedPrefixes).kind === "ok")
-      .toSorted(comparePaths)
   }
 
-  const paths = visiblePaths.filter((path) => matcher.test(path))
-  if (paths.length === 0) return { content: `No files match "${pattern}".`, isError: false }
+  const paths = visiblePaths
+    .filter((filePath) => checkSnapshotPath(filePath).kind === "ok")
+    .filter((filePath) => !isDeniedSourceFile(filePath, ctx.deniedPrefixes))
+    .filter((filePath) => matcher.test(filePath))
+    .toSorted(comparePaths)
+  if (paths.length === 0) return { content: 'No files match "' + checkedPattern.path + '".', isError: false }
 
   const maxMatches = ctx.maxMatches ?? DEFAULT_MAX_GLOB_MATCHES
   let isTruncated = false
@@ -47,8 +52,8 @@ export async function handleGlob(
 
   let content = selectedPaths.join("\n")
   if (isTruncated) {
-    content += `\n[Output truncated. Showing first ${maxMatches} matches of ${paths.length}.]`
+    content += "\n[Output truncated. Showing first " + maxMatches + " matches of " + paths.length + ".]"
   }
 
-  return { content, isError: false }
+  return { content, isError: false, ...(isTruncated ? { isTruncated: true } : {}) }
 }

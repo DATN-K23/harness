@@ -193,7 +193,7 @@ export class SnapshotManager {
       const checked = checkSnapshotPath(relativePath)
       if (checked.kind === "denied") continue
       if (isDeniedSourceFile(checked.path, params.extraDeniedPrefixes)) {
-        await recordDeniedTree(sourcePath, checked.path, params.state.skipped)
+        params.state.skipped.push({ path: checked.path, reason: "denied" })
         continue
       }
 
@@ -287,17 +287,3 @@ function validateLimit(name: string, value: number): number {
 }
 
 export const cleanupStaging = (storageDir: string): Promise<void> => SnapshotManager.cleanupStaging(storageDir)
-
-async function recordDeniedTree(
-  absolutePath: string,
-  relativePath: string,
-  skipped: SnapshotSkippedEntry[],
-): Promise<void> {
-  skipped.push({ path: relativePath, reason: "denied" })
-  const stat = await fs.lstat(absolutePath).catch(() => null)
-  if (!stat?.isDirectory() || stat.isSymbolicLink()) return
-  const entries = await fs.readdir(absolutePath, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    await recordDeniedTree(path.join(absolutePath, entry.name), relativePath + "/" + entry.name, skipped)
-  }
-}

@@ -23,10 +23,10 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 ## 2. Track A: ingestion policy
 
-- [ ] 2.1 [Owner: A; Q1] Make the deny policy depth-independent and case-insensitive (design D4) and add the optional `includeRoots` allow-list.
+- [x] 2.1 [Owner: A; Q1] Make the deny policy depth-independent and case-insensitive (design D4) and add the optional `includeRoots` allow-list.
   - Add `warnings: [{path, reason: "report_like_name"}]` to the manifest for names containing `finding`, `report`, `judg`, `adjudic`, `ground`, `label` or `score`.
   - Evidence: a nested `.git` / `node_modules` / `contracts/.ENV` exclusion test; the `includeRoots` + report-like warning scenario.
-- [ ] 2.2 [Owner: A; Q4, Q8] Skip symlinks and junctions using `lstat`, without following them.
+- [x] 2.2 [Owner: A; Q4, Q8] Skip symlinks and junctions using `lstat`, without following them.
   - Bounds: configurable per-file 1 MiB (skip, `too_large`), file count 20,000 and total 200 MiB (fail), binary files (NUL byte in the first 8 KB, skip, `binary`).
   - Add optional `skipped: [{path, reason}]` and `warnings` to `SnapshotManifest`, with validation and serialization, so old manifests stay valid.
   - Evidence: a symlink + 2 MiB file test; a test loading an old manifest that has neither field.
@@ -39,19 +39,19 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 ## 3. Track B: tool boundary
 
-- [ ] 3.1 [Owner: B] Make `ToolRegistry` always merge the default deny policy (prefixes and filename rules) with any configured prefixes.
+- [x] 3.1 [Owner: B] Make `ToolRegistry` always merge the default deny policy (prefixes and filename rules) with any configured prefixes.
   - Expose a read-only `snapshotId` and `limits()`: read lines and bytes; grep timeout, scan bytes, line length and matches; glob matches; list entries.
   - Evidence: a files-map test with `test/ground-truth/label.json` where `read_file` is denied; a `limits()` test.
-- [ ] 3.2 [Owner: B with A] Remove host paths from every model-visible error.
+- [x] 3.2 [Owner: B with A] Remove host paths from every model-visible error.
   - The registry catch-all returns `Tool execution failed (internal error). Retry or use a different path.`
   - Snapshot errors (`InvalidSnapshotIdError`, `SnapshotIntegrityError`, not-found manifest) map to fixed messages naming only the snapshot ID or the relative path.
   - `DiskSourceSnapshot` error texts drop the manifest path.
   - Evidence: a missing-snapshot test asserting no `:\` or leading-`/` absolute path in the content.
-- [ ] 3.3 [Owner: B] Fix truncation in `read_file`: set `isTruncated` and append the marker whenever the line or byte bound cuts content (default or configured), and set `lineRange` to the lines actually returned.
+- [x] 3.3 [Owner: B] Fix truncation in `read_file`: set `isTruncated` and append the marker whenever the line or byte bound cuts content (default or configured), and set `lineRange` to the lines actually returned.
   - Separate the `glob` and `grep` limits in the registry.
   - In the runner, detect truncation from `isTruncated` only.
   - Evidence: a 3,000-line default test (`lineRange [1,2000]`, marker present); a byte-cut test.
-- [ ] 3.4 [Owner: B] Move the `grep` scan into a `node:worker_threads` worker.
+- [x] 3.4 [Owner: B] Move the `grep` scan into a `node:worker_threads` worker.
   - Bounds: hard timeout (provisional default 2,000 ms, configurable), 50 MiB scan cap, 500 characters per matched line.
   - On timeout, terminate the worker and return the model-actionable error; mark the other bounds as truncation.
   - Evidence: a `^(a+)+$` test on a 40-`a` line that returns within timeout + 1 s with the timeout error; the existing grep tests still pass.

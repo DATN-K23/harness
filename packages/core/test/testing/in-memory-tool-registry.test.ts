@@ -101,7 +101,7 @@ describe("read_file", () => {
     const guarded = new InMemoryToolRegistry({ files, deniedPrefixes: ["secrets"] })
     const denied = await guarded.execute(call("read_file", { path: "secrets/key.txt" }))
     expect(denied.isError).toBe(true)
-    expect(denied.content).toContain("denied_prefix")
+    expect(denied.content).toContain("Access denied")
     expect((await guarded.execute(call("read_file", { path: "src/Vault.sol" }))).isError).toBe(false)
   })
 })
@@ -208,18 +208,23 @@ describe("injected failures, throws and delays", () => {
     expect(results[0].content).toBe("disk unavailable")
   })
 
-  test("throwOn makes execute reject with the given value, once by default", async () => {
+  test("throwOn maps unexpected errors to a fixed error result, once by default", async () => {
     const tools = registry()
-    const boom = new Error("adapter bug")
-    tools.throwOn("grep", boom)
-    await expect(tools.execute(call("grep", { pattern: "x" }))).rejects.toBe(boom)
+    tools.throwOn("grep", new Error("adapter bug"))
+    expect(await tools.execute(call("grep", { pattern: "x" }))).toEqual({
+      content: "Tool execution failed (internal error). Retry or use a different path.",
+      isError: true,
+    })
     expect((await tools.execute(call("grep", { pattern: "x" }))).isError).toBe(false)
   })
 
-  test("throwOn can throw a non-Error value", async () => {
+  test("throwOn maps non-Error values to the fixed error result", async () => {
     const tools = registry()
     tools.throwOn("glob", "just a string")
-    await expect(tools.execute(call("glob", { pattern: "*" }))).rejects.toBe("just a string")
+    expect(await tools.execute(call("glob", { pattern: "*" }))).toEqual({
+      content: "Tool execution failed (internal error). Retry or use a different path.",
+      isError: true,
+    })
   })
 
   test("delayTool sleeps through the injected sleep before running", async () => {

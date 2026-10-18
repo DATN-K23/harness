@@ -178,10 +178,12 @@ describe("Track A snapshot hardening", () => {
     const created = await SnapshotManager.ingestRepository({ sourceDir, storageDir })
     expect(Object.keys(created.manifest.files)).toEqual([])
     expect(created.manifest.skipped).toContainEqual({ path: "lib/forge-std/.git", reason: "denied" })
-    expect(created.manifest.skipped).toContainEqual({ path: "lib/forge-std/.git/config", reason: "denied" })
+    expect(created.manifest.skipped?.filter((entry) => entry.path === "lib/forge-std/.git")).toHaveLength(1)
+    expect(created.manifest.skipped?.filter((entry) => entry.path === "lib/dep/node_modules")).toHaveLength(1)
     expect(created.manifest.skipped).toContainEqual({ path: "lib/dep/node_modules", reason: "denied" })
-    expect(created.manifest.skipped).toContainEqual({ path: "lib/dep/node_modules/x/index.js", reason: "denied" })
     expect(created.manifest.skipped).toContainEqual({ path: "contracts/.ENV", reason: "denied" })
+    expect(created.manifest.skipped).not.toContainEqual({ path: "lib/forge-std/.git/config", reason: "denied" })
+    expect(created.manifest.skipped).not.toContainEqual({ path: "lib/dep/node_modules/x/index.js", reason: "denied" })
   })
 
   it("restricts ingestion to include roots and flags ingested report-like names", async () => {

@@ -554,16 +554,15 @@ describe("tool failure becomes model-visible data", () => {
     kinds.forEach(({ entry }) => expect(entry.result.content).toContain("Suggested next step:"))
   })
 
-  test("a thrown Error becomes an error result naming the error, the arguments and a next step", async () => {
+  test("unexpected registry errors become a fixed path-free error result with a next step", async () => {
     const registry = new InMemoryToolRegistry({ files })
-    registry.throwOn("read_file", new TypeError("adapter exploded"))
+    registry.throwOn("read_file", new TypeError("adapter exploded at C:\\private\\source"))
     const { entry, stored } = await run(call("c-0", "read_file", { path: "src/Vault.sol" }), registry)
-    expect(entry.failureKind).toBe("thrown")
+    expect(entry.failureKind).toBe("tool_error")
     expect(entry.result.isError).toBe(true)
-    expect(entry.result.content).toContain("TypeError: adapter exploded")
-    expect(entry.result.content).toContain('{"path":"src/Vault.sol"}')
-    expect(entry.result.content).toContain("Suggested next step: verify the path with list_dir or glob")
-    expect(entry.result.content).not.toContain("\n    at ")
+    expect(entry.result.content).toContain("Tool execution failed (internal error). Retry or use a different path.")
+    expect(entry.result.content).not.toContain("C:\\private\\source")
+    expect(entry.result.content).toContain("Suggested next step:")
     expect(eventSummary(stored)).toEqual(["tool.requested", "tool.failed"])
   })
 

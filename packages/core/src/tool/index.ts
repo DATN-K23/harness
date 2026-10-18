@@ -19,7 +19,7 @@ export type {
   ReadFileContext,
 } from "./handlers"
 export { ToolRegistry } from "./registry"
-export type { ToolRegistryOptions } from "./registry"
+export type { EffectiveToolLimits, ToolRegistryOptions } from "./registry"
 export {
   NextStepMarker,
   ParallelToolDispatcher,

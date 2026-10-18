@@ -350,7 +350,7 @@ describe("JudgeRunner: never crashes the worker", () => {
     expect(result.usage.totalTokens).toBe(30)
   })
 
-  test("a tool registry that throws a non-Error value becomes a model-visible error and the run completes", async () => {
+  test("a tool registry exception becomes a fixed model-visible error and the run completes", async () => {
     const world = createWorld()
     const w = world.worker({ script: [readVault("call-1", 1, 5), verdictText] })
     w.registry.throwOn("read_file", "adapter exploded")
@@ -359,7 +359,7 @@ describe("JudgeRunner: never crashes the worker", () => {
     expect(result).toMatchObject({ kind: "committed", state: "completed" })
     const toolResult = w.gateway.calls[1].items.find((item) => item.type === "tool_result")
     expect(toolResult?.toolMeta?.isError).toBe(true)
-    expect(toolResult?.content).toContain("adapter exploded")
+    expect(toolResult?.content).toContain("Tool execution failed (internal error). Retry or use a different path.")
   })
 
   test("a malformed claim makes construction fail: run resolves with an error result instead of throwing", async () => {

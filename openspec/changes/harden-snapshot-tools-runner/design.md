@@ -1,0 +1,246 @@
+## Context
+
+See [proposal.md](proposal.md). The defects come from a 2026-10-18 review of commits `9a86050` (Track A), `42f981a` (Track B) and `2bf74df` (Track C) on branch `agent-loop-core`. The review was done by Codex (`gpt-6-luna`, effort `xhigh`) plus manual reproduction. Reproduced by running code:
+
+- `snapshotId ".."` resolves outside storage;
+- nested `lib/forge-std/.git/config` and `lib/dep/node_modules/...` are ingested;
+- `read_file` on a 3,000-line file returns 2,000 lines with no marker;
+- a missing snapshot makes `read_file` return `Snapshot not found ... (checked "C:\Users\...")` to the model;
+- `grep` with `^(a+)+$` on a 32-character line takes about 0.8 s and doubles per character.
+
+The other findings were confirmed by reading the code. The existing main specs (`secure-source-tools`, `multi-turn-runner`) already require most of the correct behavior, so most of this change is conformance work. New requirements are added only where the specs were silent: snapshot ID rules, write-once storage, in-use cleanup, ingestion bounds, a grep time bound, runner/registry binding, and never-reject.
+
+Constraints:
+
+- Bun/TypeScript.
+- `@harness/protocol` stays browser-safe. The only protocol changes are additive and optional: `toolLimits` in the run config snapshot (D7) and `findActiveRunsBySnapshot` on `RunStorePort` (D3).
+- No new database migration.
+- Light testing: one focused test per scenario, per the user's earlier instruction.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Close every finding marked Critical or Important in the review, with one test per scenario.
+- Keep existing snapshots readable and existing tests green, except tests that pinned the buggy behavior.
+
+**Non-Goals:**
+
+- Track D work (gateway tool-calling mapping, CLI registration/run/view commands).
+- Snapshot metadata in PostgreSQL.
+- Context compaction.
+- Breaking protocol changes: only the two optional additions listed in Constraints.
+
+## Decisions
+
+### D1. Snapshot ID and storage containment (Track A)
+
+Snapshot IDs must match `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`. One helper, `resolveSnapshotDir(storageDir, id)`, validates the ID, resolves the path, and asserts the result is a direct child of the resolved storage root. `SnapshotManager` (ingest, load, delete) and `DiskSourceSnapshot` call it before any filesystem operation.
+
+Invalid IDs raise `InvalidSnapshotIdError`. Its message contains the ID but no host path.
+
+*Alternative:* sanitize the ID instead of rejecting it. Rejected, because silent rewriting hides caller bugs.
+
+### D2. Content-addressed, write-once storage and read-time integrity (Track A)
+
+**Resolved question 6.** The default snapshot ID is derived from the content: `snap_<first 12 hex characters of treeDigest>`. Ingestion computes the tree digest in staging first, then:
+
+- **Target absent:** rename staging into place.
+- **Target present with the same `treeDigest`:** discard staging and return the existing snapshot (idempotent re-ingest).
+- **Target present with a different `treeDigest`:** fail with `SnapshotExistsError`. This can only happen with an explicit ID or a prefix collision.
+
+Callers may still pass an explicit ID; the same rules apply. Ingestion never removes an existing target. Re-ingesting unchanged source therefore yields the same ID, which keeps experiments reproducible (TV5), while changed source always yields a new ID.
+
+`DiskSourceSnapshot.readLines` recomputes the file digest the same way ingestion computes it (`digestOf` of the UTF-8 content) and compares it with the manifest. On mismatch it throws `SnapshotIntegrityError` with the relative path only. The digest scheme is unchanged, so old snapshots, including those with random IDs, stay readable. The digest is computed per read; the cost is acceptable because D4 bounds file size.
+
+*Alternative:* random IDs with strict write-once. Rejected, because re-ingesting the same repository would create a new snapshot every time and break run-to-run reproducibility.
+
+### D3. Reference-aware cleanup (Track A with C)
+
+**Resolved question 7.** `RunStorePort` gains an optional query `findActiveRunsBySnapshot(snapshotId): Promise<string[]>`, which returns IDs of runs not in a terminal state. This is an additive port change; no event schema changes.
+
+- `InMemoryRunStore` and `PostgresRunStore` implement it. Postgres queries `runs WHERE snapshot_id = $1 AND state NOT IN (terminal states)`; the column exists since migration 0001, so no new migration is needed.
+- Core exports `snapshotInUse(store)`, which returns the `isInUse` callback.
+- `deleteSnapshot(storageDir, id, { isInUse })` requires the callback and refuses with `SnapshotInUseError` when it returns true. Track D's CLI passes `snapshotInUse(store)`.
+- Snapshot metadata stays in the manifest; there is no PostgreSQL snapshot table in this change.
+
+`cleanupStaging(storageDir)` removes leftover `.tmp-*` directories from interrupted ingestions.
+
+*Alternative:* reference counting stored in the manifest. Rejected, because the run store is already the authority.
+
+### D4. Ingestion policy (Track A)
+
+The deny policy is evaluated case-insensitively on every path segment, not only at the root:
+
+- **Directory names:** `.git`, `node_modules`, `.github`, `adjudication`, `ground-truth`, `groundtruth`, `scoring`.
+- **File names:** `.env*`, `*.pem`, `*.key`, `id_rsa*`.
+
+An optional `includeRoots` allow-list restricts ingestion to the given relative roots.
+
+**Resolved question 1.** Ground truth is kept out primarily by *what* is ingested: TV5 ingests only the contest `source/` directory, or passes `includeRoots`. As a second layer, ingestion still copies a file whose name looks like an adjudication artifact, but records a warning for it in the manifest (`warnings: [{ path, reason: "report_like_name" }]`). The matched name fragments, case-insensitive, are `finding`, `report`, `judg`, `adjudic`, `ground`, `label`, `score`. Warnings are surfaced by the CLI at registration, so the operator sees the risk without legitimate docs being silently dropped.
+
+**Resolved question 4.** Symlinks and junctions are skipped (checked with `lstat`), never followed, and recorded as skipped. This removes the check-then-read race. If a survey of about 10 contest repositories shows they rely on symlinks, a later change can replace internal links with copies of the target content read at check time.
+
+Bounds:
+
+| Bound | Default | When exceeded |
+|---|---|---|
+| Per-file size | 1 MiB | File skipped |
+| File count | 20,000 | Ingestion fails |
+| Total bytes | 200 MiB | Ingestion fails |
+| Binary file (NUL byte in the first 8 KB) | — | File skipped |
+
+Skipped files are recorded in an optional manifest field `skipped: [{ path, reason }]`. The reasons are `denied`, `symlink`, `too_large` and `binary`. All limits are ingestion options.
+
+**Resolved question 8.** The 1 MiB per-file limit stays the default, but nothing is lost silently:
+
+- the operator can raise the limit at registration;
+- the runner's initial source information lists the `too_large` and `binary` files (bounded, at most 20 entries plus a count) as present but not readable. The model then knows the gap exists instead of concluding the code is absent.
+
+Denied and symlink paths are not listed to the model, since their names could themselves be sensitive.
+
+*Alternative:* keep following internal symlinks. Rejected, because the race could not be closed without handle-based reads.
+
+### D5. Tool boundary (Track B)
+
+`ToolRegistry` always merges `DEFAULT_DENIED_PREFIXES` and the filename rules from D4 into whatever prefixes the caller passes. Callers cannot opt out.
+
+The registry exposes a read-only `snapshotId`.
+
+The catch-all no longer forwards `error.message`. It returns `Tool execution failed (internal error). Retry or use a different path.` and logs nothing path-bearing into the result. Snapshot errors (D1-D3) are mapped to fixed, path-free messages.
+
+### D6. read_file (Track B)
+
+Truncation is flagged whenever the line bound or the byte bound cuts content, whether or not the caller configured the limit. The marker is appended and `isTruncated` is set. `lineRange` reports the first and last line actually returned.
+
+### D7. grep (Track B)
+
+The scan runs in a `node:worker_threads` worker with a hard timeout (default 2,000 ms). The worker is terminated on timeout and the tool returns `grep timed out after <n> ms; use a more specific pattern or path.`
+
+Other bounds:
+
+| Bound | Default | When exceeded |
+|---|---|---|
+| Scanned bytes | 50 MiB | Scan stops, marked truncated |
+| Characters per matched line | 500 | Line cut, marked truncated |
+
+`glob` and `grep` limits are passed separately. The same worker code serves the snapshot and in-memory backends.
+
+**Resolved question 3.** 2,000 ms and 50 MiB are provisional defaults. Before the change is archived, Track B with Research measures `grep` on the 3 Solidity repositories chosen for Sprint 3. The patterns are `function\s+\w+`, `transfer\(` and `onlyOwner`. The timeout is then set to the larger of 1,000 ms and 10 × the observed p95 scan time, and the measurement table is recorded in task 5.3.
+
+The effective tool limits are exposed by `ToolRegistry.limits()`:
+
+- `read_file`: lines and bytes;
+- `grep`: timeout, scan bytes, line length and matches;
+- `glob`: matches;
+- `list_dir`: entries.
+
+The runner records them in `run.started`, so every run states the bounds it used and they enter the snapshot digest. `RunConfigSnapshotSchema` is a plain `z.object`, which would strip an unknown key, so this needs one additive protocol change: an optional `toolLimits` object in `RunConfigSnapshotSchema`. Old events, which lack it, still parse.
+
+*Alternatives:* a regex-safety heuristic (incomplete), or a third-party RE2 binding (a native dependency and still a gate). Both rejected.
+
+### D8. Two-tier model-visible sanitizer (Track C with B)
+
+**Resolved question 5.** Source content read from the snapshot must reach the model byte-for-byte as stored, apart from credential redaction. Otherwise evidence `file:line` stops matching the snapshot. Our host paths cannot occur inside the snapshot, because the files come from the repository, not from our machine. `packages/core/src/util/sanitize.ts` therefore exports two functions.
+
+**`sanitizeSystemText(text, secrets)`, the full tier.** It removes:
+
+- Windows drive paths (`X:\…`, `X:/…`);
+- UNC paths (`\\host\…`);
+- POSIX absolute paths, only when preceded by start, whitespace or a quote and not part of `scheme://`, so GitHub permalinks survive;
+- credential patterns, by reusing `redactSecrets`;
+- `GroundTruthLabel…`, `adjudication_report…` and `scoring…` lines.
+
+It applies to text that the harness or the model produces rather than the snapshot:
+
+- the prompt;
+- every string value inside tool-call arguments, before the dispatcher appends `tool.requested` and before history items are built;
+- tool error results, which are generated messages;
+- the initial source information.
+
+**`sanitizeSourceContent(text, secrets)`, the credential tier.** It applies only `redactSecrets`: explicit secrets, `sk-…` style keys, PEM blocks and connection-string credentials. It applies to successful tool results whose content comes from the snapshot (`read_file`, `grep` match lines, `glob` and `list_dir` paths).
+
+`request-assembly.ts` uses the full tier instead of its local regexes. The protocol exemption for `tool.requested.arguments` stays, because it is a key-name scan; the values are now sanitized in core before the append.
+
+*Alternative:* one tier for everything (the earlier draft). Rejected, because a comment such as `// see /docs/spec.md` would be altered and the model would cite text that is not in the snapshot.
+
+### D9. Runner binding, budgets and persistence order (Track C)
+
+**Binding.** `execute` fails early with `invalid_input` when `registry.snapshotId` is defined and differs from `input.snapshotId`. On resume it loads the run record and fails with `invalid_input` if the stored `snapshotId` or `prompt` differs from the input. A swallowed `seedRun` error is no longer silent: it triggers this check.
+
+**Budgets.**
+
+- Limits are evaluated at the top of each step and again after each model response, before approval and dispatch. Usage is already added at that point.
+- **Resolved question 2.** Before every provider attempt the runner checks that the remaining token budget is at least `maxOutputTokens` (when set). If the remaining token budget is smaller, the run stops with `total_tokens` instead of making a call that is certain to overrun. With that guard, a final text answer can overrun a budget only by the prompt-token estimate error. Such an answer still completes the run (`completed`, output kept), and every limit it exhausted is recorded in the terminal event's telemetry, so TV5 can filter these runs when computing cost.
+- On resume, the run start time comes from the `run.started` event's `occurredAt`, and `completedToolCalls` from the hydrated `tool_result` items.
+- `maxPromptLength` (default 100,000 characters) is checked before snapshot access.
+
+**Persistence order inside `onResult`.**
+
+1. `context.item_added` for the request.
+2. `context.item_added` for the result.
+3. `tool.completed` or `tool.failed`, carrying the result item ID.
+
+A crash before step 3 leaves a recoverable result, not an interrupted one.
+
+The attempt row (`recordModelAttempt`, idempotent) is written before `provider.attempted`.
+
+**Hydration.** A hydration result other than `hydrated` fails closed with `persistence_failure` and makes no model call.
+
+**Error classification.**
+
+| Provider error category | Terminal reason |
+|---|---|
+| `authentication`, `invalid_request` | `provider_permanent` |
+| `rate_limit`, `transport` | `provider_transient_primary` (retry stays disabled) |
+
+**Never reject.** The whole body of `execute` is wrapped. An unexpected error tries a `failed`/`persistence_failure` transition and always returns a result.
+
+**Run queries.** Reconstruction keys calls by `${stepIndex}:${callId}`. Result-truncation detection uses `result.isTruncated` only.
+
+### D10. Cross-cutting
+
+`packages/cli/src/config.ts` narrows `process` to a local type with an optional `loadEnvFile` instead of relying on an absent Bun type.
+
+A new test `packages/core/test/runner/disk-chain-e2e.test.ts` runs the full chain in-process, with no network or database:
+
+1. ingest a temporary repository;
+2. build a `DiskSourceSnapshot` and a `ToolRegistry` bound to it;
+3. run `MultiTurnRunner` with a scripted gateway that calls `read_file` and then answers, against `InMemoryRunStore`;
+4. assert ordered history, the bound snapshot, and no host path anywhere in events or requests.
+
+## Risks / Trade-offs
+
+| Risk | Mitigation |
+|---|---|
+| Skipping symlinks may drop legitimate files from some repositories | Recorded in `skipped`; teams can vendor real files |
+| Per-read digest verification costs CPU | File size bounded to 1 MiB by default |
+| Worker start-up adds latency to every `grep` | A few tens of ms, acceptable against provider latency; one worker per call keeps the timeout reliable |
+| POSIX-path redaction can over-redact prose such as `and/or` | Requires a leading `/` after start/whitespace/quote; tests cover URLs and common prose |
+| Write-once breaks callers that re-ingest under a fixed ID | Generated IDs are the default; tests updated |
+| Light testing leaves edge cases uncovered | One test per scenario; the e2e chain test catches integration breaks |
+
+## Migration Plan
+
+- No database or protocol migration.
+- Existing snapshot directories keep working: digest scheme unchanged, `skipped` optional.
+- Callers of `deleteSnapshot` must pass `isInUse`.
+- Callers that relied on re-ingesting a fixed ID must pick a new ID.
+- Rollback is reverting the change commits.
+
+## Resolved Questions
+
+| # | Question | Resolution | Where | Owner to confirm |
+|---|---|---|---|---|
+| 1 | Block report-like file names? | No silent blocking; ingest `source/` or `includeRoots`; warn on report-like names in the manifest and CLI | D4 | TV5, Track A |
+| 2 | Final answer over budget: `completed` or `budget_exhausted`? | `completed` plus telemetry; a pre-call check that the remaining token budget covers `maxOutputTokens` keeps overruns small | D9 | Track C, TV5 |
+| 3 | grep timeout and scan cap | Provisional 2 s and 50 MiB; set from measured p95 on 3 repositories; limits recorded per run | D7 | Track B, Research |
+| 4 | Follow internal symlinks? | Skip all and record; revisit after surveying about 10 contest repositories | D4 | Track A |
+| 5 | Sanitize source content? | Two tiers: full for system/model text, credentials-only for snapshot content | D8 | Track C, B |
+| 6 | Random or content IDs? | Content-addressed default ID; idempotent for identical content; conflict error otherwise | D2 | Track A, TV5 |
+| 7 | Who answers "is it in use"? | Optional `RunStorePort.findActiveRunsBySnapshot` plus `snapshotInUse(store)`; CLI passes it | D3 | Track A, C, D |
+| 8 | Files over 1 MiB | Keep the default; configurable; listed to the model as present-but-unreadable | D4 | Track A |
+
+## Open Questions
+
+None blocking implementation. Questions 1, 3 and 4 above carry an explicit measurement or survey step before archive (task 5.4).

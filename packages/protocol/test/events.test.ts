@@ -207,6 +207,10 @@ describe("event payloads", () => {
     ])
   })
 
+  test("accepts old run.started snapshots without optional toolLimits", () => {
+    const payload = { ...payloads["run.started"] }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "run.started", payload })).success).toBe(true)
+  })
   test("context.item_added carries the full context item", () => {
     const payload = { item: { ...contextItem(), type: "not_a_type" } }
     expect(failure(event({ type: "context.item_added", payload }))[0].path).toEqual(["payload", "item", "type"])

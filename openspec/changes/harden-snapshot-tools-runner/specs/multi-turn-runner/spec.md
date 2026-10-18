@@ -44,7 +44,7 @@ The runner SHALL enforce its limits at these points:
 
 - **After every model response:** before tool approval or dispatch, it SHALL evaluate the wall-clock, token, cost, model-turn and tool-call limits again, and SHALL dispatch no tool when a limit is exhausted.
 - **Before every provider attempt:** it SHALL stop with the total-token reason when the remaining token budget is smaller than the configured maximum output tokens.
-- **On a final text answer:** a final answer that exhausted a limit SHALL complete the run, and every exhausted limit SHALL be recorded in the terminal event telemetry.
+- **On a final text answer:** a final answer that exhausted a limit SHALL complete the run. Every exhausted limit SHALL be returned in the run result (`observedLimits`) and SHALL be derivable from the persisted `provider.attempted` events together with the limits recorded in `run.started`.
 - **On resume:** it SHALL restore the run start time from the persisted `run.started` event and the completed tool-call count from history.
 - **On input:** it SHALL enforce the configured maximum prompt length before any snapshot access.
 

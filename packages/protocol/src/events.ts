@@ -134,7 +134,11 @@ export const EventPayloadSchemas = {
     isTruncated: z.boolean(),
     itemId: z.string(),
   }),
-  "tool.failed": ToolIdentitySchema.extend({ durationMs: z.number().int().nonnegative(), message: z.string() }),
+  "tool.failed": ToolIdentitySchema.extend({
+    durationMs: z.number().int().nonnegative(),
+    message: z.string(),
+    itemId: z.string().optional(),
+  }),
   "security.blocked": z.object({
     ruleId: z.string(),
     input: NormalizedRelativeInputSchema,

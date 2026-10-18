@@ -93,12 +93,26 @@ export const ContextPolicySchema = z.object({
   }),
 }) satisfies z.ZodType<ContextPolicy>
 
+export const ToolLimitsSchema = z.object({
+  readFile: z.object({ maxLines: z.number().int().positive(), maxBytes: z.number().int().positive() }),
+  grep: z.object({
+    timeoutMs: z.number().int().positive(),
+    maxScanBytes: z.number().int().positive(),
+    maxLineChars: z.number().int().positive(),
+    maxMatches: z.number().int().positive(),
+  }),
+  glob: z.object({ maxMatches: z.number().int().positive() }),
+  listDir: z.object({ maxEntries: z.number().int().positive() }),
+})
+
+export type ToolLimits = z.infer<typeof ToolLimitsSchema>
 export const RunConfigSnapshotSchema = z
   .object({
     flags: ResolvedFlagsSchema,
     contextPolicy: ContextPolicySchema,
     retry: RetryConfigSchema,
     budget: BudgetLimitsSchema,
+    toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,

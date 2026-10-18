@@ -5,6 +5,7 @@ import {
   type ContextPolicy,
   type ResolvedFlags,
   type RetryConfig,
+  type ToolLimits,
   type RunConfigSnapshot,
 } from "@harness/protocol"
 import { digestOf } from "../util/digest"
@@ -15,6 +16,7 @@ export interface RunConfigInput {
   retry: RetryConfig
   limits: BudgetLimits
   maxProbeRuns?: number
+  toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
 }
@@ -35,6 +37,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     contextPolicy: input.policy,
     retry: input.retry,
     budget: input.limits,
+    ...(input.toolLimits !== undefined ? { toolLimits: input.toolLimits } : {}),
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,

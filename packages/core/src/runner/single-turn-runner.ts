@@ -2,6 +2,7 @@
 import type { ClockPort, EventType, ModelGatewayPort, RunClaim, RunStorePort, TerminalReason, TokenUsage } from "@harness/protocol"
 import { digestOf } from "../util/digest"
 import { createIdGenerator, systemIdSources, type IdGenerator } from "../util/id"
+import { redactSecrets } from "../util/secrets"
 
 export interface SingleTurnRunInput {
   runId?: string
@@ -86,42 +87,7 @@ export function validateSingleTurnInput(input: SingleTurnRunInput): InputValidat
   return { valid: true }
 }
 
-const REDACTED_PLACEHOLDER = "<redacted>"
-
-const DEFAULT_SECRET_PATTERNS: readonly RegExp[] = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\b[A-Z0-9_]*PRIVATE_KEY[A-Z0-9_]*\s*[=:]\s*["']?[^\s"']+["']?/gi,
-  /sk-[A-Za-z0-9_-]{16,}/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bghp_[A-Za-z0-9]{36}\b/g,
-]
-
-const CONNECTION_URL_CREDENTIALS = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^:@\s]+):([^@\s]+)@/g
-
-export function redactSecrets(text: string, secrets: readonly string[] = []): string {
-  if (!text) return text
-
-  let result = text
-
-  // 1. Scrub database URL user credentials
-  result = result.replace(CONNECTION_URL_CREDENTIALS, (_match, protocol: string) => {
-    return `${protocol}${REDACTED_PLACEHOLDER}:${REDACTED_PLACEHOLDER}@`
-  })
-
-  // 2. Redact explicit secrets passed in
-  for (const secret of secrets) {
-    if (secret && secret.length >= 1) {
-      result = result.replaceAll(secret, REDACTED_PLACEHOLDER)
-    }
-  }
-
-  // 3. Redact known secret regex patterns
-  for (const pattern of DEFAULT_SECRET_PATTERNS) {
-    result = result.replace(pattern, REDACTED_PLACEHOLDER)
-  }
-
-  return result
-}
+export { redactSecrets }
 
 function redactObject<T>(value: T, secrets: readonly string[]): T {
   if (typeof value === "string") {

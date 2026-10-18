@@ -6,6 +6,7 @@ import {
   type ToolRegistryPort,
 } from "@harness/protocol"
 import { createIdGenerator, systemIdSources } from "../util/id"
+import { sanitizeSourceContent, sanitizeSystemText } from "../util/sanitize"
 import { truncateText } from "../util/truncate"
 
 const defaultMaxSourceEntries = 100
@@ -18,6 +19,7 @@ export interface AssembleRequestInput {
   prompt: string
   snapshotId: string
   availableFiles?: readonly string[]
+  skippedFiles?: readonly { path: string; reason: string }[]
   registry: ToolRegistryPort
   historyItems?: readonly ContextItem[]
   maxToolCalls?: number
@@ -26,15 +28,20 @@ export interface AssembleRequestInput {
   toolsDisabled?: boolean
   temperature?: number
   seed?: number
+  secrets?: readonly string[]
 }
 
-const sanitizeText = (text: string): string => {
-  return text
-    // Redact absolute host paths
-    .replace(/(?:[A-Za-z]:[\\/]|(?:\/[a-zA-Z0-9_.-]+)+)[\\/][a-zA-Z0-9_.-]+/g, "<absolute path redacted>")
-    // Strip ground truth labels or metadata
-    .replace(/GroundTruthLabel\w*:[^\n]*/gi, "<ground truth redacted>")
-    .replace(/adjudication_report[^\n]*/gi, "<adjudication redacted>")
+const sanitizeHistoryItem = (item: ContextItem, secrets: readonly string[]): ContextItem => {
+  const sanitize = item.type === "tool_result" && item.toolMeta?.isError !== true
+    ? sanitizeSourceContent
+    : sanitizeSystemText
+  return {
+    ...item,
+    content: sanitize(item.content, secrets),
+    ...(item.toolMeta?.filePath !== undefined
+      ? { toolMeta: { ...item.toolMeta, filePath: sanitizeSystemText(item.toolMeta.filePath, secrets) } }
+      : {}),
+  }
 }
 
 /**
@@ -45,20 +52,31 @@ const sanitizeText = (text: string): string => {
 export function assembleTurnRequest(input: AssembleRequestInput): ModelAttemptRequest {
   const idGen = createIdGenerator(systemIdSources)
   const maxEntries = input.maxSourceEntries ?? defaultMaxSourceEntries
-  const rawFileList = (input.availableFiles ?? []).map((f) => `- ${sanitizeText(f)}`).join("\n")
+  const secrets = input.secrets ?? []
+  const rawFileList = (input.availableFiles ?? []).map((file) => `- ${sanitizeSystemText(file, secrets)}`).join("\n")
   const truncatedFiles = truncateText(rawFileList, {
     maxLines: maxEntries,
     direction: "head",
     customHint: "Use glob or list_dir to discover more files in the snapshot.",
   })
+  const unreadableFiles = (input.skippedFiles ?? []).filter(
+    (file) => file.reason === "too_large" || file.reason === "binary",
+  )
+  const unreadableInfo = unreadableFiles.length === 0
+    ? ""
+    : [
+        `Files present but unreadable (${unreadableFiles.length} total; showing up to 20):`,
+        ...unreadableFiles.slice(0, 20).map((file) => `- ${sanitizeSystemText(file.path, secrets)} (${file.reason})`),
+      ].join("\n")
 
-  const sourceListContent = [
+  const sourceListContent = sanitizeSystemText([
     `You are an autonomous AI smart-contract security auditor running inside a sandboxed evaluation harness.`,
     `You are analyzing an immutable source snapshot with ID: "${input.snapshotId}".`,
     `Available source files in snapshot:`,
     truncatedFiles.content,
+    unreadableInfo,
     `\nUse the provided tools to inspect contracts and verify potential vulnerabilities before answering.`,
-  ].filter(Boolean).join("\n")
+  ].filter(Boolean).join("\n"), secrets)
 
   const systemPromptItem: ContextItem = {
     id: idGen.next("ctx_sys_"),
@@ -73,10 +91,10 @@ export function assembleTurnRequest(input: AssembleRequestInput): ModelAttemptRe
     turn: 1,
     type: "candidate_finding",
     isPinned: true,
-    content: sanitizeText(input.prompt),
+    content: sanitizeSystemText(input.prompt, secrets),
   }
 
-  const history = input.historyItems ?? []
+  const history = (input.historyItems ?? []).map((item) => sanitizeHistoryItem(item, secrets))
   const tools = input.toolsDisabled ? undefined : input.registry.definitions()
   if (tools !== undefined) {
     validateAttemptRequestTools(tools)

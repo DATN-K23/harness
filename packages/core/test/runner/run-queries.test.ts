@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import type { RunRecord, TrajectoryEvent } from "@harness/protocol"
+import type { RunRecord, RunStorePort, TrajectoryEvent } from "@harness/protocol"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
-import { getRun, getRunHistory } from "../../src/runner/run-queries"
+import { getMultiTurnExecutionSummary, getRun, getRunHistory } from "../../src/runner/run-queries"
 
 describe("run-queries", () => {
   describe("getRun", () => {
@@ -140,4 +140,80 @@ describe("run-queries", () => {
       expect(summary?.attempts[0].stepIndex).toBe(1)
     })
   })
+})
+
+test("reconstructs repeated call IDs independently for each step", async () => {
+  const runId = "run-reused-call-id"
+  const makeEvent = (
+    sequence: number,
+    type: TrajectoryEvent["type"],
+    payload: Record<string, unknown>,
+  ): TrajectoryEvent => ({
+    eventId: `event-${sequence}`,
+    runId,
+    sequence,
+    type,
+    schemaVersion: 1,
+    payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`,
+    occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const resultItem = (turn: number, content: string) => ({
+    item: {
+      id: `result-${turn}`,
+      turn,
+      type: "tool_result",
+      isPinned: false,
+      content,
+      toolMeta: { callId: "c1", toolName: "read_file", isError: false },
+    },
+  })
+  const events = [
+    makeEvent(1, "step.started", { stepIndex: 1, toolsDisabled: false }),
+    makeEvent(2, "tool.requested", {
+      callIndex: 0,
+      callId: "c1",
+      toolName: "read_file",
+      arguments: { path: "one.sol" },
+    }),
+    makeEvent(3, "context.item_added", resultItem(1, "first result")),
+    makeEvent(4, "tool.completed", {
+      callIndex: 0,
+      callId: "c1",
+      toolName: "read_file",
+      durationMs: 1,
+      isTruncated: false,
+      itemId: "result-1",
+    }),
+    makeEvent(5, "step.started", { stepIndex: 2, toolsDisabled: false }),
+    makeEvent(6, "tool.requested", {
+      callIndex: 0,
+      callId: "c1",
+      toolName: "read_file",
+      arguments: { path: "two.sol" },
+    }),
+    makeEvent(7, "context.item_added", resultItem(2, "second result")),
+    makeEvent(8, "tool.completed", {
+      callIndex: 0,
+      callId: "c1",
+      toolName: "read_file",
+      durationMs: 1,
+      isTruncated: false,
+      itemId: "result-2",
+    }),
+  ]
+  const fakeStore = {
+    async loadRun() {
+      return { runId, state: "running", stateVersion: 1 } satisfies RunRecord
+    },
+    async loadEvents() {
+      return events
+    },
+  } as unknown as RunStorePort
+
+  const summary = await getMultiTurnExecutionSummary(runId, fakeStore)
+
+  expect(summary?.toolCalls).toHaveLength(2)
+  expect(summary?.toolCalls.map((item) => item.stepIndex)).toEqual([1, 2])
+  expect(summary?.toolCalls.map((item) => item.resultContent)).toEqual(["first result", "second result"])
 })

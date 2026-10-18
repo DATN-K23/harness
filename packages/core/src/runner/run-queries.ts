@@ -1,23 +1,20 @@
 // Adapted from OpenCode packages/cli/src/commands/view.ts @ 3f393d78bf (MIT License, Copyright (c) 2025 opencode). See NOTICE.
 import type { RunRecord, RunStorePort, TrajectoryEvent } from "@harness/protocol"
 
-/**
- * Retrieves a run record by runId from persistent store.
- */
+/** Retrieves a run record by runId from persistent store. */
 export async function getRun(runId: string, store: RunStorePort): Promise<RunRecord | null> {
   const run = await store.loadRun(runId)
   return run ?? null
 }
 
-/**
- * Retrieves trajectory events for a run ordered strictly ascending by sequence number.
- */
+/** Retrieves trajectory events for a run ordered strictly ascending by sequence number. */
 export async function getRunHistory(runId: string, store: RunStorePort): Promise<TrajectoryEvent[]> {
   const events = await store.loadEvents({ runId })
   return [...events].sort((a, b) => a.sequence - b.sequence)
 }
 
 export interface ReconstructedToolCall {
+  stepIndex: number
   callIndex: number
   callId: string
   toolName: string
@@ -40,10 +37,7 @@ export interface MultiTurnExecutionSummary {
   events: TrajectoryEvent[]
 }
 
-/**
- * Reconstructs a structured execution summary for a multi-turn run,
- * linking snapshot, ordered tool calls with matching results, and provider attempts.
- */
+/** Reconstructs a structured multi-turn summary, identifying each tool call by its step and call ID. */
 export async function getMultiTurnExecutionSummary(
   runId: string,
   store: RunStorePort,
@@ -53,40 +47,52 @@ export async function getMultiTurnExecutionSummary(
 
   const events = await getRunHistory(runId, store)
   const toolCallMap = new Map<string, ReconstructedToolCall>()
+  let currentStepIndex = 1
 
   for (const event of events) {
-    if (event.type === "tool.requested") {
-      const p = event.payload as { callIndex: number; callId: string; toolName: string; arguments: Record<string, unknown> }
-      toolCallMap.set(p.callId, {
-        callIndex: p.callIndex,
-        callId: p.callId,
-        toolName: p.toolName,
-        arguments: p.arguments,
+    if (event.type === "step.started") {
+      const payload = event.payload as { stepIndex: number }
+      currentStepIndex = payload.stepIndex
+    } else if (event.type === "tool.requested") {
+      const payload = event.payload as {
+        callIndex: number
+        callId: string
+        toolName: string
+        arguments: Record<string, unknown>
+      }
+      const key = `${currentStepIndex}:${payload.callId}`
+      toolCallMap.set(key, {
+        stepIndex: currentStepIndex,
+        callIndex: payload.callIndex,
+        callId: payload.callId,
+        toolName: payload.toolName,
+        arguments: payload.arguments,
         status: "requested",
       })
     } else if (event.type === "tool.completed") {
-      const p = event.payload as { callId: string; durationMs: number; isTruncated: boolean }
-      const existing = toolCallMap.get(p.callId)
+      const payload = event.payload as { callId: string; durationMs: number; isTruncated: boolean }
+      const existing = toolCallMap.get(`${currentStepIndex}:${payload.callId}`)
       if (existing) {
         existing.status = "completed"
-        existing.durationMs = p.durationMs
-        existing.isTruncated = p.isTruncated
+        existing.durationMs = payload.durationMs
+        existing.isTruncated = payload.isTruncated
       }
     } else if (event.type === "tool.failed") {
-      const p = event.payload as { callId: string; durationMs: number; message: string }
-      const existing = toolCallMap.get(p.callId)
+      const payload = event.payload as { callId: string; durationMs: number; message: string }
+      const existing = toolCallMap.get(`${currentStepIndex}:${payload.callId}`)
       if (existing) {
         existing.status = "failed"
-        existing.durationMs = p.durationMs
-        existing.message = p.message
+        existing.durationMs = payload.durationMs
+        existing.message = payload.message
       }
     } else if (event.type === "context.item_added") {
-      const p = event.payload as { item?: { type?: string; content?: string; toolMeta?: { callId?: string } } }
-      if (p.item?.type === "tool_result" && p.item.toolMeta?.callId) {
-        const existing = toolCallMap.get(p.item.toolMeta.callId)
-        if (existing) {
-          existing.resultContent = p.item.content
-        }
+      const payload = event.payload as {
+        item?: { turn?: number; type?: string; content?: string; toolMeta?: { callId?: string } }
+      }
+      if (payload.item?.type === "tool_result" && payload.item.toolMeta?.callId) {
+        const step = payload.item.turn ?? currentStepIndex
+        const existing = toolCallMap.get(`${step}:${payload.item.toolMeta.callId}`)
+        if (existing) existing.resultContent = payload.item.content
       }
     }
   }
@@ -104,7 +110,9 @@ export async function getMultiTurnExecutionSummary(
     prompt: run.prompt,
     snapshotId: run.snapshotId,
     terminalReason: run.terminalReason,
-    toolCalls: Array.from(toolCallMap.values()).sort((a, b) => a.callIndex - b.callIndex),
+    toolCalls: Array.from(toolCallMap.values()).sort(
+      (left, right) => left.stepIndex - right.stepIndex || left.callIndex - right.callIndex,
+    ),
     attempts,
     events,
   }

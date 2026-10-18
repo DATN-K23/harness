@@ -577,12 +577,12 @@ describe("MultiTurnRunner", () => {
     })
 
     expect(result.state).toBe("failed")
-    expect(result.terminalReason).toBe("provider_permanent")
+    expect(result.terminalReason).toBe("provider_transient_primary")
 
     // Verify stored record in store is transitioned to "failed", not stuck in "running"
     const storedRun = await store.loadRun(result.runId)
     expect(storedRun?.state).toBe("failed")
-    expect(storedRun?.terminalReason).toBe("provider_permanent")
+    expect(storedRun?.terminalReason).toBe("provider_transient_primary")
     expect(storedRun?.errorMessage).toContain("Network connection severed")
   })
 
@@ -643,7 +643,7 @@ describe("MultiTurnRunner", () => {
   test("resumes run with pending interrupted tool calls using interruptedToolItems (N2 implemented)", async () => {
     let currentTime = 1000
     const testClock = { nowMs: () => currentTime }
-    const store = new InMemoryRunStore({ clock: testClock })
+    const store = new InMemoryRunStore({ clock: testClock, leaseMs: 10 })
     const runId = "run-interrupted-resume"
     store.seedRun(runId, "queued", "Audit prompt", "snap-1")
 
@@ -692,7 +692,7 @@ describe("MultiTurnRunner", () => {
         schemaVersion: 1,
         payload: payload1,
         payloadDigest: digestOf(payload1),
-        occurredAt: "2026-10-18T10:00:00.000Z",
+        occurredAt: "1970-01-01T00:00:01.000Z",
       },
     })
 
@@ -707,7 +707,7 @@ describe("MultiTurnRunner", () => {
         schemaVersion: 1,
         payload: payload2,
         payloadDigest: digestOf(payload2),
-        occurredAt: "2026-10-18T10:00:00.500Z",
+        occurredAt: "1970-01-01T00:00:01.001Z",
       },
     })
 
@@ -722,7 +722,7 @@ describe("MultiTurnRunner", () => {
         schemaVersion: 1,
         payload: payload3,
         payloadDigest: digestOf(payload3),
-        occurredAt: "2026-10-18T10:00:01.000Z",
+        occurredAt: "1970-01-01T00:00:01.002Z",
       },
     })
 
@@ -733,7 +733,7 @@ describe("MultiTurnRunner", () => {
       expectedStateVersion: claimRes.stateVersion,
       nextState: "running",
     })
-    currentTime += 350_000 // expire lease (default lease is 300_000 ms)
+    currentTime += 11 // expire the short test lease
 
     const capturedRequests: ModelAttemptRequest[] = []
     const resumingGateway: ModelGatewayPort = {

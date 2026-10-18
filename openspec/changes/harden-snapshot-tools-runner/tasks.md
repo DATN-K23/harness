@@ -61,7 +61,7 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
 ## 4. Track C: runner
 
-- [ ] 4.1 [Owner: C with B; Q5] Add `packages/core/src/util/sanitize.ts` with two functions (design D8):
+- [x] 4.1 [Owner: C with B; Q5] Add `packages/core/src/util/sanitize.ts` with two functions (design D8):
 
   | Function | Tier | Applies to |
   |---|---|---|
@@ -70,7 +70,7 @@ Testing is light: one focused test per spec scenario. Everything in this change 
 
   Replace the local regexes in `request-assembly.ts`.
   - Evidence: unit tests for `D:\repo\Vault.sol`, `\\host\share\x`, `/home/u/x`, an `sk-` key and a `GroundTruthLabel:` line, plus a GitHub permalink that survives; the spec scenarios "Snapshot content keeps its path-like comments", "Credential in snapshot content is redacted" and "Windows path in tool arguments never persists".
-- [ ] 4.2 [Owner: C with B] Bind the runner to its snapshot and check identity on resume.
+- [x] 4.2 [Owner: C with B] Bind the runner to its snapshot and check identity on resume.
   - Fail early with `invalid_input` when `registry.snapshotId` differs from `input.snapshotId`.
   - On resume, compare the stored run's `snapshotId` and `prompt` with the input and fail with `invalid_input` on mismatch; stop swallowing `seedRun` errors silently.
   - Enforce `maxPromptLength` (default 100,000) before snapshot access.
@@ -81,17 +81,17 @@ Testing is light: one focused test per spec scenario. Everything in this change 
   - A final text answer still completes, with exhausted limits recorded in terminal telemetry.
   - On resume, restore `startedAtMs` from `run.started.occurredAt` and `completedToolCalls` from hydrated `tool_result` items.
   - Evidence: the cost-ceiling-crossed, output-reserve and resumed tool-call-cap scenarios.
-- [ ] 4.4 [Owner: C with A; Q8, Q3] Report unreadable files and tool limits.
+- [x] 4.4 [Owner: C with A; Q8, Q3] Report unreadable files and tool limits.
   - The initial source information lists up to 20 `too_large` and `binary` skipped files plus a count, as present but unreadable, and never lists `denied` or `symlink` paths.
   - Add an optional `toolLimits` object to `RunConfigSnapshotSchema` (protocol, additive). The runner records `registry.limits()` there in `run.started`.
   - Evidence: the two spec scenarios; a protocol test that an old `run.started` payload without `toolLimits` still parses.
-- [ ] 4.5 [Owner: C] Make persistence crash-consistent.
+- [x] 4.5 [Owner: C] Make persistence crash-consistent.
   - Inside `onResult`, persist `context.item_added` (request, then result) before `tool.completed`/`tool.failed`, with the result item ID.
   - Write `recordModelAttempt` before `provider.attempted`.
   - A non-`hydrated` hydration result ends the run with `failed/persistence_failure` and no model call.
   - Key `run-queries` reconstruction by `${stepIndex}:${callId}`.
   - Evidence: a crash-after-result resume test; a corrupt-history test; a reused-call-ID summary test.
-- [ ] 4.6 [Owner: C with D] Map provider error categories to terminal reasons:
+- [x] 4.6 [Owner: C with D] Map provider error categories to terminal reasons:
 
   | Category | Terminal reason |
   |---|---|

@@ -7,6 +7,7 @@ export const runs = pgTable(
   {
     id: text("id").primaryKey(),
     prompt: text("prompt").default(""),
+    snapshotId: text("snapshot_id"),
     state: varchar("state", { length: 32 }).notNull().default("queued"),
     stateVersion: integer("state_version").notNull().default(1),
     claimToken: text("claim_token"),
@@ -55,6 +56,8 @@ export const modelAttempts = pgTable(
     runId: text("run_id")
       .notNull()
       .references(() => runs.id, { onDelete: "cascade" }),
+    stepIndex: integer("step_index").notNull().default(1),
+    attemptPurpose: varchar("attempt_purpose", { length: 32 }).notNull().default("reasoning"),
     attemptNumber: integer("attempt_number").notNull(),
     provider: varchar("provider", { length: 64 }).notNull(),
     model: varchar("model", { length: 64 }).notNull(),
@@ -72,6 +75,12 @@ export const modelAttempts = pgTable(
   },
   (table) => [
     index("model_attempts_run_id_idx").on(table.runId),
+    uniqueIndex("model_attempts_run_step_purpose_attempt_idx").on(
+      table.runId,
+      table.stepIndex,
+      table.attemptPurpose,
+      table.attemptNumber,
+    ),
   ],
 )
 

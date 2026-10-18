@@ -95,6 +95,24 @@ describe("run configuration snapshot", () => {
     expect(Sha256DigestSchema.safeParse(digest("f")).success).toBe(true)
     expect(Sha256DigestSchema.safeParse(digest("F")).success).toBe(false)
   })
+  test("snapshot without maxToolCalls produces identical canonical form to explicit undefined", () => {
+    const base = snapshot()
+    expect(base.budget.maxToolCalls).toBeUndefined()
+    const canonicalBefore = canonicalize(base)
+    const withExplicitUndefined = {
+      ...base,
+      budget: { ...base.budget, maxToolCalls: undefined },
+    }
+    expect(canonicalize(withExplicitUndefined)).toBe(canonicalBefore)
+
+    // With explicit maxToolCalls, canonical form changes predictably
+    const withCap = {
+      ...base,
+      budget: { ...base.budget, maxToolCalls: 20 },
+    }
+    expect(canonicalize(withCap)).not.toBe(canonicalBefore)
+    expect(RunConfigSnapshotSchema.safeParse(withCap).success).toBe(true)
+  })
 })
 
 describe("resolved flags and defaults", () => {

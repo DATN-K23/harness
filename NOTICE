@@ -41,10 +41,13 @@ their attribution.
 - file: packages/core/package.json | source: packages/protocol/package.json | attribution: notice-only
 - file: packages/core/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
 - file: packages/core/src/util/id.ts | source: packages/schema/src/identifier.ts | attribution: header
+- file: packages/core/src/util/truncate.ts | source: packages/opencode/src/tool/truncate.ts | attribution: header
 - file: packages/core/src/prompts/max-steps.v1.txt | source: packages/core/src/session/runner/max-steps.ts | attribution: header
 - file: packages/core/src/runner/retry-policy.ts | source: packages/opencode/src/session/retry.ts | attribution: header
 - file: packages/core/src/runner/retry-policy.ts | source: packages/llm/src/provider-error.ts | attribution: header
 - file: packages/core/src/runner/single-turn-runner.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/core/src/runner/multi-turn-runner.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/core/src/runner/request-assembly.ts | source: packages/core/src/session/runner/to-llm-message.ts | attribution: header
 - file: packages/core/src/runner/run-queries.ts | source: packages/cli/src/commands/view.ts | attribution: header
 - file: packages/cli/bunfig.toml | source: bunfig.toml | attribution: header
 - file: packages/cli/package.json | source: packages/cli/package.json | attribution: notice-only

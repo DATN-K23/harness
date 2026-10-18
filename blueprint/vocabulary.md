@@ -55,7 +55,7 @@ Desktop connection states: `runtime_starting`, `ready`, `runtime_unavailable`, `
 
 | Namespace | Canonical values |
 |---|---|
-| budget | `max_steps`, `total_tokens`, `wall_clock`, `no_progress`, `context_budget`, `cost_budget` |
+| budget | `max_steps`, `max_tool_calls`, `total_tokens`, `wall_clock`, `no_progress`, `context_budget`, `cost_budget` |
 | provider/profile | `pre_network_profile_rejected`, `pre_network_experiment_rejected`, `provider_permanent`, `provider_transient_primary`, `provider_retries_exhausted`, `attempt_outcome_unknown` |
 | contract | `invalid_input`, `schema_repair_exhausted`, `evidence_invalid`, `incompatible_version` |
 | security/source | `source_registration_denied`, `snapshot_integrity`, `workspace_preflight` |

@@ -118,6 +118,7 @@ export async function handleReadFile(
       isError: false,
       filePath: checked.path,
       lineRange: [sLine, boundedLast],
+      ...(isTruncated || byteTruncated ? { isTruncated: true } : {}),
     }
   }
 
@@ -166,5 +167,6 @@ export async function handleReadFile(
     isError: false,
     filePath: checked.path,
     lineRange: [first, boundedLast],
+    ...(isTruncated ? { isTruncated: true } : {}),
   }
 }

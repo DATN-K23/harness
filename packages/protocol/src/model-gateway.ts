@@ -1,5 +1,37 @@
 import { z } from "zod"
 import type { ContextItem } from "./context"
+import type { ToolDefinition } from "./ports"
+
+export const DisallowedToolPatterns = [
+  /write/i,
+  /delete/i,
+  /remove/i,
+  /shell/i,
+  /exec/i,
+  /bash/i,
+  /terminal/i,
+  /cmd/i,
+  /network/i,
+  /fetch/i,
+  /http/i,
+  /download/i,
+  /upload/i,
+  /spawn/i,
+  /process/i,
+] as const
+
+/** Validates that an attempt's tool definitions contain only permitted read-only tools. */
+export function validateAttemptRequestTools(tools?: readonly ToolDefinition[]): boolean {
+  if (tools === undefined || tools.length === 0) return true
+  for (const tool of tools) {
+    if (DisallowedToolPatterns.some((pattern) => pattern.test(tool.name))) {
+      throw new Error(
+        `Tool "${tool.name}" violates read-only tool policy: non-read-only tools (write, shell, network, execution) are prohibited.`,
+      )
+    }
+  }
+  return true
+}
 
 export const ProviderErrorCategories = ["transport", "rate_limit", "authentication", "invalid_request"] as const
 
@@ -30,6 +62,9 @@ export interface ModelAttemptRequest {
   profileId: string
   items: ContextItem[]
   toolsDisabled?: boolean
+  tools?: readonly ToolDefinition[]
+  maxToolCalls?: number
+  maxOutputTokens?: number
   temperature?: number
   seed?: number
 }

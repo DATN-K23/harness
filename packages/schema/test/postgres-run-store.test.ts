@@ -214,5 +214,101 @@ describe("Secret Sanitization", () => {
         await client.close()
       }
     })
+
+    test("recordModelAttempt is idempotent with ON CONFLICT DO NOTHING and enforces valid purpose", async () => {
+      const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
+      const store = new PostgresRunStore({ client })
+      await store.clear()
+
+      try {
+        await store.seedRun("run-attempt-idemp", "queued", "prompt", "snap-test-1")
+        const run = await store.loadRun("run-attempt-idemp")
+        expect(run?.snapshotId).toBe("snap-test-1")
+
+        // Invalid attemptPurpose is rejected
+        expect(
+          store.recordModelAttempt({
+            id: "att-inv",
+            runId: "run-attempt-idemp",
+            stepIndex: 1,
+            // @ts-expect-error invalid purpose testing
+            attemptPurpose: "invalid_purpose",
+            attemptNumber: 1,
+            provider: "openai",
+            model: "gpt-4o",
+            promptTokens: 10,
+            completionTokens: 10,
+            totalTokens: 20,
+            costUsd: "0.001",
+            latencyMs: 100,
+            requestJson: {},
+          }),
+        ).rejects.toThrow(/Invalid attemptPurpose/)
+
+        // Insert first attempt
+        await store.recordModelAttempt({
+          id: "att-1",
+          runId: "run-attempt-idemp",
+          stepIndex: 1,
+          attemptPurpose: "reasoning",
+          attemptNumber: 1,
+          provider: "openai",
+          model: "gpt-4o",
+          promptTokens: 10,
+          completionTokens: 10,
+          totalTokens: 20,
+          costUsd: "0.001",
+          latencyMs: 100,
+          requestJson: { msg: "first" },
+        })
+
+        // Duplicate attempt at same (runId, stepIndex, attemptPurpose, attemptNumber)
+        // should NOT throw, and should DO NOTHING (idempotent)
+        await store.recordModelAttempt({
+          id: "att-1-dup",
+          runId: "run-attempt-idemp",
+          stepIndex: 1,
+          attemptPurpose: "reasoning",
+          attemptNumber: 1,
+          provider: "openai",
+          model: "gpt-4o",
+          promptTokens: 999,
+          completionTokens: 999,
+          totalTokens: 1998,
+          costUsd: "9.999",
+          latencyMs: 500,
+          requestJson: { msg: "duplicate" },
+        })
+
+        // Insert second attempt at stepIndex 2
+        await store.recordModelAttempt({
+          id: "att-2",
+          runId: "run-attempt-idemp",
+          stepIndex: 2,
+          attemptPurpose: "reasoning",
+          attemptNumber: 1,
+          provider: "openai",
+          model: "gpt-4o",
+          promptTokens: 20,
+          completionTokens: 20,
+          totalTokens: 40,
+          costUsd: "0.002",
+          latencyMs: 120,
+          requestJson: { msg: "step-2" },
+        })
+
+        const attempts = await store.loadModelAttempts("run-attempt-idemp")
+        expect(attempts).toHaveLength(2)
+        expect(attempts[0].id).toBe("att-1")
+        expect(attempts[0].stepIndex).toBe(1)
+        expect(attempts[0].attemptPurpose).toBe("reasoning")
+        expect(attempts[0].promptTokens).toBe(10) // not overwritten by duplicate
+        expect(attempts[1].id).toBe("att-2")
+        expect(attempts[1].stepIndex).toBe(2)
+      } finally {
+        await store.clear()
+        await client.close()
+      }
+    })
   }
 })

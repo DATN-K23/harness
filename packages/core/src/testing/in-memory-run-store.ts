@@ -45,15 +45,90 @@ export class InMemoryRunStore implements RunStorePort {
   private readonly faults: Array<{ operation: RunStoreOperation; error: Error }> = []
   private forcedSequence: number | "duplicate" | undefined
 
+  private readonly attempts: Array<{
+    id: string
+    runId: string
+    stepIndex: number
+    attemptPurpose: "reasoning" | "compaction"
+    attemptNumber: number
+    provider: string
+    model: string
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    costUsd: string | number
+    latencyMs: number
+    finishReason?: string | null
+    requestJson: Record<string, unknown>
+    responseJson?: Record<string, unknown> | null
+    errorMessage?: string | null
+    errorCategory?: string | null
+  }> = []
+
   constructor(options: InMemoryRunStoreOptions) {
     this.clock = options.clock
     this.leaseMs = options.leaseMs ?? DefaultLeaseMs
   }
 
   /** Test setup: creates a run the way the (out of scope) acceptance path would. */
-  seedRun(runId: string, state: RunState = "queued") {
+  seedRun(runId: string, state: RunState = "queued", prompt = "", snapshotId?: string) {
     if (this.runs.has(runId)) throw new Error(`run ${runId} already exists`)
-    this.runs.set(runId, { record: { runId, state, stateVersion: 1 }, events: [], claimVersion: 0 })
+    this.runs.set(runId, {
+      record: {
+        runId,
+        state,
+        stateVersion: 1,
+        prompt,
+        ...(snapshotId ? { snapshotId } : {}),
+      },
+      events: [],
+      claimVersion: 0,
+    })
+  }
+
+  async recordModelAttempt(attempt: {
+    id: string
+    runId: string
+    stepIndex?: number
+    attemptPurpose?: "reasoning" | "compaction"
+    attemptNumber: number
+    provider: string
+    model: string
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    costUsd: string | number
+    latencyMs: number
+    finishReason?: string | null
+    requestJson: Record<string, unknown>
+    responseJson?: Record<string, unknown> | null
+    errorMessage?: string | null
+    errorCategory?: string | null
+  }): Promise<void> {
+    const purpose = attempt.attemptPurpose ?? "reasoning"
+    if (purpose !== "reasoning" && purpose !== "compaction") {
+      throw new Error(`Invalid attemptPurpose "${purpose}": must be one of "reasoning" | "compaction"`)
+    }
+    const stepIndex = attempt.stepIndex ?? 1
+    const exists = this.attempts.some(
+      (a) =>
+        a.runId === attempt.runId &&
+        a.stepIndex === stepIndex &&
+        a.attemptPurpose === purpose &&
+        a.attemptNumber === attempt.attemptNumber,
+    )
+    if (exists) return // idempotent ON CONFLICT DO NOTHING
+    this.attempts.push({
+      ...attempt,
+      stepIndex,
+      attemptPurpose: purpose,
+    })
+  }
+
+  async loadModelAttempts(runId: string) {
+    return this.attempts
+      .filter((a) => a.runId === runId)
+      .sort((a, b) => a.stepIndex - b.stepIndex || a.attemptNumber - b.attemptNumber)
   }
 
   /** Subscribes to every stored event, in sequence order, after it is persisted. Listeners must not throw. */

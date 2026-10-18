@@ -1,4 +1,6 @@
 export { canonicalJson, digestOf, sha256Hex, textDigest } from "./util/digest"
+export { truncateText } from "./util/truncate"
+export type { TruncateOptions, TruncateResult } from "./util/truncate"
 export { createIdGenerator, systemIdSources } from "./util/id"
 export type { IdGenerator, IdGeneratorOptions } from "./util/id"
 export { loadPrompt } from "./prompts/index"
@@ -100,7 +102,17 @@ export type {
   SingleTurnRunResult,
   SingleTurnRunnerDeps,
 } from "./runner/single-turn-runner"
-export { getRun, getRunHistory } from "./runner/run-queries"
+export { MultiTurnRunner, HeadlessToolApproval } from "./runner/multi-turn-runner"
+export type {
+  MultiTurnRunInput,
+  MultiTurnRunResult,
+  MultiTurnRunnerDeps,
+  ToolApprovalPort,
+} from "./runner/multi-turn-runner"
+export { assembleTurnRequest } from "./runner/request-assembly"
+export type { AssembleRequestInput } from "./runner/request-assembly"
+export { getRun, getRunHistory, getMultiTurnExecutionSummary } from "./runner/run-queries"
+export type { MultiTurnExecutionSummary, ReconstructedToolCall } from "./runner/run-queries"
 export * from "./tool/index"
 export * from "./source/index"
 export * from "./context/index"

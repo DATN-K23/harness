@@ -32,13 +32,13 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 ## C — Runner và lịch sử thực thi
 
-- [ ] Tìm hiểu luồng runner hiện tại và cách đưa kết quả tool vào lịch sử cho lần gọi model tiếp theo. Giữ luồng gọi model một lượt để dùng làm baseline.
-- [ ] Cung cấp thao tác chạy với prompt, snapshot ID và giới hạn để D nối CLI. Chuẩn bị thông tin source ban đầu có giới hạn để model biết phạm vi được đọc.
-- [ ] Chuẩn bị request tối thiểu cho từng lượt: instruction, prompt, thông tin source, lịch sử model/tool và danh sách tool được phép dùng lấy từ B. Ghép theo cấu trúc chung của Harness để gửi qua gateway của D; phần này làm cơ sở tách context ở chặng sau.
-- [ ] Mở rộng runner: gọi model → ghi yêu cầu tool → chạy tool của B → ghi kết quả/lỗi → gửi lại model → nhận phản hồi. Mỗi kết quả phải gắn đúng với lời gọi tool tương ứng.
-- [ ] Đặt giới hạn số lượt model, số tool call và tổng thời gian; kiểm tra trước thao tác tiếp theo, dừng với lý do rõ ràng khi hết mức.
-- [ ] Dùng lại phần lưu attempts thành viên đã bổ sung, nối vào chuỗi nhiều lượt và kiểm tra mỗi lần gọi có bản ghi đúng, không ghi trùng. Truyền giới hạn output từ đầu vào tới gateway; xử lý lỗi lưu dữ liệu hoặc mất quyền cập nhật run trước khi thực hiện thao tác tiếp theo.
-- [ ] Hoàn thiện lưu/đọc lịch sử nhiều lượt: liên kết run, snapshot, attempt, tool request/result và lý do dừng theo đúng thứ tự. Cung cấp dữ liệu để D hiển thị qua lệnh xem run; bổ sung lưu trữ nếu luồng tool còn thiếu dữ liệu.
+- [x] Tìm hiểu luồng runner hiện tại và cách đưa kết quả tool vào lịch sử cho lần gọi model tiếp theo. Giữ luồng gọi model một lượt để dùng làm baseline.
+- [x] Cung cấp thao tác chạy với prompt, snapshot ID và giới hạn để D nối CLI. Chuẩn bị thông tin source ban đầu có giới hạn để model biết phạm vi được đọc.
+- [x] Chuẩn bị request tối thiểu cho từng lượt: instruction, prompt, thông tin source, lịch sử model/tool và danh sách tool được phép dùng lấy từ B. Ghép theo cấu trúc chung của Harness để gửi qua gateway của D; phần này làm cơ sở tách context ở chặng sau.
+- [x] Mở rộng runner: gọi model → ghi yêu cầu tool → chạy tool của B → ghi kết quả/lỗi → gửi lại model → nhận phản hồi. Mỗi kết quả phải gắn đúng với lời gọi tool tương ứng.
+- [x] Đặt giới hạn số lượt model, số tool call và tổng thời gian; kiểm tra trước thao tác tiếp theo, dừng với lý do rõ ràng khi hết mức.
+- [x] Dùng lại phần lưu attempts thành viên đã bổ sung, nối vào chuỗi nhiều lượt và kiểm tra mỗi lần gọi có bản ghi đúng, không ghi trùng. Đã bổ sung maxOutputTokens vào ModelAttemptRequest; xử lý lỗi lưu dữ liệu và mất quyền cập nhật run trước khi thực hiện thao tác tiếp theo (phần mapping output limit sang tham số SDK thuộc Track D).
+- [x] Hoàn thiện lưu/đọc lịch sử nhiều lượt qua context.item_added và getMultiTurnExecutionSummary: liên kết run, snapshot, attempt, tool request/result và lý do dừng hợp lệ theo đúng thứ tự (phần hiển thị qua CLI thuộc Track D).
 
 **Đầu ra:** chạy được cả chuỗi source → model → tool → model, có giới hạn và lịch sử xem lại được.
 

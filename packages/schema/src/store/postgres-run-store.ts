@@ -220,6 +220,7 @@ export class PostgresRunStore implements RunStorePort {
       stateVersion: run.stateVersion,
       ...(run.terminalReason ? { terminalReason: run.terminalReason as TerminalReason } : {}),
       ...(run.prompt !== null && run.prompt !== undefined ? { prompt: run.prompt } : {}),
+      ...(run.snapshotId !== null && run.snapshotId !== undefined ? { snapshotId: run.snapshotId } : {}),
       ...(run.modelProfile !== null && run.modelProfile !== undefined ? { modelProfile: run.modelProfile } : {}),
       ...(run.resultContent !== null && run.resultContent !== undefined ? { resultContent: run.resultContent } : {}),
       ...(run.errorMessage !== null && run.errorMessage !== undefined ? { errorMessage: run.errorMessage } : {}),
@@ -257,7 +258,7 @@ export class PostgresRunStore implements RunStorePort {
     }))
   }
 
-  async seedRun(runId: string, state: RunState = "queued", prompt = ""): Promise<void> {
+  async seedRun(runId: string, state: RunState = "queued", prompt = "", snapshotId?: string): Promise<void> {
     const existing = await this.loadRun(runId)
     if (existing) {
       throw new Error(`run ${runId} already exists`)
@@ -269,6 +270,7 @@ export class PostgresRunStore implements RunStorePort {
       stateVersion: 1,
       claimVersion: 0,
       prompt,
+      snapshotId: snapshotId ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -290,6 +292,8 @@ export class PostgresRunStore implements RunStorePort {
   async recordModelAttempt(attempt: {
     id: string
     runId: string
+    stepIndex?: number
+    attemptPurpose?: "reasoning" | "compaction"
     attemptNumber: number
     provider: string
     model: string
@@ -304,29 +308,54 @@ export class PostgresRunStore implements RunStorePort {
     errorMessage?: string | null
     errorCategory?: string | null
   }): Promise<void> {
+    const purpose = attempt.attemptPurpose ?? "reasoning"
+    if (purpose !== "reasoning" && purpose !== "compaction") {
+      throw new Error(`Invalid attemptPurpose "${purpose}": must be one of "reasoning" | "compaction"`)
+    }
+    const stepIndex = attempt.stepIndex ?? 1
     const sanitizedRequest = sanitizeSecrets(attempt.requestJson) as Record<string, unknown>
     const sanitizedResponse = attempt.responseJson
       ? (sanitizeSecrets(attempt.responseJson) as Record<string, unknown>)
       : null
     const sanitizedError = attempt.errorMessage ? redactSecrets(attempt.errorMessage) : null
 
-    await this.client.db.insert(modelAttempts).values({
-      id: attempt.id,
-      runId: attempt.runId,
-      attemptNumber: attempt.attemptNumber,
-      provider: attempt.provider,
-      model: attempt.model,
-      promptTokens: attempt.promptTokens,
-      completionTokens: attempt.completionTokens,
-      totalTokens: attempt.totalTokens,
-      costUsd: String(attempt.costUsd),
-      latencyMs: attempt.latencyMs,
-      finishReason: attempt.finishReason ?? null,
-      requestJson: sanitizedRequest,
-      responseJson: sanitizedResponse,
-      errorMessage: sanitizedError,
-      errorCategory: attempt.errorCategory ?? null,
-    })
+    await this.client.db
+      .insert(modelAttempts)
+      .values({
+        id: attempt.id,
+        runId: attempt.runId,
+        stepIndex,
+        attemptPurpose: purpose,
+        attemptNumber: attempt.attemptNumber,
+        provider: attempt.provider,
+        model: attempt.model,
+        promptTokens: attempt.promptTokens,
+        completionTokens: attempt.completionTokens,
+        totalTokens: attempt.totalTokens,
+        costUsd: String(attempt.costUsd),
+        latencyMs: attempt.latencyMs,
+        finishReason: attempt.finishReason ?? null,
+        requestJson: sanitizedRequest,
+        responseJson: sanitizedResponse,
+        errorMessage: sanitizedError,
+        errorCategory: attempt.errorCategory ?? null,
+      })
+      .onConflictDoNothing({
+        target: [
+          modelAttempts.runId,
+          modelAttempts.stepIndex,
+          modelAttempts.attemptPurpose,
+          modelAttempts.attemptNumber,
+        ],
+      })
+  }
+
+  async loadModelAttempts(runId: string): Promise<Array<typeof modelAttempts.$inferSelect>> {
+    return this.client.db
+      .select()
+      .from(modelAttempts)
+      .where(eq(modelAttempts.runId, runId))
+      .orderBy(asc(modelAttempts.stepIndex), asc(modelAttempts.attemptNumber))
   }
 
   async close(): Promise<void> {

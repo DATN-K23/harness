@@ -28,6 +28,7 @@ export interface ToolExecutionResult {
   isError: boolean
   filePath?: string
   lineRange?: [number, number]
+  isTruncated?: boolean
 }
 
 export interface ToolRegistryPort {
@@ -136,6 +137,7 @@ export interface RunRecord {
   stateVersion: number
   terminalReason?: TerminalReason
   prompt?: string
+  snapshotId?: string
   modelProfile?: string
   resultContent?: string
   errorMessage?: string

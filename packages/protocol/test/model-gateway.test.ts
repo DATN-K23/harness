@@ -63,4 +63,44 @@ describe("ModelGatewayPort", () => {
     }
     expect(error.retryAfterMs).toBe(30_000)
   })
+
+  test("ModelAttemptRequest accepts optional read-only tools and maxToolCalls", () => {
+    const { validateAttemptRequestTools } = require("../src/model-gateway")
+    const reqWithTools: ModelAttemptRequest = {
+      ...request,
+      tools: [
+        { name: "read_file", description: "read a file", parameters: { type: "object" } },
+        { name: "grep", description: "grep pattern", parameters: { type: "object" } },
+      ],
+      maxToolCalls: 10,
+    }
+    expect(validateAttemptRequestTools(reqWithTools.tools)).toBe(true)
+    expect(reqWithTools.maxToolCalls).toBe(10)
+  })
+
+  test("ModelAttemptRequest refuses write, shell, network or arbitrary execution tools", () => {
+    const { validateAttemptRequestTools } = require("../src/model-gateway")
+    expect(() =>
+      validateAttemptRequestTools([
+        { name: "write_file", description: "write", parameters: { type: "object" } },
+      ]),
+    ).toThrow(/read-only/)
+
+    expect(() =>
+      validateAttemptRequestTools([
+        { name: "shell_exec", description: "run shell", parameters: { type: "object" } },
+      ]),
+    ).toThrow(/read-only/)
+
+    expect(() =>
+      validateAttemptRequestTools([
+        { name: "fetch_url", description: "fetch network", parameters: { type: "object" } },
+      ]),
+    ).toThrow(/read-only/)
+  })
+
+  test("ModelAttemptRequest with absent tools is valid (baseline behavior)", () => {
+    const { validateAttemptRequestTools } = require("../src/model-gateway")
+    expect(validateAttemptRequestTools(undefined)).toBe(true)
+  })
 })

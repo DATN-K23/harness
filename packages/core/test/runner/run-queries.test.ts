@@ -76,4 +76,68 @@ describe("run-queries", () => {
       expect(history).toEqual([event1, event2, event3])
     })
   })
+
+  describe("getMultiTurnExecutionSummary", () => {
+    test("reconstructs ordered turns, tool calls, results and snapshot link from events and attempts", async () => {
+      const { getMultiTurnExecutionSummary } = require("../../src/runner/run-queries")
+      const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+      store.seedRun("run-summary-1", "queued", "Test prompt", "snap-solidity-1")
+
+      // Seed attempts
+      await store.recordModelAttempt({
+        id: "att-1",
+        runId: "run-summary-1",
+        stepIndex: 1,
+        attemptPurpose: "reasoning",
+        attemptNumber: 1,
+        provider: "openai",
+        model: "gpt-4o",
+        promptTokens: 20,
+        completionTokens: 10,
+        totalTokens: 30,
+        costUsd: "0.001",
+        latencyMs: 120,
+        requestJson: {},
+      })
+
+      const claimResult = await store.claim({ runId: "run-summary-1", workerId: "worker" })
+      if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+      // Append events
+      await store.appendEvent({
+        claim: claimResult.claim,
+        expectedStateVersion: claimResult.stateVersion,
+        event: {
+          eventId: "e1",
+          type: "tool.requested",
+          schemaVersion: 1,
+          payload: { callIndex: 0, callId: "c1", toolName: "read_file", arguments: { path: "Vault.sol" } },
+          payloadDigest: "d1",
+          occurredAt: "2026-10-18T10:00:01.000Z",
+        },
+      })
+
+      await store.appendEvent({
+        claim: claimResult.claim,
+        expectedStateVersion: claimResult.stateVersion,
+        event: {
+          eventId: "e2",
+          type: "tool.completed",
+          schemaVersion: 1,
+          payload: { callIndex: 0, callId: "c1", toolName: "read_file", durationMs: 15, isTruncated: false, itemId: "itm-1" },
+          payloadDigest: "d2",
+          occurredAt: "2026-10-18T10:00:02.000Z",
+        },
+      })
+
+      const summary = await getMultiTurnExecutionSummary("run-summary-1", store)
+      expect(summary).toBeDefined()
+      expect(summary?.snapshotId).toBe("snap-solidity-1")
+      expect(summary?.toolCalls).toHaveLength(1)
+      expect(summary?.toolCalls[0].toolName).toBe("read_file")
+      expect(summary?.toolCalls[0].status).toBe("completed")
+      expect(summary?.attempts).toHaveLength(1)
+      expect(summary?.attempts[0].stepIndex).toBe(1)
+    })
+  })
 })

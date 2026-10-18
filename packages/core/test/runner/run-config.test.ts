@@ -108,6 +108,19 @@ describe("buildRunConfigSnapshot", () => {
   test("a malformed digest is refused", () => {
     expect(() => buildRunConfigSnapshot({ ...inputWith(allOn), systemPromptDigest: "not-a-digest" })).toThrow()
   })
+
+  test("applies default maxToolCalls when specified or left optional", () => {
+    const input = inputWith(allOn)
+    const withoutCap = buildRunConfigSnapshot(input)
+    expect(withoutCap.snapshot.budget.maxToolCalls).toBeUndefined()
+
+    const withCap = buildRunConfigSnapshot({
+      ...input,
+      limits: { ...input.limits, maxToolCalls: 20 },
+    })
+    expect(withCap.snapshot.budget.maxToolCalls).toBe(20)
+    expect(withCap.digest).not.toBe(withoutCap.digest)
+  })
 })
 
 describe("digestOf(RunConfigSnapshot)", () => {

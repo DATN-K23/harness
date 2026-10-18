@@ -6,6 +6,7 @@ export const StopReasons = [
   "cost_budget_exhausted",
   "total_tokens_exhausted",
   "max_steps_exceeded",
+  "max_tool_calls_exceeded",
   "context_budget_exhausted",
   "no_progress_detected",
 ] as const
@@ -19,6 +20,7 @@ export const BudgetTerminalReasons = [
   "cost_budget",
   "total_tokens",
   "max_steps",
+  "max_tool_calls",
   "context_budget",
   "no_progress",
 ] as const
@@ -30,6 +32,7 @@ export const StopReasonToTerminalReason = {
   cost_budget_exhausted: "cost_budget",
   total_tokens_exhausted: "total_tokens",
   max_steps_exceeded: "max_steps",
+  max_tool_calls_exceeded: "max_tool_calls",
   context_budget_exhausted: "context_budget",
   no_progress_detected: "no_progress",
 } as const satisfies Record<StopReason, BudgetTerminalReason>
@@ -69,6 +72,7 @@ export const BudgetLimitsSchema = z.object({
   costCeilingUsd: z.number().nonnegative(),
   totalTokenBudget: z.number().int().positive(),
   maxSteps: z.number().int().positive(),
+  maxToolCalls: z.number().int().positive().optional(),
   noProgressMaxRepeats: z.number().int().positive(),
 })
 

@@ -108,5 +108,5 @@ export async function handleGrep(
     content += `\n[Output truncated. Showing first ${maxMatches} matches. Use a more specific pattern.]`
   }
 
-  return { content, isError: false }
+  return { content, isError: false, ...(isTruncated ? { isTruncated: true } : {}) }
 }

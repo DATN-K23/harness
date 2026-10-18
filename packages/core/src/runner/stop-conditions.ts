@@ -14,6 +14,8 @@ export interface StopState {
   totalTokens: number
   /** Steps that have finished; the step about to run is `completedSteps + 1`. */
   completedSteps: number
+  /** Total tool calls that have finished/dispatched across all turns. */
+  completedToolCalls?: number
   /** Set when the context engine reported that the context cannot fit even after compaction. */
   contextBudgetExhausted: boolean
   noProgress: NoProgressState
@@ -31,6 +33,8 @@ export const evaluateStop = (state: StopState, limits: BudgetLimits, nowMs: numb
     cost_budget_exhausted: state.costUsd >= limits.costCeilingUsd,
     total_tokens_exhausted: state.totalTokens >= limits.totalTokenBudget,
     max_steps_exceeded: state.completedSteps >= limits.maxSteps,
+    max_tool_calls_exceeded:
+      limits.maxToolCalls !== undefined && (state.completedToolCalls ?? 0) >= limits.maxToolCalls,
     context_budget_exhausted: state.contextBudgetExhausted,
     no_progress_detected: state.noProgress.repeats >= limits.noProgressMaxRepeats,
   }

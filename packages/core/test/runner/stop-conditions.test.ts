@@ -22,6 +22,7 @@ const within: StopState = {
   costUsd: 0.5,
   totalTokens: 50_000,
   completedSteps: 5,
+  completedToolCalls: 2,
   contextBudgetExhausted: false,
   noProgress: initialNoProgress,
 }
@@ -31,15 +32,17 @@ const exhaust = (reason: StopReason): Partial<StopState> => {
   if (reason === "cost_budget_exhausted") return { costUsd: 1 }
   if (reason === "total_tokens_exhausted") return { totalTokens: 100_000 }
   if (reason === "max_steps_exceeded") return { completedSteps: 10 }
+  if (reason === "max_tool_calls_exceeded") return { completedToolCalls: 10 }
   if (reason === "context_budget_exhausted") return { contextBudgetExhausted: true }
   if (reason === "no_progress_detected") return { noProgress: { lastKey: "x", repeats: 3 } }
   return {}
 }
 
 const evaluateWith = (reasons: readonly StopReason[]) => {
+  const limitsWithToolCalls: BudgetLimits = { ...limits, maxToolCalls: 10 }
   const state = reasons.reduce<StopState>((acc, reason) => ({ ...acc, ...exhaust(reason) }), within)
   const now = reasons.includes("wall_clock_timeout") ? startedAtMs + limits.wallClockTimeoutMs : nowWithin
-  return evaluateStop(state, limits, now)
+  return evaluateStop(state, limitsWithToolCalls, now)
 }
 
 const inPrecedence = (reasons: readonly StopReason[]) => StopPrecedence.filter((reason) => reasons.includes(reason))
@@ -65,16 +68,16 @@ describe("evaluateStop", () => {
     },
   )
 
-  test("pair matrix covers all 15 pairs", () => {
-    expect(pairs).toHaveLength(15)
+  test("pair matrix covers all 21 pairs", () => {
+    expect(pairs).toHaveLength(21)
   })
 
   test.each(pairs)("pair %s + %s selects the higher precedence and observes both", (first, second) => {
     expect(evaluateWith([second, first])).toEqual({ selected: first, observed: [first, second] })
   })
 
-  test("triple matrix covers all 20 triples", () => {
-    expect(triples).toHaveLength(20)
+  test("triple matrix covers all 35 triples", () => {
+    expect(triples).toHaveLength(35)
   })
 
   test.each(triples)("triple %s + %s + %s selects the highest precedence and observes all three", (a, b, c) => {
@@ -87,7 +90,7 @@ describe("evaluateStop", () => {
     expect(result.observed).toEqual(["cost_budget_exhausted", "total_tokens_exhausted", "max_steps_exceeded"])
   })
 
-  test("all six exhausted selects wall clock and lists every reason in precedence order", () => {
+  test("all seven exhausted selects wall clock and lists every reason in precedence order", () => {
     expect(evaluateWith(StopPrecedence)).toEqual({ selected: "wall_clock_timeout", observed: [...StopPrecedence] })
   })
 
@@ -98,6 +101,10 @@ describe("evaluateStop", () => {
     expect(evaluateStop(within, limits, startedAtMs + 60_000).selected).toBe("wall_clock_timeout")
     expect(evaluateStop({ ...within, costUsd: 0.999 }, limits, nowWithin).selected).toBeUndefined()
     expect(evaluateStop({ ...within, totalTokens: 99_999 }, limits, nowWithin).selected).toBeUndefined()
+    expect(evaluateStop({ ...within, completedToolCalls: 9 }, { ...limits, maxToolCalls: 10 }, nowWithin).selected).toBeUndefined()
+    expect(evaluateStop({ ...within, completedToolCalls: 10 }, { ...limits, maxToolCalls: 10 }, nowWithin).selected).toBe("max_tool_calls_exceeded")
+    // When maxToolCalls is omitted/undefined, tool calls do not trigger stop
+    expect(evaluateStop({ ...within, completedToolCalls: 100 }, limits, nowWithin).selected).toBeUndefined()
   })
 })
 

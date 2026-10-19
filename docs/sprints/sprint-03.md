@@ -19,7 +19,7 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 **Phối hợp:** B dùng thao tác đọc/liệt kê của A; D nối đăng ký và chọn snapshot vào CLI. A phụ trách lưu metadata snapshot, cùng C thống nhất liên kết snapshot với run. Đường dẫn gốc trên máy chỉ dùng lúc đăng ký, không đi vào request model hoặc trace.
 
-**Sau review 18/10 (change `harden-snapshot-tools-runner`):** snapshot ID được kiểm tra và giữ trong thư mục lưu; ID theo nội dung, ghi-một-lần, kiểm tra digest khi đọc; chặn `.git`/`node_modules`/ground truth ở mọi cấp, không phân biệt hoa thường; bỏ qua symlink; giới hạn kích thước; chỉ xoá snapshot khi không còn run dùng. Còn mở: khảo sát ~10 repo contest (task 2.3).
+**Sau review 18/10 (change `harden-snapshot-tools-runner`):** snapshot ID được kiểm tra và giữ trong thư mục lưu; ID theo nội dung, ghi-một-lần, kiểm tra digest khi đọc; chặn `.git`/`node_modules`/ground truth ở mọi cấp, không phân biệt hoa thường; bỏ qua symlink; giới hạn kích thước; chỉ xoá snapshot khi không còn run dùng. Task 2.3 đã khảo sát 3 repo contest (không phải ~10 như giả định ban đầu); kết quả về symlink, kích thước `.sol` và file report-like được ghi trong `openspec/changes/archive/2026-10-18-harden-snapshot-tools-runner/tasks.md`, mục “Survey evidence (2.3) and grep measurement”.
 
 ## B — Bộ tool đọc source
 
@@ -32,7 +32,7 @@ A–D là bốn người code, leader sẽ gán thành viên cho sprint này. Re
 
 **Phối hợp:** A cung cấp source; B cung cấp mô tả tool và cách gọi cho C/D. C quyết định lúc chạy tool; D chuyển mô tả tool sang định dạng API model.
 
-**Sau review 18/10 (change `harden-snapshot-tools-runner`):** registry luôn áp chính sách chặn mặc định; lỗi không lộ đường dẫn máy chủ; `read_file` luôn đánh dấu khi bị cắt và báo đúng khoảng dòng; `grep` chạy trong worker có timeout và giới hạn quét; giới hạn `glob`/`grep` tách riêng. Còn mở: đo `grep` trên 3 repo Solidity để chốt mặc định (task 3.5).
+**Sau review 18/10 (change `harden-snapshot-tools-runner`):** registry luôn áp chính sách chặn mặc định; lỗi không lộ đường dẫn máy chủ; `read_file` luôn đánh dấu khi bị cắt và báo đúng khoảng dòng; `grep` chạy trong worker có timeout và giới hạn quét; giới hạn `glob`/`grep` tách riêng. Task 3.5 đã đo `grep` trên 3 repo Solidity; p95 regex tối đa 7.8 ms, từ đó chốt timeout mặc định 1.000 ms và scan cap 50 MiB. Bảng số liệu và phép đo được ghi trong cùng archive task 2.3/3.5 nêu trên.
 
 ## C — Runner và lịch sử thực thi
 
@@ -84,10 +84,10 @@ Việc chọn source, lịch sử và tool được đưa vào request thuộc b
 
 **Attempts:** theo cập nhật của leader, thành viên đã bổ sung phần này. Sprint 3 dùng lại implementation đó; cần xác định commit/nhánh chứa thay đổi khi ghép, không phân công làm mới chức năng lưu attempt. Việc kiểm tra dưới đây tập trung vào chuỗi model–tool nhiều lượt.
 
-- [ ] **Tích hợp attempts đã có — C chủ trì, D phối hợp:** ghép bản bổ sung, kiểm tra mỗi lần gọi trong chuỗi nhiều lượt có bản ghi tương ứng, đọc lại được và không ghi trùng; kiểm tra cả lỗi và gián đoạn.
+- [x] **Tích hợp attempts đã có — C chủ trì, D phối hợp:** ghép bản bổ sung, kiểm tra mỗi lần gọi trong chuỗi nhiều lượt có bản ghi tương ứng, đọc lại được và không ghi trùng; kiểm tra cả lỗi và gián đoạn. Evidence: `packages/core/test/runner/multi-turn-integration.test.ts` kiểm tra 3 attempts trong chuỗi và readback; `packages/schema/test/postgres-run-store.test.ts` kiểm tra idempotency/không ghi đè duplicate; `packages/core/test/runner/multi-turn-hardening.test.ts` và `multi-turn-runner.test.ts` kiểm tra phục hồi sau gián đoạn.
 - [x] **Truyền giới hạn output — D chủ trì, C phối hợp:** nối đủ đường cấu hình → CLI → runner → gateway → API provider; kiểm tra giá trị thực sự có trong request gửi đi.
 - [x] **Usage/chi phí — D cùng C:** sửa cách lưu và hiển thị để phân biệt chưa xác định với chi phí bằng 0.
-- [ ] **Các điểm cần xác minh thêm — C cùng D:** kiểm tra ghi trạng thái/event nhất quán, xử lý cập nhật bị từ chối, lọc secret và dấu kiểm tra dữ liệu. Sửa các lỗi xác nhận được trong luồng tích hợp.
+- [x] **Các điểm cần xác minh thêm — C cùng D:** kiểm tra ghi trạng thái/event nhất quán, xử lý cập nhật bị từ chối, lọc secret và dấu kiểm tra dữ liệu. Sửa các lỗi xác nhận được trong luồng tích hợp. Evidence: run-store contract tests và event-sink tests kiểm tra CAS/stale writes; multi-turn integration kiểm tra sequence/readback; Postgres/core tests kiểm tra redaction, snapshot integrity/digest và recovery; live run `run_155606890001g1Eh7lcFlejc2c` có sequence liên tục 1–20 và event secret/ground-truth scan bằng 0.
 - [x] **Bằng chứng chạy thật — cả nhóm:** bổ sung lượt gọi model thành công và đọc lại dữ liệu từ tiến trình mới. Kết quả test cần ghi rõ phần DB nào đã chạy, phần nào bị bỏ qua.
 
 ## Cả nhóm thống nhất trước khi code riêng

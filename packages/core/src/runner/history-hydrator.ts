@@ -25,6 +25,8 @@ export interface PendingToolCall {
   callId: string
   toolName: string
   arguments: Record<string, unknown>
+  rawArguments?: string
+  argumentsError?: string
   /** Whether the `tool_request` item of the call is already in the history. */
   hasRequestItem: boolean
 }
@@ -166,6 +168,7 @@ export const hydrateHistory = (events: readonly TrajectoryEvent[]): Hydration =>
         completionTokens: sum.completionTokens + attempt.usage.completionTokens,
         totalTokens: sum.totalTokens + attempt.usage.totalTokens,
         costUsd: sum.costUsd + attempt.costUsd,
+        ...(sum.pricing === "unpriced" || attempt.usage.pricing === "unpriced" ? { pricing: "unpriced" as const } : {}),
       }
     }
     if (event.type === "tool.requested") {
@@ -199,16 +202,24 @@ export const interruptedToolItems = (pending: readonly PendingToolCall[], ids: I
   return [
     ...pending
       .filter((call) => !call.hasRequestItem)
-      .map((call) => item(call, "tool_request", JSON.stringify({ name: call.toolName, arguments: call.arguments }))),
+      .map((call) =>
+        item(
+          call,
+          "tool_request",
+          call.rawArguments ?? JSON.stringify({ name: call.toolName, arguments: call.arguments }),
+        ),
+      ),
     ...pending.map((call) =>
       item(
         call,
         "tool_result",
-        [
-          `${InterruptedToolMessage}: the worker running this adjudication stopped before "${call.toolName}" returned, and the call was not run again.`,
-          `Arguments: ${describeArguments(call.arguments)}`,
-          `${NextStepMarker} call the tool again if you still need its result.`,
-        ].join("\n"),
+        call.argumentsError !== undefined
+          ? `Tool arguments were not valid JSON: ${call.argumentsError}`
+          : [
+              `${InterruptedToolMessage}: the worker running this adjudication stopped before "${call.toolName}" returned, and the call was not run again.`,
+              `Arguments: ${describeArguments(call.arguments)}`,
+              `${NextStepMarker} call the tool again if you still need its result.`,
+            ].join("\n"),
         true,
       ),
     ),

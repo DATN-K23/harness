@@ -40,6 +40,9 @@ describe("loadRuntimeConfig", () => {
     const config = loadRuntimeConfig(minimalEnv)
     expect(config.modelTimeoutMs).toBe(DefaultModelTimeoutMs)
     expect(config.modelMaxOutputTokens).toBe(DefaultMaxOutputTokens)
+    expect(config.modelOutputTokensField).toBe("max_tokens")
+    expect(config.snapshotDir).toContain("data")
+    expect(config.runLimits).toEqual({})
   })
 
   test("fails fast when DATABASE_URL is missing or empty", () => {
@@ -82,4 +85,41 @@ describe("loadRuntimeConfig", () => {
       ConfigValidationError,
     )
   })
+
+  test("invalid output-token field fails fast with the setting name", () => {
+    expect(() => loadRuntimeConfig({ ...validEnv, MODEL_OUTPUT_TOKENS_FIELD: "max_output" })).toThrow(
+      /MODEL_OUTPUT_TOKENS_FIELD/,
+    )
+  })
+
+  test("half-specified model pricing is rejected with the missing setting name", () => {
+    try {
+      loadRuntimeConfig({ ...validEnv, MODEL_INPUT_COST_PER_MTOK: "1.5" })
+      throw new Error("expected configuration validation to fail")
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigValidationError)
+      expect((err as Error).message).toContain("MODEL_OUTPUT_COST_PER_MTOK")
+    }
+  })
+
+  test("loads provider prices, snapshot directory and run limits", () => {
+    const config = loadRuntimeConfig({
+      ...validEnv,
+      MODEL_OUTPUT_TOKENS_FIELD: "max_completion_tokens",
+      MODEL_INPUT_COST_PER_MTOK: "2.5",
+      MODEL_OUTPUT_COST_PER_MTOK: "10",
+      HARNESS_SNAPSHOT_DIR: "D:/audit/snapshots",
+      HARNESS_MAX_STEPS: "5",
+      HARNESS_MAX_TOOL_CALLS: "20",
+      HARNESS_MAX_TOTAL_TOKENS: "50000",
+      HARNESS_MAX_COST_USD: "0.25",
+    })
+
+    expect(config.modelOutputTokensField).toBe("max_completion_tokens")
+    expect(config.modelInputCostPerMTok).toBe(2.5)
+    expect(config.modelOutputCostPerMTok).toBe(10)
+    expect(config.snapshotDir).toBe("D:/audit/snapshots")
+    expect(config.runLimits).toEqual({ maxSteps: 5, maxToolCalls: 20, totalTokenBudget: 50_000, costCeilingUsd: 0.25 })
+  })
+
 })

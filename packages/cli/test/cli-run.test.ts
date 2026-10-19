@@ -86,6 +86,9 @@ describe("executeRunCommand", () => {
           modelApiKey: apiKey,
           modelTimeoutMs: 1000,
           modelMaxOutputTokens: 256,
+          modelOutputTokensField: "max_tokens",
+          snapshotDir: "data/snapshots",
+          runLimits: {},
         },
       },
     )

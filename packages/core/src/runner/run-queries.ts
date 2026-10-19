@@ -1,5 +1,13 @@
 // Adapted from OpenCode packages/cli/src/commands/view.ts @ 3f393d78bf (MIT License, Copyright (c) 2025 opencode). See NOTICE.
-import type { RunRecord, RunStorePort, TrajectoryEvent } from "@harness/protocol"
+import type {
+  BudgetLimits,
+  BudgetTerminalReason,
+  ModelPricingStatus,
+  RunRecord,
+  RunStorePort,
+  ToolLimits,
+  TrajectoryEvent,
+} from "@harness/protocol"
 
 /** Retrieves a run record by runId from persistent store. */
 export async function getRun(runId: string, store: RunStorePort): Promise<RunRecord | null> {
@@ -26,13 +34,32 @@ export interface ReconstructedToolCall {
   resultContent?: string
 }
 
+export interface MultiTurnStepSummary {
+  stepIndex: number
+  attemptNumber: number
+  model: string
+  finishReason: string | null
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  costUsd: number | null
+  pricing: ModelPricingStatus
+  latencyMs: number
+  errorCategory?: string
+}
+
 export interface MultiTurnExecutionSummary {
   runId: string
   state: string
   prompt?: string
   snapshotId?: string
   terminalReason?: string
+  limits?: BudgetLimits
+  toolLimits?: ToolLimits
+  observedLimits?: BudgetTerminalReason[]
+  outputTruncated?: boolean
   toolCalls: ReconstructedToolCall[]
+  steps: MultiTurnStepSummary[]
   attempts: Record<string, unknown>[]
   events: TrajectoryEvent[]
 }
@@ -104,15 +131,69 @@ export async function getMultiTurnExecutionSummary(
     )
   }
 
+  const steps = attempts
+    .map((attempt): MultiTurnStepSummary | undefined => {
+      const row = attempt as {
+        stepIndex?: unknown
+        attemptNumber?: unknown
+        model?: unknown
+        finishReason?: unknown
+        promptTokens?: unknown
+        completionTokens?: unknown
+        totalTokens?: unknown
+        costUsd?: unknown
+        pricing?: unknown
+        latencyMs?: unknown
+        errorCategory?: unknown
+      }
+      if (
+        typeof row.stepIndex !== "number" ||
+        typeof row.attemptNumber !== "number" ||
+        typeof row.model !== "string"
+      ) return undefined
+      const cost = row.costUsd === null || row.costUsd === undefined ? null : Number(row.costUsd)
+      return {
+        stepIndex: row.stepIndex,
+        attemptNumber: row.attemptNumber,
+        model: row.model,
+        finishReason: typeof row.finishReason === "string" ? row.finishReason : null,
+        promptTokens: typeof row.promptTokens === "number" ? row.promptTokens : 0,
+        completionTokens: typeof row.completionTokens === "number" ? row.completionTokens : 0,
+        totalTokens: typeof row.totalTokens === "number" ? row.totalTokens : 0,
+        costUsd: cost !== null && Number.isFinite(cost) ? cost : null,
+        pricing: row.pricing === "unpriced" ? "unpriced" : "priced",
+        latencyMs: typeof row.latencyMs === "number" ? row.latencyMs : 0,
+        ...(typeof row.errorCategory === "string" ? { errorCategory: row.errorCategory } : {}),
+      }
+    })
+    .filter((step): step is MultiTurnStepSummary => step !== undefined)
+    .sort((left, right) => left.stepIndex - right.stepIndex || left.attemptNumber - right.attemptNumber)
+
+  const started = events.find((event) => event.type === "run.started")
+  const startedPayload = started?.payload as
+    | { snapshot?: { budget?: BudgetLimits; toolLimits?: ToolLimits } }
+    | undefined
+  const terminalEvent = [...events].reverse().find((event) =>
+    event.type === "run.completed" || event.type === "run.failed" || event.type === "run.budget_exhausted",
+  )
+  const terminalPayload = terminalEvent?.payload as
+    | { observedLimits?: BudgetTerminalReason[]; outputTruncated?: boolean }
+    | undefined
+
   return {
     runId: run.runId,
     state: run.state,
     prompt: run.prompt,
     snapshotId: run.snapshotId,
     terminalReason: run.terminalReason,
+    ...(startedPayload?.snapshot?.budget !== undefined ? { limits: startedPayload.snapshot.budget } : {}),
+    ...(startedPayload?.snapshot?.toolLimits !== undefined ? { toolLimits: startedPayload.snapshot.toolLimits } : {}),
+    ...(terminalPayload?.observedLimits !== undefined ? { observedLimits: terminalPayload.observedLimits } : {}),
+    ...(terminalPayload?.outputTruncated !== undefined ? { outputTruncated: terminalPayload.outputTruncated } : {}),
     toolCalls: Array.from(toolCallMap.values()).sort(
       (left, right) => left.stepIndex - right.stepIndex || left.callIndex - right.callIndex,
     ),
+    steps,
     attempts,
     events,
   }

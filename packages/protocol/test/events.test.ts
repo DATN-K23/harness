@@ -211,6 +211,51 @@ describe("event payloads", () => {
     const payload = { ...payloads["run.started"] }
     expect(TrajectoryEventSchema.safeParse(event({ type: "run.started", payload })).success).toBe(true)
   })
+
+  test("run.started records optional provider profile and cost-budget enforcement", () => {
+    const payload = {
+      ...payloads["run.started"],
+      costBudgetEnforced: false,
+      providerProfile: {
+        outputTokensField: "max_completion_tokens",
+        inputCostPerMTok: 2,
+        outputCostPerMTok: 8,
+      },
+    }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "run.started", payload })).success).toBe(true)
+  })
+
+  test("run.completed records output truncation without requiring a judge verdict", () => {
+    expect(
+      TrajectoryEventSchema.safeParse(
+        event({ type: "run.completed", payload: { output: "partial answer", outputTruncated: true } }),
+      ).success,
+    ).toBe(true)
+  })
+
+
+  test("tool.requested can retain malformed raw arguments for crash recovery", () => {
+    const payload = {
+      ...payloads["tool.requested"],
+      rawArguments: '{"path":',
+      argumentsError: "Unexpected end of JSON input",
+    }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "tool.requested", payload })).success).toBe(true)
+  })
+
+  test("tool.failed accepts the invalid_arguments failure kind", () => {
+    const payload = {
+      ...payloads["tool.failed"],
+      failureKind: "invalid_arguments",
+    }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "tool.failed", payload })).success).toBe(true)
+    expect(
+      TrajectoryEventSchema.safeParse(
+        event({ type: "tool.failed", payload: { ...payload, failureKind: "invalid_provider_output" } }),
+      ).success,
+    ).toBe(false)
+  })
+
   test("context.item_added carries the full context item", () => {
     const payload = { item: { ...contextItem(), type: "not_a_type" } }
     expect(failure(event({ type: "context.item_added", payload }))[0].path).toEqual(["payload", "item", "type"])
@@ -227,6 +272,13 @@ describe("event payloads", () => {
   test("provider.attempted allows success without an error category", () => {
     const { errorCategory: _omitted, ...rest } = payloads["provider.attempted"]
     const payload = { ...rest, retryDecision: "none", backoffMs: 0 }
+    expect(TrajectoryEventSchema.safeParse(event({ type: "provider.attempted", payload })).success).toBe(true)
+  })
+
+
+  test("provider.attempted preserves the attempt pricing status", () => {
+    const base = payloads["provider.attempted"]
+    const payload = { ...base, usage: { ...usage, pricing: "unpriced" } }
     expect(TrajectoryEventSchema.safeParse(event({ type: "provider.attempted", payload })).success).toBe(true)
   })
 

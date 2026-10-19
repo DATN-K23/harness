@@ -1,27 +1,19 @@
 // Adapted from OpenCode packages/core/src/tool/dispatcher.ts @ 3f393d78bf (MIT License). See NOTICE.
+import { ToolFailureKinds as ProtocolToolFailureKinds } from "@harness/protocol"
 import type {
   ClockPort,
   ModelToolCall,
   StaleReason,
   ToolDefinition,
   ToolExecutionResult,
+  ToolFailureKind as ProtocolToolFailureKind,
   ToolRegistryPort,
 } from "@harness/protocol"
 import { isAbsoluteLooking, normalizeBlockedInput, type EventSink } from "../runner/event-sink"
 
-export const ToolFailureKinds = [
-  "missing_file",
-  "unknown_tool",
-  "invalid_arguments",
-  "denied",
-  "thrown",
-  "tool_error",
-  "malformed",
-  /** Set by the step, not the dispatcher: a call returned while tools were disabled on a forced step. */
-  "tools_disabled",
-] as const
+export const ToolFailureKinds = ProtocolToolFailureKinds
 
-export type ToolFailureKind = (typeof ToolFailureKinds)[number]
+export type ToolFailureKind = ProtocolToolFailureKind
 
 export const SecurityRuleIds = {
   absolutePath: "snapshot.absolute_path",
@@ -48,6 +40,7 @@ export type SettleResult = { kind: "continue" } | { kind: "stale"; reason: Stale
 
 export interface DispatchInput {
   calls: readonly ModelToolCall[]
+  callIndexOffset?: number
   signal?: AbortSignal
   /**
    * Awaited once per call, in `callIndex` order, after the dispatcher persisted that call's `security.blocked` (if any)
@@ -249,8 +242,8 @@ export class ParallelToolDispatcher {
 
   async dispatch(input: DispatchInput): Promise<DispatchOutcome> {
     const { sink } = this.options
-    const calls: IndexedCall[] = input.calls.map((call, callIndex) => ({
-      callIndex,
+    const calls: IndexedCall[] = input.calls.map((call, index) => ({
+      callIndex: (input.callIndexOffset ?? 0) + index,
       callId: call.id,
       toolName: call.name,
       arguments: call.arguments,

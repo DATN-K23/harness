@@ -94,6 +94,15 @@ describe("evaluateStop", () => {
     expect(evaluateWith(StopPrecedence)).toEqual({ selected: "wall_clock_timeout", observed: [...StopPrecedence] })
   })
 
+  test("unpriced runs skip only the cost ceiling check", () => {
+    const overCost = { ...within, costUsd: 2 }
+    expect(evaluateStop(overCost, limits, nowWithin).selected).toBe("cost_budget_exhausted")
+    expect(evaluateStop(overCost, limits, nowWithin, false)).toEqual({ selected: undefined, observed: [] })
+    expect(evaluateStop({ ...overCost, totalTokens: 100_000 }, limits, nowWithin, false).selected).toBe(
+      "total_tokens_exhausted",
+    )
+  })
+
   test("a limit is exhausted exactly when it is reached", () => {
     expect(evaluateStop({ ...within, completedSteps: 9 }, limits, nowWithin).selected).toBeUndefined()
     expect(evaluateStop({ ...within, completedSteps: 10 }, limits, nowWithin).selected).toBe("max_steps_exceeded")

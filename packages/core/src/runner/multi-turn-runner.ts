@@ -15,6 +15,7 @@ import {
   type ModelGatewayPort,
   type ModelToolCall,
   type ModelUsage,
+  type ModelPricingStatus,
   type RunClaim,
   type RunRecord,
   type RunState,
@@ -52,6 +53,12 @@ export interface MultiTurnRunInput {
   runId?: string
   workerId?: string
   profileId?: string
+  pricing?: ModelPricingStatus
+  providerProfile?: {
+    outputTokensField: "max_tokens" | "max_completion_tokens"
+    inputCostPerMTok?: number
+    outputCostPerMTok?: number
+  }
   limits?: Partial<BudgetLimits>
   maxOutputTokens?: number
   maxSourceEntries?: number
@@ -73,6 +80,7 @@ export interface MultiTurnRunResult {
   usage: ModelUsage
   latencyMs: number
   observedLimits: BudgetTerminalReason[]
+  outputTruncated?: boolean
 }
 
 export interface MultiTurnRunnerDeps {
@@ -340,7 +348,14 @@ export class MultiTurnRunner {
 
     existingEvents = await this.deps.store.loadEvents({ runId })
     const isResumed = existingEvents.length > 0
+    let costBudgetEnforced = input.pricing !== "unpriced"
     if (isResumed) {
+      const startedPayload = existingEvents.find((event) => event.type === "run.started")?.payload as
+        | { costBudgetEnforced?: boolean }
+        | undefined
+      if (startedPayload?.costBudgetEnforced !== undefined) {
+        costBudgetEnforced = startedPayload.costBudgetEnforced
+      }
       const startedEvent = existingEvents.find((event) => event.type === "run.started")
       if (startedEvent !== undefined) {
         const restoredStartTime = Date.parse(startedEvent.occurredAt)
@@ -353,6 +368,8 @@ export class MultiTurnRunner {
       const appendStarted = await safeAppend("run.started", {
         snapshot: builtConfig.snapshot,
         snapshotDigest: builtConfig.digest,
+        costBudgetEnforced,
+        ...(input.providerProfile !== undefined ? { providerProfile: input.providerProfile } : {}),
       })
       if (!appendStarted.ok) {
         return this.failEarly(runId, `Failed to persist run.started: ${appendStarted.reason}`, "persistence_failure")
@@ -380,8 +397,21 @@ export class MultiTurnRunner {
     let completionTokens = 0
     let totalTokens = 0
     let costUsd = 0
+    let usagePricing: ModelPricingStatus | undefined
+    const currentUsage = (): ModelUsage => ({
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      costUsd,
+      ...(usagePricing !== undefined ? { pricing: usagePricing } : {}),
+    })
 
     if (isResumed) {
+      for (const event of existingEvents) {
+        if (event.type !== "provider.attempted") continue
+        const payload = event.payload as { usage?: { pricing?: ModelPricingStatus } }
+        if (payload.usage?.pricing === "unpriced") usagePricing = "unpriced"
+      }
       const hydration = hydrateHistory(existingEvents)
       if (hydration.kind !== "hydrated") {
         return this.finishRun({
@@ -395,14 +425,70 @@ export class MultiTurnRunner {
           error: "Stored run history could not be hydrated",
           stepsExecuted: 0,
           toolCallsExecuted: 0,
-          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
+          usage: currentUsage(),
           latencyMs: clock.nowMs() - startTime,
         })
       }
       if (hydration.kind === "hydrated") {
+        promptTokens = hydration.history.totalsFromAttempts.promptTokens
+        completionTokens = hydration.history.totalsFromAttempts.completionTokens
+        totalTokens = hydration.history.totalsFromAttempts.totalTokens
+        costUsd = hydration.history.totalsFromAttempts.costUsd
+        if (hydration.history.totalsFromAttempts.pricing === "unpriced") usagePricing = "unpriced"
+        recovery.usage = currentUsage()
+        const pendingTerminal = hydration.history.terminalPending
+        if (pendingTerminal?.type === "run.completed") {
+          const payload = pendingTerminal.payload as {
+            output?: string
+            outputTruncated?: boolean
+            observedLimits?: BudgetTerminalReason[]
+          }
+          promptTokens = hydration.history.totalsFromAttempts.promptTokens
+          completionTokens = hydration.history.totalsFromAttempts.completionTokens
+          totalTokens = hydration.history.totalsFromAttempts.totalTokens
+          costUsd = hydration.history.totalsFromAttempts.costUsd
+          completedToolCalls = hydration.history.items.filter((item) => item.type === "tool_result").length
+          const usage = currentUsage()
+          const resumedTransition = await this.deps.store.transition({
+            claim,
+            expectedState: "running",
+            expectedStateVersion: stateVersion,
+            nextState: "completed",
+            resultContent: payload.output ?? "",
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            costUsd,
+            latencyMs: Math.max(0, clock.nowMs() - startTime),
+          })
+          if (resumedTransition.kind !== "transitioned") {
+            return {
+              runId,
+              state: "failed",
+              terminalReason: "persistence_failure",
+              error: "Could not finish a persisted completed run",
+              stepsExecuted: hydration.history.stepIndex,
+              toolCallsExecuted: completedToolCalls,
+              usage,
+              latencyMs: Math.max(0, clock.nowMs() - startTime),
+              observedLimits: payload.observedLimits ?? [],
+            }
+          }
+          return {
+            runId,
+            state: "completed",
+            output: payload.output,
+            stepsExecuted: hydration.history.stepIndex,
+            toolCallsExecuted: completedToolCalls,
+            usage,
+            latencyMs: Math.max(0, clock.nowMs() - startTime),
+            observedLimits: payload.observedLimits ?? [],
+            ...(payload.outputTruncated ? { outputTruncated: true } : {}),
+          }
+        }
         completedToolCalls = hydration.history.items.filter((item) => item.type === "tool_result").length
         for (const itm of hydration.history.items) {
-          if (itm.type === "tool_request" || itm.type === "tool_result") {
+          if (itm.type === "tool_request" || itm.type === "tool_result" || itm.type === "assistant_reasoning") {
             historyItems.push(itm)
           }
         }
@@ -421,19 +507,18 @@ export class MultiTurnRunner {
                 terminalReason: "work_handoff_failure",
                 eventSink,
                 error: `Failed to persist recovered tool item: ${app.reason}`,
-                stepsExecuted: 0,
-                toolCallsExecuted: 0,
-                usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
+                stepsExecuted: hydration.history.stepIndex,
+                toolCallsExecuted: completedToolCalls,
+                usage: currentUsage(),
                 latencyMs: clock.nowMs() - startTime,
               })
             }
           }
+          completedToolCalls += recovered.length
         }
+        recovery.toolCallsExecuted = completedToolCalls
         stepIndex = Math.max(1, hydration.history.stepIndex + 1)
-        promptTokens = hydration.history.totalsFromAttempts.promptTokens
-        completionTokens = hydration.history.totalsFromAttempts.completionTokens
-        totalTokens = hydration.history.totalsFromAttempts.totalTokens
-        costUsd = hydration.history.totalsFromAttempts.costUsd
+        recovery.usage = currentUsage()
       }
     } else {
       const initialRequest = assembleTurnRequest({
@@ -479,6 +564,7 @@ export class MultiTurnRunner {
 
     // 5. Multi-turn loop
     let finalOutput: string | undefined
+    let outputTruncated = false
     let terminalReason: TerminalReason | undefined = undefined
     let terminalState: RunState = "completed"
     let terminalObservedLimits: BudgetTerminalReason[] = []
@@ -500,7 +586,7 @@ export class MultiTurnRunner {
       stopState.costUsd = costUsd
       stopState.totalTokens = totalTokens
 
-      const stopEvaluation = evaluateStop(stopState, limits, clock.nowMs())
+      const stopEvaluation = evaluateStop(stopState, limits, clock.nowMs(), costBudgetEnforced)
       if (stopEvaluation.selected !== undefined) {
         terminalReason = StopReasonToTerminalReason[stopEvaluation.selected]
         terminalObservedLimits = stopEvaluation.observed.map((reason) => StopReasonToTerminalReason[reason])
@@ -526,7 +612,7 @@ export class MultiTurnRunner {
           error: `Failed to persist step.started: ${appendStepStarted.reason}`,
           stepsExecuted: stepIndex - 1,
           toolCallsExecuted: completedToolCalls,
-          usage: { promptTokens, completionTokens, totalTokens, costUsd },
+          usage: currentUsage(),
           latencyMs: clock.nowMs() - startTime,
         })
       }
@@ -558,8 +644,13 @@ export class MultiTurnRunner {
       if (limits.totalTokenBudget - totalTokens < estimatedPromptTokens + outputTokens) {
         preCallLimits.push("total_tokens")
       }
-      const estimatedCostUsd = this.deps.estimateCostUsd?.(profileId, estimatedPromptTokens, outputTokens)
-      if (estimatedCostUsd !== undefined && estimatedCostUsd > limits.costCeilingUsd - costUsd) {
+      const estimatedCostUsd = costBudgetEnforced
+        ? this.deps.estimateCostUsd?.(profileId, estimatedPromptTokens, outputTokens)
+        : undefined
+      if (
+        estimatedCostUsd !== undefined &&
+        estimatedCostUsd > limits.costCeilingUsd - costUsd
+      ) {
         preCallLimits.push("cost_budget")
       }
       if (preCallLimits.length > 0) {
@@ -581,11 +672,17 @@ export class MultiTurnRunner {
       const response: ModelAttemptResponse = {
         ...rawResponse,
         ...(rawResponse.content !== undefined ? { content: sanitizeSystemText(rawResponse.content, secrets) } : {}),
-        ...(rawResponse.toolCalls !== undefined
+        ...(rawResponse.finishReason !== "length" && rawResponse.toolCalls !== undefined
           ? {
               toolCalls: rawResponse.toolCalls.map((call) => ({
                 ...call,
                 arguments: sanitizeModelValue(call.arguments, secrets) as Record<string, unknown>,
+                ...(call.argumentsError !== undefined
+                  ? { argumentsError: sanitizeSystemText(call.argumentsError, secrets) }
+                  : {}),
+                ...(call.rawArguments !== undefined
+                  ? { rawArguments: sanitizeSystemText(call.rawArguments, secrets) }
+                  : {}),
               })),
             }
           : {}),
@@ -599,7 +696,8 @@ export class MultiTurnRunner {
       completionTokens += response.usage.completionTokens
       totalTokens += response.usage.totalTokens
       costUsd += response.usage.costUsd
-      recovery.usage = { promptTokens, completionTokens, totalTokens, costUsd }
+      if (response.usage.pricing === "unpriced") usagePricing = "unpriced"
+      recovery.usage = currentUsage()
       recovery.stepsExecuted = stepIndex
       recovery.toolCallsExecuted = completedToolCalls
       stopState.startedAtMs = startTime
@@ -629,7 +727,8 @@ export class MultiTurnRunner {
               promptTokens: response.usage.promptTokens,
               completionTokens: response.usage.completionTokens,
               totalTokens: response.usage.totalTokens,
-              costUsd: response.usage.costUsd,
+              costUsd: response.usage.pricing === "unpriced" ? null : response.usage.costUsd,
+              pricing: response.usage.pricing,
               latencyMs: attemptLatencyMs,
               finishReason: response.finishReason,
               requestJson: {
@@ -657,7 +756,7 @@ export class MultiTurnRunner {
             error: `Failed to persist model attempt: ${attemptErr instanceof Error ? attemptErr.message : String(attemptErr)}`,
             stepsExecuted: stepIndex,
             toolCallsExecuted: completedToolCalls,
-            usage: { promptTokens, completionTokens, totalTokens, costUsd },
+            usage: currentUsage(),
             latencyMs: clock.nowMs() - startTime,
           })
         }
@@ -686,7 +785,7 @@ export class MultiTurnRunner {
           error: `Failed to persist provider.attempted: ${appendAttempt.reason}`,
           stepsExecuted: stepIndex,
           toolCallsExecuted: completedToolCalls,
-          usage: { promptTokens, completionTokens, totalTokens, costUsd },
+          usage: currentUsage(),
           latencyMs: clock.nowMs() - startTime,
         })
       }
@@ -714,7 +813,7 @@ export class MultiTurnRunner {
           errorCategory,
           stepsExecuted: stepIndex,
           toolCallsExecuted: completedToolCalls,
-          usage: { promptTokens, completionTokens, totalTokens, costUsd },
+          usage: currentUsage(),
           latencyMs: clock.nowMs() - startTime,
         })
       }
@@ -738,9 +837,42 @@ export class MultiTurnRunner {
           error: `Failed to persist model.responded: ${appendResponded.reason}`,
           stepsExecuted: stepIndex,
           toolCallsExecuted: completedToolCalls,
-          usage: { promptTokens, completionTokens, totalTokens, costUsd },
+          usage: currentUsage(),
           latencyMs: clock.nowMs() - startTime,
         })
+      }
+
+      if (
+        response.toolCalls !== undefined &&
+        response.toolCalls.length > 0 &&
+        response.content !== undefined &&
+        response.content.length > 0
+      ) {
+        const reasoningItem: ContextItem = {
+          id: idGen.next("ctx_reason_"),
+          turn: stepIndex,
+          type: "assistant_reasoning",
+          isPinned: false,
+          content: sanitizeSystemText(response.content, secrets),
+        }
+        const appendReasoning = await safeAppend("context.item_added", { item: reasoningItem })
+        if (!appendReasoning.ok) {
+          return this.finishRun({
+            claim,
+            expectedStateVersion: stateVersion,
+            nextState: "failed",
+            runId,
+            observedLimits: recovery.observedLimits,
+            terminalReason: "work_handoff_failure",
+            eventSink,
+            error: `Failed to persist assistant tool-turn text: ${appendReasoning.reason}`,
+            stepsExecuted: stepIndex,
+            toolCallsExecuted: completedToolCalls,
+            usage: currentUsage(),
+            latencyMs: clock.nowMs() - startTime,
+          })
+        }
+        historyItems.push(reasoningItem)
       }
 
       // Adapted from OpenCode packages/opencode/src/session/prompt.ts lines 1103-1134:
@@ -751,15 +883,23 @@ export class MultiTurnRunner {
       stopState.completedToolCalls = completedToolCalls
       stopState.costUsd = costUsd
       stopState.totalTokens = totalTokens
-      const responseStopEvaluation = evaluateStop(stopState, limits, clock.nowMs())
+      const responseStopEvaluation = evaluateStop(
+        stopState,
+        limits,
+        clock.nowMs(),
+        costBudgetEnforced,
+      )
       terminalObservedLimits = responseStopEvaluation.observed.map(
         (reason) => StopReasonToTerminalReason[reason],
       )
       recovery.observedLimits = terminalObservedLimits
 
-      const hasToolCalls = response.toolCalls !== undefined && response.toolCalls.length > 0
+      // A response cut by the output limit is never a tool request, even when partial calls came back.
+      const hasToolCalls =
+        response.finishReason !== "length" && response.toolCalls !== undefined && response.toolCalls.length > 0
       if (!hasToolCalls) {
         finalOutput = response.content
+        outputTruncated = response.finishReason === "length"
         isTerminated = true
         break
       }
@@ -771,7 +911,7 @@ export class MultiTurnRunner {
         break
       }
 
-      // Process tool calls
+      // Process tool calls in response order. Invalid JSON calls get a model-visible error result and are never dispatched.
       const toolCalls = response.toolCalls ?? []
       if (limits.maxToolCalls !== undefined && completedToolCalls + toolCalls.length > limits.maxToolCalls) {
         terminalState = "budget_exhausted"
@@ -783,8 +923,9 @@ export class MultiTurnRunner {
         break
       }
 
-      // Tool approval check
+      // Tool approval check applies only to calls that can be dispatched.
       for (const call of toolCalls) {
+        if (call.argumentsError !== undefined) continue
         const approved = await this.approval.decide(call, { runId, stepIndex })
         if (approved === "deny") {
           terminalState = "cancelled"
@@ -795,87 +936,216 @@ export class MultiTurnRunner {
       }
       if (isTerminated) break
 
-      // Dispatch tool calls and persist each request/result before its completion event.
-      const dispatchOutcome = await dispatcher.dispatch({
-        calls: toolCalls,
-        signal: attemptSignal,
-        onResult: async (dispatchedCall) => {
-          const isError = dispatchedCall.failureKind !== undefined || dispatchedCall.result.isError
-          const sanitizedContent = isError
-            ? sanitizeSystemText(dispatchedCall.result.content, secrets)
-            : sanitizeSourceContent(dispatchedCall.result.content, secrets)
-          dispatchedCall.result = { ...dispatchedCall.result, content: sanitizedContent }
+      let callOffset = 0
+      while (callOffset < toolCalls.length) {
+        const call = toolCalls[callOffset]
+        if (call.argumentsError !== undefined) {
+          const callId = call.id
+          const toolName = call.name
+          const callIndex = callOffset
+          const rawArguments = sanitizeSystemText(
+            call.rawArguments ?? JSON.stringify(call.arguments) ?? "{}",
+            secrets,
+          )
+          const failureMessage = sanitizeSystemText(
+            `Tool arguments were not valid JSON: ${call.argumentsError}`,
+            secrets,
+          )
+          const requested = await eventSink.append("tool.requested", {
+            callIndex,
+            callId,
+            toolName,
+            arguments: call.arguments,
+            rawArguments,
+            argumentsError: sanitizeSystemText(call.argumentsError, secrets),
+          })
+          if (requested.kind === "stale") {
+            return this.finishRun({
+              claim,
+              expectedStateVersion: stateVersion,
+              nextState: "failed",
+              runId,
+              observedLimits: recovery.observedLimits,
+              terminalReason: "work_handoff_failure",
+              eventSink,
+              error: `Claim lost while recording invalid tool arguments: ${requested.reason}`,
+              stepsExecuted: stepIndex,
+              toolCallsExecuted: completedToolCalls,
+              usage: currentUsage(),
+              latencyMs: clock.nowMs() - startTime,
+            })
+          }
 
           const requestItem: ContextItem = {
             id: idGen.next("ctx_req_"),
             turn: stepIndex,
             type: "tool_request",
             isPinned: false,
-            content: sanitizeSystemText(JSON.stringify(dispatchedCall.arguments), secrets),
-            toolMeta: { callId: dispatchedCall.callId, toolName: dispatchedCall.toolName },
+            content: rawArguments,
+            toolMeta: { callId, toolName },
           }
           const resultItem: ContextItem = {
             id: idGen.next("ctx_res_"),
             turn: stepIndex,
             type: "tool_result",
             isPinned: false,
-            content: sanitizedContent,
-            toolMeta: {
-              callId: dispatchedCall.callId,
-              toolName: dispatchedCall.toolName,
-              isError: dispatchedCall.result.isError,
-            },
+            content: failureMessage,
+            toolMeta: { callId, toolName, isError: true },
           }
-
           const appendRequest = await eventSink.append("context.item_added", { item: requestItem })
-          if (appendRequest.kind === "stale") return { kind: "stale", reason: appendRequest.reason }
-          const appendResult = await eventSink.append("context.item_added", { item: resultItem })
-          if (appendResult.kind === "stale") return { kind: "stale", reason: appendResult.reason }
-          historyItems.push(requestItem, resultItem)
-
-          if (dispatchedCall.failureKind !== undefined) {
-            const failed = await eventSink.append("tool.failed", {
-              callIndex: dispatchedCall.callIndex,
-              callId: dispatchedCall.callId,
-              toolName: dispatchedCall.toolName,
-              durationMs: dispatchedCall.durationMs,
-              message: sanitizeSystemText(sanitizedContent, secrets),
-              itemId: resultItem.id,
+          if (appendRequest.kind === "stale") {
+            return this.finishRun({
+              claim,
+              expectedStateVersion: stateVersion,
+              nextState: "failed",
+              runId,
+              observedLimits: recovery.observedLimits,
+              terminalReason: "work_handoff_failure",
+              eventSink,
+              error: `Claim lost while recording invalid tool request: ${appendRequest.reason}`,
+              stepsExecuted: stepIndex,
+              toolCallsExecuted: completedToolCalls,
+              usage: currentUsage(),
+              latencyMs: clock.nowMs() - startTime,
             })
-            if (failed.kind === "stale") return { kind: "stale", reason: failed.reason }
-          } else {
-            const completed = await eventSink.append("tool.completed", {
-              callIndex: dispatchedCall.callIndex,
-              callId: dispatchedCall.callId,
-              toolName: dispatchedCall.toolName,
-              durationMs: dispatchedCall.durationMs,
-              isTruncated: dispatchedCall.result.isTruncated === true,
-              itemId: resultItem.id,
-            })
-            if (completed.kind === "stale") return { kind: "stale", reason: completed.reason }
           }
-          return { kind: "continue" }
-        },
-      })
+          const appendResult = await eventSink.append("context.item_added", { item: resultItem })
+          if (appendResult.kind === "stale") {
+            return this.finishRun({
+              claim,
+              expectedStateVersion: stateVersion,
+              nextState: "failed",
+              runId,
+              observedLimits: recovery.observedLimits,
+              terminalReason: "work_handoff_failure",
+              eventSink,
+              error: `Claim lost while recording invalid tool result: ${appendResult.reason}`,
+              stepsExecuted: stepIndex,
+              toolCallsExecuted: completedToolCalls,
+              usage: currentUsage(),
+              latencyMs: clock.nowMs() - startTime,
+            })
+          }
+          historyItems.push(requestItem, resultItem)
+          completedToolCalls += 1
+          recovery.toolCallsExecuted = completedToolCalls
 
-      if (dispatchOutcome.kind === "stale") {
-        return this.finishRun({
-          claim,
-          expectedStateVersion: stateVersion,
-          nextState: "failed",
-          runId,
-          observedLimits: recovery.observedLimits,
-          terminalReason: "work_handoff_failure",
-          eventSink,
-          error: `Claim lost during tool dispatch: ${dispatchOutcome.reason}`,
-          stepsExecuted: stepIndex,
-          toolCallsExecuted: completedToolCalls,
-          usage: { promptTokens, completionTokens, totalTokens, costUsd },
-          latencyMs: clock.nowMs() - startTime,
+          const failed = await eventSink.append("tool.failed", {
+            callIndex,
+            callId,
+            toolName,
+            durationMs: 0,
+            message: failureMessage,
+            itemId: resultItem.id,
+            failureKind: "invalid_arguments",
+          })
+          if (failed.kind === "stale") {
+            return this.finishRun({
+              claim,
+              expectedStateVersion: stateVersion,
+              nextState: "failed",
+              runId,
+              observedLimits: recovery.observedLimits,
+              terminalReason: "work_handoff_failure",
+              eventSink,
+              error: `Claim lost while recording invalid tool failure: ${failed.reason}`,
+              stepsExecuted: stepIndex,
+              toolCallsExecuted: completedToolCalls,
+              usage: currentUsage(),
+              latencyMs: clock.nowMs() - startTime,
+            })
+          }
+          callOffset += 1
+          continue
+        }
+
+        const segmentStart = callOffset
+        while (callOffset < toolCalls.length && toolCalls[callOffset].argumentsError === undefined) callOffset += 1
+        const segment = toolCalls.slice(segmentStart, callOffset)
+        const dispatchOutcome = await dispatcher.dispatch({
+          calls: segment,
+          callIndexOffset: segmentStart,
+          signal: attemptSignal,
+          onResult: async (dispatchedCall) => {
+            const isError = dispatchedCall.failureKind !== undefined || dispatchedCall.result.isError
+            const sanitizedContent = isError
+              ? sanitizeSystemText(dispatchedCall.result.content, secrets)
+              : sanitizeSourceContent(dispatchedCall.result.content, secrets)
+            dispatchedCall.result = { ...dispatchedCall.result, content: sanitizedContent }
+
+            const requestItem: ContextItem = {
+              id: idGen.next("ctx_req_"),
+              turn: stepIndex,
+              type: "tool_request",
+              isPinned: false,
+              content: sanitizeSystemText(JSON.stringify(dispatchedCall.arguments), secrets),
+              toolMeta: { callId: dispatchedCall.callId, toolName: dispatchedCall.toolName },
+            }
+            const resultItem: ContextItem = {
+              id: idGen.next("ctx_res_"),
+              turn: stepIndex,
+              type: "tool_result",
+              isPinned: false,
+              content: sanitizedContent,
+              toolMeta: {
+                callId: dispatchedCall.callId,
+                toolName: dispatchedCall.toolName,
+                isError: dispatchedCall.result.isError,
+              },
+            }
+
+            const appendRequest = await eventSink.append("context.item_added", { item: requestItem })
+            if (appendRequest.kind === "stale") return { kind: "stale", reason: appendRequest.reason }
+            const appendResult = await eventSink.append("context.item_added", { item: resultItem })
+            if (appendResult.kind === "stale") return { kind: "stale", reason: appendResult.reason }
+            historyItems.push(requestItem, resultItem)
+
+            if (dispatchedCall.failureKind !== undefined) {
+              const failed = await eventSink.append("tool.failed", {
+                callIndex: dispatchedCall.callIndex,
+                callId: dispatchedCall.callId,
+                toolName: dispatchedCall.toolName,
+                durationMs: dispatchedCall.durationMs,
+                message: sanitizeSystemText(sanitizedContent, secrets),
+                itemId: resultItem.id,
+                failureKind: dispatchedCall.failureKind,
+              })
+              if (failed.kind === "stale") return { kind: "stale", reason: failed.reason }
+            } else {
+              const completed = await eventSink.append("tool.completed", {
+                callIndex: dispatchedCall.callIndex,
+                callId: dispatchedCall.callId,
+                toolName: dispatchedCall.toolName,
+                durationMs: dispatchedCall.durationMs,
+                isTruncated: dispatchedCall.result.isTruncated === true,
+                itemId: resultItem.id,
+              })
+              if (completed.kind === "stale") return { kind: "stale", reason: completed.reason }
+            }
+            return { kind: "continue" }
+          },
         })
+
+        if (dispatchOutcome.kind === "stale") {
+          return this.finishRun({
+            claim,
+            expectedStateVersion: stateVersion,
+            nextState: "failed",
+            runId,
+            observedLimits: recovery.observedLimits,
+            terminalReason: "work_handoff_failure",
+            eventSink,
+            error: `Claim lost during tool dispatch: ${dispatchOutcome.reason}`,
+            stepsExecuted: stepIndex,
+            toolCallsExecuted: completedToolCalls,
+            usage: currentUsage(),
+            latencyMs: clock.nowMs() - startTime,
+          })
+        }
+        completedToolCalls += dispatchOutcome.calls.length
+        recovery.toolCallsExecuted = completedToolCalls
       }
-      completedToolCalls += dispatchOutcome.calls.length
-      recovery.toolCallsExecuted = completedToolCalls
+
       stepIndex += 1
       recovery.stepsExecuted = stepIndex - 1
     }
@@ -902,6 +1172,28 @@ export class MultiTurnRunner {
         reason: terminalReason ?? "cancelled_by_user",
         boundary: "before_tool_dispatch",
       })
+    } else if (terminalState === "completed" && outputTruncated) {
+      const appendCompleted = await safeAppend("run.completed", {
+        output: finalOutput ?? "",
+        outputTruncated: true,
+        observedLimits: terminalObservedLimits,
+      })
+      if (!appendCompleted.ok) {
+        return this.finishRun({
+          claim,
+          expectedStateVersion: stateVersion,
+          nextState: "failed",
+          runId,
+          observedLimits: terminalObservedLimits,
+          terminalReason: "persistence_failure",
+          eventSink,
+          error: `Failed to persist run.completed: ${appendCompleted.reason}`,
+          stepsExecuted: Math.min(stepIndex, limits.maxSteps),
+          toolCallsExecuted: completedToolCalls,
+          usage: currentUsage(),
+          latencyMs: totalLatencyMs,
+        })
+      }
     }
 
     const finalTransition = await this.deps.store.transition({
@@ -926,7 +1218,7 @@ export class MultiTurnRunner {
         error: sanitizeSystemText(`Final state transition failed: ${finalTransition.reason}`),
         stepsExecuted: Math.min(stepIndex, limits.maxSteps),
         toolCallsExecuted: completedToolCalls,
-        usage: { promptTokens, completionTokens, totalTokens, costUsd },
+        usage: currentUsage(),
         latencyMs: totalLatencyMs,
         observedLimits: terminalObservedLimits,
       }
@@ -939,9 +1231,10 @@ export class MultiTurnRunner {
       output: finalOutput,
       stepsExecuted: Math.min(stepIndex, limits.maxSteps),
       toolCallsExecuted: completedToolCalls,
-      usage: { promptTokens, completionTokens, totalTokens, costUsd },
+      usage: currentUsage(),
       latencyMs: totalLatencyMs,
       observedLimits: terminalObservedLimits,
+      ...(outputTruncated ? { outputTruncated: true } : {}),
     }
   }
 
@@ -1028,6 +1321,7 @@ export class MultiTurnRunner {
         await opts.eventSink.append("run.failed", {
           reason: opts.terminalReason ?? "provider_permanent",
           message: safeError ?? "Run failed",
+          ...(opts.observedLimits !== undefined ? { observedLimits: opts.observedLimits } : {}),
         })
       } catch {
         // Ignore sink errors on failure finalization

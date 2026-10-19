@@ -8,15 +8,19 @@ import type {
   ToolDefinition,
   ToolExecutionResult,
   ToolRegistryPort,
+  ToolLimits,
 } from "@harness/protocol"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
 import { MultiTurnRunner } from "../../src/runner/multi-turn-runner"
+import { getMultiTurnExecutionSummary } from "../../src/runner/run-queries"
 
 class ScriptedGateway implements ModelGatewayPort {
   private step = 0
+  readonly calls: ModelAttemptRequest[] = []
   constructor(private readonly responses: ModelAttemptResponse[]) {}
 
   async executeAttempt(request: ModelAttemptRequest): Promise<ModelAttemptResponse> {
+    this.calls.push(request)
     const res = this.responses[this.step] ?? {
       attemptId: `att-${this.step}`,
       finishReason: "stop",
@@ -843,4 +847,365 @@ describe("MultiTurnRunner", () => {
     const snapshotPayload = started?.payload as { snapshot: { contextPolicy: { toolOutputMaxLines: number } } }
     expect(snapshotPayload.snapshot.contextPolicy.toolOutputMaxLines).toBe(10)
   })
+
+  test("Text next to a tool call is replayed", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-text-tool",
+        finishReason: "tool_calls",
+        content: "I will read the vault",
+        toolCalls: [{ id: "call-text", name: "read_file", arguments: { path: "contracts/Vault.sol" } }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+      {
+        attemptId: "att-text-answer",
+        finishReason: "stop",
+        content: "The vault is safe.",
+        usage: { promptTokens: 20, completionTokens: 6, totalTokens: 26, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+    ])
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-text" })
+    const nextItems = gateway.calls[1].items
+    const reasoningIndex = nextItems.findIndex((item) => item.type === "assistant_reasoning")
+    const requestIndex = nextItems.findIndex((item) => item.type === "tool_request")
+
+    expect(result.state).toBe("completed")
+    expect(nextItems[reasoningIndex]?.content).toBe("I will read the vault")
+    expect(reasoningIndex).toBeGreaterThanOrEqual(0)
+    expect(reasoningIndex).toBeLessThan(requestIndex)
+    expect(nextItems[reasoningIndex]?.turn).toBe(nextItems[requestIndex]?.turn)
+  })
+
+  test("Model gets a chance to repair its call", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-invalid-arguments",
+        finishReason: "tool_calls",
+        toolCalls: [
+          {
+            id: "call-invalid",
+            name: "read_file",
+            arguments: {},
+            argumentsError: "Unexpected end of JSON input",
+            rawArguments: '{"path":',
+          },
+        ],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+      {
+        attemptId: "att-repaired-answer",
+        finishReason: "stop",
+        content: "I repaired the request.",
+        usage: { promptTokens: 20, completionTokens: 6, totalTokens: 26, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+    ])
+    const registry = new MockRegistry()
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-invalid" })
+    const events = await store.loadEvents({ runId: result.runId })
+    const failed = events.find((event) => event.type === "tool.failed")
+    const failedPayload = failed?.payload as { failureKind?: string }
+    const invalidItems = events
+      .filter((event) => event.type === "context.item_added")
+      .map((event) => event.payload as { item: { type: string; content: string; toolMeta?: { callId?: string } } })
+    const requestItem = invalidItems.find((entry) => entry.item.type === "tool_request")
+    const resultItem = invalidItems.find((entry) => entry.item.type === "tool_result")
+    const repairResult = gateway.calls[1].items.find(
+      (item) => item.type === "tool_result" && item.toolMeta?.callId === "call-invalid",
+    )
+
+    expect(result.state).toBe("completed")
+    expect(registry.calls).toHaveLength(0)
+    expect(failedPayload.failureKind).toBe("invalid_arguments")
+    expect(requestItem?.item.content).toBe('{"path":')
+    expect(resultItem?.item.content).toContain("Tool arguments were not valid JSON: Unexpected end of JSON input")
+    expect(repairResult?.content).toBe(resultItem?.item.content)
+    const requestEvent = events.find((event) =>
+      event.type === "context.item_added" &&
+      (event.payload as { item?: { type?: string; toolMeta?: { callId?: string } } }).item?.type === "tool_request",
+    )
+    const resultEvent = events.find((event) =>
+      event.type === "context.item_added" &&
+      (event.payload as { item?: { type?: string; toolMeta?: { callId?: string } } }).item?.type === "tool_result",
+    )
+    expect(requestEvent?.sequence ?? 0).toBeLessThan(resultEvent?.sequence ?? 0)
+    expect(resultEvent?.sequence ?? 0).toBeLessThan(failed?.sequence ?? 0)
+  })
+
+
+
+  test("valid calls around malformed calls retain response order", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-mixed-calls",
+        finishReason: "tool_calls",
+        toolCalls: [
+          { id: "call-before", name: "read_file", arguments: { path: "before.sol" } },
+          { id: "call-broken", name: "read_file", arguments: {}, argumentsError: "invalid JSON", rawArguments: "{" },
+          { id: "call-after", name: "read_file", arguments: { path: "after.sol" } },
+        ],
+        usage: { promptTokens: 10, completionTokens: 8, totalTokens: 18, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+      {
+        attemptId: "att-mixed-answer",
+        finishReason: "stop",
+        content: "Done.",
+        usage: { promptTokens: 20, completionTokens: 4, totalTokens: 24, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+    ])
+    const registry = new MockRegistry()
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-mixed" })
+    const requestItems = (await store.loadEvents({ runId: result.runId }))
+      .filter((event) => event.type === "context.item_added")
+      .map((event) => event.payload as { item: { type: string; toolMeta?: { callId?: string } } })
+      .filter((entry) => entry.item.type === "tool_request")
+      .map((entry) => entry.item.toolMeta?.callId)
+
+    expect(result.state).toBe("completed")
+    expect(registry.calls.map((call) => call.arguments.path)).toEqual(["before.sol", "after.sol"])
+    expect(requestItems).toEqual(["call-before", "call-broken", "call-after"])
+  })
+
+  test("Invalid calls are bounded", async () => {
+    const invalidCall = (id: string) => ({
+      attemptId: `att-${id}`,
+      finishReason: "tool_calls" as const,
+      toolCalls: [{ id, name: "read_file", arguments: {}, argumentsError: "invalid JSON", rawArguments: "{" }],
+      usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.001 },
+      latencyMs: 20,
+    })
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([invalidCall("bad-1"), invalidCall("bad-2"), invalidCall("bad-3")])
+    const registry = new MockRegistry()
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({
+      prompt: "Audit Vault.sol",
+      snapshotId: "snap-invalid-limit",
+      limits: { maxSteps: 5, maxToolCalls: 2 },
+    })
+
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("max_tool_calls")
+    expect(result.toolCallsExecuted).toBe(2)
+    expect(gateway.calls).toHaveLength(2)
+    expect(registry.calls).toHaveLength(0)
+  })
+
+  test("Truncated final answer is marked", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-length",
+        finishReason: "length",
+        content: "The answer stopped at the output limit.",
+        toolCalls: [{ id: "ignored-call", name: "read_file", arguments: { path: "Vault.sol" } }],
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+    ])
+    const registry = new MockRegistry()
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-length" })
+    const completed = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "run.completed")
+
+    expect(result.state).toBe("completed")
+    expect(result.outputTruncated).toBe(true)
+    expect(registry.calls).toHaveLength(0)
+    expect((completed?.payload as { outputTruncated?: boolean }).outputTruncated).toBe(true)
+  })
+
+  test("Unpriced run records the disabled cost check", async () => {
+    const unpricedUsage = { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0, pricing: "unpriced" as const }
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-unpriced-tool",
+        finishReason: "tool_calls",
+        toolCalls: [{ id: "call-unpriced", name: "read_file", arguments: { path: "Vault.sol" } }],
+        usage: unpricedUsage,
+        latencyMs: 20,
+      },
+      {
+        attemptId: "att-unpriced-answer",
+        finishReason: "stop",
+        content: "Done without a priced profile.",
+        usage: unpricedUsage,
+        latencyMs: 20,
+      },
+    ])
+    let costEstimates = 0
+    const runner = new MultiTurnRunner({
+      store,
+      gateway,
+      registry: new MockRegistry(),
+      snapshot: new MockSnapshot(),
+      clock,
+      estimateCostUsd: () => {
+        costEstimates += 1
+        return 1
+      },
+      estimatePromptTokens: () => 10,
+    })
+
+    const result = await runner.execute({
+      prompt: "Audit Vault.sol",
+      snapshotId: "snap-unpriced",
+      pricing: "unpriced",
+      limits: { maxSteps: 3, maxToolCalls: 3, costCeilingUsd: 0.01 },
+    })
+    const started = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "run.started")
+
+    expect((started?.payload as { costBudgetEnforced?: boolean }).costBudgetEnforced).toBe(false)
+    expect(result.state).toBe("completed")
+    expect(gateway.calls).toHaveLength(2)
+    expect(costEstimates).toBe(0)
+    expect(result.usage.pricing).toBe("unpriced")
+  })
+
+  test("Priced runs still stop at the cost ceiling", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-priced-cost",
+        finishReason: "tool_calls",
+        toolCalls: [{ id: "call-priced", name: "read_file", arguments: { path: "Vault.sol" } }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.02, pricing: "priced" },
+        latencyMs: 20,
+      },
+    ])
+    const registry = new MockRegistry()
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({
+      prompt: "Audit Vault.sol",
+      snapshotId: "snap-priced",
+      pricing: "priced",
+      limits: { maxSteps: 3, maxToolCalls: 3, costCeilingUsd: 0.01 },
+    })
+
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("cost_budget")
+    expect(registry.calls).toHaveLength(0)
+  })
+
+  test("Effective settings are recorded per run", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-profile",
+        finishReason: "stop",
+        content: "The run completed.",
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.001 },
+        latencyMs: 20,
+      },
+    ])
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({
+      prompt: "Audit Vault.sol",
+      snapshotId: "snap-profile",
+      providerProfile: {
+        outputTokensField: "max_completion_tokens",
+        inputCostPerMTok: 2,
+        outputCostPerMTok: 8,
+      },
+      limits: { maxSteps: 5 },
+    })
+    const started = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "run.started")
+    const payload = started?.payload as {
+      snapshot: { budget: { maxSteps: number } }
+      providerProfile: { outputTokensField: string; inputCostPerMTok: number; outputCostPerMTok: number }
+    }
+
+    expect(payload.snapshot.budget.maxSteps).toBe(5)
+    expect(payload.providerProfile).toEqual({
+      outputTokensField: "max_completion_tokens",
+      inputCostPerMTok: 2,
+      outputCostPerMTok: 8,
+    })
+  })
+
+  test("summary includes two attempt steps and one call linked by step and call ID", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      {
+        attemptId: "att-summary-1",
+        finishReason: "tool_calls",
+        toolCalls: [{ id: "summary-call", name: "read_file", arguments: { path: "Vault.sol" } }],
+        usage: { promptTokens: 11, completionTokens: 7, totalTokens: 18, costUsd: 0.002 },
+        latencyMs: 21,
+      },
+      {
+        attemptId: "att-summary-2",
+        finishReason: "stop",
+        content: "Audit finished.",
+        usage: { promptTokens: 13, completionTokens: 5, totalTokens: 18, costUsd: 0.003 },
+        latencyMs: 22,
+      },
+    ])
+    const registry = new MockRegistry() as MockRegistry & { limits: () => ToolLimits }
+    registry.limits = () => ({
+      readFile: { maxLines: 100, maxBytes: 20_000 },
+      grep: { timeoutMs: 2_000, maxScanBytes: 100_000, maxLineChars: 2_000, maxMatches: 100 },
+      glob: { maxMatches: 100 },
+      listDir: { maxEntries: 100 },
+    })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+
+    const result = await runner.execute({
+      prompt: "Audit Vault.sol",
+      snapshotId: "snap-summary",
+      profileId: "summary-model",
+      limits: { maxSteps: 5, maxToolCalls: 5 },
+    })
+    const summary = await getMultiTurnExecutionSummary(result.runId, store)
+
+    expect(summary?.steps).toEqual([
+      {
+        stepIndex: 1,
+        attemptNumber: 1,
+        model: "summary-model",
+        finishReason: "tool_calls",
+        promptTokens: 11,
+        completionTokens: 7,
+        totalTokens: 18,
+        costUsd: 0.002,
+        pricing: "priced",
+        latencyMs: 0,
+      },
+      {
+        stepIndex: 2,
+        attemptNumber: 1,
+        model: "summary-model",
+        finishReason: "stop",
+        promptTokens: 13,
+        completionTokens: 5,
+        totalTokens: 18,
+        costUsd: 0.003,
+        pricing: "priced",
+        latencyMs: 0,
+      },
+    ])
+    expect(summary?.toolCalls).toHaveLength(1)
+    expect(summary?.toolCalls[0]).toMatchObject({ stepIndex: 1, callId: "summary-call", status: "completed" })
+    expect(summary?.limits?.maxSteps).toBe(5)
+    expect(summary?.toolLimits?.readFile.maxLines).toBe(100)
+  })
+
 })

@@ -80,25 +80,34 @@ Owners follow `docs/sprints/sprint-03.md`: C = runner/history, D = gateway/CLI. 
 
 ## 3. Runner seam (Track C reviews)
 
-- [ ] 3.1 [Owner: C with D] Persist a tool turn's text as an `assistant_reasoning` item before its `tool_request` items. The text is sanitized with the full tier.
+- [x] 3.1 [Owner: C with D] Persist a tool turn's text as an `assistant_reasoning` item before its `tool_request` items. The text is sanitized with the full tier.
   - Evidence: the "Text next to a tool call is replayed" scenario; the existing crash-consistency tests still pass.
-- [ ] 3.2 [Owner: C with D; after 0.1] Handle a tool call that carries `argumentsError`.
+- [x] 3.2 [Owner: C with D; after 0.1] Handle a tool call that carries `argumentsError`.
   - Do not dispatch it. Persist the request item with the raw text and an error result, and record `tool.failed` with `failureKind: "invalid_arguments"`.
   - The call counts toward `maxToolCalls`.
   - Evidence: both "Tool calls with invalid arguments" scenarios.
-- [ ] 3.3 [Owner: C with D] Handle `length` finishes.
+- [x] 3.3 [Owner: C with D] Handle `length` finishes.
   - A `length` response is never a tool request.
   - A final `length` response completes the run with `outputTruncated: true` in the result and in `run.completed`.
   - Evidence: the "Truncated final answer is marked" scenario.
-- [ ] 3.4 [Owner: C with D] Handle unpriced profiles (design D8).
+- [x] 3.4 [Owner: C with D] Handle unpriced profiles (design D8).
   - `run.started` records `costBudgetEnforced: false`; the cost pre-call guard is skipped; the result usage reports `pricing: "unpriced"`.
   - Evidence: the "Unpriced run records the disabled cost check" scenario, plus a priced run that still stops for cost.
-- [ ] 3.5 [Owner: C with D] Extend `getMultiTurnExecutionSummary` in `run-queries.ts` with per-step attempt data: model, finish reason, tokens, cost or `null`, pricing and latency. Keep identification by step and call ID.
+- [x] 3.5 [Owner: C with D] Extend `getMultiTurnExecutionSummary` in `run-queries.ts` with per-step attempt data: model, finish reason, tokens, cost or `null`, pricing and latency. Keep identification by step and call ID.
   - Evidence: a summary test with two steps and one tool call.
+
+### Verification evidence (sections 3-4, 2026-10-19)
+
+- `bun run typecheck`: 6 of 6. `bun turbo test` against live PostgreSQL: protocol 142, core 774, schema 31, llm 39, cli 33. 0 failures.
+- Controller fix: the runner now ignores tool calls on a `length` response (spec: never a tool request), not only in the gateway mapping.
+- Additions beyond the design:
+  - **`run.completed` may omit the Judge verdict when `outputTruncated` is true.** It stores the output so that a resumed run can finish the transition.
+  - **`tool.requested` gained optional raw-argument fields** for crash recovery of malformed calls.
+  - **The dispatcher accepts an index offset**, so that mixed valid and invalid calls keep their response order.
 
 ## 4. Configuration
 
-- [ ] 4.1 [Owner: D] Extend `packages/cli/src/config.ts` with the settings of the "Provider profile and run-limit settings" requirement.
+- [x] 4.1 [Owner: D] Extend `packages/cli/src/config.ts` with the settings of the "Provider profile and run-limit settings" requirement.
   - `MODEL_OUTPUT_TOKENS_FIELD`.
   - `MODEL_INPUT_COST_PER_MTOK` and `MODEL_OUTPUT_COST_PER_MTOK`, both or neither.
   - `HARNESS_SNAPSHOT_DIR`, defaulting to `<repo>/data/snapshots`.

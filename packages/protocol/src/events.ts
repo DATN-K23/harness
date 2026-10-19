@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { ContextItemSchema, PrepareTelemetrySchema, TransformationSchema } from "./context"
-import { ModelUsageSchema, ProviderErrorCategorySchema, TokenUsageSchema, FinishReasons } from "./model-gateway"
+import { ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, TokenUsageSchema, FinishReasons } from "./model-gateway"
 import { RunConfigSnapshotSchema, Sha256DigestSchema } from "./run-config"
 import { BudgetTerminalReasonSchema, TerminalReasonSchema } from "./stop-conditions"
 import { VerdictReasonCodes, JudgeVerdictSchema } from "./verdict"
@@ -80,6 +80,21 @@ export const AttemptPurposes = ["reasoning", "compaction"] as const
 
 export type AttemptPurpose = (typeof AttemptPurposes)[number]
 
+export const ToolFailureKinds = [
+  "missing_file",
+  "unknown_tool",
+  "invalid_arguments",
+  "denied",
+  "thrown",
+  "tool_error",
+  "malformed",
+  "tools_disabled",
+] as const
+
+export type ToolFailureKind = (typeof ToolFailureKinds)[number]
+
+export const ToolFailureKindSchema = z.enum(ToolFailureKinds)
+
 /**
  * A denied input as the model supplied it, relative to the snapshot. `..` segments are allowed because the
  * attempted traversal is exactly what gets recorded. Absolute host paths are rejected: `@harness/core` must replace
@@ -105,7 +120,18 @@ const ToolIdentitySchema = z.object({
 export const EventPayloadSchemas = {
   "run.accepted": OpenPayloadSchema,
   "run.queued": OpenPayloadSchema,
-  "run.started": z.object({ snapshot: RunConfigSnapshotSchema, snapshotDigest: Sha256DigestSchema }),
+  "run.started": z.object({
+    snapshot: RunConfigSnapshotSchema,
+    snapshotDigest: Sha256DigestSchema,
+    costBudgetEnforced: z.boolean().optional(),
+    providerProfile: z
+      .object({
+        outputTokensField: z.enum(["max_tokens", "max_completion_tokens"]),
+        inputCostPerMTok: z.number().nonnegative().optional(),
+        outputCostPerMTok: z.number().nonnegative().optional(),
+      })
+      .optional(),
+  }),
   "context.allocated": z.object({ stepIndex: z.number().int().positive(), telemetry: PrepareTelemetrySchema }),
   "context.transformed": TransformationSchema,
   "provider.attempted": z.object({
@@ -114,7 +140,7 @@ export const EventPayloadSchemas = {
     purpose: z.enum(AttemptPurposes).default("reasoning"),
     attemptIndex: z.number().int().nonnegative(),
     profileId: z.string(),
-    usage: TokenUsageSchema,
+    usage: TokenUsageSchema.extend({ pricing: z.enum(ModelPricingStatuses).optional() }),
     costUsd: z.number().nonnegative(),
     latencyMs: z.number().int().nonnegative(),
     errorCategory: ProviderErrorCategorySchema.optional(),
@@ -128,7 +154,11 @@ export const EventPayloadSchemas = {
     finishReason: z.enum(FinishReasons),
     toolCallCount: z.number().int().nonnegative(),
   }),
-  "tool.requested": ToolIdentitySchema.extend({ arguments: z.record(z.string(), z.unknown()) }),
+  "tool.requested": ToolIdentitySchema.extend({
+    arguments: z.record(z.string(), z.unknown()),
+    rawArguments: z.string().optional(),
+    argumentsError: z.string().optional(),
+  }),
   "tool.completed": ToolIdentitySchema.extend({
     durationMs: z.number().int().nonnegative(),
     isTruncated: z.boolean(),
@@ -138,6 +168,7 @@ export const EventPayloadSchemas = {
     durationMs: z.number().int().nonnegative(),
     message: z.string(),
     itemId: z.string().optional(),
+    failureKind: ToolFailureKindSchema.optional(),
   }),
   "security.blocked": z.object({
     ruleId: z.string(),
@@ -157,8 +188,24 @@ export const EventPayloadSchemas = {
     ),
   }),
   "run.cancel_requested": OpenPayloadSchema,
-  "run.completed": z.object({ verdict: JudgeVerdictSchema }),
-  "run.failed": z.object({ reason: TerminalReasonSchema, message: z.string() }),
+  "run.completed": z
+    .object({
+      verdict: JudgeVerdictSchema.optional(),
+      output: z.string().optional(),
+      outputTruncated: z.boolean().optional(),
+      observedLimits: z.array(BudgetTerminalReasonSchema).optional(),
+    })
+    .superRefine((payload, ctx) => {
+      if (payload.verdict === undefined && payload.outputTruncated !== true) {
+        ctx.addIssue({ code: "custom", path: ["verdict"], message: "run.completed requires a verdict or a truncated output" })
+      }
+    }),
+  "run.failed": z.object({
+    reason: TerminalReasonSchema,
+    message: z.string(),
+    outputTruncated: z.boolean().optional(),
+    observedLimits: z.array(BudgetTerminalReasonSchema).optional(),
+  }),
   "run.cancelled": z.object({ reason: TerminalReasonSchema, boundary: z.enum(CancellationBoundaries) }),
   "run.budget_exhausted": z.object({
     reason: BudgetTerminalReasonSchema,
@@ -211,7 +258,7 @@ const forbiddenPayloadKeys: ReadonlySet<string> = new Set([
  * Every other, system-authored payload field is scanned.
  */
 const modelSuppliedFields: Partial<Record<EventType, readonly string[]>> = {
-  "tool.requested": ["arguments"],
+  "tool.requested": ["arguments", "rawArguments", "argumentsError"],
 }
 
 const forbiddenKeyPaths = (value: unknown, path: Array<string | number>): Array<Array<string | number>> => {

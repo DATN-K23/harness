@@ -27,10 +27,15 @@ export interface StopEvaluation {
   observed: StopReason[]
 }
 
-export const evaluateStop = (state: StopState, limits: BudgetLimits, nowMs: number): StopEvaluation => {
+export const evaluateStop = (
+  state: StopState,
+  limits: BudgetLimits,
+  nowMs: number,
+  costBudgetEnforced = true,
+): StopEvaluation => {
   const exhausted: Record<StopReason, boolean> = {
     wall_clock_timeout: nowMs - state.startedAtMs >= limits.wallClockTimeoutMs,
-    cost_budget_exhausted: state.costUsd >= limits.costCeilingUsd,
+    cost_budget_exhausted: costBudgetEnforced && state.costUsd >= limits.costCeilingUsd,
     total_tokens_exhausted: state.totalTokens >= limits.totalTokenBudget,
     max_steps_exceeded: state.completedSteps >= limits.maxSteps,
     max_tool_calls_exceeded:

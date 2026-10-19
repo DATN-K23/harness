@@ -15,6 +15,17 @@ export function findRootEnvFile(startDir: string = process.cwd()): string | unde
   return undefined
 }
 
+const findRepositoryRoot = (startDir: string): string => {
+  let curr = resolve(startDir)
+  while (true) {
+    if (existsSync(resolve(curr, "turbo.json"))) return curr
+    const parent = dirname(curr)
+    if (parent === curr) break
+    curr = parent
+  }
+  return resolve(import.meta.dir, "../../..")
+}
+
 let envLoaded = false
 
 export function ensureRootEnvLoaded(): void {
@@ -40,28 +51,76 @@ export const MaxModelTimeoutMs = 300_000
 export const MinModelTimeoutMs = 1_000
 export const MaxAllowedOutputTokens = 32_768
 export const MinAllowedOutputTokens = 1
+export const ModelOutputTokensFields = ["max_tokens", "max_completion_tokens"] as const
 
-export const RuntimeConfigSchema = z.object({
-  databaseUrl: z.string().min(1, "DATABASE_URL cannot be empty"),
-  providerName: z.string().min(1, "PROVIDER_NAME cannot be empty"),
-  modelName: z.string().min(1, "MODEL_NAME cannot be empty"),
-  modelApiKey: z.string().min(1, "MODEL_API_KEY cannot be empty"),
-  modelBaseUrl: z.string().optional(),
-  modelTimeoutMs: z
-    .preprocess((val) => {
-      if (val === undefined || val === null || val === "") return DefaultModelTimeoutMs
-      const num = Number(val)
-      return Number.isNaN(num) ? val : num
-    }, z.number().int().min(MinModelTimeoutMs).max(MaxModelTimeoutMs))
-    .default(DefaultModelTimeoutMs),
-  modelMaxOutputTokens: z
-    .preprocess((val) => {
-      if (val === undefined || val === null || val === "") return DefaultMaxOutputTokens
-      const num = Number(val)
-      return Number.isNaN(num) ? val : num
-    }, z.number().int().min(MinAllowedOutputTokens).max(MaxAllowedOutputTokens))
-    .default(DefaultMaxOutputTokens),
-})
+const optionalNumber = (schema: z.ZodType<number>) =>
+  z.preprocess((value) => {
+    if (value === undefined || value === null || value === "") return undefined
+    const number = Number(value)
+    return Number.isNaN(number) ? value : number
+  }, schema.optional())
+
+const optionalPositiveInteger = optionalNumber(z.number().int().positive())
+const optionalNonNegativeNumber = optionalNumber(z.number().nonnegative())
+
+export const RuntimeConfigSchema = z
+  .object({
+    databaseUrl: z.string().min(1, "DATABASE_URL cannot be empty"),
+    providerName: z.string().min(1, "PROVIDER_NAME cannot be empty"),
+    modelName: z.string().min(1, "MODEL_NAME cannot be empty"),
+    modelApiKey: z.string().min(1, "MODEL_API_KEY cannot be empty"),
+    modelBaseUrl: z.string().optional(),
+    modelTimeoutMs: z
+      .preprocess((val) => {
+        if (val === undefined || val === null || val === "") return DefaultModelTimeoutMs
+        const num = Number(val)
+        return Number.isNaN(num) ? val : num
+      }, z.number().int().min(MinModelTimeoutMs).max(MaxModelTimeoutMs))
+      .default(DefaultModelTimeoutMs),
+    modelMaxOutputTokens: z
+      .preprocess((val) => {
+        if (val === undefined || val === null || val === "") return DefaultMaxOutputTokens
+        const num = Number(val)
+        return Number.isNaN(num) ? val : num
+      }, z.number().int().min(MinAllowedOutputTokens).max(MaxAllowedOutputTokens))
+      .default(DefaultMaxOutputTokens),
+    modelOutputTokensField: z
+      .preprocess((value) => (value === undefined || value === null || value === "" ? "max_tokens" : value),
+        z.enum(ModelOutputTokensFields))
+      .default("max_tokens"),
+    modelInputCostPerMTok: optionalNonNegativeNumber,
+    modelOutputCostPerMTok: optionalNonNegativeNumber,
+    snapshotDir: z.string().min(1),
+    maxSteps: optionalPositiveInteger,
+    maxToolCalls: optionalPositiveInteger,
+    maxTotalTokens: optionalPositiveInteger,
+    maxCostUsd: optionalNonNegativeNumber,
+  })
+  .superRefine((config, ctx) => {
+    if (config.modelInputCostPerMTok !== undefined && config.modelOutputCostPerMTok === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["modelOutputCostPerMTok"],
+        message: "must be set together with MODEL_INPUT_COST_PER_MTOK",
+      })
+    }
+    if (config.modelOutputCostPerMTok !== undefined && config.modelInputCostPerMTok === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["modelInputCostPerMTok"],
+        message: "must be set together with MODEL_OUTPUT_COST_PER_MTOK",
+      })
+    }
+  })
+  .transform(({ maxSteps, maxToolCalls, maxTotalTokens, maxCostUsd, ...config }) => ({
+    ...config,
+    runLimits: {
+      ...(maxSteps !== undefined ? { maxSteps } : {}),
+      ...(maxToolCalls !== undefined ? { maxToolCalls } : {}),
+      ...(maxTotalTokens !== undefined ? { totalTokenBudget: maxTotalTokens } : {}),
+      ...(maxCostUsd !== undefined ? { costCeilingUsd: maxCostUsd } : {}),
+    },
+  }))
 
 export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>
 
@@ -83,6 +142,14 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   modelBaseUrl: "MODEL_BASE_URL",
   modelTimeoutMs: "MODEL_TIMEOUT_MS",
   modelMaxOutputTokens: "MODEL_MAX_OUTPUT_TOKENS",
+  modelOutputTokensField: "MODEL_OUTPUT_TOKENS_FIELD",
+  modelInputCostPerMTok: "MODEL_INPUT_COST_PER_MTOK",
+  modelOutputCostPerMTok: "MODEL_OUTPUT_COST_PER_MTOK",
+  snapshotDir: "HARNESS_SNAPSHOT_DIR",
+  maxSteps: "HARNESS_MAX_STEPS",
+  maxToolCalls: "HARNESS_MAX_TOOL_CALLS",
+  maxTotalTokens: "HARNESS_MAX_TOTAL_TOKENS",
+  maxCostUsd: "HARNESS_MAX_COST_USD",
 }
 
 /**
@@ -93,6 +160,7 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
   if (env === process.env) {
     ensureRootEnvLoaded()
   }
+  const repoRoot = findRepositoryRoot(process.cwd())
   const rawInput = {
     databaseUrl: env.DATABASE_URL,
     providerName: env.PROVIDER_NAME,
@@ -101,6 +169,14 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     modelBaseUrl: env.MODEL_BASE_URL ?? env.OPENAI_BASE_URL,
     modelTimeoutMs: env.MODEL_TIMEOUT_MS,
     modelMaxOutputTokens: env.MODEL_MAX_OUTPUT_TOKENS,
+    modelOutputTokensField: env.MODEL_OUTPUT_TOKENS_FIELD,
+    modelInputCostPerMTok: env.MODEL_INPUT_COST_PER_MTOK,
+    modelOutputCostPerMTok: env.MODEL_OUTPUT_COST_PER_MTOK,
+    snapshotDir: env.HARNESS_SNAPSHOT_DIR?.trim() || resolve(repoRoot, "data", "snapshots"),
+    maxSteps: env.HARNESS_MAX_STEPS,
+    maxToolCalls: env.HARNESS_MAX_TOOL_CALLS,
+    maxTotalTokens: env.HARNESS_MAX_TOTAL_TOKENS,
+    maxCostUsd: env.HARNESS_MAX_COST_USD,
   }
 
   const result = RuntimeConfigSchema.safeParse(rawInput)

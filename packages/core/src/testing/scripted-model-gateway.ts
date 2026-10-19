@@ -22,12 +22,19 @@ export const usageOf = (promptTokens: number, completionTokens: number, costUsd 
   completionTokens,
   totalTokens: promptTokens + completionTokens,
   costUsd,
+  pricing: "priced",
+})
+
+const usageWithDefaultPricing = (usage?: ModelUsage): ModelUsage => ({
+  ...usageOf(0, 0),
+  ...usage,
+  pricing: usage?.pricing ?? "priced",
 })
 
 export const textResponse = (content: string, options: ResponseOptions = {}): ScriptedModelEntry => ({
   finishReason: "stop",
   content,
-  usage: options.usage ?? usageOf(0, 0),
+  usage: usageWithDefaultPricing(options.usage),
   latencyMs: options.latencyMs ?? 0,
   attemptId: options.attemptId,
 })
@@ -35,7 +42,7 @@ export const textResponse = (content: string, options: ResponseOptions = {}): Sc
 export const toolCallResponse = (toolCalls: ModelToolCall[], options: ResponseOptions = {}): ScriptedModelEntry => ({
   finishReason: "tool_calls",
   toolCalls,
-  usage: options.usage ?? usageOf(0, 0),
+  usage: usageWithDefaultPricing(options.usage),
   latencyMs: options.latencyMs ?? 0,
   attemptId: options.attemptId,
 })
@@ -43,7 +50,7 @@ export const toolCallResponse = (toolCalls: ModelToolCall[], options: ResponseOp
 export const errorResponse = (error: ModelAttemptError, options: ResponseOptions = {}): ScriptedModelEntry => ({
   finishReason: "error",
   error,
-  usage: options.usage ?? usageOf(0, 0),
+  usage: usageWithDefaultPricing(options.usage),
   latencyMs: options.latencyMs ?? 0,
   attemptId: options.attemptId,
 })

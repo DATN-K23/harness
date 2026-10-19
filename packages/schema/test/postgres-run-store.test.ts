@@ -325,5 +325,53 @@ describe("Secret Sanitization", () => {
         await client.close()
       }
     })
+
+    test("round trips unpriced model attempts and clears terminal run cost", async () => {
+      const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
+      const store = new PostgresRunStore({ client })
+      await store.clear()
+      const runId = "run-unpriced-" + Date.now()
+
+      try {
+        await store.seedRun(runId, "queued")
+        const claimResult = await store.claim({ runId, workerId: "worker-unpriced" })
+        if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+        await store.recordModelAttempt({
+          id: "attempt-unpriced-" + Date.now(),
+          runId,
+          attemptNumber: 1,
+          provider: "openai",
+          model: "proxy-model",
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+          costUsd: 0,
+          pricing: "unpriced",
+          latencyMs: 20,
+          requestJson: { prompt: "test" },
+        })
+
+        const [attempt] = await store.loadModelAttempts(runId)
+        expect(attempt?.pricing).toBe("unpriced")
+        expect(attempt?.costUsd).toBeNull()
+
+        const transition = await store.transition({
+          claim: claimResult.claim,
+          expectedState: "queued",
+          expectedStateVersion: claimResult.stateVersion,
+          nextState: "completed",
+          promptTokens: 10,
+          completionTokens: 5,
+          costUsd: "0.01",
+          pricing: "priced",
+        })
+        expect(transition.kind).toBe("transitioned")
+        expect((await store.loadRun(runId))?.costUsd).toBeNull()
+      } finally {
+        await store.clear()
+        await client.close()
+      }
+    })
   }
 })

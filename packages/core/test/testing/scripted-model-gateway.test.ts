@@ -31,7 +31,7 @@ describe("ScriptedModelGateway", () => {
       attemptId: "run-1:1:0",
       finishReason: "tool_calls",
       toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "a.sol" } }],
-      usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120, costUsd: 0.01 },
+      usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120, costUsd: 0.01, pricing: "priced" },
       latencyMs: 0,
     })
     expect(second.attemptId).toBe("named")

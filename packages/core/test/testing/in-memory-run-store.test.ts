@@ -193,4 +193,36 @@ describe("InMemoryRunStore outcome persistence", () => {
     expect(run?.costUsd).toBe("0.005")
     expect(run?.latencyMs).toBe(120)
   })
+
+  test("unpriced attempt costs stay null and make the terminal run cost unknown", async () => {
+    const { store, claim, stateVersion } = await startedRun()
+    await store.recordModelAttempt({
+      id: "attempt-unpriced",
+      runId: "run-1",
+      attemptNumber: 1,
+      provider: "openai",
+      model: "proxy-model",
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+      costUsd: 0,
+      pricing: "unpriced",
+      latencyMs: 20,
+      requestJson: {},
+    })
+
+    const [attempt] = await store.loadModelAttempts("run-1")
+    expect(attempt?.pricing).toBe("unpriced")
+    expect(attempt?.costUsd).toBeNull()
+
+    await store.transition({
+      claim,
+      expectedState: "running",
+      expectedStateVersion: stateVersion,
+      nextState: "completed",
+      costUsd: "0.01",
+      pricing: "priced",
+    })
+    expect((await store.loadRun("run-1"))?.costUsd).toBeNull()
+  })
 })

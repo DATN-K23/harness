@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
   ModelUsageSchema,
+  ModelAttemptErrorClassifications,
   ProviderErrorCategories,
   type ModelAttemptError,
+  type ModelToolCall,
   type ModelAttemptRequest,
   type ModelAttemptResponse,
   type ModelGatewayPort,
@@ -51,6 +53,36 @@ describe("ModelGatewayPort", () => {
     expect(ModelUsageSchema.safeParse({ ...usage, promptTokens: -1 }).success).toBe(false)
     expect(ModelUsageSchema.safeParse({ ...usage, costUsd: -0.5 }).success).toBe(false)
     expect(ModelUsageSchema.safeParse({ ...usage, totalTokens: 1.5 }).success).toBe(false)
+    expect(ModelUsageSchema.parse(usage).pricing).toBeUndefined()
+    expect(ModelUsageSchema.parse({ ...usage, pricing: "unpriced" }).pricing).toBe("unpriced")
+    expect(ModelUsageSchema.safeParse({ ...usage, pricing: "unknown" }).success).toBe(false)
+  })
+
+  test("tool calls carry optional invalid-argument details", () => {
+    const toolCall: ModelToolCall = {
+      id: "call-1",
+      name: "read_file",
+      arguments: {},
+      argumentsError: "Tool arguments are not valid JSON",
+      rawArguments: "{\"path\":",
+    }
+    expect(toolCall.argumentsError).toContain("not valid JSON")
+    expect(toolCall.rawArguments).toBe("{\"path\":")
+  })
+
+  test("provider error classifications are exported and typed", () => {
+    const error: ModelAttemptError = {
+      isRetryable: false,
+      category: "invalid_request",
+      message: "Input exceeds context length",
+      classification: "context_overflow",
+    }
+    expect([...ModelAttemptErrorClassifications]).toEqual([
+      "context_overflow",
+      "content_filter",
+      "invalid_provider_output",
+    ])
+    expect(error.classification).toBe("context_overflow")
   })
 
   test("a provider error may carry the Retry-After delay it saw, in milliseconds", () => {

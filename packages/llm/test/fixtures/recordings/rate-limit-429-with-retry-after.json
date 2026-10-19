@@ -1,0 +1,1 @@
+{"kind":"error","status":429,"message":"Rate limit reached: too many tokens per minute","headers":{"retry-after":"2.5"}}

@@ -1,7 +1,11 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
-  "globalEnv": ["CI"],
-  "globalPassThroughEnv": ["CI"],
+  "globalEnv": [
+    "CI"
+  ],
+  "globalPassThroughEnv": [
+    "CI"
+  ],
   "tasks": {
     "typecheck": {},
     "test": {
@@ -20,6 +24,26 @@
         "$TURBO_ROOT$/packages/*/test/**"
       ],
       "outputs": []
+    },
+    "@harness/cli#test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/NOTICE",
+        "$TURBO_ROOT$/package.json",
+        "$TURBO_ROOT$/bunfig.toml",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/.gitattributes",
+        "$TURBO_ROOT$/.editorconfig",
+        "$TURBO_ROOT$/turbo.json",
+        "$TURBO_ROOT$/packages/*/package.json",
+        "$TURBO_ROOT$/packages/*/tsconfig.json",
+        "$TURBO_ROOT$/packages/*/src/**",
+        "$TURBO_ROOT$/packages/*/test/**"
+      ],
+      "outputs": [],
+      "dependsOn": [
+        "@harness/schema#test"
+      ]
     }
   }
 }

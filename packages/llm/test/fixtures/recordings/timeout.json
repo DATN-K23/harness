@@ -1,0 +1,1 @@
+{"kind":"delay","delayMs":100,"completion":{"id":"chatcmpl-delayed","object":"chat.completion","created":1792400000,"model":"gpt-4o-mini","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"late"}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}}

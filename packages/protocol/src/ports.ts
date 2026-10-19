@@ -145,7 +145,7 @@ export interface RunRecord {
   promptTokens?: number
   completionTokens?: number
   totalTokens?: number
-  costUsd?: string | number
+  costUsd?: string | number | null
   latencyMs?: number
 }
 
@@ -185,7 +185,8 @@ export interface RunStorePort {
       promptTokens?: number
       completionTokens?: number
       totalTokens?: number
-      costUsd?: string | number
+      costUsd?: string | number | null
+      pricing?: "priced" | "unpriced"
       latencyMs?: number
     },
     signal?: AbortSignal,

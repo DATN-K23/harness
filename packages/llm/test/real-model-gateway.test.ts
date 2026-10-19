@@ -119,14 +119,13 @@ describe("Message Converter", () => {
 
     const messages = convertToChatMessages(items)
 
-    expect(messages).toHaveLength(7)
+    expect(messages).toHaveLength(6)
     expect(messages[0]).toEqual({ role: "system", content: "You are an audit agent." })
     expect(messages[1]).toEqual({ role: "system", content: "Available tools: read_file" })
     expect(messages[2]).toEqual({ role: "user", content: "Audit this reentrancy vulnerability" })
-    expect(messages[3]).toEqual({ role: "assistant", content: "Let me inspect the transfer method first." })
-    expect(messages[4]).toEqual({
+    expect(messages[3]).toEqual({
       role: "assistant",
-      content: '{"path":"Token.sol"}',
+      content: "Let me inspect the transfer method first.",
       tool_calls: [
         {
           id: "call_abc123",
@@ -138,12 +137,12 @@ describe("Message Converter", () => {
         },
       ],
     })
-    expect(messages[5]).toEqual({
+    expect(messages[4]).toEqual({
       role: "tool",
       tool_call_id: "call_abc123",
       content: "contract Token { ... }",
     })
-    expect(messages[6]).toEqual({ role: "system", content: "Summary of earlier turns." })
+    expect(messages[5]).toEqual({ role: "system", content: "Summary of earlier turns." })
   })
 })
 
@@ -376,7 +375,7 @@ describe("RealModelGateway", () => {
     expect(response.error?.isRetryable).toBe(false)
     expect(response.error?.message).not.toContain(secretKey)
     expect(response.error?.message).toContain("[REDACTED]")
-    expect(response.usage).toEqual({ promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 })
+    expect(response.usage).toEqual({ promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, pricing: "priced" })
   })
 
   test("handles pre-aborted signal gracefully without throwing", async () => {

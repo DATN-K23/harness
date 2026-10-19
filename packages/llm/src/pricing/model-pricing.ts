@@ -9,6 +9,16 @@ export interface ModelPricing {
   outputCostPerToken: number
 }
 
+export interface ModelPricingOverride {
+  inputCostPerMTok: number
+  outputCostPerMTok: number
+}
+
+export interface PriceUsageResult {
+  costUsd: number
+  pricing: "priced" | "unpriced"
+}
+
 export const MODEL_PRICING_TABLE: Record<string, ModelPricing> = {
   "gpt-4o-mini": {
     model: "gpt-4o-mini",
@@ -33,47 +43,37 @@ export const MODEL_PRICING_TABLE: Record<string, ModelPricing> = {
   },
 }
 
-/**
- * Normalizes model name and returns pricing if available in the registry.
- */
 export function getModelPricing(model: string): ModelPricing | undefined {
   if (!model) return undefined
   const normalized = model.trim().toLowerCase().replace(/^(openai\/)/, "")
-
-  if (MODEL_PRICING_TABLE[normalized]) {
-    return MODEL_PRICING_TABLE[normalized]
-  }
-
-  if (normalized.startsWith("gpt-4o-mini")) {
-    return MODEL_PRICING_TABLE["gpt-4o-mini"]
-  }
-
-  if (normalized.startsWith("gpt-4o")) {
-    return MODEL_PRICING_TABLE["gpt-4o"]
-  }
-
-  if (normalized.includes("gemini") && normalized.includes("flash")) {
-    return MODEL_PRICING_TABLE["gemini-3.8-flash"]
-  }
-
+  if (MODEL_PRICING_TABLE[normalized]) return MODEL_PRICING_TABLE[normalized]
+  if (normalized.startsWith("gpt-4o-mini")) return MODEL_PRICING_TABLE["gpt-4o-mini"]
+  if (normalized.startsWith("gpt-4o")) return MODEL_PRICING_TABLE["gpt-4o"]
+  if (normalized.includes("gemini") && normalized.includes("flash")) return MODEL_PRICING_TABLE["gemini-3.8-flash"]
   return undefined
 }
 
-/**
- * Calculates USD cost for model token usage based on pricing registry rates.
- * Returns 0 if pricing is not configured for the given model.
- */
-export function calculateModelCost(
+const roundedCost = (inputTokens: number, outputTokens: number, inputRate: number, outputRate: number) =>
+  Math.round((inputTokens * inputRate + outputTokens * outputRate) * 1e8) / 1e8
+
+export function priceUsage(
   model: string,
-  usage?: Partial<TokenUsage> | null,
-): number {
-  if (!usage) return 0
-  const pricing = getModelPricing(model)
-  if (!pricing) return 0
+  usage: Partial<TokenUsage> | null | undefined,
+  override?: ModelPricingOverride,
+): PriceUsageResult {
+  if (!usage) return { costUsd: 0, pricing: "unpriced" }
+  const registry = override ? undefined : getModelPricing(model)
+  if (!override && !registry) return { costUsd: 0, pricing: "unpriced" }
 
-  const promptTokens = usage.promptTokens ?? 0
-  const completionTokens = usage.completionTokens ?? 0
+  const inputRate = override ? override.inputCostPerMTok / 1_000_000 : registry!.inputCostPerToken
+  const outputRate = override ? override.outputCostPerMTok / 1_000_000 : registry!.outputCostPerToken
+  return {
+    costUsd: roundedCost(usage.promptTokens ?? 0, usage.completionTokens ?? 0, inputRate, outputRate),
+    pricing: "priced",
+  }
+}
 
-  const cost = promptTokens * pricing.inputCostPerToken + completionTokens * pricing.outputCostPerToken
-  return Math.round(cost * 1e8) / 1e8
+/** Retained for existing consumers; unknown models and absent usage return zero. */
+export function calculateModelCost(model: string, usage?: Partial<TokenUsage> | null): number {
+  return priceUsage(model, usage).costUsd
 }

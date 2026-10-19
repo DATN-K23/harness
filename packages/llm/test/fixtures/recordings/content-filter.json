@@ -1,0 +1,1 @@
+{"id":"chatcmpl-filter","object":"chat.completion","created":1792400000,"model":"gpt-4o-mini","choices":[{"index":0,"finish_reason":"content_filter","message":{"role":"assistant","content":null}}],"usage":{"prompt_tokens":20,"completion_tokens":0,"total_tokens":20}}

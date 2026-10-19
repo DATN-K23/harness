@@ -207,8 +207,22 @@ One run against the team's real provider (`repo add` on a small Solidity fixture
 3. Ship the gateway, then the runner seam, then the CLI.
 4. Rollback: revert the commits and the migration. Older runs stay readable because `pricing` defaults to `priced`.
 
+## Provider probe (2026-10-18)
+
+A local 9router `0.5.104` was set up with the user's Codex account only. It was bound to `127.0.0.1:20128` with `REQUIRE_API_KEY=true` and auto-update off. Seven direct calls were made, and one call through `RealModelGateway` + `SingleTurnRunner`.
+
+| Check | Result | Consequence for this change |
+|---|---|---|
+| Missing API key | 401 | Key enforcement works |
+| `cx/gpt-5.5` | 400 "not supported when using Codex with a ChatGPT account" | Use `cx/gpt-6-luna` |
+| Plain prompt, about 8 tokens | 200, `prompt_tokens` 2,494 | About 2,490 hidden prompt tokens are injected upstream. The pre-call estimate (`estimatePromptTokens`) undercounts them, but the post-response token budget still uses the reported usage. The persisted trajectory is not byte-identical to what the model saw; runbook and run reports must state this |
+| `max_tokens: 16` / `max_completion_tokens: 16` | Both ignored (403 completion tokens, `stop`) | D4 still sends the field (spec checks the captured request). On this provider the output cap is enforced only by the runner's post-response budget. The runbook must state this |
+| `tools` + forced tool use | `tool_calls` with call ID and JSON arguments | Tool calling works through 9router |
+| Tool-result round trip | Correct answer from the tool content | Call-ID linkage works |
+| Pricing | `cx/...` absent from the registry | Unpriced unless G3 prices are set |
+
 ## Open Questions
 
-- **G1 (Track C):** confirm D6, which reports invalid arguments to the model rather than failing the attempt. Default: D6 as written.
-- **G2 (team):** which provider, model and budget to use for the live smoke run, and whether the model needs `MODEL_OUTPUT_TOKENS_FIELD=max_completion_tokens`.
+- **G1 (Track C):** confirm D6, which reports invalid arguments to the model rather than failing the attempt. Default: D6 as written. **Resolved 2026-10-18:** the user approved D6 as written.
+- **G2 (team):** which provider, model and budget to use for the live smoke run, and whether the model needs `MODEL_OUTPUT_TOKENS_FIELD=max_completion_tokens`. **Resolved 2026-10-18:** 9router with `cx/gpt-6-luna` on the user's Codex credits, which the user allows to be used freely for this project. Output fields are ignored by this provider, so the default `max_tokens` stays.
 - **G3 (team):** whether explicit per-model price variables (D8) are acceptable for proxy models, or whether the pricing table must be edited in code instead. Default: variables, recorded in `run.started`.

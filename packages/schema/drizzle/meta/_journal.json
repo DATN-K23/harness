@@ -15,6 +15,13 @@
       "when": 1792200000000,
       "tag": "0001_multi_turn_runner",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0002_attempt_pricing",
+      "breakpoints": true
     }
   ]
 }

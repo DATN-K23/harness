@@ -47,9 +47,18 @@ export const TokenUsageSchema = z.object({
 
 export type TokenUsage = z.infer<typeof TokenUsageSchema>
 
-export const ModelUsageSchema = TokenUsageSchema.extend({ costUsd: z.number().nonnegative() })
+export const ModelPricingStatuses = ["priced", "unpriced"] as const
 
-export type ModelUsage = z.infer<typeof ModelUsageSchema>
+export type ModelPricingStatus = (typeof ModelPricingStatuses)[number]
+
+export const ModelUsageSchema = TokenUsageSchema.extend({
+  costUsd: z.number().nonnegative(),
+  /** Absent means "priced": rows and events written before pricing existed were always priced. */
+  pricing: z.enum(ModelPricingStatuses).optional(),
+})
+
+/** `pricing` is optional so older gateways and stored data stay valid; absent means "priced". */
+export type ModelUsage = TokenUsage & { costUsd: number; pricing?: ModelPricingStatus }
 
 export const FinishReasons = ["stop", "tool_calls", "length", "error"] as const
 
@@ -73,7 +82,17 @@ export interface ModelToolCall {
   id: string
   name: string
   arguments: Record<string, unknown>
+  argumentsError?: string
+  rawArguments?: string
 }
+
+export const ModelAttemptErrorClassifications = [
+  "context_overflow",
+  "content_filter",
+  "invalid_provider_output",
+] as const
+
+export type ModelAttemptErrorClassification = (typeof ModelAttemptErrorClassifications)[number]
 
 export interface ModelAttemptError {
   isRetryable: boolean
@@ -83,6 +102,7 @@ export interface ModelAttemptError {
   isTimeout?: boolean
   /** The provider's Retry-After delay when it sent one; recorded on the attempt, never used to extend the wait. */
   retryAfterMs?: number
+  classification?: ModelAttemptErrorClassification
 }
 
 export interface ModelAttemptResponse {

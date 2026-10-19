@@ -56,7 +56,8 @@ export class InMemoryRunStore implements RunStorePort {
     promptTokens: number
     completionTokens: number
     totalTokens: number
-    costUsd: string | number
+    costUsd: string | number | null
+    pricing?: "priced" | "unpriced"
     latencyMs: number
     finishReason?: string | null
     requestJson: Record<string, unknown>
@@ -97,7 +98,8 @@ export class InMemoryRunStore implements RunStorePort {
     promptTokens: number
     completionTokens: number
     totalTokens: number
-    costUsd: string | number
+    costUsd: string | number | null
+    pricing?: "priced" | "unpriced"
     latencyMs: number
     finishReason?: string | null
     requestJson: Record<string, unknown>
@@ -118,8 +120,11 @@ export class InMemoryRunStore implements RunStorePort {
         a.attemptNumber === attempt.attemptNumber,
     )
     if (exists) return // idempotent ON CONFLICT DO NOTHING
+    const pricing = attempt.pricing ?? "priced"
     this.attempts.push({
       ...attempt,
+      costUsd: pricing === "unpriced" ? null : attempt.costUsd,
+      pricing,
       stepIndex,
       attemptPurpose: purpose,
     })
@@ -219,7 +224,15 @@ export class InMemoryRunStore implements RunStorePort {
       const c = input.completionTokens ?? record.completionTokens ?? 0
       record.totalTokens = p + c
     }
-    if (input.costUsd !== undefined) record.costUsd = input.costUsd
+    const terminal = TerminalRunStates.some((state) => state === input.nextState)
+    const hasUnpricedAttempt = this.attempts.some(
+      (attempt) => attempt.runId === input.claim.runId && attempt.pricing === "unpriced",
+    )
+    if (terminal && (input.pricing === "unpriced" || input.costUsd === null || hasUnpricedAttempt)) {
+      record.costUsd = null
+    } else if (input.costUsd !== undefined) {
+      record.costUsd = input.costUsd
+    }
     if (input.latencyMs !== undefined) record.latencyMs = input.latencyMs
     return { kind: "transitioned", stateVersion: record.stateVersion }
   }

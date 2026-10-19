@@ -160,6 +160,17 @@ export class PostgresRunStore implements RunStorePort {
       }
 
       const nextVersion = run.stateVersion + 1
+      const terminal = TerminalRunStates.some((state) => state === input.nextState)
+      const unpricedAttempts =
+        terminal && input.pricing !== "unpriced" && input.costUsd !== null
+          ? await tx
+              .select({ id: modelAttempts.id })
+              .from(modelAttempts)
+              .where(and(eq(modelAttempts.runId, input.claim.runId), eq(modelAttempts.pricing, "unpriced")))
+              .limit(1)
+          : []
+      const runIsUnpriced =
+        input.pricing === "unpriced" || input.costUsd === null || unpricedAttempts.length > 0
       const updateData: Record<string, unknown> = {
         state: input.nextState,
         stateVersion: nextVersion,
@@ -185,8 +196,8 @@ export class PostgresRunStore implements RunStorePort {
       if (input.completionTokens !== undefined) {
         updateData.completionTokens = input.completionTokens
       }
-      if (input.costUsd !== undefined) {
-        updateData.costUsd = String(input.costUsd)
+      if (input.costUsd !== undefined || (terminal && runIsUnpriced)) {
+        updateData.costUsd = runIsUnpriced ? null : String(input.costUsd)
       }
       if (input.latencyMs !== undefined) {
         updateData.latencyMs = input.latencyMs
@@ -227,7 +238,7 @@ export class PostgresRunStore implements RunStorePort {
       ...(run.promptTokens !== null && run.promptTokens !== undefined ? { promptTokens: run.promptTokens } : {}),
       ...(run.completionTokens !== null && run.completionTokens !== undefined ? { completionTokens: run.completionTokens } : {}),
       ...(totalTokens !== undefined ? { totalTokens } : {}),
-      ...(run.costUsd !== null && run.costUsd !== undefined ? { costUsd: run.costUsd } : {}),
+      ...(run.costUsd !== undefined ? { costUsd: run.costUsd } : {}),
       ...(run.latencyMs !== null && run.latencyMs !== undefined ? { latencyMs: run.latencyMs } : {}),
     }
   }
@@ -308,7 +319,8 @@ export class PostgresRunStore implements RunStorePort {
     promptTokens: number
     completionTokens: number
     totalTokens: number
-    costUsd: string | number
+    costUsd: string | number | null
+    pricing?: "priced" | "unpriced"
     latencyMs: number
     finishReason?: string | null
     requestJson: Record<string, unknown>
@@ -340,7 +352,8 @@ export class PostgresRunStore implements RunStorePort {
         promptTokens: attempt.promptTokens,
         completionTokens: attempt.completionTokens,
         totalTokens: attempt.totalTokens,
-        costUsd: String(attempt.costUsd),
+        costUsd: attempt.pricing === "unpriced" || attempt.costUsd === null ? null : String(attempt.costUsd),
+        pricing: attempt.pricing ?? "priced",
         latencyMs: attempt.latencyMs,
         finishReason: attempt.finishReason ?? null,
         requestJson: sanitizedRequest,

@@ -1,44 +1,97 @@
 // Adapted from OpenCode packages/cli/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { parseArgs } from "node:util"
-import { ConfigValidationError, ensureRootEnvLoaded, loadRuntimeConfig } from "./config"
-import { executeRunCommand } from "./commands/run"
-import { executeViewCommand } from "./commands/view"
-import { InMemoryRunStore, ScriptedModelGateway, textResponse } from "@harness/core/testing"
+import { resolve } from "node:path"
+import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
+import { DiskSourceSnapshot, MultiTurnRunner, SnapshotManager, ToolRegistry } from "@harness/core"
+import type { SnapshotManifest } from "@harness/core"
+import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
 import { PostgresRunStore } from "@harness/schema"
+import { priceUsage, RealModelGateway } from "@harness/llm"
+import {
+  ConfigValidationError,
+  ensureRootEnvLoaded,
+  findRepositoryRoot,
+  loadRuntimeConfig,
+  type RuntimeConfig,
+} from "./config"
+import { executeRepoAddCommand } from "./commands/repo"
+import { executeRunCommand } from "./commands/run"
+import { executeSnapshotListCommand } from "./commands/snapshot"
+import { executeViewCommand } from "./commands/view"
+import { redactSecrets } from "./redaction"
 
 export * from "./config"
 export * from "./redaction"
 export * from "./commands/run"
 export * from "./commands/view"
+export * from "./commands/repo"
+export * from "./commands/snapshot"
 
 export const HelpMessage = `
 Harness CLI - Smart-contract Judge Agent Loop
 
 Usage:
+  bun run cli:repo -- add <path> [--include-root <dir>]... [--snapshot-id <id>]
+  bun run cli:snapshot -- list
   bun run cli:run -- --prompt "<text>" [--model <name>] [--timeout <ms>]
-  bun run cli:view -- --id <runId>
+  bun run cli:run -- --snapshot <id> --prompt "<text>" [run limits]
+  bun run cli:view -- --id <runId> [--json]
 
 Commands:
-  run     Execute a single-turn prompt run through the model runner
-  view    Inspect historical run record and trajectory events
+  repo add       Ingest a repository into an immutable source snapshot
+  snapshot list  List registered source snapshots
+  run            Execute a single-turn or snapshot-backed multi-turn run
+  view           Inspect a historical run and its trajectory
 
 Options:
-  --prompt <text>     Prompt text to evaluate (required for run)
-  --model <name>      Model name to invoke (optional, defaults to config)
-  --timeout <ms>      Execution timeout in milliseconds (default: 30000)
-  --id <runId>        Run identifier to inspect (required for view)
-  --mock              Use in-memory fake runner and store for development/testing
-  -h, --help          Show this help message
+  --prompt <text>             Prompt text to evaluate (required for run)
+  --snapshot <id>             Use a registered source snapshot for tool calling
+  --model <name>              Model name to invoke (optional, defaults to config)
+  --timeout <ms>              Execution timeout in milliseconds
+  --max-steps <count>         Maximum model steps for a snapshot run
+  --max-tool-calls <count>    Maximum tool calls for a snapshot run
+  --max-output-tokens <count> Maximum output tokens per provider attempt
+  --max-total-tokens <count>  Maximum total tokens for the run
+  --max-cost-usd <amount>     Maximum priced usage cost for the run
+  --include-root <dir>        Include only this repository-relative path (repeatable)
+  --snapshot-id <id>          Set an explicit ID when registering a repository
+  --id <runId>                Run identifier to inspect (required for view)
+  --json                      Print a multi-turn run summary as JSON
+  --mock                      Use an in-memory store and scripted provider
+  -h, --help                  Show this help message
 `
 
 export interface CliParsedArgs {
   command?: string
+  subcommand?: string
+  positionals: string[]
   prompt?: string
   model?: string
   timeout?: string
+  snapshot?: string
   id?: string
   mock?: boolean
+  json?: boolean
   help?: boolean
+  snapshotId?: string
+  includeRoots: string[]
+  maxSteps?: string
+  maxToolCalls?: string
+  maxOutputTokens?: string
+  maxTotalTokens?: string
+  maxCostUsd?: string
+}
+
+export type CliWriter = (text: string) => void
+export type CliStore = RunStorePort & { close?: () => Promise<void> | void }
+
+export interface RunCliDependencies {
+  gatewayFactory?: (config: RuntimeConfig) => ModelGatewayPort
+  storeFactory?: (config: RuntimeConfig) => CliStore
+  env?: Record<string, string | undefined>
+  stdout?: CliWriter
+  stderr?: CliWriter
+  snapshotDir?: string
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
@@ -48,120 +101,458 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       prompt: { type: "string" },
       model: { type: "string" },
       timeout: { type: "string" },
+      snapshot: { type: "string" },
       id: { type: "string" },
       mock: { type: "boolean" },
+      json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
+      "snapshot-id": { type: "string" },
+      "include-root": { type: "string", multiple: true },
+      "max-steps": { type: "string" },
+      "max-tool-calls": { type: "string" },
+      "max-output-tokens": { type: "string" },
+      "max-total-tokens": { type: "string" },
+      "max-cost-usd": { type: "string" },
     },
     allowPositionals: true,
     strict: false,
   })
-
+  const includeRoot = values["include-root"]
   return {
     command: positionals[0],
-    prompt: typeof values.prompt === "string" ? values.prompt : undefined,
-    model: typeof values.model === "string" ? values.model : undefined,
-    timeout: typeof values.timeout === "string" ? values.timeout : undefined,
-    id: typeof values.id === "string" ? values.id : undefined,
+    subcommand: positionals[1],
+    positionals: positionals.slice(2),
+    prompt: asString(values.prompt),
+    model: asString(values.model),
+    timeout: asString(values.timeout),
+    snapshot: asString(values.snapshot),
+    id: asString(values.id),
     mock: Boolean(values.mock),
+    json: Boolean(values.json),
     help: Boolean(values.help),
+    snapshotId: asString(values["snapshot-id"]),
+    includeRoots: Array.isArray(includeRoot)
+      ? includeRoot.filter((root): root is string => typeof root === "string")
+      : typeof includeRoot === "string"
+        ? [includeRoot]
+        : [],
+    maxSteps: asString(values["max-steps"]),
+    maxToolCalls: asString(values["max-tool-calls"]),
+    maxOutputTokens: asString(values["max-output-tokens"]),
+    maxTotalTokens: asString(values["max-total-tokens"]),
+    maxCostUsd: asString(values["max-cost-usd"]),
   }
 }
 
-export async function runCli(argv: string[] = process.argv.slice(2)): Promise<number> {
-  const parsed = parseCliArgs(argv)
-
+export async function runCli(
+  argv: string[] = process.argv.slice(2),
+  deps: RunCliDependencies = {},
+): Promise<number> {
+  const stdout = deps.stdout ?? ((message: string) => console.log(message))
+  const stderr = deps.stderr ?? ((message: string) => console.error(message))
+  let parsed: CliParsedArgs
+  try {
+    parsed = parseCliArgs(argv)
+  } catch (error) {
+    stderr(`Error: ${safeError(error, [])}`)
+    return 1
+  }
   if (parsed.help || (!parsed.command && argv.length === 0)) {
-    console.log(HelpMessage.trim())
+    stdout(HelpMessage.trim())
     return 0
   }
-  ensureRootEnvLoaded()
 
+  if (deps.env === undefined) ensureRootEnvLoaded()
+  const env = deps.env ?? process.env
+  const snapshotDir = resolveSnapshotStorageDir(env, deps.snapshotDir)
+  const secrets = env.MODEL_API_KEY ? [env.MODEL_API_KEY] : []
+
+  if (parsed.command === "repo" && parsed.subcommand === "add") {
+    const result = await executeRepoAddCommand({
+      sourceDir: parsed.positionals[0],
+      storageDir: snapshotDir,
+      ...(parsed.includeRoots.length > 0 ? { includeRoots: parsed.includeRoots } : {}),
+      snapshotId: parsed.snapshotId,
+      secrets,
+    })
+    const write = result.exitCode === 0 ? stdout : stderr
+    write(redactSecrets(result.output, secrets))
+    return result.exitCode
+  }
+
+  if (parsed.command === "snapshot" && parsed.subcommand === "list") {
+    const result = await executeSnapshotListCommand({ storageDir: snapshotDir, secrets })
+    const write = result.exitCode === 0 ? stdout : stderr
+    write(redactSecrets(result.output, secrets))
+    return result.exitCode
+  }
 
   if (parsed.command === "run") {
-    let config
-    let store: PostgresRunStore | InMemoryRunStore | undefined
-    let gateway: ScriptedModelGateway | undefined
-
-    if (parsed.mock) {
-      store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
-      gateway = new ScriptedModelGateway([
-        textResponse("Hello from Harness CLI mock runner.", {
-          usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40, costUsd: 0.0001 },
-        }),
-      ])
-    } else {
-      try {
-        config = loadRuntimeConfig()
-      } catch (err) {
-        if (err instanceof ConfigValidationError) {
-          console.error(err.message)
-          return 1
-        }
-        throw err
-      }
-
-      if (config.databaseUrl) {
-        store = new PostgresRunStore({ url: config.databaseUrl })
-      }
-    }
-
-    try {
-      const { exitCode, output } = await executeRunCommand(
-        {
-          prompt: parsed.prompt,
-          model: parsed.model,
-          timeout: parsed.timeout,
-        },
-        { config, store, gateway },
-      )
-      console.log(output)
-      return exitCode
-    } finally {
-      if (store && "close" in store && typeof store.close === "function") {
-        await store.close()
-      }
-    }
+    return runCommand(parsed, deps, env, snapshotDir, stdout, stderr, secrets)
   }
 
   if (parsed.command === "view") {
-    if (parsed.mock) {
-      const store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
-      const { exitCode, output } = await executeViewCommand(
-        {
-          id: parsed.id,
-        },
-        { store },
-      )
-      console.log(output)
-      return exitCode
-    }
-
-    if (!process.env.DATABASE_URL) {
-      console.error("Error: DATABASE_URL is required to inspect persistent runs. Use --mock for in-memory testing.")
-      return 1
-    }
-
-    const store = new PostgresRunStore({ url: process.env.DATABASE_URL })
-    try {
-      const { exitCode, output } = await executeViewCommand(
-        {
-          id: parsed.id,
-        },
-        { store },
-      )
-      console.log(output)
-      return exitCode
-    } finally {
-      if (store && "close" in store && typeof store.close === "function") {
-        await store.close()
-      }
-    }
+    return viewCommand(parsed, deps, env, stdout, stderr, secrets)
   }
-  console.error(`Error: Unknown command '${parsed.command}'. See --help.`)
+
+  stderr(`Error: Unknown command '${parsed.command ?? ""}'. See --help.`)
   return 1
 }
 
-// Auto-run if executed directly via CLI
+async function runCommand(
+  parsed: CliParsedArgs,
+  deps: RunCliDependencies,
+  env: Record<string, string | undefined>,
+  snapshotDir: string,
+  stdout: CliWriter,
+  stderr: CliWriter,
+  secrets: string[],
+): Promise<number> {
+  let config: RuntimeConfig | undefined
+  let store: CliStore | undefined
+  try {
+    if (!parsed.mock && parsed.snapshot === undefined) config = loadCliConfig(env, deps.snapshotDir)
+
+    let snapshot: DiskSourceSnapshot | undefined
+    let snapshotFiles: string[] = []
+    if (parsed.snapshot !== undefined) {
+      let manifest: SnapshotManifest
+      try {
+        manifest = await SnapshotManager.loadSnapshotManifest(snapshotDir, parsed.snapshot)
+      } catch {
+        stderr(redactSecrets(`Error: Snapshot ${parsed.snapshot} not found`, secrets))
+        return 1
+      }
+      snapshot = new DiskSourceSnapshot({ storageDir: snapshotDir, snapshotId: parsed.snapshot, manifest })
+      snapshotFiles = await snapshot.listFiles({ snapshotId: parsed.snapshot })
+    }
+
+    if (!parsed.mock && parsed.snapshot !== undefined) config = loadCliConfig(env, deps.snapshotDir)
+
+    const prompt = parsed.prompt?.trim()
+    if (!prompt) {
+      stderr("Error: --prompt is required and cannot be empty.")
+      return 1
+    }
+
+    const timeoutOverride = parseLimit(parsed.timeout, "--timeout", "positiveInteger")
+    const maxOutputTokensOverride = parseLimit(parsed.maxOutputTokens, "--max-output-tokens", "positiveInteger")
+    if (timeoutOverride.error || maxOutputTokensOverride.error) {
+      stderr(`Error: ${timeoutOverride.error ?? maxOutputTokensOverride.error}`)
+      return 1
+    }
+
+    if (parsed.snapshot !== undefined && snapshot) {
+      const effectiveConfig = config
+      const profileId = parsed.model ?? effectiveConfig?.modelName ?? "mock-model"
+      const timeoutMs = timeoutOverride.value ?? effectiveConfig?.modelTimeoutMs ?? 30_000
+      const maxOutputTokens = maxOutputTokensOverride.value ?? effectiveConfig?.modelMaxOutputTokens ?? 4_096
+      const maxSteps = resolveLimit(
+        parsed.maxSteps,
+        effectiveConfig?.runLimits.maxSteps,
+        10,
+        "--max-steps",
+        "positiveInteger",
+      )
+      const maxToolCalls = resolveLimit(
+        parsed.maxToolCalls,
+        effectiveConfig?.runLimits.maxToolCalls,
+        20,
+        "--max-tool-calls",
+        "positiveInteger",
+      )
+      const maxTotalTokens = resolveLimit(
+        parsed.maxTotalTokens,
+        effectiveConfig?.runLimits.totalTokenBudget,
+        200_000,
+        "--max-total-tokens",
+        "positiveInteger",
+      )
+      const maxCostUsd = resolveLimit(
+        parsed.maxCostUsd,
+        effectiveConfig?.runLimits.costCeilingUsd,
+        5,
+        "--max-cost-usd",
+        "nonNegativeNumber",
+      )
+      const limits = {
+        wallClockTimeoutMs: timeoutMs,
+        maxSteps: maxSteps.value,
+        maxToolCalls: maxToolCalls.value,
+        totalTokenBudget: maxTotalTokens.value,
+        costCeilingUsd: maxCostUsd.value,
+      }
+      const validation = [
+        parseLimit(parsed.maxSteps, "--max-steps", "positiveInteger"),
+        parseLimit(parsed.maxToolCalls, "--max-tool-calls", "positiveInteger"),
+        parseLimit(parsed.maxTotalTokens, "--max-total-tokens", "positiveInteger"),
+        parseLimit(parsed.maxCostUsd, "--max-cost-usd", "nonNegativeNumber"),
+      ].find((item) => item.error)
+      if (validation?.error) {
+        stderr(`Error: ${validation.error}`)
+        return 1
+      }
+      const inputPrice = effectiveConfig?.modelInputCostPerMTok
+      const outputPrice = effectiveConfig?.modelOutputCostPerMTok
+      const priceOverride = inputPrice !== undefined && outputPrice !== undefined
+        ? { inputCostPerMTok: inputPrice, outputCostPerMTok: outputPrice }
+        : undefined
+      const profilePricing = parsed.mock
+        ? "priced"
+        : priceUsage(profileId, { promptTokens: 0, completionTokens: 0 }, priceOverride).pricing
+      if (profilePricing === "unpriced") {
+        stdout(redactSecrets(`Warning: cost is unknown for model ${profileId}; cost budget is not enforced.`, secrets))
+      }
+
+      if (parsed.mock) {
+        store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
+      } else if (effectiveConfig) {
+        store = deps.storeFactory
+          ? deps.storeFactory(effectiveConfig)
+          : new PostgresRunStore({ url: effectiveConfig.databaseUrl })
+      }
+      if (!store) throw new ConfigValidationError("Invalid runtime configuration:\n  DATABASE_URL: required")
+
+      const registry = new ToolRegistry({ snapshot, snapshotId: parsed.snapshot, secrets })
+      let gateway: ModelGatewayPort
+      if (parsed.mock) {
+        const firstFile = snapshotFiles[0]
+        if (!firstFile) {
+          stderr(`Error: Snapshot ${parsed.snapshot} contains no readable files.`)
+          return 1
+        }
+        gateway = new ScriptedModelGateway([
+          toolCallResponse([{ id: "mock-read-file-1", name: "read_file", arguments: { path: firstFile } }]),
+          textResponse("Mock run read a file from the registered snapshot and completed.", {
+            usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40, costUsd: 0.0001 },
+          }),
+        ])
+      } else if (effectiveConfig) {
+        const gatewayConfig = { ...effectiveConfig, modelName: profileId, modelTimeoutMs: timeoutMs }
+        gateway = deps.gatewayFactory ? deps.gatewayFactory(gatewayConfig) : createRealGateway(gatewayConfig, secrets)
+      } else {
+        throw new ConfigValidationError("Invalid runtime configuration:\n  MODEL_API_KEY: required", ["MODEL_API_KEY"])
+      }
+
+      const result = await new MultiTurnRunner({
+        store,
+        gateway,
+        registry,
+        snapshot,
+        secrets,
+        estimateCostUsd: (model, promptTokens, outputTokens) => {
+          const estimate = priceUsage(model, { promptTokens, completionTokens: outputTokens }, priceOverride)
+          return estimate.pricing === "priced" ? estimate.costUsd : undefined
+        },
+      }).execute({
+        prompt,
+        snapshotId: parsed.snapshot,
+        profileId,
+        pricing: profilePricing,
+        providerProfile: {
+          outputTokensField: effectiveConfig?.modelOutputTokensField ?? "max_tokens",
+          ...(inputPrice !== undefined ? { inputCostPerMTok: inputPrice } : {}),
+          ...(outputPrice !== undefined ? { outputCostPerMTok: outputPrice } : {}),
+        },
+        limits,
+        maxOutputTokens,
+        secrets,
+      })
+      const usagePricing = result.usage.pricing ?? profilePricing
+      const output = [
+        "========================================",
+        "Multi-turn Run Summary",
+        "========================================",
+        `Run ID:       ${result.runId}`,
+        `State:        ${result.state}`,
+        `Terminal:     ${result.terminalReason ?? "-"}`,
+        `Snapshot ID:  ${parsed.snapshot}`,
+        `Steps:        ${result.stepsExecuted}`,
+        `Tool calls:   ${result.toolCallsExecuted}`,
+        `Tokens:       ${result.usage.totalTokens} (prompt ${result.usage.promptTokens}, ` +
+          `completion ${result.usage.completionTokens})`,
+        `Cost:         ${usagePricing === "unpriced" ? "unknown" : `$${result.usage.costUsd.toFixed(6)} USD`}`,
+        `Observed:     ${JSON.stringify(result.observedLimits)}`,
+        ...(result.outputTruncated ? ["Output truncated: true"] : []),
+        "----------------------------------------",
+        "Model Output:",
+        redactSecrets(result.output ?? result.error ?? "", secrets),
+        "========================================",
+      ].join("\n")
+      stdout(redactSecrets(output, secrets))
+      return result.state === "completed" ? 0 : 1
+    }
+
+    if (parsed.mock) {
+      store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
+      const result = await executeRunCommand(
+        { prompt, model: parsed.model, timeout: parsed.timeout, maxOutputTokens: maxOutputTokensOverride.value },
+        {
+          store,
+          gateway: new ScriptedModelGateway([textResponse("Hello from Harness CLI mock runner.", {
+            usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40, costUsd: 0.0001 },
+          })]),
+        },
+      )
+      const write = result.exitCode === 0 ? stdout : stderr
+      write(redactSecrets(result.output, secrets))
+      return result.exitCode
+    }
+
+    if (!config) throw new ConfigValidationError("Invalid runtime configuration:\n  MODEL_API_KEY: required")
+    store = deps.storeFactory ? deps.storeFactory(config) : new PostgresRunStore({ url: config.databaseUrl })
+    const modelConfig = {
+      ...config,
+      modelName: parsed.model ?? config.modelName,
+      modelTimeoutMs: timeoutOverride.value ?? config.modelTimeoutMs,
+    }
+    const gateway = deps.gatewayFactory ? deps.gatewayFactory(modelConfig) : createRealGateway(modelConfig, secrets)
+    const pricing = priceUsage(
+      modelConfig.modelName,
+      { promptTokens: 0, completionTokens: 0 },
+      pricingOverrideFor(modelConfig),
+    ).pricing
+    if (pricing === "unpriced") {
+      stdout(redactSecrets(`Warning: cost is unknown for model ${modelConfig.modelName}.`, secrets))
+    }
+    const result = await executeRunCommand(
+      {
+        prompt,
+        model: modelConfig.modelName,
+        timeout: String(modelConfig.modelTimeoutMs),
+        maxOutputTokens: maxOutputTokensOverride.value,
+      },
+      { config: modelConfig, store, gateway, secrets, pricing },
+    )
+    const write = result.exitCode === 0 ? stdout : stderr
+    write(redactSecrets(result.output, secrets))
+    return result.exitCode
+  } catch (error) {
+    stderr(`Error: ${safeError(error, secrets)}`)
+    return 1
+  } finally {
+    await closeStore(store)
+  }
+}
+
+async function viewCommand(
+  parsed: CliParsedArgs,
+  deps: RunCliDependencies,
+  env: Record<string, string | undefined>,
+  stdout: CliWriter,
+  stderr: CliWriter,
+  secrets: string[],
+): Promise<number> {
+  let store: CliStore | undefined
+  try {
+    if (parsed.mock) {
+      store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
+    } else if (deps.storeFactory) {
+      const config = loadCliConfig(env, deps.snapshotDir)
+      store = deps.storeFactory(config)
+    } else {
+      if (!env.DATABASE_URL) {
+        stderr("Error: DATABASE_URL is required to inspect persistent runs. Use --mock for in-memory testing.")
+        return 1
+      }
+      store = new PostgresRunStore({ url: env.DATABASE_URL })
+    }
+    const result = await executeViewCommand({ id: parsed.id, json: parsed.json }, { store, secrets })
+    const write = result.exitCode === 0 ? stdout : stderr
+    write(redactSecrets(result.output, secrets))
+    return result.exitCode
+  } catch (error) {
+    stderr(`Error: ${safeError(error, secrets)}`)
+    return 1
+  } finally {
+    await closeStore(store)
+  }
+}
+
+async function closeStore(store: CliStore | undefined): Promise<void> {
+  if (typeof store?.close !== "function") return
+  try {
+    await Promise.resolve(store.close())
+  } catch {
+    // Preserve the command result if cleanup itself fails.
+  }
+}
+
+function loadCliConfig(env: Record<string, string | undefined>, snapshotDir?: string): RuntimeConfig {
+  const configuredSnapshotDir = snapshotDir ?? env.HARNESS_SNAPSHOT_DIR
+  const configEnv = configuredSnapshotDir ? { ...env, HARNESS_SNAPSHOT_DIR: configuredSnapshotDir } : env
+  return loadRuntimeConfig(configEnv)
+}
+
+function resolveSnapshotStorageDir(env: Record<string, string | undefined>, override?: string): string {
+  const configured = override ?? env.HARNESS_SNAPSHOT_DIR?.trim()
+  return configured || resolve(findRepositoryRoot(), "data", "snapshots")
+}
+
+function createRealGateway(config: RuntimeConfig, secrets: string[]): RealModelGateway {
+  return new RealModelGateway({
+    apiKey: config.modelApiKey,
+    model: config.modelName,
+    outputTokensField: config.modelOutputTokensField,
+    inputCostPerMTok: config.modelInputCostPerMTok,
+    outputCostPerMTok: config.modelOutputCostPerMTok,
+    baseURL: config.modelBaseUrl,
+    timeoutMs: config.modelTimeoutMs,
+    secrets,
+  })
+}
+
+function pricingOverrideFor(config: RuntimeConfig) {
+  return config.modelInputCostPerMTok !== undefined && config.modelOutputCostPerMTok !== undefined
+    ? { inputCostPerMTok: config.modelInputCostPerMTok, outputCostPerMTok: config.modelOutputCostPerMTok }
+    : undefined
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined
+}
+
+interface LimitResult {
+  value?: number
+  error?: string
+}
+
+interface ResolvedLimit {
+  value: number
+  error?: string
+}
+
+function parseLimit(
+  value: string | undefined,
+  flag: string,
+  kind: "positiveInteger" | "nonNegativeNumber",
+): LimitResult {
+  if (value === undefined) return {}
+  const parsed = Number(value)
+  const valid = Number.isFinite(parsed) &&
+    (kind === "positiveInteger" ? Number.isInteger(parsed) && parsed > 0 : parsed >= 0)
+  return valid
+    ? { value: parsed }
+    : { error: `${flag} must be a ${kind === "positiveInteger" ? "positive integer" : "non-negative number"}.` }
+}
+
+function resolveLimit(
+  flagValue: string | undefined,
+  envValue: number | undefined,
+  defaultValue: number,
+  flag: string,
+  kind: "positiveInteger" | "nonNegativeNumber",
+): ResolvedLimit {
+  const parsed = parseLimit(flagValue, flag, kind)
+  return { value: parsed.value ?? envValue ?? defaultValue, ...(parsed.error ? { error: parsed.error } : {}) }
+}
+
+function safeError(error: unknown, secrets: readonly string[]): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return redactSecrets(message, secrets)
+}
+
+// Auto-run if executed directly via CLI.
 if (import.meta.main) {
   runCli().then((code) => {
     if (code !== 0) process.exit(code)

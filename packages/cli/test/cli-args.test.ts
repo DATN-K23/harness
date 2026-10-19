@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parseCliArgs } from "../src/index"
+import { HelpMessage, parseCliArgs, runCli } from "../src/index"
 
 describe("parseCliArgs", () => {
   test("parses run command with prompt, model, and timeout flags", () => {
@@ -38,4 +38,34 @@ describe("parseCliArgs", () => {
     expect(parsed.prompt).toBeUndefined()
     expect(parsed.model).toBeUndefined()
   })
+})
+
+
+test("help lists repository, snapshot, run and view commands", async () => {
+  const output: string[] = []
+  const exitCode = await runCli(["--help"], { stdout: (message) => output.push(message) })
+  expect(exitCode).toBe(0)
+  expect(output.join("\n")).toContain("repo add")
+  expect(output.join("\n")).toContain("snapshot list")
+  expect(output.join("\n")).toContain("  run            ")
+  expect(output.join("\n")).toContain("  view           ")
+  expect(output.join("\n")).toContain("--snapshot <id>")
+  expect(output.join("\n")).toContain("--json")
+  expect(HelpMessage).toContain("--max-cost-usd")
+})
+
+
+test("parses repeatable include roots and snapshot run budgets", () => {
+  const parsed = parseCliArgs([
+    "repo", "add", "./repo", "--include-root", "src", "--include-root", "contracts", "--snapshot-id", "snap_test",
+  ])
+  expect(parsed.command).toBe("repo")
+  expect(parsed.subcommand).toBe("add")
+  expect(parsed.positionals).toEqual(["./repo"])
+  expect(parsed.includeRoots).toEqual(["src", "contracts"])
+  expect(parsed.snapshotId).toBe("snap_test")
+  const run = parseCliArgs(["run", "--snapshot", "snap_test", "--max-steps", "5", "--max-cost-usd", "0.2"])
+  expect(run.snapshot).toBe("snap_test")
+  expect(run.maxSteps).toBe("5")
+  expect(run.maxCostUsd).toBe("0.2")
 })

@@ -123,3 +123,19 @@ describe("loadRuntimeConfig", () => {
   })
 
 })
+
+describe("applyEnvFile", () => {
+  test("loads unset keys, strips quotes and comments, and never overrides existing values", async () => {
+    const { applyEnvFile } = await import("../src/config")
+    const target: Record<string, string | undefined> = { MODEL_NAME: "from-process" }
+    applyEnvFile(
+      ['# comment', 'MODEL_NAME=from-file', 'MODEL_BASE_URL="http://127.0.0.1:20128/v1"', "export PROVIDER_NAME=openai # note", "not a line"].join("\r\n"),
+      target,
+    )
+    expect(target).toEqual({
+      MODEL_NAME: "from-process",
+      MODEL_BASE_URL: "http://127.0.0.1:20128/v1",
+      PROVIDER_NAME: "openai",
+    })
+  })
+})

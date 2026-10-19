@@ -39,6 +39,22 @@ describe("executeRunCommand", () => {
     expect(output).toContain("Smart contracts are immutable programs on blockchain.")
   })
 
+  test("prints unknown cost for an unpriced single-turn response", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const gateway = new ScriptedModelGateway([
+      textResponse("Answer without a registry price.", {
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30, costUsd: 0, pricing: "unpriced" },
+      }),
+    ])
+    const { exitCode, output } = await executeRunCommand(
+      { prompt: "Test unpriced cost", model: "cx/gpt-6-luna" },
+      { store, gateway },
+    )
+    expect(exitCode).toBe(0)
+    expect(output).toContain("Cost:         unknown")
+    expect(output).not.toContain("$0.000000")
+  })
+
   test("gracefully handles and redacts errors during model execution", async () => {
     const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
     const apiKey = "sk-secret-leaked-key-123456"
@@ -172,19 +188,19 @@ describe("executeRunCommand", () => {
     const prevEnv = { ...process.env }
     delete process.env.DATABASE_URL
 
-    const outLogs: string[] = []
-    const originalLog = console.log
-    console.log = (...args: unknown[]) => {
-      outLogs.push(args.map(String).join(" "))
+    const errLogs: string[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      errLogs.push(args.map(String).join(" "))
     }
 
     try {
       const exitCode = await runCli(["view", "--id", "run-mock-123", "--mock"])
-      // Run is not found in fresh mock store, but it executes through view command without DATABASE_URL error
+      // Run is not found in fresh mock store, but it executes through view command without DATABASE_URL error.
       expect(exitCode).toBe(1)
-      expect(outLogs.join("\n")).toContain("Error: Run 'run-mock-123' not found in persistent store.")
+      expect(errLogs.join("\n")).toContain("Error: Run 'run-mock-123' not found in persistent store.")
     } finally {
-      console.log = originalLog
+      console.error = originalError
       process.env = prevEnv
     }
   })

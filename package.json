@@ -11,7 +11,9 @@
     "demo": "bun run --cwd packages/core demo",
     "cli:run": "bun run --cwd packages/cli dev -- run",
     "cli:view": "bun run --cwd packages/cli dev -- view",
-    "db:migrate": "bun run --cwd packages/schema db:migrate"
+    "db:migrate": "bun run --cwd packages/schema db:migrate",
+    "cli:repo": "bun run --cwd packages/cli dev -- repo",
+    "cli:snapshot": "bun run --cwd packages/cli dev -- snapshot"
   },
   "workspaces": {
     "packages": [

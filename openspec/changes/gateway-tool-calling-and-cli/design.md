@@ -215,7 +215,7 @@ A local 9router `0.5.104` was set up with the user's Codex account only. It was 
 |---|---|---|
 | Missing API key | 401 | Key enforcement works |
 | `cx/gpt-5.5` | 400 "not supported when using Codex with a ChatGPT account" | Use `cx/gpt-6-luna` |
-| Plain prompt, about 8 tokens | 200, `prompt_tokens` 2,494 | About 2,490 hidden prompt tokens are injected upstream. The pre-call estimate (`estimatePromptTokens`) undercounts them, but the post-response token budget still uses the reported usage. The persisted trajectory is not byte-identical to what the model saw; runbook and run reports must state this |
+| Plain prompt, about 8 tokens | 200, `prompt_tokens` 2,494 | About 2,490 hidden prompt tokens are injected upstream **when the request has no system message**. The live snapshot run on 2026-10-19, which sends Harness's own system prompt, reported 326 prompt tokens for step 1, so no such overhead was visible there. The provider's exact model-visible input is still not guaranteed to equal the persisted trajectory; the runbook states this |
 | `max_tokens: 16` / `max_completion_tokens: 16` | Both ignored (403 completion tokens, `stop`) | D4 still sends the field (spec checks the captured request). On this provider the output cap is enforced only by the runner's post-response budget. The runbook must state this |
 | `tools` + forced tool use | `tool_calls` with call ID and JSON arguments | Tool calling works through 9router |
 | Tool-result round trip | Correct answer from the tool content | Call-ID linkage works |

@@ -1,8 +1,16 @@
 // Adapted from OpenCode packages/cli/test/cli-e2e-persistence.test.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { describe, expect, test } from "bun:test"
+import * as fs from "node:fs/promises"
+import * as os from "node:os"
+import * as path from "node:path"
 import postgres from "postgres"
 import { DEFAULT_DATABASE_URL, PostgresRunStore, runMigrations } from "@harness/schema"
 import { ScriptedModelGateway, textResponse } from "@harness/core/testing"
+import { SnapshotManager } from "@harness/core"
+import { RealModelGateway } from "@harness/llm"
+import { RecordingClient, readRecordingFixture } from "../../llm/test/support/recording-client"
+import { runCli } from "../src/index"
+import type { RuntimeConfig } from "../src/config"
 import { executeRunCommand } from "../src/commands/run"
 import { executeViewCommand } from "../src/commands/view"
 
@@ -26,6 +34,64 @@ if (postgresAvailable) {
   await runMigrations({ url: testDatabaseUrl })
 
   describe("CLI E2E Persistence Integration (PostgreSQL)", () => {
+    test("persists a multi-turn snapshot run and inspects it through a fresh CLI store", async () => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), "harness-cli-postgres-"))
+      const sourceDir = path.join(root, "source")
+      const snapshotDir = path.join(root, "snapshots")
+      await fs.mkdir(path.join(sourceDir, "src"), { recursive: true })
+      await fs.writeFile(path.join(sourceDir, "src", "Vault.sol"), "contract Vault { uint256 value; }\n", "utf8")
+      await SnapshotManager.ingestRepository({ sourceDir, storageDir: snapshotDir, snapshotId: "snap_pg_cli" })
+
+      const env = {
+        DATABASE_URL: testDatabaseUrl,
+        PROVIDER_NAME: "openai",
+        MODEL_NAME: "gpt-4o-mini",
+        MODEL_API_KEY: "test-key-for-recorded-gateway",
+        HARNESS_SNAPSHOT_DIR: snapshotDir,
+      }
+      const gatewayFactory = (config: RuntimeConfig) => {
+        const recording = new RecordingClient(readRecordingFixture("tool-call-then-answer"))
+        return new RealModelGateway({
+          apiKey: config.modelApiKey,
+          model: config.modelName,
+          outputTokensField: config.modelOutputTokensField,
+          inputCostPerMTok: config.modelInputCostPerMTok,
+          outputCostPerMTok: config.modelOutputCostPerMTok,
+          baseURL: config.modelBaseUrl,
+          timeoutMs: config.modelTimeoutMs,
+          client: recording.client,
+          secrets: [config.modelApiKey],
+        })
+      }
+      const deps = {
+        env,
+        snapshotDir,
+        storeFactory: (config: RuntimeConfig) => new PostgresRunStore({ url: config.databaseUrl }),
+        gatewayFactory,
+      }
+      const runOutput: string[] = []
+      const runExitCode = await runCli(
+        ["run", "--snapshot", "snap_pg_cli", "--prompt", "Summarise Vault"],
+        { ...deps, stdout: (message) => runOutput.push(message) },
+      )
+      const runId = runOutput.join("\n").match(/Run ID:\s+(\S+)/)?.[1]
+      expect(runExitCode).toBe(0)
+      expect(runId).toBeDefined()
+
+      const viewOutput: string[] = []
+      const viewExitCode = await runCli(
+        ["view", "--id", runId!],
+        { ...deps, stdout: (message) => viewOutput.push(message) },
+      )
+      expect(viewExitCode).toBe(0)
+      expect(viewOutput.join("\n")).toContain("Snapshot ID:  snap_pg_cli")
+      expect(viewOutput.join("\n")).toContain("Step 1 attempt 1")
+      expect(viewOutput.join("\n")).toContain("Step 2 attempt 1")
+      expect(viewOutput.join("\n")).toContain("Tool read_file: completed")
+      expect(viewOutput.join("\n")).toContain("contract Vault")
+      await fs.rm(root, { recursive: true, force: true })
+    })
+
     test("persists run execution to Postgres and inspects it via fresh store instance across simulated restart", async () => {
       const store1 = new PostgresRunStore({ url: testDatabaseUrl })
       const mockModelOutput =

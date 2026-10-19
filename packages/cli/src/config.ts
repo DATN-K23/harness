@@ -1,5 +1,5 @@
 // Adapted from OpenCode packages/core/src/config.ts @ 3f393d78bf (MIT License). See NOTICE.
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { z } from "zod"
 
@@ -15,7 +15,7 @@ export function findRootEnvFile(startDir: string = process.cwd()): string | unde
   return undefined
 }
 
-const findRepositoryRoot = (startDir: string): string => {
+export const findRepositoryRoot = (startDir: string = process.cwd()): string => {
   let curr = resolve(startDir)
   while (true) {
     if (existsSync(resolve(curr, "turbo.json"))) return curr
@@ -32,13 +32,28 @@ export function ensureRootEnvLoaded(): void {
   if (envLoaded || process.env.NODE_ENV === "test") return
   envLoaded = true
   const envPath = findRootEnvFile(process.cwd()) ?? findRootEnvFile(import.meta.dir)
+  if (!envPath) return
   const processWithEnvFileLoader = process as typeof process & { loadEnvFile?: (path: string) => void }
-  if (envPath && typeof processWithEnvFileLoader.loadEnvFile === "function") {
-    try {
-      processWithEnvFileLoader.loadEnvFile(envPath)
-    } catch {
-      // Ignore error loading env file
-    }
+  try {
+    if (typeof processWithEnvFileLoader.loadEnvFile === "function") processWithEnvFileLoader.loadEnvFile(envPath)
+    // Bun has no process.loadEnvFile and only auto-loads .env from the working directory.
+    else applyEnvFile(readFileSync(envPath, "utf8"), process.env)
+  } catch {
+    // Ignore error loading env file
+  }
+}
+
+/** Applies `KEY=value` lines to `target` without overriding variables that are already set. */
+export function applyEnvFile(content: string, target: Record<string, string | undefined>): void {
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (line === "" || line.startsWith("#")) continue
+    const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+    if (!match) continue
+    const [, key, rawValue] = match
+    if (target[key!] !== undefined) continue
+    const quoted = rawValue!.match(/^(["'])(.*)\1$/)
+    target[key!] = quoted ? quoted[2]! : rawValue!.replace(/\s+#.*$/, "")
   }
 }
 

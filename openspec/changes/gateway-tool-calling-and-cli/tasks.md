@@ -117,40 +117,40 @@ Owners follow `docs/sprints/sprint-03.md`: C = runner/history, D = gateway/CLI. 
 
 ## 5. CLI
 
-- [ ] 5.1 [Owner: D] Add `packages/cli/src/commands/repo.ts` for `repo add <path> [--include-root <dir>]... [--snapshot-id <id>]`.
+- [x] 5.1 [Owner: D] Add `packages/cli/src/commands/repo.ts` for `repo add <path> [--include-root <dir>]... [--snapshot-id <id>]`.
   - Use `SnapshotManager.ingestRepository` into `HARNESS_SNAPSHOT_DIR`.
   - Print the snapshot ID, the file count and the skipped counts by reason.
   - Evidence: the "Register a repository" scenario on a temp repository, with the source tree unchanged afterwards.
-- [ ] 5.2 [Owner: D] Add `packages/cli/src/commands/snapshot.ts` for `snapshot list`.
+- [x] 5.2 [Owner: D] Add `packages/cli/src/commands/snapshot.ts` for `snapshot list`.
   - Print ID, file count, tree digest and ingestion policy version.
   - Evidence: the "List snapshots" scenario.
-- [ ] 5.3 [Owner: D] Implement `run --snapshot <id>` in `commands/run.ts` per design D9.
+- [x] 5.3 [Owner: D] Implement `run --snapshot <id>` in `commands/run.ts` per design D9.
   - Wiring: `DiskSourceSnapshot` + `ToolRegistry({ snapshot, snapshotId })` + `MultiTurnRunner` + `RealModelGateway` + `PostgresRunStore`.
   - Limit flags override the environment, which overrides the defaults. An unknown snapshot exits 1 before any model call.
   - Print the cost as "unknown" with a warning when unpriced.
   - `run` without `--snapshot` stays single-turn.
   - Evidence: the three "Multi-turn run against a snapshot" scenarios with a recording client injected through a gateway factory.
-- [ ] 5.4 [Owner: D] Remove the silent scripted-gateway fallback from `executeRunCommand`.
+- [x] 5.4 [Owner: D] Remove the silent scripted-gateway fallback from `executeRunCommand`.
   - `--mock` uses `InMemoryRunStore` and a scripted gateway that performs one `read_file` call and then answers.
   - Evidence: the "Missing key does not fall back to a mock" scenario; the existing `--mock` tests are updated.
-- [ ] 5.5 [Owner: D] Extend `commands/view.ts` per design D10.
+- [x] 5.5 [Owner: D] Extend `commands/view.ts` per design D10.
   - Multi-turn layout from 3.5, `--json` output, cost "unknown" when unpriced.
   - Single-turn runs keep their current layout.
   - Evidence: the "View a multi-turn run from a new process" scenario, using a fresh store instance over the same data, plus the existing view tests.
-- [ ] 5.6 [Owner: D] Update the help text and the `cli:*` scripts in the root `package.json` for `repo`, `snapshot`, `run` and `view`.
+- [x] 5.6 [Owner: D] Update the help text and the `cli:*` scripts in the root `package.json` for `repo`, `snapshot`, `run` and `view`.
   - Evidence: a help-output test lists every command.
 
 ## 6. Documentation and verification
 
-- [ ] 6.1 [Owner: D] Update `.env.example` and `docs/environment-setup.md` with the full flow.
+- [x] 6.1 [Owner: D] Update `.env.example` and `docs/environment-setup.md` with the full flow.
   - Flow: configuration, `db:migrate`, `repo add`, `snapshot list`, `run --snapshot`, `view`.
   - Explain the output field, explicit prices, the cost-unknown rule and `--mock`.
   - Evidence: the documented `--mock` commands run as written.
-- [ ] 6.2 [Owner: D with C] Run the offline integration cases and record the results here.
+- [x] 6.2 [Owner: D with C] Run the offline integration cases and record the results here.
   - Cases: tool call then answer, wrong configuration, auth/rate-limit/server errors, timeout.
   - Compare each gateway response with the stored attempt row and history: call IDs, finish reason, usage and pricing.
   - Evidence: the "Integration cases run without network" scenario; `bun run typecheck` reports 6/6; the `bun run test` totals are recorded.
-- [ ] 6.3 [Gate G2; Owner: D with the team; human approval required] Do one live smoke run.
+- [x] 6.3 [Gate G2; Owner: D with the team; human approval required] Do one live smoke run.
   - Steps: `repo add` on a small Solidity fixture, `run --snapshot` with `--max-cost-usd` set, then `view` from a new process.
   - Prerequisites: the user's provider key, and a chosen model and budget. Run it only after explicit approval.
   - Evidence:
@@ -158,5 +158,33 @@ Owners follow `docs/sprints/sprint-03.md`: C = runner/history, D = gateway/CLI. 
     - the tool calls made;
     - the usage and cost;
     - which DB parts ran and which were skipped.
-- [ ] 6.4 [Owner: D] Tick the Track D items and the Sprint 2 carry-over items that this change completes in `docs/sprints/sprint-03.md`. The carry-over items are output limit, usage/cost, and run evidence after G2. Add a short note per item linking this change.
+- [x] 6.4 [Owner: D] Tick the Track D items and the Sprint 2 carry-over items that this change completes in `docs/sprints/sprint-03.md`. The carry-over items are output limit, usage/cost, and run evidence after G2. Add a short note per item linking this change.
   - Evidence: the diff of the sprint file.
+
+### Verification evidence (sections 5-6, 2026-10-19)
+
+- `bun run typecheck`: 6 of 6.
+- `bun turbo test` against live PostgreSQL: protocol 142, core 774, schema 31, llm 39, cli 48. 0 failures, stable across repeated parallel runs.
+- **6.1:** the documented `--mock` commands run as written.
+  - `cli:run --snapshot <id> --prompt Find --mock` completes with 2 steps and 1 tool call.
+  - Without `--mock`, a missing key or database URL exits 1 and names the missing settings.
+- **6.2:** the offline integration cases are the llm recording-client tests and the CLI tests.
+  - Cases covered: tool call then answer, wrong configuration, 401, 429, 500, timeout, malformed arguments, truncation, content filter, overflow.
+  - The Postgres CLI variants ran for real, not skipped.
+- **6.3 (G2):** live smoke run, approved by the user on 2026-10-18.
+  - Setup: 9router `0.5.104` on `127.0.0.1:20128`, `cx/gpt-6-luna`, PostgreSQL 16 in Docker.
+  - Steps:
+    1. `repo add` on a one-contract Solidity fixture produced `snap_a17543c5d14e`: 1 file, with `.env` skipped as `denied`.
+    2. `run --snapshot snap_a17543c5d14e --max-steps 6 --max-tool-calls 6` produced run `run_15483a430001bUwCuCNJRpOuH6`.
+    3. `view --id run_15483a430001bUwCuCNJRpOuH6` from a new process showed both steps, the tool call and its result preview.
+  - Run result:
+    - state `completed`, 2 steps, 1 `read_file` call on `src/Vault.sol`;
+    - the model identified the `withdrawAll()` reentrancy with line evidence;
+    - 880 tokens (prompt 793, completion 87), cost `unknown` with the warning.
+  - In `model_attempts`, both rows have `pricing = unpriced` and `cost_usd IS NULL`. No event payload contains the API key.
+  - DB parts that ran: `runs`, `events`, `model_attempts` (migrations 0000-0002). Nothing was skipped.
+- **Controller fixes in this section:**
+  - **Bun has no `process.loadEnvFile`**, so the root `.env` was never loaded from `packages/cli`. Added a fallback `.env` reader that never overrides variables already set.
+  - **Codex emptied `docs/environment-setup.md`.** It was restored from git and the runbook was written by the controller.
+  - **Two typecheck fixes:** `--include-root` parsing, and a test import of `InMemoryRunStore` from `@harness/core/testing`.
+- **Known environment quirk, documented in the runbook and not fixed:** on Windows, with Bun installed under a path containing spaces, a nested `bun run cli:*` script splits quoted multi-word arguments. Calling `bun run --cwd packages/cli src/index.ts …` works.

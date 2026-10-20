@@ -3,7 +3,6 @@ import { z } from "zod"
 /** Ordered by precedence: the first exhausted entry wins when several limits are reached at one safe boundary. */
 export const StopReasons = [
   "wall_clock_timeout",
-  "cost_budget_exhausted",
   "total_tokens_exhausted",
   "max_steps_exceeded",
   "max_tool_calls_exceeded",
@@ -29,7 +28,6 @@ export type BudgetTerminalReason = (typeof BudgetTerminalReasons)[number]
 
 export const StopReasonToTerminalReason = {
   wall_clock_timeout: "wall_clock",
-  cost_budget_exhausted: "cost_budget",
   total_tokens_exhausted: "total_tokens",
   max_steps_exceeded: "max_steps",
   max_tool_calls_exceeded: "max_tool_calls",
@@ -39,6 +37,7 @@ export const StopReasonToTerminalReason = {
 
 /** Terminal and error reasons by blueprint namespace (blueprint/vocabulary.md, vocabulary-v2). */
 export const TerminalReasonNamespaces = {
+  // Keep cost_budget in the terminal vocabulary so historical runs still parse.
   budget: BudgetTerminalReasons,
   provider: [
     "pre_network_profile_rejected",
@@ -69,7 +68,8 @@ export const BudgetTerminalReasonSchema = z.enum(BudgetTerminalReasons)
 
 export const BudgetLimitsSchema = z.object({
   wallClockTimeoutMs: z.number().int().positive(),
-  costCeilingUsd: z.number().nonnegative(),
+  /** Historical snapshots retain this value for digest compatibility; new run configs never set or enforce it. */
+  costCeilingUsd: z.number().nonnegative().optional(),
   totalTokenBudget: z.number().int().positive(),
   maxSteps: z.number().int().positive(),
   maxToolCalls: z.number().int().positive().optional(),

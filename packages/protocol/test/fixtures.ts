@@ -9,6 +9,7 @@ export const contextPolicy = (): ContextPolicy => ({
   windowLimitTokens: 100000,
   outputReserveTokens: 4000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 20000,
   toolOutputMaxTokens: 4000,
   toolOutputMaxLines: 200,
@@ -48,7 +49,6 @@ export const snapshot = (): RunConfigSnapshot => ({
   },
   budget: {
     wallClockTimeoutMs: 600000,
-    costCeilingUsd: 5,
     totalTokenBudget: 500000,
     maxSteps: 20,
     noProgressMaxRepeats: 3,
@@ -57,6 +57,11 @@ export const snapshot = (): RunConfigSnapshot => ({
   systemPromptDigest: digest("a"),
   verdictSchemaDigest: digest("b"),
 })
+
+export const legacySnapshot = () => {
+  const { safetyMarginFactor: _newField, ...legacyPolicy } = contextPolicy()
+  return { ...snapshot(), contextPolicy: legacyPolicy }
+}
 
 export const contextItem = (overrides: Partial<ContextItem> = {}): ContextItem => ({
   id: "item-1",

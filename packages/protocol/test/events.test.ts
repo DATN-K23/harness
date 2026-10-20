@@ -8,7 +8,7 @@ import {
   TrajectoryEventSchema,
   type EventType,
 } from "../src/events"
-import { contextItem, digest, snapshot, verdict } from "./fixtures"
+import { contextItem, digest, legacySnapshot, snapshot, verdict } from "./fixtures"
 
 const blueprintTypes = [
   "run.accepted",
@@ -52,7 +52,10 @@ const telemetry = {
 const payloads: Record<EventType, Record<string, unknown>> = {
   "run.accepted": {},
   "run.queued": {},
-  "run.started": { snapshot: snapshot(), snapshotDigest: digest("d") },
+  "run.started": {
+    snapshot: legacySnapshot(),
+    snapshotDigest: digest("d"),
+  },
   "context.allocated": { stepIndex: 1, telemetry },
   "context.transformed": {
     action: "masked",
@@ -212,7 +215,7 @@ describe("event payloads", () => {
     expect(TrajectoryEventSchema.safeParse(event({ type: "run.started", payload })).success).toBe(true)
   })
 
-  test("run.started records optional provider profile and cost-budget enforcement", () => {
+  test("run.started records optional provider profile and accepts legacy cost-budget telemetry", () => {
     const payload = {
       ...payloads["run.started"],
       costBudgetEnforced: false,
@@ -310,11 +313,32 @@ describe("event payloads", () => {
   test("context.allocated telemetry carries the content digest", () => {
     const { contentDigest: _omitted, ...rest } = telemetry
     const payload = { stepIndex: 1, telemetry: rest }
-    expect(failure(event({ type: "context.allocated", payload }))[0].path).toEqual([
-      "payload",
-      "telemetry",
-      "contentDigest",
-    ])
+    expect(failure(event({ type: "context.allocated", payload })).some((issue) =>
+      JSON.stringify(issue.path) === JSON.stringify(["payload", "telemetry", "contentDigest"]),
+    )).toBe(true)
+  })
+
+  test("legacy context allocation payloads remain valid and additive request telemetry is validated", () => {
+    expect(EventPayloadSchemas["context.allocated"].safeParse({ stepIndex: 1, telemetry }).success).toBe(true)
+    const extended = {
+      stepIndex: 1,
+      telemetry: {
+        ...telemetry,
+        requestDigest: `sha256:${"a".repeat(64)}`,
+        estimatedOutputTokens: 4096,
+        actualUsage: null,
+        usageDelta: null,
+      },
+    }
+    expect(EventPayloadSchemas["context.allocated"].safeParse(extended).success).toBe(true)
+    expect(EventPayloadSchemas["context.allocated"].safeParse({
+      ...extended,
+      telemetry: { ...extended.telemetry, estimatedInputTokens: 1.5 },
+    }).success).toBe(false)
+    expect(EventPayloadSchemas["context.allocated"].safeParse({
+      ...extended,
+      telemetry: { ...extended.telemetry, requestDigest: "prompt/tool raw text" },
+    }).success).toBe(false)
   })
 })
 

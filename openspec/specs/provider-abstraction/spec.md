@@ -28,7 +28,7 @@ The blueprint SHALL define provider, immutable model identifier/version, endpoin
 - **THEN** all reproducibility and fairness metadata is retained while credentials and secret headers are explicitly prohibited
 
 ### Requirement: Error and retry normalization
-The blueprint MUST define transient and permanent error categories, retry eligibility, maximum attempts, backoff representation, provider-attempt telemetry, and accounting against wall-clock and cost budgets.
+The blueprint MUST define transient and permanent error categories, retry eligibility, maximum attempts, backoff representation, provider-attempt telemetry, and accounting against wall-clock and token budgets. Cost remains usage metadata and does not control retry or run-stop behavior.
 
 #### Scenario: Permanent error is modeled
 - **GIVEN** an authentication, validation, or unsupported-feature failure

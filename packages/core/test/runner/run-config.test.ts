@@ -20,6 +20,7 @@ const policyFor = (flags: ResolvedFlags): ContextPolicy => ({
   windowLimitTokens: 128_000,
   outputReserveTokens: 8_000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 20_000,
   toolOutputMaxTokens: 4_000,
   toolOutputMaxLines: 200,
@@ -33,7 +34,6 @@ const inputWith = (flags: ResolvedFlags): RunConfigInput => ({
   retry: DefaultRetryConfig,
   limits: {
     wallClockTimeoutMs: 600_000,
-    costCeilingUsd: 5,
     totalTokenBudget: 400_000,
     maxSteps: 25,
     noProgressMaxRepeats: 3,
@@ -97,6 +97,29 @@ describe("buildRunConfigSnapshot", () => {
       { ...input, verdictSchemaDigest: `sha256:${sha256Hex("other schema")}` },
     ]
     variants.forEach((variant) => expect(buildRunConfigSnapshot(variant).digest).not.toBe(base))
+  })
+
+  test("the immutable context policy includes the shared Sprint 6 values and changes the snapshot digest", () => {
+    const input = inputWith(allOn)
+    input.policy = {
+      ...input.policy,
+      policyVersion: "sprint-6-v1",
+      windowLimitTokens: 16_384,
+      outputReserveTokens: 4_096,
+      compactionThreshold: 0.8,
+      safetyMarginFactor: 1.2,
+    }
+    const baseline = buildRunConfigSnapshot(input)
+    const changed = buildRunConfigSnapshot({ ...input, policy: { ...input.policy, outputReserveTokens: 2048 } })
+    expect(baseline.snapshot.contextPolicy).toEqual(input.policy)
+    expect(baseline.digest).not.toBe(changed.digest)
+  })
+
+  test("legacy snapshots without the safety margin parse with the compatibility default", () => {
+    const current = buildRunConfigSnapshot(inputWith(allOn)).snapshot
+    const { safetyMarginFactor: _omitted, ...legacyPolicy } = current.contextPolicy
+    const parsed = RunConfigSnapshotSchema.parse({ ...current, contextPolicy: legacyPolicy })
+    expect(parsed.contextPolicy.safetyMarginFactor).toBe(1.2)
   })
 
   test("context flags that disagree with the policy flags are refused", () => {

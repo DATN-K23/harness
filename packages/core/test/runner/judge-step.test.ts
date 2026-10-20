@@ -227,13 +227,13 @@ describe("JudgeStep: provider attempts", () => {
     expect(h.gateway.callCount).toBe(1)
   })
 
-  test("stop conditions are evaluated before a retry with the cost the failed attempt incurred", async () => {
+  test("cost of a failed attempt does not stop retrying", async () => {
     const script = [errorResponse(http(503), { usage: usageOf(10, 0, 0.5) }), readVault()]
-    const h = await createHarness({ script, limits: { costCeilingUsd: 0.5 } })
+    const h = await createHarness({ script })
     const result = await h.step.execute(h.input())
-    expect(result.outcome).toEqual({ type: "budget_exhausted", reason: "cost_budget_exhausted" })
-    expect(result.observedLimits).toEqual(["cost_budget_exhausted"])
-    expect(h.gateway.callCount).toBe(1)
+    expect(result.outcome.type).toBe("continue_turn")
+    if (result.outcome.type === "continue_turn") expect(result.outcome.toolOutcomes).toHaveLength(1)
+    expect(h.gateway.callCount).toBe(2)
   })
 })
 

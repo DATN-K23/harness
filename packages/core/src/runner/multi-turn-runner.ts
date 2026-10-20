@@ -25,17 +25,19 @@ import {
   type TerminalRunState,
   type ToolRegistryPort,
   type ToolLimits,
+  type ContextEnginePort,
+  type ContextPolicy,
+  ContextPolicySchema,
 } from "@harness/protocol"
 import { EventSink } from "./event-sink"
 import { ParallelToolDispatcher } from "../tool/dispatcher"
 import { assembleTurnRequest } from "./request-assembly"
 import { evaluateStop, initialNoProgress, type StopState } from "./stop-conditions"
 import { buildRunConfigSnapshot } from "./run-config"
-import { hydrateHistory, interruptedToolItems } from "./history-hydrator"
+import { hydrateHistory, interruptedToolItems, verifyHydration } from "./history-hydrator"
 import { sha256Hex } from "../util/digest"
 import { createIdGenerator, systemIdSources, type IdGenerator } from "../util/id"
 import { sanitizeSourceContent, sanitizeSystemText } from "../util/sanitize"
-import { estimateTokens } from "../context/token-estimator"
 
 export interface ToolApprovalPort {
   decide(call: ModelToolCall, ctx: Record<string, unknown>): Promise<"allow" | "deny">
@@ -56,6 +58,8 @@ export interface MultiTurnRunInput {
   pricing?: ModelPricingStatus
   providerProfile?: {
     outputTokensField: "max_tokens" | "max_completion_tokens"
+    maxContextTokens?: number
+    maxOutputTokens?: number
     inputCostPerMTok?: number
     outputCostPerMTok?: number
   }
@@ -88,18 +92,17 @@ export interface MultiTurnRunnerDeps {
   gateway: ModelGatewayPort
   registry: ToolRegistryPort
   snapshot: SourceSnapshotPort
+  contextEngine: ContextEnginePort
   clock?: ClockPort
   approval?: ToolApprovalPort
   secrets?: readonly string[]
   idGenerator?: IdGenerator
   skippedFiles?: () => Promise<Array<{ path: string; reason: string }>>
   estimatePromptTokens?: (request: ModelAttemptRequest) => number
-  estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
 }
 
 const defaultBudgetLimits: BudgetLimits = {
   wallClockTimeoutMs: 60_000,
-  costCeilingUsd: 5,
   totalTokenBudget: 200_000,
   maxSteps: 10,
   maxToolCalls: 20,
@@ -194,7 +197,9 @@ export class MultiTurnRunner {
     const { clock, idGen, startedAtMs: initialStartTime, workerId } = recovery
     let startTime = initialStartTime
     const runId = input.runId
-    const profileId = input.profileId ?? "default"
+    let profileId = input.profileId ?? "default"
+    let modelMaxContextTokens = input.providerProfile?.maxContextTokens
+    let modelMaxOutputTokens = input.providerProfile?.maxOutputTokens
     const secrets = [...(this.deps.secrets ?? []), ...(input.secrets ?? [])]
     const safePrompt = sanitizeSystemText(input.prompt, secrets)
 
@@ -210,6 +215,9 @@ export class MultiTurnRunner {
       ...defaultBudgetLimits,
       ...(input.limits ?? {}),
     })
+    if (input.maxOutputTokens !== undefined && modelMaxOutputTokens !== undefined && input.maxOutputTokens > modelMaxOutputTokens) {
+      return this.failEarly(runId, "Requested output cap exceeds the evidenced model output limit", "invalid_input")
+    }
 
     const maxPromptLength = input.maxPromptLength ?? 100_000
     if (input.prompt.length > maxPromptLength) {
@@ -220,6 +228,29 @@ export class MultiTurnRunner {
       readonly snapshotId?: string
       limits?: () => ToolLimits
     }
+    let contextPolicy: ContextPolicy = {
+      policyVersion: "v1",
+      windowLimitTokens: 16_384,
+      outputReserveTokens: 4096,
+      compactionThreshold: 0.8,
+      safetyMarginFactor: 1.2,
+      recentWindowTokens: 20_000,
+      toolOutputMaxTokens: 4_000,
+      toolOutputMaxLines: input.maxSourceEntries ?? 100,
+      maxCompactions: 0,
+      flags: {
+        enableToolTruncation: true,
+        enableObsMasking: false,
+        enableSupersedeReads: false,
+        enableDropEmpty: false,
+        enableLlmCompaction: false,
+        enableSessionNote: false,
+      },
+    }
+    if (input.maxOutputTokens !== undefined && input.maxOutputTokens > contextPolicy.outputReserveTokens && input.runId === undefined) {
+      return this.failEarly(runId, "Requested output cap exceeds the shared context output reserve", "invalid_input")
+    }
+    let hasPersistedContextPolicy = false
     if (registryMetadata.snapshotId !== undefined && registryMetadata.snapshotId !== input.snapshotId) {
       return this.failEarly(runId, "Tool registry is bound to a different source snapshot", "invalid_input")
     }
@@ -236,6 +267,22 @@ export class MultiTurnRunner {
           existingRun.prompt !== safePrompt
         ) {
           return this.failEarly(runId, "Run identity does not match the supplied prompt and snapshot", "invalid_input")
+        }
+        const started = existingEvents.find((event) => event.type === "run.started")
+        if (started?.type === "run.started") {
+          const payload = started.payload as { profileId?: string; providerProfile?: MultiTurnRunInput["providerProfile"]; requestOptions?: Pick<MultiTurnRunInput, "maxOutputTokens" | "temperature" | "seed"> }
+          if (payload.profileId !== undefined && input.profileId !== undefined && payload.profileId !== input.profileId)
+            return this.failEarly(runId, "Run profile does not match the persisted provider profile", "invalid_input")
+          if (payload.providerProfile !== undefined &&
+            ((input.providerProfile?.maxContextTokens ?? payload.providerProfile.maxContextTokens) !== payload.providerProfile.maxContextTokens ||
+              (input.providerProfile?.maxOutputTokens ?? payload.providerProfile.maxOutputTokens) !== payload.providerProfile.maxOutputTokens))
+            return this.failEarly(runId, "Run model limits do not match the persisted provider profile", "invalid_input")
+          const optionsMismatch = payload.requestOptions !== undefined &&
+            Object.entries(input).some(([key, value]) =>
+              ["maxOutputTokens", "temperature", "seed"].includes(key) && value !== undefined &&
+              value !== payload.requestOptions?.[key as "maxOutputTokens" | "temperature" | "seed"])
+          if (optionsMismatch)
+            return this.failEarly(runId, "Run request options do not match the persisted request", "invalid_input")
         }
       }
     }
@@ -299,8 +346,8 @@ export class MultiTurnRunner {
       flags: {
         enableToolTruncation: true,
         enableObsMasking: false,
-        enableSupersedeReads: true,
-        enableDropEmpty: true,
+        enableSupersedeReads: false,
+        enableDropEmpty: false,
         enableLlmCompaction: false,
         enableSessionNote: false,
         enableSchemaRepair: false,
@@ -310,22 +357,8 @@ export class MultiTurnRunner {
         enableParallelToolDispatch: true,
       },
       policy: {
-        policyVersion: "v1",
-        windowLimitTokens: 128_000,
-        outputReserveTokens: input.maxOutputTokens ?? 2048,
-        compactionThreshold: 0.8,
-        recentWindowTokens: 20_000,
-        toolOutputMaxTokens: 4_000,
-        toolOutputMaxLines: input.maxSourceEntries ?? 100,
-        maxCompactions: 0,
-        flags: {
-          enableToolTruncation: true,
-          enableObsMasking: false,
-          enableSupersedeReads: true,
-          enableDropEmpty: true,
-          enableLlmCompaction: false,
-          enableSessionNote: false,
-        },
+        ...contextPolicy,
+        flags: contextPolicy.flags,
       },
       retry: DefaultRetryConfig,
       limits,
@@ -346,15 +379,51 @@ export class MultiTurnRunner {
       }
     }
 
+    const safeAppendRecorded = async <T extends EventType>(type: T, payload: EventPayload<T>) => {
+      try {
+        const res = await eventSink.append(type, payload)
+        return res.kind === "stale" ? { ok: false as const, reason: res.reason } : { ok: true as const }
+      } catch (err) {
+        return { ok: false as const, reason: "persistence_failure" as const, error: err }
+      }
+    }
+
     existingEvents = await this.deps.store.loadEvents({ runId })
     const isResumed = existingEvents.length > 0
-    let costBudgetEnforced = input.pricing !== "unpriced"
     if (isResumed) {
       const startedPayload = existingEvents.find((event) => event.type === "run.started")?.payload as
-        | { costBudgetEnforced?: boolean }
+        | { snapshot?: { contextPolicy?: unknown }; profileId?: string; providerProfile?: MultiTurnRunInput["providerProfile"]; requestOptions?: Pick<MultiTurnRunInput, "maxOutputTokens" | "temperature" | "seed"> }
         | undefined
-      if (startedPayload?.costBudgetEnforced !== undefined) {
-        costBudgetEnforced = startedPayload.costBudgetEnforced
+      const persistedPolicy = ContextPolicySchema.safeParse(startedPayload?.snapshot?.contextPolicy)
+      if (!persistedPolicy.success) {
+        const legacyWithoutPolicy =
+          startedPayload?.snapshot !== undefined &&
+          !Object.hasOwn(startedPayload.snapshot, "contextPolicy")
+        if (!legacyWithoutPolicy) return this.finishRun({
+          claim,
+          expectedStateVersion: stateVersion,
+          nextState: "failed",
+          runId,
+          terminalReason: "persistence_failure",
+          eventSink,
+          error: "Stored run context policy is missing or invalid",
+          stepsExecuted: 0,
+          toolCallsExecuted: 0,
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
+          latencyMs: Math.max(0, clock.nowMs() - startTime),
+        })
+      } else {
+        contextPolicy = persistedPolicy.data
+        hasPersistedContextPolicy = true
+      }
+      if (startedPayload?.providerProfile !== undefined) {
+        const persistedProfile = startedPayload.providerProfile
+        modelMaxContextTokens = persistedProfile.maxContextTokens
+        modelMaxOutputTokens = persistedProfile.maxOutputTokens
+      }
+      if (startedPayload?.profileId !== undefined) profileId = startedPayload.profileId
+      if (startedPayload?.requestOptions !== undefined) {
+        input = { ...input, ...startedPayload.requestOptions }
       }
       const startedEvent = existingEvents.find((event) => event.type === "run.started")
       if (startedEvent !== undefined) {
@@ -368,8 +437,13 @@ export class MultiTurnRunner {
       const appendStarted = await safeAppend("run.started", {
         snapshot: builtConfig.snapshot,
         snapshotDigest: builtConfig.digest,
-        costBudgetEnforced,
+        profileId,
         ...(input.providerProfile !== undefined ? { providerProfile: input.providerProfile } : {}),
+        requestOptions: {
+          ...(input.maxOutputTokens === undefined ? {} : { maxOutputTokens: input.maxOutputTokens }),
+          ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
+          ...(input.seed === undefined ? {} : { seed: input.seed }),
+        },
       })
       if (!appendStarted.ok) {
         return this.failEarly(runId, `Failed to persist run.started: ${appendStarted.reason}`, "persistence_failure")
@@ -391,6 +465,8 @@ export class MultiTurnRunner {
     }
 
     const historyItems: ContextItem[] = []
+    let contextTotalTokens = 0
+    let conservativePromptTokens = 0
     let stepIndex = 1
     let completedToolCalls = 0
     let promptTokens = 0
@@ -430,9 +506,48 @@ export class MultiTurnRunner {
         })
       }
       if (hydration.kind === "hydrated") {
+        for (const allocation of hydration.history.allocations) {
+          const rebuiltRequest: ModelAttemptRequest = {
+            runId,
+            stepIndex: allocation.stepIndex,
+            attemptIndex: 1,
+            profileId,
+            items: allocation.items,
+            tools: this.deps.registry.definitions(),
+            maxToolCalls: limits.maxToolCalls,
+            ...(input.maxOutputTokens !== undefined ? { maxOutputTokens: input.maxOutputTokens } : {}),
+            ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+            ...(input.seed !== undefined ? { seed: input.seed } : {}),
+          }
+          const verification = await verifyHydration({
+            engine: this.deps.contextEngine,
+            history: { ...hydration.history, lastAllocated: allocation },
+            policy: { ...contextPolicy, outputReserveTokens: Math.min(contextPolicy.outputReserveTokens, input.maxOutputTokens ?? contextPolicy.outputReserveTokens) },
+            modelLimits: { maxContextTokens: modelMaxContextTokens ?? contextPolicy.windowLimitTokens,
+              maxOutputTokens: modelMaxOutputTokens ?? contextPolicy.outputReserveTokens,
+              safetyMarginFactor: contextPolicy.safetyMarginFactor },
+            limits: { totalTokenBudget: limits.totalTokenBudget },
+            request: rebuiltRequest,
+          })
+          if (verification.kind === "mismatch") return this.finishRun({
+            claim, expectedStateVersion: stateVersion, nextState: "failed", runId,
+            terminalReason: "persistence_failure", eventSink, error: verification.message,
+            stepsExecuted: hydration.history.stepIndex, toolCallsExecuted: 0, usage: currentUsage(),
+            latencyMs: Math.max(0, clock.nowMs() - startTime),
+          })
+        }
         promptTokens = hydration.history.totalsFromAttempts.promptTokens
         completionTokens = hydration.history.totalsFromAttempts.completionTokens
         totalTokens = hydration.history.totalsFromAttempts.totalTokens
+        contextTotalTokens = totalTokens
+        const stepsWithActualUsage = new Set(existingEvents.filter((event) => event.type === "provider.attempted" && event.payload.usage !== null)
+          .map((event) => (event.payload as { stepIndex: number }).stepIndex))
+        for (const event of existingEvents) {
+          if (event.type !== "context.allocated" || stepsWithActualUsage.has((event.payload as { stepIndex: number }).stepIndex)) continue
+          const telemetry = event.payload.telemetry as { estimatedInputTokens: number; outputReserveTokens: number }
+          conservativePromptTokens += telemetry.estimatedInputTokens + telemetry.outputReserveTokens
+        }
+        contextTotalTokens += conservativePromptTokens
         costUsd = hydration.history.totalsFromAttempts.costUsd
         if (hydration.history.totalsFromAttempts.pricing === "unpriced") usagePricing = "unpriced"
         recovery.usage = currentUsage()
@@ -572,7 +687,6 @@ export class MultiTurnRunner {
 
     const stopState: StopState = {
       startedAtMs: startTime,
-      costUsd: 0,
       totalTokens: 0,
       completedSteps: 0,
       completedToolCalls: 0,
@@ -583,10 +697,9 @@ export class MultiTurnRunner {
     while (!isTerminated && stepIndex <= limits.maxSteps) {
       stopState.completedSteps = stepIndex - 1
       stopState.completedToolCalls = completedToolCalls
-      stopState.costUsd = costUsd
       stopState.totalTokens = totalTokens
 
-      const stopEvaluation = evaluateStop(stopState, limits, clock.nowMs(), costBudgetEnforced)
+      const stopEvaluation = evaluateStop(stopState, limits, clock.nowMs())
       if (stopEvaluation.selected !== undefined) {
         terminalReason = StopReasonToTerminalReason[stopEvaluation.selected]
         terminalObservedLimits = stopEvaluation.observed.map((reason) => StopReasonToTerminalReason[reason])
@@ -637,21 +750,62 @@ export class MultiTurnRunner {
         secrets,
       })
 
-      const estimatedPromptTokens = this.deps.estimatePromptTokens?.(request) ??
-        estimateTokens(JSON.stringify({ items: request.items, tools: request.tools }) ?? "")
-      const outputTokens = input.maxOutputTokens ?? 0
-      const preCallLimits: BudgetTerminalReason[] = []
-      if (limits.totalTokenBudget - totalTokens < estimatedPromptTokens + outputTokens) {
-        preCallLimits.push("total_tokens")
+      const effectiveOutputReserve = request.maxOutputTokens === undefined
+        ? contextPolicy.outputReserveTokens
+        : Math.min(contextPolicy.outputReserveTokens, request.maxOutputTokens)
+      if (modelMaxContextTokens === undefined && !("nonAuthoritative" in this.deps.contextEngine)) {
+        terminalState = "budget_exhausted"
+        terminalReason = "context_budget"
+        terminalObservedLimits = ["context_budget"]
+        recovery.observedLimits = terminalObservedLimits
+        isTerminated = true
+        break
       }
-      const estimatedCostUsd = costBudgetEnforced
-        ? this.deps.estimateCostUsd?.(profileId, estimatedPromptTokens, outputTokens)
-        : undefined
-      if (
-        estimatedCostUsd !== undefined &&
-        estimatedCostUsd > limits.costCeilingUsd - costUsd
-      ) {
-        preCallLimits.push("cost_budget")
+      const prepared = await this.deps.contextEngine.prepare({
+        items: request.items,
+        request,
+        policy: { ...contextPolicy, outputReserveTokens: effectiveOutputReserve },
+        modelLimits: {
+          maxContextTokens: modelMaxContextTokens ?? contextPolicy.windowLimitTokens,
+          maxOutputTokens: modelMaxOutputTokens ?? contextPolicy.outputReserveTokens,
+          safetyMarginFactor: contextPolicy.safetyMarginFactor,
+        },
+        budget: { totalTokensUsed: contextTotalTokens, totalTokenLimit: limits.totalTokenBudget, compactionsCount: 0,
+          costUsd },
+      })
+      if (prepared.status === "ready" && prepared.preparedRequest === undefined) {
+        terminalState = "failed"
+        terminalReason = "persistence_failure"
+        isTerminated = true
+        break
+      }
+      const preparedRequest: ModelAttemptRequest = prepared.status === "ready" ? prepared.preparedRequest! : request
+      for (const transformation of prepared.transformations ?? []) {
+        const transformed = await safeAppend("context.transformed", transformation)
+        if (!transformed.ok) {
+          terminalState = "failed"
+          terminalReason = "persistence_failure"
+          isTerminated = true
+          break
+        }
+      }
+      if (isTerminated) break
+      const allocation = await safeAppendRecorded("context.allocated", { stepIndex, telemetry: prepared.telemetry })
+      if (!allocation.ok || prepared.status !== "ready") {
+        terminalState = allocation.ok ? "budget_exhausted" : "failed"
+        if (!allocation.ok) terminalReason = "persistence_failure"
+        else terminalReason = prepared.status === "stop" && prepared.stopReason === "total_tokens" ? "total_tokens" : "context_budget"
+        terminalObservedLimits = terminalReason === "persistence_failure" ? [] : [terminalReason as BudgetTerminalReason]
+        recovery.observedLimits = terminalObservedLimits
+        isTerminated = true
+        break
+      }
+
+      const estimatedPromptTokens = prepared.telemetry.estimatedInputTokens
+      const outputTokens = prepared.telemetry.outputReserveTokens
+      const preCallLimits: BudgetTerminalReason[] = []
+      if (limits.totalTokenBudget - contextTotalTokens < estimatedPromptTokens + outputTokens) {
+        preCallLimits.push("total_tokens")
       }
       if (preCallLimits.length > 0) {
         terminalState = "budget_exhausted"
@@ -668,7 +822,8 @@ export class MultiTurnRunner {
       const attemptSignal = AbortSignal.timeout(remainingTime)
 
       // Execute attempt via Gateway
-      const rawResponse = await this.deps.gateway.executeAttempt(request, attemptSignal)
+      const rawResponse = await this.deps.gateway.executeAttempt(preparedRequest, attemptSignal)
+      const rawUsage = (rawResponse as unknown as { usage?: ModelUsage | null }).usage
       const response: ModelAttemptResponse = {
         ...rawResponse,
         ...(rawResponse.content !== undefined ? { content: sanitizeSystemText(rawResponse.content, secrets) } : {}),
@@ -690,20 +845,31 @@ export class MultiTurnRunner {
           ? { error: { ...rawResponse.error, message: sanitizeSystemText(rawResponse.error.message, secrets) } }
           : {}),
       }
+      const actualUsage = rawUsage ?? null
       const attemptLatencyMs = Math.max(0, clock.nowMs() - attemptStartTime)
 
-      promptTokens += response.usage.promptTokens
-      completionTokens += response.usage.completionTokens
-      totalTokens += response.usage.totalTokens
-      costUsd += response.usage.costUsd
-      if (response.usage.pricing === "unpriced") usagePricing = "unpriced"
+      const recordResult = await this.deps.contextEngine.record({
+        actualUsage: response.finishReason === "error" ? null : actualUsage,
+        modelLimits: { maxContextTokens: modelMaxContextTokens ?? contextPolicy.windowLimitTokens, maxOutputTokens: modelMaxOutputTokens ?? contextPolicy.outputReserveTokens, safetyMarginFactor: contextPolicy.safetyMarginFactor },
+        budget: { totalTokensUsed: contextTotalTokens, totalTokenLimit: limits.totalTokenBudget, compactionsCount: 0, costUsd },
+      })
+      contextTotalTokens = actualUsage === null
+        ? contextTotalTokens + prepared.telemetry.estimatedInputTokens + prepared.telemetry.outputReserveTokens
+        : recordResult.totalTokensUsed
+
+      if (actualUsage !== null) {
+        promptTokens += actualUsage.promptTokens
+        completionTokens += actualUsage.completionTokens
+        totalTokens += actualUsage.totalTokens
+        costUsd += actualUsage.costUsd
+        if (actualUsage.pricing === "unpriced") usagePricing = "unpriced"
+      }
       recovery.usage = currentUsage()
       recovery.stepsExecuted = stepIndex
       recovery.toolCallsExecuted = completedToolCalls
       stopState.startedAtMs = startTime
       stopState.completedSteps = stepIndex
       stopState.completedToolCalls = completedToolCalls
-      stopState.costUsd = costUsd
       stopState.totalTokens = totalTokens
       recovery.observedLimits = evaluateStop(stopState, limits, clock.nowMs()).observed.map(
         (reason) => StopReasonToTerminalReason[reason],
@@ -711,6 +877,7 @@ export class MultiTurnRunner {
 
       // Persist the attempt row before the matching provider.attempted event.
       if (
+        actualUsage !== null &&
         "recordModelAttempt" in this.deps.store &&
         typeof (this.deps.store as Record<string, unknown>).recordModelAttempt === "function"
       ) {
@@ -724,11 +891,11 @@ export class MultiTurnRunner {
               attemptNumber: 1,
               provider: profileId.split("/")[0] || "provider",
               model: profileId,
-              promptTokens: response.usage.promptTokens,
-              completionTokens: response.usage.completionTokens,
-              totalTokens: response.usage.totalTokens,
-              costUsd: response.usage.pricing === "unpriced" ? null : response.usage.costUsd,
-              pricing: response.usage.pricing,
+              promptTokens: actualUsage.promptTokens,
+              completionTokens: actualUsage.completionTokens,
+              totalTokens: actualUsage.totalTokens,
+              costUsd: actualUsage === null || actualUsage.pricing === "unpriced" ? null : actualUsage.costUsd,
+              pricing: actualUsage?.pricing ?? (actualUsage === null ? "unpriced" : "priced"),
               latencyMs: attemptLatencyMs,
               finishReason: response.finishReason,
               requestJson: {
@@ -767,8 +934,8 @@ export class MultiTurnRunner {
         attemptIndex: 1,
         profileId,
         purpose: "reasoning",
-        usage: response.usage,
-        costUsd: response.usage.costUsd,
+        usage: actualUsage,
+        costUsd: actualUsage?.costUsd ?? null,
         latencyMs: attemptLatencyMs,
         retryDecision: "none",
         backoffMs: 0,
@@ -881,13 +1048,11 @@ export class MultiTurnRunner {
       stopState.startedAtMs = startTime
       stopState.completedSteps = stepIndex
       stopState.completedToolCalls = completedToolCalls
-      stopState.costUsd = costUsd
       stopState.totalTokens = totalTokens
       const responseStopEvaluation = evaluateStop(
         stopState,
         limits,
         clock.nowMs(),
-        costBudgetEnforced,
       )
       terminalObservedLimits = responseStopEvaluation.observed.map(
         (reason) => StopReasonToTerminalReason[reason],
@@ -1071,7 +1236,18 @@ export class MultiTurnRunner {
             const sanitizedContent = isError
               ? sanitizeSystemText(dispatchedCall.result.content, secrets)
               : sanitizeSourceContent(dispatchedCall.result.content, secrets)
-            dispatchedCall.result = { ...dispatchedCall.result, content: sanitizedContent }
+            const shaped = await this.deps.contextEngine.shapeToolResult({
+              content: sanitizedContent,
+              toolName: dispatchedCall.toolName,
+              ...(dispatchedCall.result.filePath !== undefined ? { path: dispatchedCall.result.filePath } : {}),
+              ...(dispatchedCall.result.lineRange !== undefined ? { lineRange: dispatchedCall.result.lineRange } : {}),
+              policy: contextPolicy,
+            })
+            dispatchedCall.result = {
+              ...dispatchedCall.result,
+              content: shaped.content,
+              ...(shaped.isTruncated ? { isTruncated: true } : {}),
+            }
 
             const requestItem: ContextItem = {
               id: idGen.next("ctx_req_"),
@@ -1086,11 +1262,13 @@ export class MultiTurnRunner {
               turn: stepIndex,
               type: "tool_result",
               isPinned: false,
-              content: sanitizedContent,
+              content: shaped.content,
               toolMeta: {
                 callId: dispatchedCall.callId,
                 toolName: dispatchedCall.toolName,
                 isError: dispatchedCall.result.isError,
+                ...(dispatchedCall.result.filePath !== undefined ? { filePath: dispatchedCall.result.filePath } : {}),
+                ...(dispatchedCall.result.lineRange !== undefined ? { lineRange: dispatchedCall.result.lineRange } : {}),
               },
             }
 
@@ -1117,7 +1295,7 @@ export class MultiTurnRunner {
                 callId: dispatchedCall.callId,
                 toolName: dispatchedCall.toolName,
                 durationMs: dispatchedCall.durationMs,
-                isTruncated: dispatchedCall.result.isTruncated === true,
+                isTruncated: shaped.isTruncated || dispatchedCall.result.isTruncated === true,
                 itemId: resultItem.id,
               })
               if (completed.kind === "stale") return { kind: "stale", reason: completed.reason }

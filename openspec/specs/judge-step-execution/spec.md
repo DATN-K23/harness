@@ -116,12 +116,7 @@ Tool output SHALL pass through the security filter before the context engine's `
 - **THEN** the filter sees the original text first and the secret never reaches the shaping call or the context
 
 ### Requirement: Stop-reason evaluation and precedence
-The runner SHALL evaluate stop conditions before each provider attempt and after each tool boundary. When more than one limit is exhausted it SHALL select the highest-precedence reason (wall clock, cost, total tokens, max steps, context budget, no progress), record every observed exhausted limit in telemetry, and start no further provider or tool work.
-
-#### Scenario: Several limits at once
-- **GIVEN** a run state at which cost, total tokens and max steps are all exhausted
-- **WHEN** stop conditions are evaluated
-- **THEN** the selected reason is `cost_budget_exhausted` and the telemetry lists all three
+The runner SHALL evaluate stop conditions before each provider attempt and after each tool boundary. When more than one limit is exhausted it SHALL select the highest-precedence reason (wall clock, total tokens, max steps, context budget, no progress), record every observed exhausted limit in telemetry, and start no further provider or tool work.
 
 #### Scenario: No work after stop
 - **GIVEN** a stop reason selected at a boundary

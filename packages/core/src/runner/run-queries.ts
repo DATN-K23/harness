@@ -60,8 +60,32 @@ export interface MultiTurnExecutionSummary {
   outputTruncated?: boolean
   toolCalls: ReconstructedToolCall[]
   steps: MultiTurnStepSummary[]
+  contextTelemetry: ContextTelemetrySummary[]
   attempts: Record<string, unknown>[]
   events: TrajectoryEvent[]
+}
+
+export interface ContextTelemetrySummary {
+  stepIndex: number
+  attemptIndex: number
+  policyVersion: string
+  tokenizer: "o200k_base"
+  estimatedInputTokens: number
+  estimatedOutputTokens?: number
+  outputReserveTokens: number
+  estimatedSafetyTokens: number
+  actualUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | null
+  usageDelta: number | null
+  requestDigest?: string
+  transformations: Array<{ action: string; targetItemId: string; tokensBefore: number; tokensAfter: number; savings: number }>
+}
+
+function parseUsage(value: unknown): ContextTelemetrySummary["actualUsage"] {
+  if (typeof value !== "object" || value === null) return null
+  const usage = value as Record<string, unknown>
+  const values = [usage.promptTokens, usage.completionTokens, usage.totalTokens]
+  if (!values.every((item) => typeof item === "number" && Number.isSafeInteger(item) && item >= 0)) return null
+  return { promptTokens: values[0] as number, completionTokens: values[1] as number, totalTokens: values[2] as number }
 }
 
 /** Reconstructs a structured multi-turn summary, identifying each tool call by its step and call ID. */
@@ -74,12 +98,59 @@ export async function getMultiTurnExecutionSummary(
 
   const events = await getRunHistory(runId, store)
   const toolCallMap = new Map<string, ReconstructedToolCall>()
+  const contextTelemetry: ContextTelemetrySummary[] = []
+  const transformationsByStep = new Map<number, ContextTelemetrySummary["transformations"]>()
+  const actualByAttempt = new Map<string, { promptTokens: number; completionTokens: number; totalTokens: number } | null>()
+  const allocationsByAttempt = new Map<string, ContextTelemetrySummary>()
   let currentStepIndex = 1
 
   for (const event of events) {
     if (event.type === "step.started") {
       const payload = event.payload as { stepIndex: number }
       currentStepIndex = payload.stepIndex
+    } else if (event.type === "context.transformed") {
+      const payload = event.payload as { action: string; targetItemId: string; tokensBefore: number; tokensAfter: number }
+      const list = transformationsByStep.get(currentStepIndex) ?? []
+      list.push({ ...payload, savings: Math.max(0, payload.tokensBefore - payload.tokensAfter) })
+      transformationsByStep.set(currentStepIndex, list)
+    } else if (event.type === "context.allocated") {
+      const payload = event.payload as { stepIndex: number; telemetry: Record<string, any> }
+      const t = payload.telemetry
+      contextTelemetry.push({
+        stepIndex: payload.stepIndex,
+        attemptIndex: (() => {
+          const attempts = [...allocationsByAttempt.keys()]
+            .filter((key) => key.startsWith(`${payload.stepIndex}:`))
+            .map((key) => Number(key.split(":")[1]))
+          return attempts.length ? Math.max(...attempts) + 1 : 1
+        })(),
+        policyVersion: t.policyVersion,
+        tokenizer: "o200k_base",
+        estimatedInputTokens: t.estimatedInputTokens,
+        ...(typeof t.estimatedOutputTokens === "number" ? { estimatedOutputTokens: t.estimatedOutputTokens } : {}),
+        outputReserveTokens: t.outputReserveTokens,
+        estimatedSafetyTokens: t.estimatedSafetyTokens,
+        actualUsage: t.actualUsage ?? null,
+        usageDelta: t.usageDelta ?? null,
+        ...(typeof t.requestDigest === "string" ? { requestDigest: t.requestDigest } : {}),
+        transformations: transformationsByStep.get(payload.stepIndex) ?? [],
+      })
+      allocationsByAttempt.set(`${payload.stepIndex}:${contextTelemetry[contextTelemetry.length - 1].attemptIndex}`, contextTelemetry[contextTelemetry.length - 1])
+    } else if (event.type === "provider.attempted") {
+      const payload = event.payload as { stepIndex?: unknown; attemptIndex?: unknown; usage?: unknown }
+      if (typeof payload.stepIndex === "number" && typeof payload.attemptIndex === "number") {
+        const usage = payload.usage
+        actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, parseUsage(usage))
+        const stepAllocations = [...allocationsByAttempt.entries()].filter(([key]) => key.startsWith(`${payload.stepIndex}:`))
+        const allocation = allocationsByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`)
+          ?? (payload.attemptIndex === 0 && stepAllocations.length === 1
+            ? stepAllocations[0][1]
+            : undefined)
+        if (allocation) {
+          allocation.actualUsage = actualByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`) ?? null
+          allocation.usageDelta = allocation.actualUsage ? allocation.actualUsage.totalTokens - allocation.estimatedInputTokens : null
+        }
+      }
     } else if (event.type === "tool.requested") {
       const payload = event.payload as {
         callIndex: number
@@ -194,6 +265,7 @@ export async function getMultiTurnExecutionSummary(
       (left, right) => left.stepIndex - right.stepIndex || left.callIndex - right.callIndex,
     ),
     steps,
+    contextTelemetry,
     attempts,
     events,
   }

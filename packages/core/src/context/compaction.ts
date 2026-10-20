@@ -72,6 +72,12 @@ export class ScriptedContextEngine extends FakeContextEngine {
     if (entry === undefined) return this.ready(input, estimate)
     this.cursor += 1
     const scripted = typeof entry === "function" ? entry(input) : entry
-    return { ...scripted, telemetry: scripted.telemetry ?? this.telemetry(input, estimate) }
+    return {
+      ...scripted,
+      ...(scripted.status === "ready" && scripted.preparedRequest === undefined && input.request !== undefined
+        ? { preparedRequest: input.request }
+        : {}),
+      telemetry: scripted.telemetry ?? this.telemetry(input, estimate),
+    }
   }
 }

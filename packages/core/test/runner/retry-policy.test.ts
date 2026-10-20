@@ -588,11 +588,11 @@ describe("RetryPolicy.run", () => {
       ])
     })
 
-    test("a returned stop reason ends the call as stopped without another attempt", async () => {
+    test("a returned token stop reason ends the call as stopped without another attempt", async () => {
       const gateway = new ScriptedGateway(() => failure(http(503)))
       const { policy } = setup({ gateway })
-      const outcome = await policy.run({ request: baseRequest, beforeRetry: () => "cost_budget_exhausted" })
-      expect(outcome).toMatchObject({ kind: "stopped", reason: "cost_budget_exhausted" })
+      const outcome = await policy.run({ request: baseRequest, beforeRetry: () => "total_tokens_exhausted" })
+      expect(outcome).toMatchObject({ kind: "stopped", reason: "total_tokens_exhausted" })
       expect(gateway.requests).toHaveLength(1)
       expect(outcome.attempts).toHaveLength(1)
     })
@@ -624,7 +624,7 @@ describe("RetryPolicy.run", () => {
         request: baseRequest,
         beforeRetry: () => {
           calls += 1
-          return "cost_budget_exhausted"
+          return "total_tokens_exhausted"
         },
       })
       expect(outcome.kind).toBe("cancelled")

@@ -99,6 +99,7 @@ export const RuntimeConfigSchema = z
         return Number.isNaN(num) ? val : num
       }, z.number().int().min(MinAllowedOutputTokens).max(MaxAllowedOutputTokens))
       .default(DefaultMaxOutputTokens),
+    modelMaxContextTokens: optionalPositiveInteger,
     modelOutputTokensField: z
       .preprocess((value) => (value === undefined || value === null || value === "" ? "max_tokens" : value),
         z.enum(ModelOutputTokensFields))
@@ -109,7 +110,6 @@ export const RuntimeConfigSchema = z
     maxSteps: optionalPositiveInteger,
     maxToolCalls: optionalPositiveInteger,
     maxTotalTokens: optionalPositiveInteger,
-    maxCostUsd: optionalNonNegativeNumber,
   })
   .superRefine((config, ctx) => {
     if (config.modelInputCostPerMTok !== undefined && config.modelOutputCostPerMTok === undefined) {
@@ -127,13 +127,12 @@ export const RuntimeConfigSchema = z
       })
     }
   })
-  .transform(({ maxSteps, maxToolCalls, maxTotalTokens, maxCostUsd, ...config }) => ({
+  .transform(({ maxSteps, maxToolCalls, maxTotalTokens, ...config }) => ({
     ...config,
     runLimits: {
       ...(maxSteps !== undefined ? { maxSteps } : {}),
       ...(maxToolCalls !== undefined ? { maxToolCalls } : {}),
       ...(maxTotalTokens !== undefined ? { totalTokenBudget: maxTotalTokens } : {}),
-      ...(maxCostUsd !== undefined ? { costCeilingUsd: maxCostUsd } : {}),
     },
   }))
 
@@ -157,6 +156,7 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   modelBaseUrl: "MODEL_BASE_URL",
   modelTimeoutMs: "MODEL_TIMEOUT_MS",
   modelMaxOutputTokens: "MODEL_MAX_OUTPUT_TOKENS",
+  modelMaxContextTokens: "MODEL_MAX_CONTEXT_TOKENS",
   modelOutputTokensField: "MODEL_OUTPUT_TOKENS_FIELD",
   modelInputCostPerMTok: "MODEL_INPUT_COST_PER_MTOK",
   modelOutputCostPerMTok: "MODEL_OUTPUT_COST_PER_MTOK",
@@ -164,7 +164,6 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   maxSteps: "HARNESS_MAX_STEPS",
   maxToolCalls: "HARNESS_MAX_TOOL_CALLS",
   maxTotalTokens: "HARNESS_MAX_TOTAL_TOKENS",
-  maxCostUsd: "HARNESS_MAX_COST_USD",
 }
 
 /**
@@ -184,6 +183,7 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     modelBaseUrl: env.MODEL_BASE_URL ?? env.OPENAI_BASE_URL,
     modelTimeoutMs: env.MODEL_TIMEOUT_MS,
     modelMaxOutputTokens: env.MODEL_MAX_OUTPUT_TOKENS,
+    modelMaxContextTokens: env.MODEL_MAX_CONTEXT_TOKENS,
     modelOutputTokensField: env.MODEL_OUTPUT_TOKENS_FIELD,
     modelInputCostPerMTok: env.MODEL_INPUT_COST_PER_MTOK,
     modelOutputCostPerMTok: env.MODEL_OUTPUT_COST_PER_MTOK,
@@ -191,7 +191,6 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     maxSteps: env.HARNESS_MAX_STEPS,
     maxToolCalls: env.HARNESS_MAX_TOOL_CALLS,
     maxTotalTokens: env.HARNESS_MAX_TOTAL_TOKENS,
-    maxCostUsd: env.HARNESS_MAX_COST_USD,
   }
 
   const result = RuntimeConfigSchema.safeParse(rawInput)

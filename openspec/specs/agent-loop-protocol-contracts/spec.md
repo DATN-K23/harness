@@ -69,7 +69,7 @@ The protocol SHALL define `StepOutcome` as a tagged union of `completed`, `needs
 - **THEN** typechecking fails
 
 ### Requirement: Stop conditions and precedence constants
-The protocol SHALL define `StopReason`, `BudgetLimits` (wall clock, cost, total tokens, max steps, an OPTIONAL max tool calls with a documented default, no-progress repeats) and the ordered precedence list `wall_clock_timeout, cost_budget_exhausted, total_tokens_exhausted, max_steps_exceeded, max_tool_calls_exceeded, context_budget_exhausted, no_progress_detected`. It SHALL define the mapping of each stop reason to the blueprint terminal reason (`wall_clock`, `cost_budget`, `total_tokens`, `max_steps`, `max_tool_calls`, `context_budget`, `no_progress`). Making `maxToolCalls` optional SHALL keep every previously frozen run configuration snapshot parseable with an unchanged canonical digest.
+The protocol SHALL define `StopReason`, `BudgetLimits` (wall clock, total tokens, max steps, an OPTIONAL max tool calls with a documented default, no-progress repeats) and the ordered precedence list `wall_clock_timeout, total_tokens_exhausted, max_steps_exceeded, max_tool_calls_exceeded, context_budget_exhausted, no_progress_detected`. It SHALL define the mapping of each new stop reason to the blueprint terminal reason (`wall_clock`, `total_tokens`, `max_steps`, `max_tool_calls`, `context_budget`, `no_progress`). Historical terminal reason values SHALL remain parseable for persisted runs. Making `maxToolCalls` optional SHALL keep every previously frozen run configuration snapshot parseable with an unchanged canonical digest.
 
 #### Scenario: Mapping is total
 - **GIVEN** the list of stop reasons

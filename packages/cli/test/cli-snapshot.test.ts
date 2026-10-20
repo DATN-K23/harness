@@ -14,6 +14,7 @@ const testEnv = (snapshotDir: string, overrides: Record<string, string | undefin
   PROVIDER_NAME: "openai",
   MODEL_NAME: "gpt-4o-mini",
   MODEL_API_KEY: "test-api-key-not-a-real-secret",
+  MODEL_MAX_CONTEXT_TOKENS: "131072",
   HARNESS_SNAPSHOT_DIR: snapshotDir,
   ...overrides,
 })
@@ -81,6 +82,7 @@ describe("snapshot CLI commands", () => {
         stderr: (message) => errors.push(message),
       })
       const after = await treeStat(source)
+      if (exitCode !== 0) throw new Error(`errors=${errors.join("\n")} output=${output.join("\n")}`)
       expect(exitCode).toBe(0)
       expect(errors).toEqual([])
       expect(output.join("\n")).toContain("Snapshot ID: snap_")
@@ -204,12 +206,11 @@ describe("snapshot-backed CLI runs", () => {
         HARNESS_MAX_STEPS: "3",
         HARNESS_MAX_TOOL_CALLS: "7",
         HARNESS_MAX_TOTAL_TOKENS: "50000",
-        HARNESS_MAX_COST_USD: "0.9",
       })
       const exitCode = await runCli([
         "run", "--snapshot", "snap_cli_test", "--prompt", "Summarise Vault",
         "--max-steps", "5", "--max-tool-calls", "2", "--max-output-tokens", "77",
-        "--max-total-tokens", "60000", "--max-cost-usd", "0.1", "--timeout", "10000",
+        "--max-total-tokens", "60000", "--timeout", "10000",
       ], {
         env,
         storeFactory: () => store,
@@ -226,17 +227,17 @@ describe("snapshot-backed CLI runs", () => {
         maxSteps: 5,
         maxToolCalls: 2,
         totalTokenBudget: 60_000,
-        costCeilingUsd: 0.1,
       })
       const started = summary?.events.find((event) => event.type === "run.started")
-      expect((started?.payload as { providerProfile?: { outputTokensField?: string } }).providerProfile?.outputTokensField)
-        .toBe("max_tokens")
+      expect((started?.payload as { providerProfile?: { outputTokensField?: string; maxContextTokens?: number; maxOutputTokens?: number }; requestOptions?: { maxOutputTokens?: number } }).providerProfile)
+        .toMatchObject({ outputTokensField: "max_tokens", maxContextTokens: 131072, maxOutputTokens: 4096 })
+      expect((started?.payload as { requestOptions?: { maxOutputTokens?: number } }).requestOptions?.maxOutputTokens).toBe(77)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }
   })
 
-  test("Unpriced cost is printed as unknown with a warning", async () => {
+  test("unpriced cost is printed as unknown without a cost-ceiling warning", async () => {
     const root = await makeTempDir()
     try {
       const storage = path.join(root, "snapshots")
@@ -251,8 +252,8 @@ describe("snapshot-backed CLI runs", () => {
         stdout: (message) => output.push(message),
       })
       expect(exitCode).toBe(0)
-      expect(output.join("\n")).toContain("cost is unknown for model cx/gpt-6-luna")
       expect(output.join("\n")).toContain("Cost:         unknown")
+      expect(output.join("\n")).not.toContain("cost budget is not enforced")
       expect(output.join("\n")).not.toContain("$0.000000")
     } finally {
       await fs.rm(root, { recursive: true, force: true })

@@ -219,10 +219,14 @@ const economics = ({ events, result }: BundleInput) => {
           .filter((other) => other.type === "provider.attempted")
           .map((other) => EventPayloadSchemas["provider.attempted"].parse(other.payload))
           .filter((payload) => payload.stepIndex === stepIndex && payload.purpose === purpose)
-      const tokensOf = (payloads: ReturnType<typeof attemptsOf>) =>
-        payloads.reduce((sum, payload) => sum + payload.usage.totalTokens, 0)
-      const costOf = (payloads: ReturnType<typeof attemptsOf>) =>
-        payloads.reduce((sum, payload) => sum + payload.costUsd, 0)
+      const tokensOf = (payloads: ReturnType<typeof attemptsOf>) => {
+        const known = payloads.flatMap((payload) => payload.usage?.totalTokens ?? [])
+        return known.length === payloads.length ? known.reduce((sum, value) => sum + value, 0) : null
+      }
+      const costOf = (payloads: ReturnType<typeof attemptsOf>) => {
+        const known = payloads.flatMap((payload) => payload.costUsd ?? [])
+        return known.length === payloads.length ? known.reduce((sum, value) => sum + value, 0) : null
+      }
       const attempts = attemptsOf("reasoning")
       const compaction = attemptsOf("compaction")
       const room = telemetry.windowLimitTokens - telemetry.outputReserveTokens

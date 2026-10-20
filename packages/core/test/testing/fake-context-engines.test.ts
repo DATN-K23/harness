@@ -19,6 +19,7 @@ const policy = (overrides: Partial<ContextPolicy> = {}): ContextPolicy => ({
   windowLimitTokens: 1_000,
   outputReserveTokens: 200,
   compactionThreshold: 0.5,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 100,
   toolOutputMaxTokens: 500,
   toolOutputMaxLines: 3,
@@ -41,7 +42,6 @@ const budget = (overrides: Partial<RunBudget> = {}): RunBudget => ({
   totalTokenLimit: 100_000,
   compactionsCount: 0,
   costUsd: 0,
-  costCeilingUsd: 10,
   ...overrides,
 })
 
@@ -134,6 +134,12 @@ describe("shapeToolResult (fake truncation)", () => {
     expect(shaped.content.split("\n")).toEqual(["one", "two", "three", shaped.continuationNote ?? ""])
     expect(shaped.tokensBefore).toBe(estimateTokens(output))
     expect(shaped.tokensAfter).toBe(estimateTokens(shaped.content))
+  })
+
+  test("decides whether to truncate using the original line count", async () => {
+    const shaped = await engine.shapeToolResult({ content: "one\ntwo\nthree\nfour", toolName: "grep", policy: policy() })
+    expect(shaped.isTruncated).toBe(true)
+    expect(shaped.continuationNote).toContain("showing 3 of 4 lines")
   })
 
   test("leaves short output alone", async () => {

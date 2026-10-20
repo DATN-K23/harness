@@ -49,6 +49,7 @@ export const demoPolicy: ContextPolicy = {
   windowLimitTokens: 100_000,
   outputReserveTokens: 4_000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 10_000,
   toolOutputMaxTokens: 4_000,
   toolOutputMaxLines: 50,
@@ -74,7 +75,6 @@ export const demoFlags: ResolvedFlags = {
 
 export const demoLimits: BudgetLimits = {
   wallClockTimeoutMs: 3_600_000,
-  costCeilingUsd: 10,
   totalTokenBudget: 1_000_000,
   maxSteps: 10,
   noProgressMaxRepeats: 3,

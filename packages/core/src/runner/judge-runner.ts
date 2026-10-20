@@ -378,7 +378,6 @@ class RunExecution {
     const evaluation = evaluateStop(
       {
         startedAtMs: this.startedAtMs,
-        costUsd: this.usage.costUsd + spent.costUsd,
         totalTokens: this.usage.totalTokens + spent.totalTokens,
         completedSteps: this.stepIndex,
         contextBudgetExhausted,
@@ -399,7 +398,6 @@ class RunExecution {
       totalTokenLimit: limits.totalTokenBudget,
       compactionsCount: this.compactionsCount,
       costUsd: this.usage.costUsd,
-      costCeilingUsd: limits.costCeilingUsd,
     }
   }
 
@@ -442,7 +440,6 @@ class RunExecution {
         limits: config.limits,
         stopState: {
           startedAtMs: this.startedAtMs,
-          costUsd: this.usage.costUsd,
           totalTokens: this.usage.totalTokens,
           completedSteps: this.stepIndex,
           contextBudgetExhausted: false,

@@ -59,6 +59,7 @@ export const policy: ContextPolicy = {
   windowLimitTokens: 100_000,
   outputReserveTokens: 4_000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 10_000,
   toolOutputMaxTokens: 4_000,
   toolOutputMaxLines: 50,
@@ -84,7 +85,6 @@ export const flags: ResolvedFlags = {
 
 export const limits: BudgetLimits = {
   wallClockTimeoutMs: 3_600_000,
-  costCeilingUsd: 10,
   totalTokenBudget: 1_000_000,
   maxSteps: 10,
   noProgressMaxRepeats: 3,
@@ -116,6 +116,7 @@ class LoggedEngine implements ContextEnginePort {
   }
 
   record(input: Parameters<ContextEnginePort["record"]>[0]) {
+    if (input.actualUsage === null) return this.inner.record(input)
     this.log.push({ port: "record", totalTokens: input.actualUsage.totalTokens })
     return this.inner.record(input)
   }
@@ -231,11 +232,10 @@ export const createHarness = async (options: HarnessOptions) => {
     flags: resolvedFlags,
     policy,
     modelLimits: { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.1 },
-    budget: { totalTokensUsed: 0, totalTokenLimit: 1_000_000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 10 },
+    budget: { totalTokensUsed: 0, totalTokenLimit: 1_000_000, compactionsCount: 0, costUsd: 0 },
     limits: resolvedLimits,
     stopState: {
       startedAtMs,
-      costUsd: 0,
       totalTokens: 0,
       completedSteps: 0,
       contextBudgetExhausted: false,

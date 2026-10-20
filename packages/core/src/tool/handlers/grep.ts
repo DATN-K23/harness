@@ -1,5 +1,5 @@
 // Adapted from OpenCode packages/core/src/tool/handlers/grep.ts @ 3f393d78bf (MIT License). See NOTICE.
-import { Worker } from "node:worker_threads"
+import { Worker } from "worker_threads"
 import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
 import { checkSnapshotPath, isDeniedSourceFile, comparePaths, splitLines } from "../../source/source-snapshot"
 
@@ -178,14 +178,28 @@ async function runGrepWorker(
       | { kind: "timeout" }
       | { kind: "result"; result: GrepWorkerResponse }
     >((resolve, reject) => {
-      timeout = setTimeout(() => resolve({ kind: "timeout" }), timeoutMs)
-      abortHandler = () => reject(signal?.reason ?? new Error("Grep aborted"))
+      let settled = false
+      const settle = (action: () => void) => {
+        if (settled) return
+        settled = true
+        action()
+      }
+      const onMessage = (result: GrepWorkerResponse) => settle(() => resolve({ kind: "result", result }))
+      const onError = (error: Error) => settle(() => reject(error))
+      const onExit = (code: number) => {
+        if (code !== 0) settle(() => reject(new Error("Grep worker exited unexpectedly")))
+      }
+
+      timeout = setTimeout(() => settle(() => resolve({ kind: "timeout" })), timeoutMs)
+      abortHandler = () => settle(() => reject(signal?.reason ?? new Error("Grep aborted")))
       signal?.addEventListener("abort", abortHandler, { once: true })
-      worker.once("message", (result: GrepWorkerResponse) => resolve({ kind: "result", result }))
-      worker.once("error", reject)
-      worker.once("exit", (code) => {
-        if (code !== 0) reject(new Error("Grep worker exited unexpectedly"))
-      })
+      worker.once("message", onMessage)
+      worker.once("error", onError)
+      worker.once("exit", onExit)
+      if (signal?.aborted) {
+        abortHandler()
+        return
+      }
       worker.postMessage({ pattern, files, maxMatches })
     })
     return outcome

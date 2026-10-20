@@ -10,7 +10,6 @@ export const initialNoProgress: NoProgressState = { repeats: 0 }
 
 export interface StopState {
   startedAtMs: number
-  costUsd: number
   totalTokens: number
   /** Steps that have finished; the step about to run is `completedSteps + 1`. */
   completedSteps: number
@@ -31,11 +30,9 @@ export const evaluateStop = (
   state: StopState,
   limits: BudgetLimits,
   nowMs: number,
-  costBudgetEnforced = true,
 ): StopEvaluation => {
   const exhausted: Record<StopReason, boolean> = {
     wall_clock_timeout: nowMs - state.startedAtMs >= limits.wallClockTimeoutMs,
-    cost_budget_exhausted: costBudgetEnforced && state.costUsd >= limits.costCeilingUsd,
     total_tokens_exhausted: state.totalTokens >= limits.totalTokenBudget,
     max_steps_exceeded: state.completedSteps >= limits.maxSteps,
     max_tool_calls_exceeded:

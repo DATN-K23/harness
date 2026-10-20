@@ -142,7 +142,7 @@ describe("run-queries", () => {
   })
 })
 
-test("reconstructs repeated call IDs independently for each step", async () => {
+  test("reconstructs repeated call IDs independently for each step", async () => {
   const runId = "run-reused-call-id"
   const makeEvent = (
     sequence: number,
@@ -216,4 +216,77 @@ test("reconstructs repeated call IDs independently for each step", async () => {
   expect(summary?.toolCalls).toHaveLength(2)
   expect(summary?.toolCalls.map((item) => item.stepIndex)).toEqual([1, 2])
   expect(summary?.toolCalls.map((item) => item.resultContent)).toEqual(["first result", "second result"])
+})
+
+test("correlates allocations with provider usage and omits raw readback content", async () => {
+  const runId = "run-context-readback"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `event-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const events = [
+    event(1, "context.transformed", { action: "truncated", targetItemId: "item-1", tokensBefore: 100, tokensAfter: 40, replacementNote: "bounded" }),
+    event(2, "context.allocated", { stepIndex: 1, telemetry: { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 100, estimatedSafetyTokens: 120, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 60, budgetRemainingTokens: 16000, contentDigest: "content", requestDigest: `sha256:${"1".repeat(64)}`, actualUsage: null, usageDelta: null } }),
+    event(3, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 0, profileId: "model", usage: { promptTokens: 90, completionTokens: 10, totalTokens: 100 }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "completed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry[0]).toMatchObject({ actualUsage: { totalTokens: 100 }, usageDelta: 0 })
+  expect(summary?.events).toHaveLength(3)
+})
+
+test("matches multiple allocations to one-based provider attempts in order", async () => {
+  const runId = "run-context-retries"
+  const make = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = (estimatedInputTokens: number, digest: string) => ({ tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens, estimatedSafetyTokens: estimatedInputTokens, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: digest, requestDigest: `sha256:${digest.repeat(64).slice(0, 64)}`, actualUsage: null, usageDelta: null })
+  const usage = (promptTokens: number, completionTokens: number, totalTokens: number) => ({ promptTokens, completionTokens, totalTokens })
+  const events = [
+    make(1, "context.allocated", { stepIndex: 1, telemetry: telemetry(100, "a") }),
+    make(2, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 1, profileId: "model", usage: usage(110, 10, 120), costUsd: 0, latencyMs: 1, retryDecision: "retry", backoffMs: 1 }),
+    make(3, "context.allocated", { stepIndex: 1, telemetry: telemetry(200, "b") }),
+    make(4, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 2, profileId: "model", usage: null, costUsd: null, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry.map(({ actualUsage, usageDelta }) => ({ actualUsage, usageDelta }))).toEqual([
+    { actualUsage: usage(110, 10, 120), usageDelta: 20 },
+    { actualUsage: null, usageDelta: null },
+  ])
+})
+
+test("does not attach ambiguous legacy zero-based usage to multiple allocations", async () => {
+  const runId = "run-ambiguous-legacy"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = (estimatedInputTokens: number) => ({ tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens, estimatedSafetyTokens: estimatedInputTokens, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: "content", actualUsage: null, usageDelta: null })
+  const events = [
+    event(1, "context.allocated", { stepIndex: 1, telemetry: telemetry(100) }),
+    event(2, "context.allocated", { stepIndex: 1, telemetry: telemetry(200) }),
+    event(3, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 0, profileId: "model", usage: { promptTokens: 999, completionTokens: 1, totalTokens: 1000 }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry.map((item) => item.actualUsage)).toEqual([null, null])
+})
+
+test("ignores malformed provider usage during context correlation", async () => {
+  const runId = "run-malformed-usage"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 100, estimatedSafetyTokens: 100, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: "content", actualUsage: null, usageDelta: null }
+  const events = [
+    event(1, "context.allocated", { stepIndex: 1, telemetry }),
+    event(2, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 1, profileId: "model", usage: { promptTokens: NaN, completionTokens: 2, totalTokens: 3, secret: "raw" }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry[0].actualUsage).toBeNull()
+  expect(summary?.contextTelemetry[0].usageDelta).toBeNull()
 })

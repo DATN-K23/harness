@@ -11,6 +11,7 @@ import type {
 } from "@harness/protocol"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
 import { MultiTurnRunner } from "../../src/runner/multi-turn-runner"
+import { PassThroughContextEngine } from "../../src/context"
 import { getMultiTurnExecutionSummary } from "../../src/runner/run-queries"
 
 class MultiTurnScriptedGateway implements ModelGatewayPort {
@@ -91,6 +92,7 @@ describe("MultiTurnRunner Full Integration", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 

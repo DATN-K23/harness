@@ -47,6 +47,7 @@ if (postgresAvailable) {
         PROVIDER_NAME: "openai",
         MODEL_NAME: "gpt-4o-mini",
         MODEL_API_KEY: "test-key-for-recorded-gateway",
+        MODEL_MAX_CONTEXT_TOKENS: "32768",
         HARNESS_SNAPSHOT_DIR: snapshotDir,
       }
       const gatewayFactory = (config: RuntimeConfig) => {

@@ -1,4 +1,5 @@
 import { z } from "zod"
+import type { ModelAttemptRequest, TokenUsage } from "./model-gateway"
 
 export const ContextItemTypes = [
   "system_prompt",
@@ -42,6 +43,7 @@ export interface ContextPolicy {
   windowLimitTokens: number
   outputReserveTokens: number
   compactionThreshold: number
+  safetyMarginFactor: number
   recentWindowTokens: number
   toolOutputMaxTokens: number
   toolOutputMaxLines: number
@@ -67,28 +69,36 @@ export interface RunBudget {
   totalTokenLimit: number
   compactionsCount: number
   costUsd: number
-  costCeilingUsd: number
 }
 
 export const TransformationSchema = z.object({
-  action: z.enum(["masked", "dropped_empty", "superseded", "truncated"]),
+  action: z.enum(["masked", "dropped_empty", "superseded", "truncated", "tool_output_truncated"]),
   targetItemId: z.string(),
-  tokensBefore: z.number(),
-  tokensAfter: z.number(),
+  tokensBefore: z.number().int().nonnegative(),
+  tokensAfter: z.number().int().nonnegative(),
   replacementNote: z.string(),
 })
 
 export const PrepareTelemetrySchema = z.object({
   tokenizer: z.literal("o200k_base"),
   policyVersion: z.string(),
-  estimatedInputTokens: z.number(),
-  estimatedSafetyTokens: z.number(),
-  windowLimitTokens: z.number(),
-  outputReserveTokens: z.number(),
-  tokensSaved: z.number(),
-  budgetRemainingTokens: z.number(),
+  estimatedInputTokens: z.number().int().nonnegative(),
+  estimatedSafetyTokens: z.number().int().nonnegative(),
+  windowLimitTokens: z.number().int().positive(),
+  outputReserveTokens: z.number().int().nonnegative(),
+  tokensSaved: z.number().int().nonnegative(),
+  budgetRemainingTokens: z.number().int().nonnegative(),
   contentDigest: z.string(),
-})
+  /** Optional on persisted legacy events; binds the exact sanitized, provider-ready request. */
+  requestDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+  estimatedOutputTokens: z.number().int().nonnegative().optional(),
+    actualUsage: z.object({
+    promptTokens: z.number().int().nonnegative(),
+    completionTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+  }).nullable().optional(),
+  usageDelta: z.number().int().nullable().optional(),
+}).strict()
 
 const prepareBase = {
   transformations: z.array(TransformationSchema).optional(),
@@ -100,6 +110,7 @@ export const PrepareResultSchema = z.discriminatedUnion("status", [
     ...prepareBase,
     status: z.literal("ready"),
     preparedItems: z.array(ContextItemSchema),
+    preparedRequest: z.custom<ModelAttemptRequest>().optional(),
   }),
   z.object({
     ...prepareBase,
@@ -134,16 +145,17 @@ export interface ShapeToolResultOutcome {
 export interface ContextEnginePort {
   prepare(input: {
     items: ContextItem[]
+    request?: ModelAttemptRequest
     policy: ContextPolicy
     modelLimits: ModelLimits
     budget: RunBudget
   }): Promise<PrepareResult>
 
   record(input: {
-    actualUsage: { promptTokens: number; completionTokens: number; totalTokens: number }
+    actualUsage: TokenUsage | null
     modelLimits: ModelLimits
     budget: RunBudget
   }): Promise<RecordResult>
 
-  shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy }): Promise<ShapeToolResultOutcome>
+  shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy; path?: string; lineRange?: [number, number] }): Promise<ShapeToolResultOutcome>
 }

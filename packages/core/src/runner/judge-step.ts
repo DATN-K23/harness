@@ -205,7 +205,6 @@ export class JudgeStep {
       const evaluation = evaluateStop(
         {
           ...input.stopState,
-          costUsd: input.stopState.costUsd + spent.costUsd,
           totalTokens: input.stopState.totalTokens + spent.totalTokens,
         },
         input.limits,

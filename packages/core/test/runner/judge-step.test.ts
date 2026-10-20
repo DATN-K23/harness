@@ -40,13 +40,13 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome.type).toBe("continue_turn")
   })
 
-  test("agreed-invalid consensus commits an invalid verdict without another model call", async () => {
+  test("agreed-invalid consensus without a snapshot-grounded citation is UNVERIFIED", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
       { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
-    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "invalid", verificationStatus: "FAIL" } })
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(h.gateway.callCount).toBe(0)
     expect(await h.events("verdict.validation_failed")).toHaveLength(0)
   })

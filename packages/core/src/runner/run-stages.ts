@@ -139,7 +139,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
 
-/** The run's registry: the snapshot tools, plus `run_state_probe` in Tier 2 with the probe runs already used. */
+/** The run's registry: the snapshot tools, plus `run_state_probe` only for a sanitized assertion-free PoC. */
 const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number) =>
   composeTools(
     context.deps.tools,

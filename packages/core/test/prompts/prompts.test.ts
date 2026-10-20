@@ -115,6 +115,7 @@ describe("judge-system.v1", () => {
       "BENIGN_MECHANICS",
       "NO_STATE_DELTA",
       "OUT_OF_SCOPE",
+      "UNRESOLVED",
     ])
       expect(text).toContain(code)
   })

@@ -37,6 +37,7 @@ Tier 2 (the PoC has no assertions):
 - BENIGN_MECHANICS: what the PoC shows is intended behavior.
 - NO_STATE_DELTA: the expected state change did not occur.
 - OUT_OF_SCOPE: the issue is real or not, but outside the scope of the case.
+- UNRESOLVED: available evidence or a bounded witness cannot resolve the claim. Use validity "unverified" and verificationStatus "UNVERIFIED"; do not imply benign behavior or execution failure.
 
 ## Verdict format
 

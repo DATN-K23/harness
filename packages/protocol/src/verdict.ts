@@ -39,6 +39,7 @@ export const JudgeVerdictShapeSchema = z.object({
     "BENIGN_MECHANICS",
     "NO_STATE_DELTA",
     "OUT_OF_SCOPE",
+    "UNRESOLVED",
   ]),
   severity: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "GAS"]).optional(),
   confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),

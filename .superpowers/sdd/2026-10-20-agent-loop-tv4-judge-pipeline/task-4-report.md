@@ -1,21 +1,21 @@
-# Task 4 Report: Targeted Witness and TV4 Verdict
+# Task 4 Report: Review Fixes
 
-## Implemented
+## Fixed
 
-- `JudgeStep` now maps `agreed-valid` directly to a schema-validated `valid/PASS` verdict and `agreed-invalid` to `invalid/FAIL`; both terminate through the existing runner and terminal CAS path.
-- `disputed` and `inconclusive` terminate as `validity: "unverified"` / `verificationStatus: "UNVERIFIED"`, rather than being mistaken for invalid findings.
-- The protocol verdict schema now distinguishes `unverified` as a durable validity state. Existing invalid verdicts retain their `FAIL` requirement; only the explicit unverified state carries `UNVERIFIED`.
-- Added synthesis/step coverage for unverified validity and consensus outcomes. Existing model-driven citations remain resolved and bounded through `SourceSnapshotPort`.
+- An `agreed-invalid` consensus is schema-validated and only becomes `invalid/FAIL` when a ranged BCE source item is reread from the immutable snapshot and its text matches. The verdict citation uses that exact range, filtered snippet, and harness-computed digest. Without matching snapshot evidence the terminal result is `unverified/UNVERIFIED`.
+- Added the normative `UNRESOLVED` reason code and instructed the Judge prompt to use it for uncertain evidence/witness outcomes. This avoids labeling unresolved claims as `BENIGN_MECHANICS` or `EXECUTION_FAILED`.
+- `disputed`/`inconclusive` remains explicitly `unverified/UNRESOLVED`, with no false invalid inference from process status.
+- Added full `JudgeRunner` tests for disputed/inconclusive and agreed-invalid narrative-only paths. They assert terminal completed state, one `run.completed`, contiguous events, and the expected unverified verdict—covering the existing terminal CAS commit path.
+- Narrowed the earlier inaccurate claim: only model-authored verdict citations and consensus citations that pass snapshot resolution are bounded by `SourceSnapshotPort`.
 
-## Deliberate limitation
+## Remaining witness limitation
 
-- A full targeted witness does not run here. The existing `run_state_probe` is only made available for sanitized assertion-free PoCs, while Task 2's required `narrative_only` path has no PoC to sanitize or state-probe. The current flow does not carry a typed disputed condition or enough target state to synthesize a safe probe. Per the bounded-scope decision, those unresolved cases are explicitly UNVERIFIED rather than using an unbounded exploit-generation path or guessing invalidity.
-- Successful `run_state_probe` evidence is currently formatted as a tool result for model interpretation; no typed witness adjudication result exists. Treating exit code 0 alone as proof of invalidity would be unsound, so it is not used as a verdict shortcut.
-- The unverified verdict uses the existing `BENIGN_MECHANICS` reason code because no unresolved/witness-unavailable reason exists in the normative verdict schema; validity and verification status remain explicit. A dedicated reason code is a protocol follow-up.
+- The current safe `run_state_probe` is available only when a sanitized assertion-free PoC exists. Narrative-only has no PoC to sanitize; assertion-bearing Tier 1 PoCs do not expose the probe. The tool returns formatted text rather than a typed result tied to a disputed condition. There is therefore no safe way in the current port contract to dispatch and adjudicate a targeted witness for every disputed claim. Such cases remain explicitly UNRESOLVED/UNVERIFIED. No unbounded PoC generation, unsafe execution, or inference from exit code was introduced.
+- An available Tier 2 probe remains bounded by the configured probe count and executes only through the existing sanitizer/sandbox ports; however, sound verdict-level interpretation of its output requires a typed targeted-condition contract beyond this review fix.
 
 ## Verification
 
-- From `packages/core`: `bun test test/judge/verdict-synthesizer.test.ts test/runner/judge-step.test.ts test/runner/judge-runner.test.ts` — 72 passed, 0 failed.
+- From `packages/core`: `bun test test/judge/verdict-synthesizer.test.ts test/judge/adjudication-step.test.ts test/runner/judge-step.test.ts test/runner/judge-runner.test.ts test/prompts/prompts.test.ts` — 92 passed, 0 failed.
 - From `packages/core`: `bun run typecheck` — passed.
 - `git diff --check` — passed.
-- No OpenCode runner implementation was borrowed; no runtime dependency or additional port was introduced.
+- No OpenCode runner code was adapted and no dependency was added.

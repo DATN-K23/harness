@@ -87,6 +87,7 @@ describe("redaction happens before any later step", () => {
         windowLimitTokens: 1_000,
         outputReserveTokens: 100,
         compactionThreshold: 0.8,
+        safetyMarginFactor: 1.2,
         recentWindowTokens: 100,
         toolOutputMaxTokens: 500,
         toolOutputMaxLines: 50,

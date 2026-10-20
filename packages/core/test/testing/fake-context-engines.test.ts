@@ -19,6 +19,7 @@ const policy = (overrides: Partial<ContextPolicy> = {}): ContextPolicy => ({
   windowLimitTokens: 1_000,
   outputReserveTokens: 200,
   compactionThreshold: 0.5,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 100,
   toolOutputMaxTokens: 500,
   toolOutputMaxLines: 3,

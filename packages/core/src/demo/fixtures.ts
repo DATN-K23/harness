@@ -49,6 +49,7 @@ export const demoPolicy: ContextPolicy = {
   windowLimitTokens: 100_000,
   outputReserveTokens: 4_000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 10_000,
   toolOutputMaxTokens: 4_000,
   toolOutputMaxLines: 50,

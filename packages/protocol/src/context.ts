@@ -42,6 +42,7 @@ export interface ContextPolicy {
   windowLimitTokens: number
   outputReserveTokens: number
   compactionThreshold: number
+  safetyMarginFactor: number
   recentWindowTokens: number
   toolOutputMaxTokens: number
   toolOutputMaxLines: number
@@ -71,10 +72,10 @@ export interface RunBudget {
 }
 
 export const TransformationSchema = z.object({
-  action: z.enum(["masked", "dropped_empty", "superseded", "truncated"]),
+  action: z.enum(["masked", "dropped_empty", "superseded", "truncated", "tool_output_truncated"]),
   targetItemId: z.string(),
-  tokensBefore: z.number(),
-  tokensAfter: z.number(),
+  tokensBefore: z.number().nonnegative(),
+  tokensAfter: z.number().nonnegative(),
   replacementNote: z.string(),
 })
 
@@ -88,6 +89,15 @@ export const PrepareTelemetrySchema = z.object({
   tokensSaved: z.number(),
   budgetRemainingTokens: z.number(),
   contentDigest: z.string(),
+  /** Optional on persisted legacy events; binds the exact sanitized, provider-ready request. */
+  requestDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+  estimatedOutputTokens: z.number().int().nonnegative().optional(),
+  actualUsage: z.object({
+    promptTokens: z.number().int().nonnegative(),
+    completionTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+  }).nullable().optional(),
+  usageDelta: z.number().int().nullable().optional(),
 })
 
 const prepareBase = {

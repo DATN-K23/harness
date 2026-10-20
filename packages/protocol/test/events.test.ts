@@ -310,11 +310,28 @@ describe("event payloads", () => {
   test("context.allocated telemetry carries the content digest", () => {
     const { contentDigest: _omitted, ...rest } = telemetry
     const payload = { stepIndex: 1, telemetry: rest }
-    expect(failure(event({ type: "context.allocated", payload }))[0].path).toEqual([
-      "payload",
-      "telemetry",
-      "contentDigest",
-    ])
+    expect(failure(event({ type: "context.allocated", payload })).some((issue) =>
+      JSON.stringify(issue.path) === JSON.stringify(["payload", "telemetry", "contentDigest"]),
+    )).toBe(true)
+  })
+
+  test("legacy context allocation payloads remain valid and additive request telemetry is validated", () => {
+    expect(EventPayloadSchemas["context.allocated"].safeParse({ stepIndex: 1, telemetry }).success).toBe(true)
+    const extended = {
+      stepIndex: 1,
+      telemetry: {
+        ...telemetry,
+        requestDigest: digest("request"),
+        estimatedOutputTokens: 4096,
+        actualUsage: null,
+        usageDelta: null,
+      },
+    }
+    expect(EventPayloadSchemas["context.allocated"].safeParse(extended).success).toBe(true)
+    expect(EventPayloadSchemas["context.allocated"].safeParse({
+      ...extended,
+      telemetry: { ...extended.telemetry, requestDigest: "prompt/tool raw text" },
+    }).success).toBe(false)
   })
 })
 

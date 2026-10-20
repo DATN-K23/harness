@@ -79,6 +79,7 @@ export const ContextPolicySchema = z.object({
   windowLimitTokens: z.number().int().positive(),
   outputReserveTokens: z.number().int().nonnegative(),
   compactionThreshold: z.number(),
+  safetyMarginFactor: z.number().gt(0),
   recentWindowTokens: z.number().int().nonnegative(),
   toolOutputMaxTokens: z.number().int().nonnegative(),
   toolOutputMaxLines: z.number().int().nonnegative(),

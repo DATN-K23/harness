@@ -554,6 +554,7 @@ const appendResumeHistory = async (
       windowLimitTokens: 128_000,
       outputReserveTokens: 2048,
       compactionThreshold: 0.8,
+      safetyMarginFactor: 1.2,
       recentWindowTokens: 20_000,
       toolOutputMaxTokens: 4000,
       toolOutputMaxLines: 100,

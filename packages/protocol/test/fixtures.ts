@@ -9,6 +9,7 @@ export const contextPolicy = (): ContextPolicy => ({
   windowLimitTokens: 100000,
   outputReserveTokens: 4000,
   compactionThreshold: 0.8,
+  safetyMarginFactor: 1.2,
   recentWindowTokens: 20000,
   toolOutputMaxTokens: 4000,
   toolOutputMaxLines: 200,

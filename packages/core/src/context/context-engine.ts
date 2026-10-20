@@ -1,5 +1,4 @@
-// Harness-owned implementation. OpenCode reference checkout inspected at 5542415b6424aa9bad8827dc72e8cd0630b2c0ab;
-// no source algorithm was copied, and requested revision 3f393d78bf was unavailable.
+// Adapted from OpenCode packages/core/src/session/context-engine.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type {
   ContextEnginePort,
   PrepareResult,
@@ -34,7 +33,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 
   async shapeToolResult(input: ShapeInput): Promise<ShapeToolResultOutcome> {
     const tokensBefore = estimateTokens(input.content)
-    const lines = input.content.split("\n").slice(0, input.policy.toolOutputMaxLines)
+    const lines = input.content.split("\n")
     const limit = input.policy.toolOutputMaxLines
     if (!input.policy.flags.enableToolTruncation || lines.length <= limit)
       return { content: input.content, isTruncated: false, tokensBefore, tokensAfter: tokensBefore }

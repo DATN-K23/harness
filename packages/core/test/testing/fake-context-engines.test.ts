@@ -137,6 +137,12 @@ describe("shapeToolResult (fake truncation)", () => {
     expect(shaped.tokensAfter).toBe(estimateTokens(shaped.content))
   })
 
+  test("decides whether to truncate using the original line count", async () => {
+    const shaped = await engine.shapeToolResult({ content: "one\ntwo\nthree\nfour", toolName: "grep", policy: policy() })
+    expect(shaped.isTruncated).toBe(true)
+    expect(shaped.continuationNote).toContain("showing 3 of 4 lines")
+  })
+
   test("leaves short output alone", async () => {
     const shaped = await engine.shapeToolResult({ content: "a\nb\nc", toolName: "grep", policy: policy() })
     expect(shaped).toEqual({ content: "a\nb\nc", isTruncated: false, tokensBefore: 2, tokensAfter: 2 })

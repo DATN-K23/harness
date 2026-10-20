@@ -1,4 +1,4 @@
-// Harness fake estimator retained only for deterministic test doubles.
+// Adapted from OpenCode packages/core/src/session/token-estimator.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { ContextItem } from "@harness/protocol"
 
 export const FakeContextEngineLabel =

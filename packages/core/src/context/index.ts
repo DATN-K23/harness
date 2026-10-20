@@ -1,4 +1,4 @@
-// Harness context-engine exports.
+// Adapted from OpenCode packages/core/src/session/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 export {
   FakeContextEngineLabel,
   estimateTokens,

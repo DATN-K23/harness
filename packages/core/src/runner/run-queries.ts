@@ -62,6 +62,21 @@ export interface MultiTurnExecutionSummary {
   steps: MultiTurnStepSummary[]
   attempts: Record<string, unknown>[]
   events: TrajectoryEvent[]
+  contextTelemetry: ContextTelemetrySummary[]
+}
+
+export interface ContextTelemetrySummary {
+  stepIndex: number
+  policyVersion: string
+  tokenizer: "o200k_base"
+  estimatedInputTokens: number
+  estimatedOutputTokens?: number
+  outputReserveTokens: number
+  estimatedSafetyTokens: number
+  actualUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | null
+  usageDelta: number | null
+  requestDigest?: string
+  transformations: Array<{ action: string; targetItemId: string; tokensBefore: number; tokensAfter: number; savings: number }>
 }
 
 /** Reconstructs a structured multi-turn summary, identifying each tool call by its step and call ID. */
@@ -74,12 +89,34 @@ export async function getMultiTurnExecutionSummary(
 
   const events = await getRunHistory(runId, store)
   const toolCallMap = new Map<string, ReconstructedToolCall>()
+  const contextTelemetry: ContextTelemetrySummary[] = []
+  let pendingTransformations: ContextTelemetrySummary["transformations"] = []
   let currentStepIndex = 1
 
   for (const event of events) {
     if (event.type === "step.started") {
       const payload = event.payload as { stepIndex: number }
       currentStepIndex = payload.stepIndex
+    } else if (event.type === "context.transformed") {
+      const payload = event.payload as { action: string; targetItemId: string; tokensBefore: number; tokensAfter: number }
+      pendingTransformations.push({ ...payload, savings: Math.max(0, payload.tokensBefore - payload.tokensAfter) })
+    } else if (event.type === "context.allocated") {
+      const payload = event.payload as { stepIndex: number; telemetry: Record<string, any> }
+      const t = payload.telemetry
+      contextTelemetry.push({
+        stepIndex: payload.stepIndex,
+        policyVersion: t.policyVersion,
+        tokenizer: "o200k_base",
+        estimatedInputTokens: t.estimatedInputTokens,
+        ...(typeof t.estimatedOutputTokens === "number" ? { estimatedOutputTokens: t.estimatedOutputTokens } : {}),
+        outputReserveTokens: t.outputReserveTokens,
+        estimatedSafetyTokens: t.estimatedSafetyTokens,
+        actualUsage: t.actualUsage ?? null,
+        usageDelta: t.usageDelta ?? null,
+        ...(typeof t.requestDigest === "string" ? { requestDigest: t.requestDigest } : {}),
+        transformations: pendingTransformations,
+      })
+      pendingTransformations = []
     } else if (event.type === "tool.requested") {
       const payload = event.payload as {
         callIndex: number
@@ -196,5 +233,6 @@ export async function getMultiTurnExecutionSummary(
     steps,
     attempts,
     events,
+    contextTelemetry,
   }
 }

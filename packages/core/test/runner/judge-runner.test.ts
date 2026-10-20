@@ -116,6 +116,37 @@ describe("JudgeRunner: reasoning loop", () => {
     await expectContiguous(world)
   })
 
+  test("disputed witness typed evidence can resolve through normative snapshot citation synthesis", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "re-enter withdraw", callerAssumptions: [], claimedImpact: "attacker balance exceeds deposit", claimedState: "balanceOf(attacker) grows" }
+    const w = world.worker({
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
+      stateProbe: { exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3 ether" }] },
+      script: [
+        textResponse("acknowledged"),
+        textResponse('{"reachability":"incomplete","explanation":"The disputed payout magnitude requires measurement."}'),
+        textResponse('{"reconstruction":"reconstructed","explanation":"The call ordering allows re-entry before the balance update."}'),
+        textResponse("Bidirectional consensus: disputed"),
+        toolCallResponse([{ id: "probe-valid", name: "run_state_probe", arguments: { stateVariables: ["balanceOf(attacker)"] } }]),
+        textResponse(JSON.stringify({
+          validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED", severity: "HIGH", confidence: "HIGH",
+          summary: "The bounded witness measured the attacker balance growing during re-entry.",
+          reasoning: "The exact targeted witness measured the attacker balance increasing from zero to three ether. The immutable source snapshot shows withdraw transfers to the caller before decrementing that caller's balance, permitting another withdrawal during the callback.",
+          targetedCondition: "balanceOf(attacker)", observedBefore: "0", observedAfter: "3 ether",
+          deltaExplanation: "The bounded probe measured a three-ether increase while the source performs the external transfer before reducing the caller balance, permitting repeated withdrawals.",
+          citesEvidence: [{ filePath: "src/Vault.sol", startLine: 21, endLine: 25, explanation: "withdraw transfers before decrementing the caller balance" }],
+        })),
+      ],
+    })
+    const result = await w.start("worker-a", runInput({ maxProbeRuns: 1 }))
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS", citesEvidence: [{ filePath: "src/Vault.sol", startLine: 21, endLine: 25 }] } })
+    expect(w.sandbox.stateProbeCalls).toHaveLength(1)
+    expect((await world.events("tool.requested")).some((event) => event.payload.toolName === "run_state_probe")).toBe(true)
+    expect(await world.state()).toBe("completed")
+    await expectContiguous(world)
+  })
+
   test("Task 3 inconclusive narrative claim commits UNVERIFIED through terminal CAS", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }

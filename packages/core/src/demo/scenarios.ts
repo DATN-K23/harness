@@ -200,7 +200,8 @@ const disputedWitness: ScenarioSpec = {
   script: [
     textResponse("acknowledged", { usage: usageOf(20, 10, 0.001) }),
     textResponse('{"reachability":"incomplete","explanation":"The claimed payout magnitude needs measurement."}', { usage: usageOf(20, 10, 0.001) }),
-    textResponse('{"reconstruction":"reconstructed","explanation":"A callback can re-enter withdraw before the balance update."}', { usage: usageOf(20, 10, 0.001) }),
+    textResponse('{"reconstruction":"reconstructed","explanation":"The call ordering allows re-entry before the balance update."}', { usage: usageOf(20, 10, 0.001) }),
+    textResponse("Bidirectional consensus: disputed", { usage: usageOf(20, 10, 0.001) }),
     toolCallResponse([{ id: "witness-1", name: "run_state_probe", arguments: { stateVariables: ["balanceOf(attacker)"] } }], { usage: usageOf(20, 10, 0.001) }),
     textResponse(JSON.stringify({
       validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED", severity: "HIGH", confidence: "HIGH",
@@ -208,7 +209,7 @@ const disputedWitness: ScenarioSpec = {
       reasoning: "The bounded witness measured balanceOf(attacker) from 0 to 3 ether. In the scripted scenario the attacker deposits 1 ether, and withdraw sends ether before decrementing the recorded balance; the callback can therefore re-enter while the original balance remains available.",
       targetedCondition: "balanceOf(attacker)", observedBefore: "0", observedAfter: "3000000000000000000",
       deltaExplanation: "The balance rose from zero to three ether while the scenario deposited one ether, and withdraw transfers before reducing balance, demonstrating repeated withdrawal through re-entry.",
-      citesEvidence: [{ filePath: "src/Vault.sol", startLine: 21, endLine: 25, explanation: "withdraw transfers to the caller before decrementing the caller balance" }],
+      citesEvidence: [{ filePath: "src/Vault.sol", startLine: 17, endLine: 21, explanation: "withdraw transfers to the caller before decrementing the caller balance" }],
     }), { usage: usageOf(120, 40, 0.025) }),
   ],
 }

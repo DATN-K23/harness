@@ -57,13 +57,15 @@ describe("demo", () => {
     expect(rows.find((row) => row.scenario === "narrative-agreed")).toMatchObject({ steps: 4, tokens: 100, costUsd: 0.02 })
   })
 
-  test("disputed report uses the bounded scripted witness and correctly remains UNVERIFIED", () => {
+  test("disputed report resolves through bounded witness evidence and snapshot citation", () => {
     const verdict = readJson("disputed-witness", "01-verdict.json")
-    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", citesEvidence: [] })
+    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED" })
+    expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 17, endLine: 21 })
+    expect(verdict.citesEvidence[0].contentDigest).toStartWith("sha256:")
     const trajectory = readJson("disputed-witness", "03-trajectory.json")
-    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(9)
-    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 9, usage: { promptTokens: 280, completionTokens: 120, totalTokens: 400 } })
-    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.033)
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(6)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 6, usage: { promptTokens: 220, completionTokens: 90, totalTokens: 310 } })
+    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.03)
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
       ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
@@ -79,10 +81,10 @@ describe("demo", () => {
     expect(probeResult?.payload.item.content).toContain("balanceOf(attacker)")
     expect(probeResult?.payload.item.content).toContain("3000000000000000000")
     expect(read("disputed-witness", "04-exploit-proof.json")).toContain("balanceOf(attacker)")
-    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 400 })
-    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.033)
-    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 9, tokens: 400 })
-    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.033)
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 310 })
+    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.03)
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 6, tokens: 310 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.03)
   })
 })
 

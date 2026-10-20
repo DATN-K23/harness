@@ -120,6 +120,24 @@ describe("JudgeStep bounded witness resolution", () => {
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
   })
 
+  test("a matching typed witness and snapshot citation can complete a valid disputed verdict", async () => {
+    const h = await createHarness({ script: [textResponse(JSON.stringify({
+      validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED", severity: "HIGH", confidence: "HIGH",
+      summary: "The witness confirms the attacker balance increased during re-entry.",
+      reasoning: "The typed witness measured the named balance rising while the source performs the external call before the balance update.",
+      targetedCondition: "totalSupply", observedBefore: "1", observedAfter: "2",
+      deltaExplanation: "The value increased by one during the bounded probe, matching the claimed state change in this scenario.",
+      citesEvidence: [{ filePath: "src/Vault.sol", startLine: 1, endLine: 2, explanation: "the source lines establish the relevant state behavior" }],
+    }))] })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
+      { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0). State delta, post minus pre:\n| variable | before | after |\n| --- | --- | --- |\n| totalSupply | 1 | 2 |", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
+    ], probeEvidence: new Map([["totalSupply", { before: "1", after: "2" }]]) }))
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "valid", verificationStatus: "PASS", citesEvidence: [{ filePath: "src/Vault.sol", startLine: 1, endLine: 2 }] } })
+  })
+
   test("unrelated BCE slice cannot synthesize an agreed-invalid verdict", async () => {
     const h = await createHarness({ script: [textResponse(JSON.stringify({
       validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",

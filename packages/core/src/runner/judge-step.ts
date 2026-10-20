@@ -299,8 +299,10 @@ export class JudgeStep {
     const text = response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
     let calls = response.toolCalls ?? []
+    const currentConsensus = /^Bidirectional consensus: (disputed|inconclusive)$/.exec(text.trim())?.[1]
+    const activeConsensusStatus = consensusStatus ?? currentConsensus
 
-    if (consensusStatus === "disputed" || consensusStatus === "inconclusive") {
+    if (activeConsensusStatus === "disputed" || activeConsensusStatus === "inconclusive") {
       const alreadyAttemptedProbe = input.items.some((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))
       const priorProbe = input.items.findLast((item) => item.type === "tool_result" && item.toolMeta?.toolName === "run_state_probe")
       const probeRequest = input.items.findLast((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))

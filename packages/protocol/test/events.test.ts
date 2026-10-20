@@ -8,7 +8,7 @@ import {
   TrajectoryEventSchema,
   type EventType,
 } from "../src/events"
-import { contextItem, digest, snapshot, verdict } from "./fixtures"
+import { contextItem, digest, legacySnapshot, snapshot, verdict } from "./fixtures"
 
 const blueprintTypes = [
   "run.accepted",
@@ -52,7 +52,10 @@ const telemetry = {
 const payloads: Record<EventType, Record<string, unknown>> = {
   "run.accepted": {},
   "run.queued": {},
-  "run.started": { snapshot: snapshot(), snapshotDigest: digest("d") },
+  "run.started": {
+    snapshot: legacySnapshot(),
+    snapshotDigest: digest("d"),
+  },
   "context.allocated": { stepIndex: 1, telemetry },
   "context.transformed": {
     action: "masked",
@@ -321,13 +324,17 @@ describe("event payloads", () => {
       stepIndex: 1,
       telemetry: {
         ...telemetry,
-        requestDigest: digest("request"),
+        requestDigest: `sha256:${"a".repeat(64)}`,
         estimatedOutputTokens: 4096,
         actualUsage: null,
         usageDelta: null,
       },
     }
     expect(EventPayloadSchemas["context.allocated"].safeParse(extended).success).toBe(true)
+    expect(EventPayloadSchemas["context.allocated"].safeParse({
+      ...extended,
+      telemetry: { ...extended.telemetry, estimatedInputTokens: 1.5 },
+    }).success).toBe(false)
     expect(EventPayloadSchemas["context.allocated"].safeParse({
       ...extended,
       telemetry: { ...extended.telemetry, requestDigest: "prompt/tool raw text" },

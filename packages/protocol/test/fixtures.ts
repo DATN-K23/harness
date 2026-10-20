@@ -59,6 +59,11 @@ export const snapshot = (): RunConfigSnapshot => ({
   verdictSchemaDigest: digest("b"),
 })
 
+export const legacySnapshot = () => {
+  const { safetyMarginFactor: _newField, ...legacyPolicy } = contextPolicy()
+  return { ...snapshot(), contextPolicy: legacyPolicy }
+}
+
 export const contextItem = (overrides: Partial<ContextItem> = {}): ContextItem => ({
   id: "item-1",
   turn: 1,

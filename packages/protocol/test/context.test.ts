@@ -49,6 +49,17 @@ describe("PrepareResultSchema", () => {
     expect(PrepareResultSchema.safeParse({ status: "stop", stopReason: "total_tokens", telemetry }).success).toBe(true)
   })
 
+  test("accepts all prepare outcomes with optional versioned telemetry while retaining legacy fields", () => {
+    const outcomes = [
+      { status: "ready", preparedItems: [item()] },
+      { status: "needs_compaction", summaryPrompt: "summarize", itemsToSummarize: [item()] },
+      { status: "stop", stopReason: "context_budget" },
+    ] as const
+    for (const outcome of outcomes) {
+      expect(PrepareResultSchema.safeParse({ ...outcome, telemetry }).success).toBe(true)
+    }
+  })
+
   test("rejects an unknown status", () => {
     const result = PrepareResultSchema.safeParse({ status: "retry", preparedItems: [item()], telemetry })
     expect(result.success).toBe(false)
@@ -102,6 +113,47 @@ describe("PrepareResultSchema", () => {
       telemetry,
     })
     expect(bad.success).toBe(false)
+  })
+
+  test("accepts tool output truncation with integer counts and rejects invalid token counts", () => {
+    const base = { status: "ready", preparedItems: [item()], telemetry }
+    const transformation = {
+      action: "tool_output_truncated",
+      targetItemId: "item-1",
+      tokensBefore: 20,
+      tokensAfter: 10,
+      replacementNote: "continued",
+    }
+    expect(PrepareResultSchema.safeParse({ ...base, transformations: [transformation] }).success).toBe(true)
+    for (const bad of [{ tokensBefore: -1 }, { tokensAfter: 1.5 }]) {
+      expect(PrepareResultSchema.safeParse({ ...base, transformations: [{ ...transformation, ...bad }] }).success).toBe(false)
+    }
+  })
+
+  test("validates estimate and nullable actual usage/delta without allowing raw prompt or tool content", () => {
+    const valid = {
+      ...telemetry,
+      requestDigest: `sha256:${"a".repeat(64)}`,
+      estimatedOutputTokens: 4096,
+      actualUsage: null,
+      usageDelta: null,
+    }
+    expect(PrepareResultSchema.safeParse({ status: "ready", preparedItems: [item()], telemetry: valid }).success).toBe(true)
+    expect(PrepareResultSchema.safeParse({ status: "ready", preparedItems: [item()], telemetry: {
+      ...valid,
+      actualUsage: { promptTokens: 90, completionTokens: 10, totalTokens: 100 },
+      usageDelta: -10,
+    } }).success).toBe(true)
+    for (const invalid of [
+      { ...valid, estimatedInputTokens: 1.5 },
+      { ...valid, estimatedSafetyTokens: -1 },
+      { ...valid, actualUsage: { promptTokens: -1, completionTokens: 0, totalTokens: 0 } },
+      { ...valid, usageDelta: 1.5 },
+      { ...valid, prompt: "raw prompt text" },
+      { ...valid, toolContent: "raw tool result" },
+    ]) {
+      expect(PrepareResultSchema.safeParse({ status: "ready", preparedItems: [item()], telemetry: invalid }).success).toBe(false)
+    }
   })
 })
 

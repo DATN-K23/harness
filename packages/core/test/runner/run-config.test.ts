@@ -116,6 +116,13 @@ describe("buildRunConfigSnapshot", () => {
     expect(baseline.digest).not.toBe(changed.digest)
   })
 
+  test("legacy snapshots without the safety margin parse with the compatibility default", () => {
+    const current = buildRunConfigSnapshot(inputWith(allOn)).snapshot
+    const { safetyMarginFactor: _omitted, ...legacyPolicy } = current.contextPolicy
+    const parsed = RunConfigSnapshotSchema.parse({ ...current, contextPolicy: legacyPolicy })
+    expect(parsed.contextPolicy.safetyMarginFactor).toBe(1.2)
+  })
+
   test("context flags that disagree with the policy flags are refused", () => {
     const input = inputWith(allOn)
     const disagreeing: RunConfigInput = { ...input, policy: policyFor(flipped("enableSessionNote")) }

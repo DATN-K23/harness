@@ -1037,6 +1037,30 @@ describe("MultiTurnRunner", () => {
     expect(gateway.calls).toHaveLength(0)
   })
 
+  test("resumed run fails closed when contextPolicy is explicitly undefined", async () => {
+    let now = 1000
+    const clock = { nowMs: () => now }
+    const store = new InMemoryRunStore({ clock, leaseMs: 1 })
+    const runId = "run-resume-policy-undefined"
+    store.seedRun(runId, "queued", "Audit prompt", "snap-1")
+    const claim = await store.claim({ runId, workerId: "first" })
+    if (claim.kind !== "claimed") throw new Error("setup claim failed")
+    const { digestOf } = require("../../src/util/digest")
+    const snapshot = { contextPolicy: undefined }
+    const payload = { snapshot }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: {
+      eventId: "undefined-policy", type: "run.started", schemaVersion: 1, payload, payloadDigest: digestOf(payload), occurredAt: new Date(now).toISOString(),
+    } })
+    await store.transition({ claim: claim.claim, expectedState: "queued", expectedStateVersion: claim.stateVersion, nextState: "running" })
+    now += 2
+    const gateway = new ScriptedGateway([])
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+    const result = await runner.execute({ runId, workerId: "resumer", prompt: "Audit prompt", snapshotId: "snap-1" })
+    expect(result.state).toBe("failed")
+    expect(result.error).toContain("context policy is missing or invalid")
+    expect(gateway.calls).toHaveLength(0)
+  })
+
   test("propagates maxSourceEntries to all turn requests and records in runConfigSnapshot (N3 fixed)", async () => {
     const store = new InMemoryRunStore({ clock })
     const capturedRequests: ModelAttemptRequest[] = []

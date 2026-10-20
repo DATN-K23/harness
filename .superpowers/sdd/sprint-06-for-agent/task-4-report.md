@@ -22,6 +22,7 @@ Status: implemented; three Important review findings fixed in follow-up commit.
 - Added regressions for full request digest/estimate sensitivity to tools and output options, exact prepared request to gateway, reserve behavior, fail-closed missing model limit, allocation persistence failure preventing gateway, null usage on error attempts, and sanitized shaping before persisted history.
 - Follow-up regressions cover absent gateway usage, ready-without-prepared-request, exact persisted policy restoration on resume, and malformed persisted policy failing before gateway.
 - Missing-usage representation is additive: `provider.attempted.usage` and `costUsd` accept null; historical numeric usage remains accepted. Multi-turn does not write a relational attempt row when usage is absent because its existing schema requires numeric token columns.
+- Re-review fix: resume compatibility fallback now applies only when `contextPolicy` is genuinely absent. An explicitly present `undefined`, `null`, or malformed value fails closed before the provider call.
 - `read_file` already supports `startLine`/`endLine`; no offset API change was needed.
 
 ## Verification

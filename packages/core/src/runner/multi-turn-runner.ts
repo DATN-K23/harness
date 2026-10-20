@@ -377,7 +377,9 @@ export class MultiTurnRunner {
         | undefined
       const persistedPolicy = ContextPolicySchema.safeParse(startedPayload?.snapshot?.contextPolicy)
       if (!persistedPolicy.success) {
-        const legacyWithoutPolicy = startedPayload?.snapshot?.contextPolicy === undefined && startedPayload?.snapshot !== undefined
+        const legacyWithoutPolicy =
+          startedPayload?.snapshot !== undefined &&
+          !Object.hasOwn(startedPayload.snapshot, "contextPolicy")
         if (!legacyWithoutPolicy) return this.finishRun({
           claim,
           expectedStateVersion: stateVersion,

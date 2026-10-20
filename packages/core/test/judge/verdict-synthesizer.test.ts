@@ -49,6 +49,19 @@ const input = (text: string, overrides: Partial<VerdictSynthesisInput> = {}): Ve
 const json = (value: unknown) => JSON.stringify(value)
 
 describe("synthesizeVerdict: accepted verdicts", () => {
+  test("accepts an explicitly unverified verdict without mislabeling it as invalid", async () => {
+    const result = await synthesizeVerdict(deps(), input(json({
+      ...invalidVerdict,
+      validity: "unverified",
+      verificationStatus: "UNVERIFIED",
+      reasonCode: "EXECUTION_FAILED",
+      summary: "The disputed claim could not be safely witnessed.",
+      reasoning: "A bounded witness was unavailable, so there is insufficient evidence to determine whether the claim is valid.",
+    })))
+    expect(result.kind).toBe("accepted")
+    if (result.kind === "accepted") expect(result.verdict.verificationStatus).toBe("UNVERIFIED")
+  })
+
   test("a valid verdict is accepted with the run identity filled in by the harness", async () => {
     const result = await synthesizeVerdict(deps(), input(json(invalidVerdict)))
     expect(result.kind).toBe("accepted")

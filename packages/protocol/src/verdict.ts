@@ -29,7 +29,7 @@ const EvidenceSchema = z
 export const JudgeVerdictShapeSchema = z.object({
   runId: z.string(),
   findingId: z.string(),
-  validity: z.enum(["valid", "invalid"]),
+  validity: z.enum(["valid", "invalid", "unverified"]),
   verificationStatus: z.enum(["PASS", "FAIL", "UNVERIFIED"]),
   reasonCode: z.enum([
     "EXPLOIT_CONFIRMED",
@@ -76,6 +76,11 @@ export const JudgeVerdictSchema = JudgeVerdictShapeSchema.superRefine((verdict, 
       add("VALID_REQUIRES_SEVERITY", ["severity"], "validity valid requires severity CRITICAL, HIGH or MEDIUM")
     if (verdict.citesEvidence.length === 0)
       add("VALID_REQUIRES_EVIDENCE", ["citesEvidence"], "validity valid requires at least one evidence item")
+    return
+  }
+  if (verdict.validity === "unverified") {
+    if (verdict.verificationStatus !== "UNVERIFIED")
+      add("INVALID_REQUIRES_FAIL", ["verificationStatus"], "validity unverified requires verificationStatus UNVERIFIED")
     return
   }
   if (verdict.verificationStatus !== "FAIL")

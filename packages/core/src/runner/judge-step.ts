@@ -1,5 +1,6 @@
 import {
   PrepareResultSchema,
+  JudgeVerdictSchema,
   StopPrecedence,
   type BudgetLimits,
   type CancellationPort,
@@ -156,8 +157,34 @@ export class JudgeStep {
     const finish = this.finisher(input, progress)
     const persist = persistTo(deps.sink)
     const consensus = input.items.findLast((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional consensus: "))
-    if (consensus !== undefined && !consensus.content.endsWith(": agreed-valid"))
-      return finish({ type: "failed", error: "bidirectional verification unresolved; no ordinary verdict is permitted", reason: "worker_interrupted" })
+    const consensusStatus = consensus?.content.slice("Bidirectional consensus: ".length)
+    if (consensus !== undefined && consensusStatus === "agreed-invalid")
+      return finish({ type: "completed", verdict: {
+        runId,
+        findingId: input.findingId,
+        validity: "invalid",
+        verificationStatus: "FAIL",
+        reasonCode: "BENIGN_MECHANICS",
+        confidence: "HIGH",
+        summary: "Bidirectional verification found an unavoidable blocking condition.",
+        reasoning: "Forward reachability or backward reconstruction found a blocking condition that prevents the claimed impact from being achieved.",
+        citesEvidence: [],
+        ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+      } })
+    if (consensus !== undefined && (consensusStatus === "disputed" || consensusStatus === "inconclusive")) {
+      return finish({ type: "completed", verdict: {
+        runId,
+        findingId: input.findingId,
+        validity: "unverified",
+        verificationStatus: "UNVERIFIED",
+        reasonCode: "EXECUTION_FAILED",
+        confidence: "LOW",
+        summary: "The disputed claim could not be resolved by an available bounded witness.",
+        reasoning: "Bidirectional verification was disputed or inconclusive and no successful bounded witness result is available; this is not a finding that the claim is invalid.",
+        citesEvidence: [],
+        ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+      } })
+    }
     const newItem: ToolBranchContext["newItem"] = (type, content, toolMeta) => ({
       id: deps.ids.next("itm_"),
       turn: input.stepIndex,
@@ -340,6 +367,24 @@ export class JudgeStep {
         const consensus = forward.kind === "ok" && backward.kind === "ok"
           ? decideConsensus(forward.result, backward.result)
           : "inconclusive"
+        if (consensus === "agreed-valid" || consensus === "agreed-invalid") {
+          const verdict = consensus === "agreed-valid"
+            ? {
+                runId, findingId: input.findingId, validity: "valid" as const, verificationStatus: "PASS" as const,
+                reasonCode: "EXPLOIT_CONFIRMED" as const, severity: "HIGH" as const, confidence: "HIGH" as const,
+                summary: "Bidirectional verification agrees that the claimed impact is reachable.",
+                reasoning: "Forward exploration found a reachable attack path and backward reconstruction found a feasible path to the claimed impact.",
+                citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+              }
+            : {
+                runId, findingId: input.findingId, validity: "invalid" as const, verificationStatus: "FAIL" as const,
+                reasonCode: "BENIGN_MECHANICS" as const, confidence: "HIGH" as const,
+                summary: "Bidirectional verification found an unavoidable blocking condition.",
+                reasoning: "Forward reachability or backward reconstruction found a blocking condition that prevents the claimed impact from being achieved.",
+                citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+              }
+          return finish({ type: "completed", verdict: JudgeVerdictSchema.parse(verdict) })
+        }
         return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`)] })
       }
       return finish({ type: "continue_turn", toolOutcomes: [] }, {

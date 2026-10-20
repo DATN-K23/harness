@@ -37,6 +37,7 @@ Status: implemented; three Important review findings fixed in follow-up commit.
 - Protocol typecheck passes. Core/CLI typecheck still reports only the pre-existing `packages/core/src/tool/handlers/grep.ts` Worker `.once` errors (TS2339 x3, TS7006).
 - `git diff --check` passes.
 - Final review follow-up verification: focused context, multi-turn, hydration, CLI snapshot and config tests — 83 pass, 0 fail; context/runner/hydrator/read-file/fake-engine/protocol set — 173 pass, 0 fail. Core typecheck still has only the existing `grep.ts` Worker typing errors.
+- Null-usage resume review: regression seeds an allocation (`estimatedInputTokens=300`, `outputReserveTokens=100`) followed by `provider.attempted.usage=null`, expires the lease, and resumes with the same 500-token budget. Resume prepare receives `totalTokensUsed=400`; ProductionContextEngine stops the next allocation as `context_budget`, and gateway call count remains zero. The resume filter intentionally excludes only steps with non-null actual usage, so null-usage attempts retain their estimate. A normal provider error is immediately terminal (`finishRun` to failed) and cannot be retried by claiming the same run; takeover after a null-usage attempt is reachable when the worker dies after persisting the attempt but before terminal transition (for example, between a non-error response and subsequent events). Targeted resume tests: 3 pass; hydrator suite: 5 pass.
 
 ## Limitations
 

@@ -1160,6 +1160,46 @@ describe("MultiTurnRunner", () => {
     expect(gateway.calls).toHaveLength(0)
   })
 
+  test("resume charges an allocation whose provider attempt has null usage before budget preflight", async () => {
+    let now = 1000
+    const clock = { nowMs: () => now }
+    const store = new InMemoryRunStore({ clock, leaseMs: 1 })
+    const runId = "run-resume-null-usage-budget"
+    store.seedRun(runId, "queued", "Audit prompt", "snap-1")
+    const claim = await store.claim({ runId, workerId: "first" })
+    if (claim.kind !== "claimed") throw new Error("setup claim failed")
+    const { digestOf, sha256Hex } = require("../../src/util/digest")
+    const { buildRunConfigSnapshot } = require("../../src/runner/run-config")
+    const { DefaultRetryConfig, ResolvedFlagNames } = require("@harness/protocol")
+    const policy = { policyVersion: "v1", windowLimitTokens: 16384, outputReserveTokens: 4096, compactionThreshold: 0.8, safetyMarginFactor: 1.2,
+      recentWindowTokens: 1000, toolOutputMaxTokens: 1000, toolOutputMaxLines: 100, maxCompactions: 0,
+      flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } }
+    const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name, name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : false]))
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 500, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
+    const started = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "default", requestOptions: { maxOutputTokens: 100 } }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload: started, payloadDigest: digestOf(started), occurredAt: new Date(now).toISOString() } })
+    const item = { id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "item", type: "context.item_added", schemaVersion: 1, payload: { item }, payloadDigest: digestOf({ item }), occurredAt: new Date(now).toISOString() } })
+    const allocation = { stepIndex: 1, telemetry: { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 300, estimatedSafetyTokens: 60, windowLimitTokens: 16384, outputReserveTokens: 100, tokensSaved: 0, budgetRemainingTokens: 500, contentDigest: digestOf([item]), estimatedOutputTokens: 100 } }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "allocation", type: "context.allocated", schemaVersion: 1, payload: allocation, payloadDigest: digestOf(allocation), occurredAt: new Date(now).toISOString() } })
+    const attempt = { stepIndex: 1, attemptIndex: 1, profileId: "default", purpose: "reasoning", usage: null, costUsd: null, latencyMs: 1, retryDecision: "none", backoffMs: 0 }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "attempt", type: "provider.attempted", schemaVersion: 1, payload: attempt, payloadDigest: digestOf(attempt), occurredAt: new Date(now).toISOString() } })
+    await store.transition({ claim: claim.claim, expectedState: "queued", expectedStateVersion: claim.stateVersion, nextState: "running" })
+    now += 2
+    let restoredTokens: number | undefined
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const prepare = engine.prepare.bind(engine)
+    engine.prepare = async (input) => { restoredTokens = input.budget.totalTokensUsed; return prepare(input) }
+    let providerCalls = 0
+    const gateway: ModelGatewayPort = { async executeAttempt() { providerCalls++; return { attemptId: "must-not-run", finishReason: "stop", content: "unexpected", latencyMs: 1 } } }
+    const result = await new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
+      .execute({ runId, workerId: "resume", prompt: "Audit prompt", snapshotId: "snap-1", maxOutputTokens: 100, limits: { totalTokenBudget: 500 }, providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 32768, maxOutputTokens: 4096 } })
+    expect(restoredTokens).toBe(400)
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("context_budget")
+    expect(providerCalls).toBe(0)
+  })
+
   test("resumed run fails closed when persisted context policy is malformed", async () => {
     let now = 1000
     const clock = { nowMs: () => now }

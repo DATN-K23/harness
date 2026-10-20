@@ -40,6 +40,18 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome.type).toBe("continue_turn")
   })
 
+  test("non-valid consensus fails closed without asking for an ordinary verdict", async () => {
+    const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+    ] }))
+    expect(result.outcome).toMatchObject({ type: "failed", reason: "worker_interrupted" })
+    expect(result.outcome.type).not.toBe("completed")
+    expect(h.gateway.callCount).toBe(0)
+    expect(await h.events("verdict.validation_failed")).toHaveLength(0)
+  })
+
   test("gate order: prepare, gateway, record, then the tool runs and is filtered before it is shaped", async () => {
     const h = await createHarness({ script: [readVault()] })
     const result = await h.step.execute(h.input())

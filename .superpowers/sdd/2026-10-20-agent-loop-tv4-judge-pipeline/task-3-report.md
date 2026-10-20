@@ -24,3 +24,11 @@ From `packages/core`:
 ## Security notes
 
 - No ground-truth, scoring metadata, or new external tool access was introduced. Model tool calls continue through the existing supplied snapshot tool registry and security filtering.
+
+## Review-fix report (2026-10-21)
+
+- Consensus classification now leaves contradictory blocked/non-blocking results disputed; both blocked results agree-invalid, while blocking paired with incomplete remains explicit refutation. Added coverage for blocked/non-blocked, all incomplete combinations, and reachable/reconstructed agreement.
+- Forward/backward JSON boundary rejects any keys beyond the exact status field and `explanation`, including missing required keys.
+- `JudgeStep` now fails closed whenever persisted consensus is not `agreed-valid`, before another model call or ordinary verdict synthesis. This keeps disputed, inconclusive, and agreed-invalid from being converted by a later unconstrained answer. No Task 4 witness/verdict behavior was added.
+- Focused check from `packages/core`: `bun run typecheck` passed; `bun test test/judge/bidirectional-verifier.test.ts test/runner/judge-step.test.ts test/runner/judge-runner.test.ts` passed (57 tests, 0 failures); `git diff --check` passed.
+- No OpenCode implementation was adapted and no new runtime dependency was introduced.

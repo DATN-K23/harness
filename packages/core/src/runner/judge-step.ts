@@ -155,6 +155,9 @@ export class JudgeStep {
     const runId = deps.sink.runId
     const finish = this.finisher(input, progress)
     const persist = persistTo(deps.sink)
+    const consensus = input.items.findLast((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional consensus: "))
+    if (consensus !== undefined && !consensus.content.endsWith(": agreed-valid"))
+      return finish({ type: "failed", error: "bidirectional verification unresolved; no ordinary verdict is permitted", reason: "worker_interrupted" })
     const newItem: ToolBranchContext["newItem"] = (type, content, toolMeta) => ({
       id: deps.ids.next("itm_"),
       turn: input.stepIndex,

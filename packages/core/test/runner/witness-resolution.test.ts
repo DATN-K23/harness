@@ -130,7 +130,9 @@ describe("JudgeStep bounded witness resolution", () => {
       citesEvidence: [{ filePath: "src/Vault.sol", startLine: 1, endLine: 2, explanation: "the source lines establish the relevant state behavior" }],
     }))] })
     const result = await h.step.execute(h.input({ items: [
-      ...baseItems,
+      ...baseItems.map((item) => item.id === "itm-finding"
+        ? { ...item, content: `Claim decomposition\n${JSON.stringify({ claimedState: "totalSupply changes", claimedImpact: "attacker balance increases" })}` }
+        : item),
       { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
       { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
       { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0). State delta, post minus pre:\n| variable | before | after |\n| --- | --- | --- |\n| totalSupply | 1 | 2 |", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },

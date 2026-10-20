@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, MultiTurnRunner, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
 import { PostgresRunStore } from "@harness/schema"
@@ -339,6 +339,9 @@ async function runCommand(
         gateway,
         registry,
         snapshot,
+        contextEngine: parsed.mock
+          ? new PassThroughContextEngine()
+          : new ProductionContextEngine(createO200kTokenizer()),
         secrets,
         estimateCostUsd: (model, promptTokens, outputTokens) => {
           const estimate = priceUsage(model, { promptTokens, completionTokens: outputTokens }, priceOverride)
@@ -351,6 +354,8 @@ async function runCommand(
         pricing: profilePricing,
         providerProfile: {
           outputTokensField: effectiveConfig?.modelOutputTokensField ?? "max_tokens",
+          ...(effectiveConfig?.modelMaxContextTokens !== undefined ? { maxContextTokens: effectiveConfig.modelMaxContextTokens } : {}),
+          maxOutputTokens: effectiveConfig?.modelMaxOutputTokens ?? maxOutputTokens,
           ...(inputPrice !== undefined ? { inputCostPerMTok: inputPrice } : {}),
           ...(outputPrice !== undefined ? { outputCostPerMTok: outputPrice } : {}),
         },

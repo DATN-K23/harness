@@ -16,25 +16,28 @@ const item = (id: string, content: string, isPinned = false): ContextItem => ({ 
 
 describe("ProductionContextEngine", () => {
   const engine = new ProductionContextEngine(createO200kTokenizer())
+  const requestFor = (items: ContextItem[]) => ({ runId: "run", stepIndex: 1, attemptIndex: 1, profileId: "model", items })
 
   test("prepares unchanged evidence with o200k allocation and stable content/request digests", async () => {
     const items = [item("instructions", "Inspect this contract", true)]
-  const result = await engine.prepare({ items, policy, modelLimits: limits, budget })
+    const result = await engine.prepare({ items, request: requestFor(items), policy, modelLimits: limits, budget })
     expect(result.status).toBe("ready")
     if (result.status !== "ready") return
     expect(result.preparedItems).toEqual(items)
     expect(result.telemetry.tokenizer).toBe("o200k_base")
     expect(result.telemetry.requestDigest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(result.telemetry.estimatedInputTokens).toBeGreaterThan(0)
-    expect((await engine.prepare({ items, policy, modelLimits: limits, budget })).telemetry.requestDigest)
+    expect((await engine.prepare({ items, request: requestFor(items), policy, modelLimits: limits, budget })).telemetry.requestDigest)
       .toBe(result.telemetry.requestDigest)
-    expect((await engine.prepare({ items: [item("instructions", "Different text", true)], policy, modelLimits: limits, budget })).telemetry.requestDigest)
+    const differentItems = [item("instructions", "Different text", true)]
+    expect((await engine.prepare({ items: differentItems, request: requestFor(differentItems), policy, modelLimits: limits, budget })).telemetry.requestDigest)
       .not.toBe(result.telemetry.requestDigest)
   })
 
   test("fails closed when pinned content plus reserved output cannot fit", async () => {
     const tinyPolicy = { ...policy, windowLimitTokens: 20, outputReserveTokens: 10 }
-    const result = await engine.prepare({ items: [item("pinned", "x".repeat(200), true)], policy: tinyPolicy, modelLimits: limits, budget })
+    const items = [item("pinned", "x".repeat(200), true)]
+    const result = await engine.prepare({ items, request: requestFor(items), policy: tinyPolicy, modelLimits: limits, budget })
     expect(result.status).toBe("stop")
     if (result.status === "stop") expect(result.stopReason).toBe("context_budget")
   })
@@ -42,25 +45,27 @@ describe("ProductionContextEngine", () => {
   test("uses the effective model window instead of rejecting its smaller hard context limit", async () => {
     const modelLimits = { ...limits, maxContextTokens: 10_000 }
     const roomyPolicy = { ...policy, windowLimitTokens: 16_384 }
-    const ready = await engine.prepare({ items: [item("small", "ok")], policy: roomyPolicy, modelLimits, budget })
+    const smallItems = [item("small", "ok")]
+    const ready = await engine.prepare({ items: smallItems, request: requestFor(smallItems), policy: roomyPolicy, modelLimits, budget })
     expect(ready.status).toBe("ready")
 
     const nearCapacity = [item("large", "x".repeat(5_000))]
     const estimate = createO200kTokenizer().count(JSON.stringify(nearCapacity))
     const oneOverLimits = { ...modelLimits, maxContextTokens: estimate + Math.ceil(estimate * 0.2) + 4095 }
-    const stopped = await engine.prepare({ items: nearCapacity, policy: roomyPolicy, modelLimits: oneOverLimits, budget })
+    const stopped = await engine.prepare({ items: nearCapacity, request: requestFor(nearCapacity), policy: roomyPolicy, modelLimits: oneOverLimits, budget })
     expect(stopped.status).toBe("stop")
   })
 
   test("accepts a request exactly at effective context capacity", async () => {
     const items = [item("exact", "ok")]
     const tokenizer = createO200kTokenizer()
-    const estimate = tokenizer.count(JSON.stringify(items))
+    const estimate = tokenizer.count(JSON.stringify(requestFor(items)))
     const safety = Math.ceil(estimate * 0.2)
     const outputReserveTokens = 10
     const exactWindow = estimate + safety + outputReserveTokens
     const result = await engine.prepare({
       items,
+      request: requestFor(items),
       policy: { ...policy, windowLimitTokens: exactWindow, outputReserveTokens },
       modelLimits: { ...limits, maxContextTokens: exactWindow },
       budget: { ...budget, totalTokenLimit: exactWindow + budget.totalTokensUsed },

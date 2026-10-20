@@ -20,9 +20,11 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   readonly prepareCalls: PrepareInput[] = []
   private lastEstimate = 0
 
+
   abstract prepare(input: PrepareInput): Promise<PrepareResult>
 
   async record(input: RecordInput): Promise<RecordResult> {
+    if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
       totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,
       tokenDelta: input.actualUsage.promptTokens - this.lastEstimate,
@@ -59,11 +61,13 @@ export abstract class FakeContextEngine implements ContextEnginePort {
       tokensSaved: 0,
       budgetRemainingTokens: Math.max(0, input.budget.totalTokenLimit - input.budget.totalTokensUsed),
       contentDigest: digestOf(input.items),
+      requestDigest: input.request === undefined ? undefined : digestOf(input.request),
+      estimatedOutputTokens: input.request?.maxOutputTokens ?? 0,
     }
   }
 
   protected ready(input: PrepareInput, estimate: number): PrepareResult {
-    return { status: "ready", preparedItems: input.items, telemetry: this.telemetry(input, estimate) }
+    return { status: "ready", preparedItems: input.items, preparedRequest: input.request, telemetry: this.telemetry(input, estimate) }
   }
 }
 
@@ -79,11 +83,16 @@ export class ProductionContextEngine implements ContextEnginePort {
   constructor(private readonly tokenizer: TokenizerPort) {}
 
   async prepare(input: PrepareInput): Promise<PrepareResult> {
-    const estimate = this.tokenizer.count(JSON.stringify(input.items))
+    const request = input.request
+    if (request === undefined) throw new Error("ProductionContextEngine.prepare requires the canonical provider request")
+    const estimate = this.tokenizer.count(JSON.stringify(request))
     const safety = Math.ceil(estimate * (input.modelLimits.safetyMarginFactor - 1))
     const effectiveWindow = Math.min(input.policy.windowLimitTokens, input.modelLimits.maxContextTokens)
-    const requestedOutput = input.policy.outputReserveTokens
-    const requestDigest = digestOf({ items: input.items })
+    const requestedOutput = request.maxOutputTokens === undefined
+      ? input.policy.outputReserveTokens
+      : Math.min(input.policy.outputReserveTokens, request.maxOutputTokens)
+    const requestedOutputCap = request.maxOutputTokens ?? requestedOutput
+    const requestDigest = digestOf(request)
     const telemetry = {
       tokenizer: this.tokenizer.id,
       policyVersion: input.policy.policyVersion,
@@ -97,15 +106,16 @@ export class ProductionContextEngine implements ContextEnginePort {
       requestDigest,
       estimatedOutputTokens: requestedOutput,
     }
-    if (input.modelLimits.maxOutputTokens < requestedOutput ||
+    if (input.modelLimits.maxOutputTokens < requestedOutputCap ||
       input.budget.totalTokensUsed + estimate + safety + requestedOutput > input.budget.totalTokenLimit ||
       estimate + safety + requestedOutput > effectiveWindow) {
       return { status: "stop", stopReason: "context_budget", preparedItems: input.items, telemetry }
     }
-    return { status: "ready", preparedItems: input.items, telemetry }
+    return { status: "ready", preparedItems: input.items, preparedRequest: request, telemetry }
   }
 
   async record(input: RecordInput): Promise<RecordResult> {
+    if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
       totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,
       tokenDelta: input.actualUsage.promptTokens,

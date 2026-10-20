@@ -17,6 +17,7 @@ import {
 } from "@harness/protocol"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
 import { MultiTurnRunner } from "../../src/runner/multi-turn-runner"
+import { PassThroughContextEngine } from "../../src/context"
 import { EventSink } from "../../src/runner/event-sink"
 import { buildRunConfigSnapshot } from "../../src/runner/run-config"
 import { createIdGenerator } from "../../src/util/id"
@@ -115,8 +116,8 @@ const makeRunner = (input: {
   snapshot?: Snapshot
   clock?: { nowMs: () => number }
   skippedFiles?: () => Promise<Array<{ path: string; reason: string }>>
-  estimatePromptTokens?: (request: ModelAttemptRequest) => number
-  estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
+    estimatePromptTokens?: (request: ModelAttemptRequest) => number
+    estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
 }) => {
   const store = input.store ?? new InMemoryRunStore({ clock: input.clock ?? { nowMs: () => 1000 } })
   const snapshot = input.snapshot ?? new Snapshot()
@@ -127,6 +128,7 @@ const makeRunner = (input: {
       gateway: input.gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock: input.clock,
       skippedFiles: input.skippedFiles,
       estimatePromptTokens: input.estimatePromptTokens,

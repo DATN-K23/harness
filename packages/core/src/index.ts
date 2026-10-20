@@ -104,6 +104,7 @@ export type {
   SingleTurnRunnerDeps,
 } from "./runner/single-turn-runner"
 export { MultiTurnRunner, HeadlessToolApproval } from "./runner/multi-turn-runner"
+export { ProductionContextEngine, createO200kTokenizer } from "./context"
 export type {
   MultiTurnRunInput,
   MultiTurnRunResult,

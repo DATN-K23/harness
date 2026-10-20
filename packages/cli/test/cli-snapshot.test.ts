@@ -14,6 +14,7 @@ const testEnv = (snapshotDir: string, overrides: Record<string, string | undefin
   PROVIDER_NAME: "openai",
   MODEL_NAME: "gpt-4o-mini",
   MODEL_API_KEY: "test-api-key-not-a-real-secret",
+  MODEL_MAX_CONTEXT_TOKENS: "131072",
   HARNESS_SNAPSHOT_DIR: snapshotDir,
   ...overrides,
 })
@@ -81,6 +82,7 @@ describe("snapshot CLI commands", () => {
         stderr: (message) => errors.push(message),
       })
       const after = await treeStat(source)
+      if (exitCode !== 0) throw new Error(`errors=${errors.join("\n")} output=${output.join("\n")}`)
       expect(exitCode).toBe(0)
       expect(errors).toEqual([])
       expect(output.join("\n")).toContain("Snapshot ID: snap_")

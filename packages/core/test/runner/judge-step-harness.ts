@@ -117,6 +117,7 @@ class LoggedEngine implements ContextEnginePort {
   }
 
   record(input: Parameters<ContextEnginePort["record"]>[0]) {
+    if (input.actualUsage === null) return this.inner.record(input)
     this.log.push({ port: "record", totalTokens: input.actualUsage.totalTokens })
     return this.inner.record(input)
   }

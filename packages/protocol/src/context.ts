@@ -1,4 +1,5 @@
 import { z } from "zod"
+import type { ModelAttemptRequest, TokenUsage } from "./model-gateway"
 
 export const ContextItemTypes = [
   "system_prompt",
@@ -92,7 +93,7 @@ export const PrepareTelemetrySchema = z.object({
   /** Optional on persisted legacy events; binds the exact sanitized, provider-ready request. */
   requestDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
   estimatedOutputTokens: z.number().int().nonnegative().optional(),
-  actualUsage: z.object({
+    actualUsage: z.object({
     promptTokens: z.number().int().nonnegative(),
     completionTokens: z.number().int().nonnegative(),
     totalTokens: z.number().int().nonnegative(),
@@ -110,6 +111,7 @@ export const PrepareResultSchema = z.discriminatedUnion("status", [
     ...prepareBase,
     status: z.literal("ready"),
     preparedItems: z.array(ContextItemSchema),
+    preparedRequest: z.custom<ModelAttemptRequest>().optional(),
   }),
   z.object({
     ...prepareBase,
@@ -144,13 +146,14 @@ export interface ShapeToolResultOutcome {
 export interface ContextEnginePort {
   prepare(input: {
     items: ContextItem[]
+    request?: ModelAttemptRequest
     policy: ContextPolicy
     modelLimits: ModelLimits
     budget: RunBudget
   }): Promise<PrepareResult>
 
   record(input: {
-    actualUsage: { promptTokens: number; completionTokens: number; totalTokens: number }
+    actualUsage: TokenUsage | null
     modelLimits: ModelLimits
     budget: RunBudget
   }): Promise<RecordResult>

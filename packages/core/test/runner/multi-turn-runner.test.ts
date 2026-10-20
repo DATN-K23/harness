@@ -10,6 +10,7 @@ import type {
   ToolRegistryPort,
   ToolLimits,
 } from "@harness/protocol"
+import { PassThroughContextEngine, ProductionContextEngine, createO200kTokenizer } from "../../src/context"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
 import { MultiTurnRunner } from "../../src/runner/multi-turn-runner"
 import { getMultiTurnExecutionSummary } from "../../src/runner/run-queries"
@@ -70,6 +71,144 @@ class MockSnapshot implements SourceSnapshotPort {
 describe("MultiTurnRunner", () => {
   const clock = { nowMs: () => 1000 }
 
+  test("prepares and sends the same full tool-enabled provider request", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([{ attemptId: "a", finishReason: "stop", content: "ok", usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4, costUsd: 0 }, latencyMs: 1 }])
+    const contextEngine = new ProductionContextEngine(createO200kTokenizer())
+    let preparedEnvelope: ModelAttemptRequest | undefined
+    const originalPrepare = contextEngine.prepare.bind(contextEngine)
+    contextEngine.prepare = async (input) => {
+      preparedEnvelope = input.request
+      return originalPrepare(input)
+    }
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), clock, contextEngine })
+    const result = await runner.execute({ prompt: "Audit", snapshotId: "snap", maxOutputTokens: 16,
+      providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 16_384, maxOutputTokens: 16 } })
+    if (result.state !== "completed") throw new Error(JSON.stringify(result))
+    expect(result.state).toBe("completed")
+    const sent = gateway.calls[0]
+    expect(sent.tools).toHaveLength(1)
+    expect(sent.maxOutputTokens).toBe(16)
+    expect(preparedEnvelope).toBeDefined()
+    if (preparedEnvelope !== undefined) expect(gateway.calls[0]).toEqual(preparedEnvelope)
+    const events = await store.loadEvents({ runId: result.runId })
+    const allocation = events.find((event) => event.type === "context.allocated")
+    expect(allocation).toBeDefined()
+    if (allocation?.type === "context.allocated") {
+      const telemetry = allocation.payload.telemetry as { requestDigest?: string; estimatedOutputTokens?: number }
+      expect(telemetry.requestDigest).toMatch(/^sha256:/)
+      expect(telemetry.estimatedOutputTokens).toBe(16)
+    }
+  })
+
+  test("production request digest changes when tool schema or output settings change", async () => {
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const items = [{ id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }]
+    const common = {
+      items,
+      policy: { policyVersion: "v1", windowLimitTokens: 16384, outputReserveTokens: 8, compactionThreshold: 0.8,
+        safetyMarginFactor: 1.2, recentWindowTokens: 10, toolOutputMaxTokens: 10, toolOutputMaxLines: 10, maxCompactions: 0,
+        flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } },
+      modelLimits: { maxContextTokens: 32768, maxOutputTokens: 100, safetyMarginFactor: 1.2 },
+      budget: { totalTokensUsed: 0, totalTokenLimit: 10000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+    }
+    const base = { runId: "r", stepIndex: 1, attemptIndex: 1, profileId: "m", items }
+    const first = await engine.prepare({ ...common, request: { ...base, maxOutputTokens: 8 } })
+    const changed = await engine.prepare({ ...common, request: { ...base, maxOutputTokens: 9, tools: new MockRegistry().definitions() } })
+    expect(first.telemetry.requestDigest).not.toBe(changed.telemetry.requestDigest)
+    expect(first.telemetry.estimatedInputTokens).not.toBe(changed.telemetry.estimatedInputTokens)
+  })
+
+  test("production usage record preserves unavailable provider usage", async () => {
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const result = await engine.record({
+      actualUsage: null,
+      modelLimits: { maxContextTokens: 32768, maxOutputTokens: 100, safetyMarginFactor: 1.2 },
+      budget: { totalTokensUsed: 27, totalTokenLimit: 1000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+    })
+    expect(result.totalTokensUsed).toBe(27)
+    expect(result.tokenDelta).toBe(0)
+  })
+
+  test("uses the smaller explicit output cap as effective reserve when supplied", async () => {
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const items = [{ id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }]
+    const result = await engine.prepare({
+      items,
+      request: { runId: "r", stepIndex: 1, attemptIndex: 1, profileId: "m", items, maxOutputTokens: 16 },
+      policy: { policyVersion: "v1", windowLimitTokens: 16_384, outputReserveTokens: 4096, compactionThreshold: 0.8,
+        safetyMarginFactor: 1.2, recentWindowTokens: 10, toolOutputMaxTokens: 10, toolOutputMaxLines: 10, maxCompactions: 0,
+        flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } },
+      modelLimits: { maxContextTokens: 32_768, maxOutputTokens: 16, safetyMarginFactor: 1.2 },
+      budget: { totalTokensUsed: 0, totalTokenLimit: 10_000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+    })
+    expect(result.status).toBe("ready")
+    expect(result.telemetry.outputReserveTokens).toBe(16)
+  })
+
+  test("sanitizes tool output before shaping and persists only the shaped result", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([
+      { attemptId: "tool", finishReason: "tool_calls", toolCalls: [{ id: "call", name: "read_file", arguments: { path: "contracts/Vault.sol" } }], usage: { promptTokens: 2, completionTokens: 1, totalTokens: 3, costUsd: 0 }, latencyMs: 1 },
+      { attemptId: "answer", finishReason: "stop", content: "done", usage: { promptTokens: 2, completionTokens: 1, totalTokens: 3, costUsd: 0 }, latencyMs: 1 },
+    ])
+    const calls: string[] = []
+    const contextEngine = new PassThroughContextEngine()
+    contextEngine.shapeToolResult = async (input) => {
+      calls.push(input.content)
+      return { content: "SHAPED:" + input.content, isTruncated: true, tokensBefore: 3, tokensAfter: 4 }
+    }
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine, clock, secrets: ["contract"] })
+    const result = await runner.execute({ prompt: "Audit", snapshotId: "snap" })
+    expect(result.state).toBe("completed")
+    expect(calls[0]).not.toContain("contract")
+    const events = await store.loadEvents({ runId: result.runId })
+    const resultEvent = events.find((event) => event.type === "context.item_added" && (event.payload as { item?: { type?: string } }).item?.type === "tool_result")
+    expect(JSON.stringify(resultEvent)).toContain("SHAPED:")
+  })
+
+  test("records null provider usage for failed attempts", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([{ attemptId: "err", finishReason: "error", error: { category: "transport", isRetryable: false, message: "offline" }, usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }, latencyMs: 1 }])
+    let actualUsage: unknown = "unset"
+    const engine = new PassThroughContextEngine()
+    const record = engine.record.bind(engine)
+    engine.record = async (input) => {
+      actualUsage = input.actualUsage
+      return record(input)
+    }
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
+    await runner.execute({ prompt: "Audit", snapshotId: "snap" })
+    expect(actualUsage).toBeNull()
+  })
+
+  test("does not call the gateway if context allocation telemetry cannot be persisted", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const gateway = new ScriptedGateway([])
+    const originalAppend = store.appendEvent.bind(store)
+    store.appendEvent = async (input) => {
+      if (input.event.type === "context.allocated") throw new Error("allocation store unavailable")
+      return originalAppend(input)
+    }
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+    const result = await runner.execute({ prompt: "Audit", snapshotId: "snap" })
+    expect(result.state).toBe("failed")
+    expect(gateway.calls).toHaveLength(0)
+  })
+
+  test("fails closed before gateway when production profile has no evidenced context limit", async () => {
+    const gateway = new ScriptedGateway([])
+    const runner = new MultiTurnRunner({
+      store: new InMemoryRunStore({ clock }), gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(),
+      contextEngine: new ProductionContextEngine(createO200kTokenizer()), clock,
+    })
+    const result = await runner.execute({ prompt: "Audit", snapshotId: "snap", maxOutputTokens: 64,
+      providerProfile: { outputTokensField: "max_tokens", maxOutputTokens: 4096 } })
+    expect(result.state).toBe("budget_exhausted")
+    expect(result.terminalReason).toBe("context_budget")
+    expect(gateway.calls).toHaveLength(0)
+  })
+
   test("runs single turn when model does not call any tools", async () => {
     const store = new InMemoryRunStore({ clock })
     const gateway = new ScriptedGateway([
@@ -89,6 +228,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -145,6 +285,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -207,6 +348,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -245,6 +387,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -283,6 +426,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot: brokenSnapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -324,6 +468,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
       approval: denyingApproval,
     })
@@ -366,6 +511,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry,
       snapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -403,6 +549,7 @@ describe("MultiTurnRunner", () => {
       gateway: capturingGateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -438,6 +585,7 @@ describe("MultiTurnRunner", () => {
       gateway: capturingGateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -478,6 +626,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -529,6 +678,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -572,6 +722,7 @@ describe("MultiTurnRunner", () => {
       gateway: failingGateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -621,6 +772,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -759,6 +911,7 @@ describe("MultiTurnRunner", () => {
       gateway: resumingGateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock: testClock,
     })
 
@@ -823,6 +976,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry: new MockRegistry(),
       snapshot: manyFilesSnapshot,
+      contextEngine: new PassThroughContextEngine(),
       clock,
     })
 
@@ -868,7 +1022,7 @@ describe("MultiTurnRunner", () => {
         latencyMs: 20,
       },
     ])
-    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-text" })
     const nextItems = gateway.calls[1].items
@@ -909,7 +1063,7 @@ describe("MultiTurnRunner", () => {
       },
     ])
     const registry = new MockRegistry()
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-invalid" })
     const events = await store.loadEvents({ runId: result.runId })
@@ -967,7 +1121,7 @@ describe("MultiTurnRunner", () => {
       },
     ])
     const registry = new MockRegistry()
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-mixed" })
     const requestItems = (await store.loadEvents({ runId: result.runId }))
@@ -992,7 +1146,7 @@ describe("MultiTurnRunner", () => {
     const store = new InMemoryRunStore({ clock })
     const gateway = new ScriptedGateway([invalidCall("bad-1"), invalidCall("bad-2"), invalidCall("bad-3")])
     const registry = new MockRegistry()
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({
       prompt: "Audit Vault.sol",
@@ -1020,7 +1174,7 @@ describe("MultiTurnRunner", () => {
       },
     ])
     const registry = new MockRegistry()
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({ prompt: "Audit Vault.sol", snapshotId: "snap-length" })
     const completed = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "run.completed")
@@ -1056,6 +1210,7 @@ describe("MultiTurnRunner", () => {
       gateway,
       registry: new MockRegistry(),
       snapshot: new MockSnapshot(),
+      contextEngine: new PassThroughContextEngine(),
       clock,
       estimateCostUsd: () => {
         costEstimates += 1
@@ -1091,7 +1246,7 @@ describe("MultiTurnRunner", () => {
       },
     ])
     const registry = new MockRegistry()
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({
       prompt: "Audit Vault.sol",
@@ -1116,7 +1271,7 @@ describe("MultiTurnRunner", () => {
         latencyMs: 20,
       },
     ])
-    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({
       prompt: "Audit Vault.sol",
@@ -1167,7 +1322,7 @@ describe("MultiTurnRunner", () => {
       glob: { maxMatches: 100 },
       listDir: { maxEntries: 100 },
     })
-    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), clock })
+    const runner = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
 
     const result = await runner.execute({
       prompt: "Audit Vault.sol",

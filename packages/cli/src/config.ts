@@ -99,6 +99,7 @@ export const RuntimeConfigSchema = z
         return Number.isNaN(num) ? val : num
       }, z.number().int().min(MinAllowedOutputTokens).max(MaxAllowedOutputTokens))
       .default(DefaultMaxOutputTokens),
+    modelMaxContextTokens: optionalPositiveInteger,
     modelOutputTokensField: z
       .preprocess((value) => (value === undefined || value === null || value === "" ? "max_tokens" : value),
         z.enum(ModelOutputTokensFields))
@@ -184,6 +185,7 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     modelBaseUrl: env.MODEL_BASE_URL ?? env.OPENAI_BASE_URL,
     modelTimeoutMs: env.MODEL_TIMEOUT_MS,
     modelMaxOutputTokens: env.MODEL_MAX_OUTPUT_TOKENS,
+    modelMaxContextTokens: env.MODEL_MAX_CONTEXT_TOKENS,
     modelOutputTokensField: env.MODEL_OUTPUT_TOKENS_FIELD,
     modelInputCostPerMTok: env.MODEL_INPUT_COST_PER_MTOK,
     modelOutputCostPerMTok: env.MODEL_OUTPUT_COST_PER_MTOK,

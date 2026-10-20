@@ -8,6 +8,7 @@ import { SnapshotManager } from "../../src/source/snapshot-manager"
 import { ToolRegistry } from "../../src/tool/registry"
 import { InMemoryRunStore } from "../../src/testing/in-memory-run-store"
 import { MultiTurnRunner } from "../../src/runner/multi-turn-runner"
+import { PassThroughContextEngine } from "../../src/context"
 
 class DiskChainGateway implements ModelGatewayPort {
   readonly requests: ModelAttemptRequest[] = []
@@ -67,7 +68,7 @@ describe("disk snapshot to multi-turn runner", () => {
         },
       ])
       const store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
-      const runner = new MultiTurnRunner({ store, gateway, registry, snapshot })
+      const runner = new MultiTurnRunner({ store, gateway, registry, snapshot, contextEngine: new PassThroughContextEngine() })
 
       const result = await runner.execute({ prompt: "Audit the source", snapshotId: ingested.snapshotId })
       const events = await store.loadEvents({ runId: result.runId })

@@ -198,13 +198,15 @@ const disputedWitness: ScenarioSpec = {
   sanitizer: okSanitizer,
   stateProbes: [{ ...probe, stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3000000000000000000" }] }],
   script: [
+    textResponse("acknowledged", { usage: usageOf(20, 10, 0.001) }),
     textResponse("forward", { usage: usageOf(20, 10, 0.001) }),
     textResponse('{"reachability":"incomplete","explanation":"The claimed payout magnitude needs measurement."}', { usage: usageOf(20, 10, 0.001) }),
     textResponse("backward", { usage: usageOf(20, 10, 0.001) }),
     textResponse('{"reconstruction":"reconstructed","explanation":"A callback can re-enter withdraw before the balance update."}', { usage: usageOf(20, 10, 0.001) }),
     textResponse("Bidirectional consensus: disputed", { usage: usageOf(20, 10, 0.001) }),
+    textResponse("Bidirectional consensus: disputed", { usage: usageOf(20, 10, 0.001) }),
     toolCallResponse([{ id: "witness-1", name: "run_state_probe", arguments: { stateVariables: ["balanceOf(attacker)"] } }], { usage: usageOf(20, 10, 0.001) }),
-    textResponse("The source call ordering permits repeated withdrawals, and the probe measured the resulting balance increase.", { usage: usageOf(20, 10, 0.001) }),
+    textResponse("The measured delta does not establish net gain, so the finding remains unresolved.", { usage: usageOf(20, 10, 0.001) }),
   ],
 }
 

@@ -61,8 +61,9 @@ describe("demo", () => {
     const verdict = readJson("disputed-witness", "01-verdict.json")
     expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", citesEvidence: [] })
     const trajectory = readJson("disputed-witness", "03-trajectory.json")
-    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(7)
-    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 7, usage: { promptTokens: 140, completionTokens: 70, totalTokens: 210, costUsd: 0.007 } })
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(9)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 9, usage: { promptTokens: 180, completionTokens: 90, totalTokens: 270 } })
+    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.009)
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
       ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
@@ -73,9 +74,15 @@ describe("demo", () => {
       ["tool.requested", "tool.completed"].includes(event.type) && event.payload.toolName === "run_state_probe")
     expect(witness.map((event: { type: string }) => event.type)).toEqual(["tool.requested", "tool.completed"])
     expect(witness[0].payload.arguments).toEqual({ stateVariables: ["balanceOf(attacker)"] })
+    const resultItemId = witness[1].payload.itemId
+    const probeResult = trajectory.events.find((event: { type: string; payload: { item: { id: string } } }) => event.type === "context.item_added" && event.payload.item.id === resultItemId)
+    expect(probeResult?.payload.item.content).toContain("balanceOf(attacker)")
+    expect(probeResult?.payload.item.content).toContain("3000000000000000000")
     expect(read("disputed-witness", "04-exploit-proof.json")).toContain("balanceOf(attacker)")
-    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 210, costUsd: 0.007 })
-    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 7, tokens: 210, costUsd: 0.007 })
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 270 })
+    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.009)
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 9, tokens: 270 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.009)
   })
 })
 

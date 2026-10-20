@@ -2,6 +2,17 @@
 
 Status: implementation completed with verification limitations noted below.
 
+## Reviewer fix loop (follow-up commit)
+
+- Fixed the false stop for model profiles with a hard context smaller than `W_exp + reserve`: readiness now depends on actual serialized-input estimate + safety + reserve fitting the effective `min(policy window, model hard context)`, while output hard-limit and total-run-budget checks remain.
+- Tool shaping now ensures final returned text itself never exceeds the configured token cap. It fits complete-line prefix plus continuation marker together, removing source lines as needed; if no marker representation fits, returned text is empty and the full continuation is retained as `continuationNote` metadata.
+- Added regressions for the smaller hard context (tiny request ready; one-token-over limit stops), tiny cap/oversized first line, fitting continuation marker, and truncation disabled. Existing shape test now asserts structured continuation metadata when text cap is too small.
+- RED evidence: before production edits, the focused reviewer tests failed on the small-request status assertion, final token-cap assertion, and continuation marker expectation.
+- GREEN: `bun test --test-name-pattern='ProductionContextEngine' packages/core/test/context/context-engine.test.ts`: 8 pass, 0 fail, 22 assertions.
+- Additional requested checks: exact effective-capacity acceptance, line bound with available token capacity, truncation-disabled preservation, marker-fit and marker-too-large cases, and an independent multilingual Unicode expected vector (`こんにちは世界 🌍 café` = 5 tokens under pinned js-tiktoken).
+- Final focused verification: `bun test --test-name-pattern='ProductionContextEngine' packages/core/test/context/context-engine.test.ts`: 10 pass, 0 fail, 26 assertions; `bun test packages/core/test/context/o200k-tokenizer.test.ts`: 5 pass, 0 fail, 9 assertions.
+- Follow-up `bun run --cwd packages/core typecheck` remains blocked only by the noted existing `grep.ts` Worker typing errors.
+
 ## Decisions and implementation
 
 - Reused `ContextEnginePort`; no separate request planner was added because the current port exposes only context items. `ProductionContextEngine` is additive, leaving `FakeContextEngine` and `PassThroughContextEngine` intact for existing doubles.

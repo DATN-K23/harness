@@ -97,8 +97,7 @@ export class ProductionContextEngine implements ContextEnginePort {
       requestDigest,
       estimatedOutputTokens: requestedOutput,
     }
-    if (input.modelLimits.maxContextTokens < input.policy.windowLimitTokens + requestedOutput ||
-      input.modelLimits.maxOutputTokens < requestedOutput ||
+    if (input.modelLimits.maxOutputTokens < requestedOutput ||
       input.budget.totalTokensUsed + estimate + safety + requestedOutput > input.budget.totalTokenLimit ||
       estimate + safety + requestedOutput > effectiveWindow) {
       return { status: "stop", stopReason: "context_budget", preparedItems: input.items, telemetry }
@@ -129,8 +128,23 @@ export class ProductionContextEngine implements ContextEnginePort {
       prefix = candidate
       count++
     }
-    const continuationNote = `[truncated ${input.toolName} output: showing ${count} of ${allLines.length} lines; continue with a narrower read]`
-    const content = prefix ? `${prefix}\n${continuationNote}` : continuationNote
+    let continuationNote = `[truncated ${input.toolName} output: showing ${count} of ${input.content.split("\n").length} lines; continue with a narrower read]`
+    let content = ""
+    while (true) {
+      const candidate = prefix ? `${prefix}\n${continuationNote}` : continuationNote
+      if (this.tokenizer.count(candidate) <= input.policy.toolOutputMaxTokens) {
+        content = candidate
+        break
+      }
+      const retained = prefix.split("\n").slice(0, -1).join("\n")
+      if (retained) {
+        prefix = retained
+        count = retained.split("\n").length
+        continuationNote = `[truncated ${input.toolName} output: showing ${count} of ${input.content.split("\n").length} lines; continue with a narrower read]`
+        continue
+      }
+      break
+    }
     return { content, isTruncated: true, tokensBefore, tokensAfter: this.tokenizer.count(content), continuationNote }
   }
 }

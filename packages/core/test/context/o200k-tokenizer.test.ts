@@ -14,8 +14,11 @@ describe("createO200kTokenizer", () => {
 
   test("counts Unicode text deterministically", () => {
     const text = "Vault 🔐 — 取款 / balances[msg.sender]"
-    expect(tokenizer.count(text)).toBe(tokenizer.count(text))
     expect(tokenizer.count(text)).toBe(12)
+  })
+
+  test("matches an independently generated multilingual Unicode vector", () => {
+    expect(tokenizer.count("こんにちは世界 🌍 café")).toBe(5)
   })
 
   test("does not interpret provider special-token spellings as control tokens", () => {

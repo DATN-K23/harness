@@ -1,4 +1,5 @@
-// Adapted from OpenCode packages/core/src/session/context-engine.ts @ 3f393d78bf (MIT License). See NOTICE.
+// Harness-owned implementation. OpenCode reference checkout inspected at 5542415b6424aa9bad8827dc72e8cd0630b2c0ab;
+// no source algorithm was copied, and requested revision 3f393d78bf was unavailable.
 import type {
   ContextEnginePort,
   PrepareResult,
@@ -7,6 +8,7 @@ import type {
 } from "@harness/protocol"
 import { digestOf } from "../util/digest"
 import { estimateItemTokens, estimateTokens, FakeContextEngineLabel } from "./token-estimator"
+import type { TokenizerPort } from "./o200k-tokenizer"
 
 export type PrepareInput = Parameters<ContextEnginePort["prepare"]>[0]
 export type ShapeInput = Parameters<ContextEnginePort["shapeToolResult"]>[0]
@@ -30,7 +32,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 
   async shapeToolResult(input: ShapeInput): Promise<ShapeToolResultOutcome> {
     const tokensBefore = estimateTokens(input.content)
-    const lines = input.content.split("\n")
+    const lines = input.content.split("\n").slice(0, input.policy.toolOutputMaxLines)
     const limit = input.policy.toolOutputMaxLines
     if (!input.policy.flags.enableToolTruncation || lines.length <= limit)
       return { content: input.content, isTruncated: false, tokensBefore, tokensAfter: tokensBefore }
@@ -69,5 +71,66 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 export class PassThroughContextEngine extends FakeContextEngine {
   async prepare(input: PrepareInput) {
     return this.ready(input, this.begin(input))
+  }
+}
+
+/** Deterministic production operations. Input items must already have crossed the sanitizer boundary. */
+export class ProductionContextEngine implements ContextEnginePort {
+  constructor(private readonly tokenizer: TokenizerPort) {}
+
+  async prepare(input: PrepareInput): Promise<PrepareResult> {
+    const estimate = this.tokenizer.count(JSON.stringify(input.items))
+    const safety = Math.ceil(estimate * (input.modelLimits.safetyMarginFactor - 1))
+    const effectiveWindow = Math.min(input.policy.windowLimitTokens, input.modelLimits.maxContextTokens)
+    const requestedOutput = input.policy.outputReserveTokens
+    const requestDigest = digestOf({ items: input.items })
+    const telemetry = {
+      tokenizer: this.tokenizer.id,
+      policyVersion: input.policy.policyVersion,
+      estimatedInputTokens: estimate,
+      estimatedSafetyTokens: safety,
+      windowLimitTokens: effectiveWindow,
+      outputReserveTokens: requestedOutput,
+      tokensSaved: 0,
+      budgetRemainingTokens: Math.max(0, input.budget.totalTokenLimit - input.budget.totalTokensUsed),
+      contentDigest: digestOf(input.items),
+      requestDigest,
+      estimatedOutputTokens: requestedOutput,
+    }
+    if (input.modelLimits.maxContextTokens < input.policy.windowLimitTokens + requestedOutput ||
+      input.modelLimits.maxOutputTokens < requestedOutput ||
+      input.budget.totalTokensUsed + estimate + safety + requestedOutput > input.budget.totalTokenLimit ||
+      estimate + safety + requestedOutput > effectiveWindow) {
+      return { status: "stop", stopReason: "context_budget", preparedItems: input.items, telemetry }
+    }
+    return { status: "ready", preparedItems: input.items, telemetry }
+  }
+
+  async record(input: RecordInput): Promise<RecordResult> {
+    return {
+      totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,
+      tokenDelta: input.actualUsage.promptTokens,
+      suggestedSafetyMargin: input.modelLimits.safetyMarginFactor,
+    }
+  }
+
+  async shapeToolResult(input: ShapeInput): Promise<ShapeToolResultOutcome> {
+    const tokensBefore = this.tokenizer.count(input.content)
+    if (!input.policy.flags.enableToolTruncation || (tokensBefore <= input.policy.toolOutputMaxTokens && input.content.split("\n").length <= input.policy.toolOutputMaxLines)) {
+      return { content: input.content, isTruncated: false, tokensBefore, tokensAfter: tokensBefore }
+    }
+    const allLines = input.content.split("\n")
+    const lines = allLines.slice(0, input.policy.toolOutputMaxLines)
+    let prefix = ""
+    let count = 0
+    for (const line of lines) {
+      const candidate = prefix ? `${prefix}\n${line}` : line
+      if (this.tokenizer.count(candidate) > input.policy.toolOutputMaxTokens) break
+      prefix = candidate
+      count++
+    }
+    const continuationNote = `[truncated ${input.toolName} output: showing ${count} of ${allLines.length} lines; continue with a narrower read]`
+    const content = prefix ? `${prefix}\n${continuationNote}` : continuationNote
+    return { content, isTruncated: true, tokensBefore, tokensAfter: this.tokenizer.count(content), continuationNote }
   }
 }

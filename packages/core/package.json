@@ -16,7 +16,8 @@
     "corpus:verify": "bun run src/eval/corpus-verify.ts"
   },
   "dependencies": {
-    "@harness/protocol": "workspace:*"
+    "@harness/protocol": "workspace:*",
+    "js-tiktoken": "1.0.21"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",

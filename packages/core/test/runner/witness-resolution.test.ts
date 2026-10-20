@@ -44,7 +44,7 @@ describe("JudgeStep bounded witness resolution", () => {
   })
 
   test("probe execution error terminates UNVERIFIED", async () => {
-    const h = await createHarness({ script: [toolCallResponse([{ id: "probe", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }])] })
+    const h = await createHarness({ script: [toolCallResponse([{ id: "probe", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), textResponse(JSON.stringify(invalidVerdict))] })
     const tools = {
       definitions: () => [{ name: "run_state_probe", description: "bounded", parameters: {} }],
       execute: async () => ({ content: "compile failed", isError: true }),
@@ -56,6 +56,8 @@ describe("JudgeStep bounded witness resolution", () => {
     expect(result.outcome.type).toBe("continue_turn")
     const persistedProbe = result.newItems.find((item) => item.type === "tool_result")
     expect(persistedProbe?.toolMeta?.isError).toBe(true)
+    const next = await h.step.execute(h.input({ items: [...baseItems, ...result.newItems, { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" }] }))
+    expect(next.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
   })
 
   test("successful process exit without targeted condition resolution is UNRESOLVED", async () => {

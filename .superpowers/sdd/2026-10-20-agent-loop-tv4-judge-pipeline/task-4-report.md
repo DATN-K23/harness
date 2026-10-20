@@ -34,3 +34,11 @@
 - From `packages/core`: `bun run typecheck` — passed.
 - `git diff --check` — passed.
 - Full `JudgeRunner` probe-dispatch/CAS integration is not verified by a new scenario in this follow-up; attempted scripted end-to-end additions exhausted before reaching the witness path and were removed. Existing Task 3 runner terminal cases remain intact.
+
+## Additional review fix (2026-10-21)
+
+- After a successful registered probe, the verdict path now requires `targetedCondition` to exactly match the one requested variable before it invokes normative verdict synthesis. The synthesis path still resolves every citation against the immutable snapshot; mismatched/unreferenced conditions remain UNRESOLVED. No claim is made that this is a mechanical proof of causality.
+- Added a test showing process exit success plus a generic invalid verdict does not resolve a disputed condition; the test remains UNVERIFIED without the exact target marker. Probe error is now tested through the subsequent step's terminal UNVERIFIED verdict, not only the returned tool error. The test also checks a prior request/result prevents second dispatch.
+- Agreed-valid/agreed-invalid consensus no longer creates a verdict from a source text keyword-overlap heuristic. It asks for a normative model verdict with direct citations; the final verdict still passes `synthesizeVerdict`. A no-BCE agreed-invalid consensus is immediately UNRESOLVED/UNVERIFIED. Unrelated BCE does not support a verdict.
+- Focused verification from `packages/core`: 71 tests across witness resolution, JudgeStep, adjudication, verdict synthesis, and prompt suites passed; `bun run typecheck` and `git diff --check` passed.
+- Full-runner probe-to-CAS scenario remains unverified: attempted linear scripts exhausted before exercising that path due to the existing prompt-injection sequence; prior terminal/CAS coverage remains in the existing JudgeRunner tests.

@@ -256,3 +256,20 @@ test("matches multiple allocations to one-based provider attempts in order", asy
     { actualUsage: null, usageDelta: null },
   ])
 })
+
+test("does not attach ambiguous legacy zero-based usage to multiple allocations", async () => {
+  const runId = "run-ambiguous-legacy"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = (estimatedInputTokens: number) => ({ tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens, estimatedSafetyTokens: estimatedInputTokens, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: "content", actualUsage: null, usageDelta: null })
+  const events = [
+    event(1, "context.allocated", { stepIndex: 1, telemetry: telemetry(100) }),
+    event(2, "context.allocated", { stepIndex: 1, telemetry: telemetry(200) }),
+    event(3, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 0, profileId: "model", usage: { promptTokens: 999, completionTokens: 1, totalTokens: 1000 }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry.map((item) => item.actualUsage)).toEqual([null, null])
+})

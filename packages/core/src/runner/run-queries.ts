@@ -133,8 +133,11 @@ export async function getMultiTurnExecutionSummary(
       if (typeof payload.stepIndex === "number" && typeof payload.attemptIndex === "number") {
         const usage = payload.usage
         actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, usage && typeof usage === "object" ? usage as ContextTelemetrySummary["actualUsage"] : null)
+        const stepAllocations = [...allocationsByAttempt.entries()].filter(([key]) => key.startsWith(`${payload.stepIndex}:`))
         const allocation = allocationsByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`)
-          ?? (payload.attemptIndex === 0 ? allocationsByAttempt.get(`${payload.stepIndex}:1`) : undefined)
+          ?? (payload.attemptIndex === 0 && stepAllocations.length === 1
+            ? stepAllocations[0][1]
+            : undefined)
         if (allocation) {
           allocation.actualUsage = actualByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`) ?? null
           allocation.usageDelta = allocation.actualUsage ? allocation.actualUsage.totalTokens - allocation.estimatedInputTokens : null

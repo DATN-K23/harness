@@ -20,7 +20,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(outputDir, { recursive: true, force: true }))
 
 describe("demo", () => {
-  test("runs the four scenarios offline and prints a summary row for each", () => {
+  test("runs the offline scenarios and prints a summary row for each", () => {
     expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc", "narrative-agreed"])
     const summary = formatSummary(rows)
     expect(summary.split("\n")).toHaveLength(2 + rows.length)
@@ -41,9 +41,20 @@ describe("demo", () => {
     const verdict = readJson("narrative-agreed", "01-verdict.json")
     expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS" })
     expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 11, endLine: 16 })
-    expect(readJson("narrative-agreed", "03-trajectory.json").events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
+    const trajectory = readJson("narrative-agreed", "03-trajectory.json")
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
+    expect(trajectory.summary.usage).toMatchObject({ promptTokens: 80, completionTokens: 20, totalTokens: 100, costUsd: 0.02 })
+    expect(trajectory.summary).toMatchObject({ steps: 4, state: "completed" })
+    const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
+    expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
+      ["stage.started", "ingestion", undefined],
+      ["stage.finished", "ingestion", "ok"],
+    ])
+    expect(readJson("narrative-agreed", "04-exploit-proof.json")).toMatchObject({ applicable: false })
+    expect(readJson("narrative-agreed", "04-exploit-proof.json").reason).toContain("No execution was performed")
+    expect(readJson("narrative-agreed", "05-context-economics.json").totals).toMatchObject({ totalTokens: 100, costUsd: 0.02 })
     expect(read("narrative-agreed", "02-dossier.md")).toContain("external call precedes balance update")
-    expect(rows.find((row) => row.scenario === "narrative-agreed")?.steps).toBeLessThanOrEqual(4)
+    expect(rows.find((row) => row.scenario === "narrative-agreed")).toMatchObject({ steps: 4, tokens: 100, costUsd: 0.02 })
   })
 })
 

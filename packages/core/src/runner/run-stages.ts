@@ -23,6 +23,7 @@ export interface StageContext {
   persist: Persist
   systemPrompt: string
   signal?: AbortSignal
+  probeEvidence: Map<string, { before: string; after: string }>
 }
 
 type StageName = "ingestion" | "sanitizer" | "sandbox"
@@ -140,18 +141,18 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
 
 /** The run's registry: the snapshot tools, plus `run_state_probe` only for a sanitized assertion-free PoC. */
-const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number) =>
-  composeTools(
-    context.deps.tools,
-    stateProbeFor({
-      sanitized,
-      stage: { runId: context.runId, snapshotId: context.input.snapshotId },
-      sanitizer: context.deps.sanitizer,
-      sandbox: context.deps.sandbox,
-      maxProbeRuns: maxProbeRunsOf(context.input),
-      counter: createProbeCounter(probeRunsUsed),
-    }),
-  )
+const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number) => {
+  const probe = stateProbeFor({
+    sanitized,
+    stage: { runId: context.runId, snapshotId: context.input.snapshotId },
+    sanitizer: context.deps.sanitizer,
+    sandbox: context.deps.sandbox,
+    maxProbeRuns: maxProbeRunsOf(context.input),
+    counter: createProbeCounter(probeRunsUsed),
+    evidence: context.probeEvidence,
+  })
+  return composeTools(context.deps.tools, probe)
+}
 
 /**
  * Stage 4 entry (D12): the trace passes the security filter, then `shapeToolResult` (a truncation is recorded as

@@ -43,6 +43,31 @@ describe("JudgeStep bounded witness resolution", () => {
     expect(result.outcome.type).toBe("completed")
   })
 
+  test("probe invocation bound exhaustion terminates UNVERIFIED", async () => {
+    const h = await createHarness({ script: [toolCallResponse([{ id: "probe", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), textResponse(JSON.stringify(invalidVerdict))] })
+    let probeCalls = 0
+    const tools = {
+      definitions: () => [{ name: "run_state_probe", description: "bounded", parameters: {} }],
+      execute: async () => { probeCalls += 1; return { content: "run_state_probe was not run: the limit of 1 state probe runs for this adjudication is reached.", isError: true } },
+    }
+    const result = await h.step.execute(h.input({
+      items: [
+        ...baseItems,
+        { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      ],
+      tools,
+    }))
+    expect(result.outcome.type).toBe("continue_turn")
+    expect(probeCalls).toBe(1)
+    const terminal = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      ...result.newItems,
+    ], tools }))
+    expect(terminal.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(probeCalls).toBe(1)
+  })
+
   test("probe execution error terminates UNVERIFIED", async () => {
     const h = await createHarness({ script: [toolCallResponse([{ id: "probe", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), textResponse(JSON.stringify(invalidVerdict))] })
     const tools = {
@@ -75,6 +100,23 @@ describe("JudgeStep bounded witness resolution", () => {
       ],
       tools,
     }))
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+  })
+
+  test("probe target and condition without an exact observed delta terminate UNRESOLVED", async () => {
+    const h = await createHarness({ script: [textResponse(JSON.stringify({
+      ...invalidVerdict,
+      targetedCondition: "totalSupply",
+      observedBefore: "1",
+      observedAfter: "2",
+      deltaExplanation: "The value remained constant.",
+    }))] })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
+      { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0). State delta, post minus pre:\n| variable | before | after |\n| --- | --- | --- |\n| totalSupply | 1 | 2 |", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
+    ], probeEvidence: new Map([["totalSupply", { before: "1", after: "3" }]]) }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
   })
 

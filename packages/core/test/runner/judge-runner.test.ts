@@ -98,6 +98,7 @@ describe("JudgeRunner: reasoning loop", () => {
       textResponse("acknowledged"),
       textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
       textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The disputed claim remains unresolved by the bounded evidence.","reasoning":"The available source and exploration do not establish reachability or reconstruct the claimed impact, so no semantic conclusion is supported.","citesEvidence":[]}'),
     ] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })

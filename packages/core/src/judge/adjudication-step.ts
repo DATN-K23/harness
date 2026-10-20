@@ -44,11 +44,13 @@ export interface StateProbeOptions {
   sandbox: SandboxPort
   maxProbeRuns: number
   counter: ProbeCounter
+  evidence?: Map<string, { before: string; after: string }>
 }
 
 export interface StateProbe {
   definition: ToolDefinition
   execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolExecutionResult>
+  evidence?: Map<string, { before: string; after: string }>
 }
 
 const failure = (message: string, args: Record<string, unknown>, nextStep: string): ToolExecutionResult => ({
@@ -71,6 +73,7 @@ const isVariableList = (value: unknown): value is string[] =>
 export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefined => {
   if (selectTier(options.sanitized) === 1 || options.maxProbeRuns <= 0) return undefined
   const { counter, maxProbeRuns } = options
+  const evidence = options.evidence ?? new Map<string, { before: string; after: string }>()
   return {
     definition: {
       name: RunStateProbeToolName,
@@ -104,6 +107,7 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
         signal,
       )
       const probe = await options.sandbox.runStateProbe({ ...options.stage, probedTestFile }, signal)
+      evidence.clear()
       if (probe.exitCode !== 0) {
         const trace =
           probe.trace.length > MaxFailedTraceChars ? `...${probe.trace.slice(-MaxFailedTraceChars)}` : probe.trace
@@ -113,6 +117,7 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
           "probe fewer or different state variables, or decide from the evidence already gathered.",
         )
       }
+      for (const delta of probe.stateDeltas) evidence.set(delta.variable, { before: delta.before, after: delta.after })
       const rows = probe.stateDeltas.map(
         (delta) => `| ${cell(delta.variable)} | ${cell(delta.before)} | ${cell(delta.after)} |`,
       )
@@ -125,6 +130,7 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
         isError: false,
       }
     },
+    evidence,
   }
 }
 

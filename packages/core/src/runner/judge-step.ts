@@ -69,6 +69,7 @@ export interface JudgeStepInput {
   stepIndex: number
   items: ContextItem[]
   tools: ToolRegistryPort
+  probeEvidence?: Map<string, { before: string; after: string }>
   flags: ResolvedFlags
   policy: ContextPolicy
   modelLimits: ModelLimits
@@ -309,7 +310,10 @@ export class JudgeStep {
         reasoning: "No semantic resolution was established by the targeted witness; execution status alone is not proof.", citesEvidence: [],
         ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
       }) })
-      if (priorProbe?.toolMeta?.isError || (priorProbe !== undefined && !priorProbe.content.includes("exit code 0"))) return unresolved()
+      if (
+        priorProbe?.toolMeta?.isError ||
+        (priorProbe !== undefined && !priorProbe.content.includes("State delta, post minus pre:"))
+      ) return unresolved()
       if (priorProbe !== undefined) {
         const requested = probeRequest === undefined ? undefined : JSON.parse(probeRequest.content) as { arguments?: { stateVariables?: unknown } }
         const targets = requested?.arguments?.stateVariables
@@ -318,7 +322,16 @@ export class JudgeStep {
         const verdictInput = (() => {
           try { return JSON.parse(text) as Record<string, unknown> } catch { return undefined }
         })()
-        if (verdictInput?.targetedCondition !== target) return unresolved()
+        const measured = input.probeEvidence?.get(target)
+        const before = measured?.before
+        const after = measured?.after
+        if (
+          verdictInput?.targetedCondition !== target ||
+          measured === undefined ||
+          verdictInput.observedBefore !== before ||
+          verdictInput.observedAfter !== after ||
+          typeof verdictInput.deltaExplanation !== "string" || verdictInput.deltaExplanation.trim().length < 20
+        ) return unresolved()
         const semanticVerdict = await synthesizeVerdict(
           { snapshot: deps.snapshot, security: deps.security },
           { text, runId, findingId: input.findingId, snapshotId: input.snapshotId, traceDigest: input.traceDigest,
@@ -339,7 +352,7 @@ export class JudgeStep {
         return finish({ type: "continue_turn", toolOutcomes: branch.outcomes }, { newItems: [...reasoning, ...branch.items] })
       }
       if (priorProbe === undefined && probeRequest === undefined && probeAvailable && !forced && !alreadyAttemptedProbe)
-        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", "For disputed consensus, call run_state_probe at most once for exactly one state variable explicitly named in the claim. After the probe, include targetedCondition equal to that exact requested expression in your final JSON verdict. Process exit alone is not proof; do not create or modify tests.")] })
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", "For disputed consensus, call run_state_probe at most once for exactly one state variable explicitly named in the claim. In your final JSON verdict include targetedCondition equal to the requested expression, observedBefore and observedAfter exactly as reported by that probe, and deltaExplanation (at least 20 characters) explaining why that measured change does or does not establish the claimed condition. Snapshot citations support source behavior, not the dynamic delta; process exit alone is not proof. Do not create or modify tests.")] })
       if (priorProbe === undefined) return unresolved()
     }
 

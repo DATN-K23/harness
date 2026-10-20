@@ -159,6 +159,7 @@ class RunExecution {
   private runSignal: RunSignal | undefined
   private startedAtMs = 0
   private items: ContextItem[] = []
+  private readonly probeEvidence = new Map<string, { before: string; after: string }>()
   /** Steps whose results are in the context; the next step is `stepIndex + 1`. */
   private stepIndex = 0
   private lastStepIndex = 0
@@ -352,6 +353,7 @@ class RunExecution {
       persist: this.write.persist,
       systemPrompt: this.systemPrompt,
       signal: this.signal,
+      probeEvidence: this.probeEvidence,
     }
   }
 
@@ -433,6 +435,7 @@ class RunExecution {
         stepIndex,
         items: this.items,
         tools,
+        probeEvidence: this.probeEvidence,
         flags: config.flags,
         policy: config.policy,
         modelLimits: config.modelLimits,

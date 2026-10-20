@@ -26,7 +26,8 @@ Tier 1 (the PoC contains assertions such as assertEq, assertGt or vm.expectRever
 Tier 2 (the PoC has no assertions):
 - From the finding narrative, infer the state variables that the exploit should change (for example balanceOf, totalSupply, debt).
 - Call run_state_probe, which injects state probes and re-runs the PoC to measure the change in state, post minus pre. You may call it only a small, bounded number of times.
-- A non-empty change that matches the claimed impact supports the finding. No change, or a change unrelated to the claim, is NO_STATE_DELTA.
+- In the final JSON include targetedCondition exactly matching the requested variable, observedBefore and observedAfter exactly as reported, and deltaExplanation (at least 20 characters) explaining why the measured delta does or does not establish the claim.
+- A source citation supports source behavior only; it does not prove a dynamic delta. A non-empty delta alone is not proof of an unauthorized violation. No change, unrelated change, or uncertain correlation must remain UNVERIFIED unless the source and measured result establish the specific claim.
 
 ## Reason codes
 

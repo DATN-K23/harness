@@ -1,6 +1,7 @@
 import type {
   BceSlice,
   CandidateFinding,
+  DeconstructedClaim,
   ContextItem,
   SandboxPort,
   SanitizerPort,
@@ -142,6 +143,7 @@ export interface InitialContextInput {
   snapshotId: string
   finding: CandidateFinding
   pocCode: string
+  claim?: DeconstructedClaim
   bceSlices: readonly BceSlice[]
   tier: AdjudicationTier
   maxProbeRuns: number
@@ -193,7 +195,8 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
     ...(input.verdictSchema === undefined ? [] : [pinned("system_prompt", input.verdictSchema)]),
     pinned("system_prompt", header),
     pinned("candidate_finding", input.finding.reportMarkdown),
-    pinned("submitter_poc", input.pocCode),
+    ...(input.pocCode === "" ? [] : [pinned("submitter_poc", input.pocCode)]),
+    ...(input.claim === undefined ? [] : [pinned("candidate_finding", `Claim decomposition\n${JSON.stringify(input.claim)}`)]),
     ...input.bceSlices.map((slice) =>
       pinned(
         "bce_sliced_ast",

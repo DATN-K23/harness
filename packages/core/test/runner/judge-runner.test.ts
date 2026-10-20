@@ -90,6 +90,16 @@ describe("JudgeRunner: zero-token fast-reject", () => {
 })
 
 describe("JudgeRunner: reasoning loop", () => {
+  test("narrative-only report reaches semantic verification without PoC sanitation", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "ok", claim, bceSlices: [] }, script: [verdictText] })
+    await w.start()
+    expect(w.gateway.callCount).toBeGreaterThan(0)
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.gateway.calls[0].items.some((item) => item.content.includes("Claim decomposition"))).toBe(true)
+  })
+
   test("multi-step run: two tool steps then a verdict completes with three provider attempts", async () => {
     const world = createWorld()
     const w = world.worker({ script: [readVault("call-1", 1, 5), readVault("call-2", 10, 20), verdictText] })

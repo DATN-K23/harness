@@ -208,6 +208,11 @@ describe("stage ports", () => {
     }
     expect([missing.kind, cheat.kind]).toEqual(["missing_poc", "cheat_detected"])
   })
+
+  test("narrative-only ingestion carries typed claims without PoC", () => {
+    const narrative: IngestionResult = { kind: "ok", bceSlices: [], claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" } }
+    expect(narrative.kind === "ok" && narrative.pocCode).toBeUndefined()
+  })
 })
 
 describe("tool, filter, snapshot and runtime ports", () => {

@@ -57,7 +57,20 @@ export interface BceSlice {
   lineRange?: [number, number]
 }
 
-export type IngestionResult = { kind: "missing_poc" } | { kind: "ok"; pocCode: string; bceSlices: BceSlice[] }
+export interface DeconstructedClaim {
+  targetContracts: string[]
+  targetFunctions: string[]
+  rootCause: string
+  attackScenario: string
+  callerAssumptions: string[]
+  claimedImpact: string
+  claimedState: string
+}
+
+export type IngestionResult =
+  | { kind: "missing_poc" }
+  | { kind: "invalid_report" }
+  | { kind: "ok"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
 
 export interface IngestionPort {
   ingest(input: StageInput & { finding: CandidateFinding }, signal?: AbortSignal): Promise<IngestionResult>

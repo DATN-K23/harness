@@ -1,4 +1,4 @@
-import { DefaultMaxProbeRuns, type BceSlice, type ContextItem, type ToolRegistryPort } from "@harness/protocol"
+import { DefaultMaxProbeRuns, type BceSlice, type ContextItem, type DeconstructedClaim, type ToolRegistryPort } from "@harness/protocol"
 import {
   RunStateProbeToolName,
   buildInitialContext,
@@ -29,7 +29,7 @@ type StageName = "ingestion" | "sanitizer" | "sandbox"
 
 export type Staged =
   | { kind: "ended"; terminal: TerminalCommit }
-  | { kind: "passed"; pocCode: string; bceSlices: BceSlice[]; sanitized: SanitizedPoc; trace: string }
+  | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[]; sanitized?: SanitizedPoc; trace: string }
 
 export type Tooling =
   { kind: "ready"; tools: ToolRegistryPort; traceDigest?: string } | { kind: "ended"; terminal: TerminalCommit }
@@ -80,14 +80,17 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     context,
     "ingestion",
     () => deps.ingestion.ingest({ ...stage, finding: input.finding }, signal),
-    (result) => (result.kind === "missing_poc" ? "MISSING_POC" : undefined),
+    () => undefined,
   )
   if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
+  if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
+  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
+  const pocCode = ingested.pocCode
 
   const sanitized = await runStage(
     context,
     "sanitizer",
-    () => deps.sanitizer.sanitize({ ...stage, pocCode: ingested.pocCode }, signal),
+    () => deps.sanitizer.sanitize({ ...stage, pocCode }, signal),
     (result) => (result.kind === "cheat_detected" ? "NON_FAITHFUL_OVERRIDE" : undefined),
   )
   if (sanitized.kind === "cheat_detected")
@@ -107,7 +110,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
       exitCode: executed.exitCode,
       traceDigest: textDigest(executed.trace),
     })
-  return { kind: "passed", pocCode: ingested.pocCode, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
+  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
 }
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
@@ -135,7 +138,7 @@ export const enterStageFour = async (
   staged: Extract<Staged, { kind: "passed" }>,
 ): Promise<{ items: ContextItem[]; tools: ToolRegistryPort; traceDigest: string }> => {
   const { deps, input, signal } = context
-  const tools = toolsFor(context, staged.sanitized, 0)
+  const tools = staged.sanitized === undefined ? deps.tools : toolsFor(context, staged.sanitized, 0)
   const filtered = await deps.security.filterSecrets(staged.trace, signal).catch(asFault("worker_interrupted"))
   const shaped = await deps.contextEngine
     .shapeToolResult({ content: filtered.content, toolName: "execution_trace", policy: input.config.policy })
@@ -143,13 +146,15 @@ export const enterStageFour = async (
   const note = shaped.isTruncated ? shaped.continuationNote : undefined
   const shapedTrace =
     note !== undefined && !shaped.content.includes(note) ? `${shaped.content}\n${note}` : shaped.content
+  const noPoc = staged.sanitized === undefined
   const items = buildInitialContext({
     runId: context.runId,
     snapshotId: input.snapshotId,
     finding: input.finding,
-    pocCode: staged.pocCode,
+    pocCode: staged.pocCode ?? "",
     bceSlices: staged.bceSlices,
-    tier: staged.sanitized.hasSubmitterAssertions ? 1 : 2,
+    tier: staged.sanitized?.hasSubmitterAssertions ? 1 : 2,
+    ...(staged.claim === undefined ? {} : { claim: staged.claim }),
     maxProbeRuns: maxProbeRunsOf(input),
     systemPrompt: context.systemPrompt,
     tools: tools.definitions(),

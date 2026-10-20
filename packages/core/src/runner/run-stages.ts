@@ -83,6 +83,30 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     () => undefined,
   )
   if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
+  if (ingested.kind === "narrative_only") {
+    if (ingested.pocCode !== undefined) {
+      const sanitized = await runStage(
+        context,
+        "sanitizer",
+        () => deps.sanitizer.sanitize({ ...stage, pocCode: ingested.pocCode! }, signal),
+        (result) => (result.kind === "cheat_detected" ? "NON_FAITHFUL_OVERRIDE" : undefined),
+      )
+      if (sanitized.kind === "cheat_detected")
+        return reject({ reasonCode: "NON_FAITHFUL_OVERRIDE", findings: sanitized.findings })
+      const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
+      if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
+      const executed = await runStage(
+        context,
+        "sandbox",
+        () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
+        (result) => (result.exitCode === 0 ? undefined : "EXECUTION_FAILED"),
+      )
+      if (executed.exitCode !== 0)
+        return reject({ reasonCode: "EXECUTION_FAILED", exitCode: executed.exitCode, traceDigest: textDigest(executed.trace) })
+      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
+    }
+    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
+  }
   if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
   if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
   const pocCode = ingested.pocCode

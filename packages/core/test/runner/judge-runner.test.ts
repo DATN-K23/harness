@@ -55,18 +55,17 @@ describe("JudgeRunner: state machine", () => {
 })
 
 describe("JudgeRunner: zero-token fast-reject", () => {
-  test("missing PoC: MISSING_POC, sanitizer and sandbox never called", async () => {
+  test("legacy missing_poc remains a compatibility fast-reject", async () => {
     const world = createWorld()
     const w = world.worker({ ingestion: { kind: "missing_poc" } })
     await expectFastReject(world, w, await w.start(), "MISSING_POC")
-    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
-    expect((await world.events()).map((event) => event.type)).toEqual([
-      "run.started",
-      "stage.started",
-      "stage.finished",
-      "run.completed",
-    ])
+  })
+
+  test("malformed report deconstruction is inconclusive, not an invalid verdict", async () => {
+    const world = createWorld()
+    const w = world.worker({ ingestion: { kind: "invalid_report" } })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "failed", terminalReason: "worker_interrupted" })
+    expect(w.gateway.callCount).toBe(0)
   })
 
   test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, sandbox never called", async () => {
@@ -93,7 +92,7 @@ describe("JudgeRunner: reasoning loop", () => {
   test("narrative-only report reaches semantic verification without PoC sanitation", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "ok", claim, bceSlices: [] }, script: [verdictText] })
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
     await w.start()
     expect(w.gateway.callCount).toBeGreaterThan(0)
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)

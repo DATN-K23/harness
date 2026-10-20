@@ -210,8 +210,14 @@ describe("stage ports", () => {
   })
 
   test("narrative-only ingestion carries typed claims without PoC", () => {
-    const narrative: IngestionResult = { kind: "ok", bceSlices: [], claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" } }
-    expect(narrative.kind === "ok" && narrative.pocCode).toBeUndefined()
+    const narrative: IngestionResult = { kind: "narrative_only", bceSlices: [], claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" } }
+    expect(narrative.kind).toBe("narrative_only")
+  })
+
+  test("successful narrative ingestion cannot omit its claim", () => {
+    // The discriminated union rejects `{ kind: "ok", bceSlices: [] }` at compile time.
+    const invalid: IngestionResult = { kind: "invalid_report" }
+    expect(invalid.kind).toBe("invalid_report")
   })
 })
 

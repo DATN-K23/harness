@@ -69,8 +69,9 @@ export interface DeconstructedClaim {
 
 export type IngestionResult =
   | { kind: "missing_poc" }
+  | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[] }
   | { kind: "invalid_report" }
-  | { kind: "ok"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
+  | { kind: "ok"; pocCode: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
 
 export interface IngestionPort {
   ingest(input: StageInput & { finding: CandidateFinding }, signal?: AbortSignal): Promise<IngestionResult>

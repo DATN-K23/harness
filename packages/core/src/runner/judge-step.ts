@@ -321,6 +321,11 @@ export class JudgeStep {
         const targets = requested?.arguments?.stateVariables
         if (!Array.isArray(targets) || targets.length !== 1) return unresolved()
         const target = String(targets[0])
+        const claimItem = input.items.find((item) => item.type === "candidate_finding" && item.content.startsWith("Claim decomposition\n"))
+        const claim = claimItem === undefined ? undefined : (() => {
+          try { return JSON.parse(claimItem.content.slice(claimItem.content.indexOf("\n") + 1)) as { claimedState?: string; claimedImpact?: string } } catch { return undefined }
+        })()
+        if (!claim?.claimedState?.includes(target) && !claim?.claimedImpact?.includes(target)) return unresolved()
         const verdictInput = (() => {
           try { return JSON.parse(text) as Record<string, unknown> } catch { return undefined }
         })()

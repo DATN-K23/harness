@@ -93,7 +93,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
 describe("JudgeRunner: reasoning loop", () => {
   test("Tier 2 probe dispatch and result are committed with terminal outcome via CAS", async () => {
     const world = createWorld()
-    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply changes", claimedState: "totalSupply" }
     const w = world.worker({
       ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
@@ -145,6 +145,29 @@ describe("JudgeRunner: reasoning loop", () => {
     expect((await world.events("tool.requested")).some((event) => event.payload.toolName === "run_state_probe")).toBe(true)
     expect(await world.state()).toBe("completed")
     await expectContiguous(world)
+  })
+
+  test("does not probe a target absent from the claim", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "re-enter withdraw", callerAssumptions: [], claimedImpact: "attacker balance exceeds deposit", claimedState: "balanceOf(attacker) grows" }
+    const w = world.worker({
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
+      script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), textResponse("Bidirectional consensus: disputed"), toolCallResponse([{ id: "probe-unclaimed", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"The model requested a state expression that is absent from the claim, so no bounded witness was run.","citesEvidence":[]}')],
+    })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(w.sandbox.stateProbeCalls).toHaveLength(0)
+    expect(w.sanitizer.probeCalls).toHaveLength(0)
+  })
+
+  test("narrative-only claims missing targets fail closed without ordinary verdict", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: [], targetFunctions: [], rootCause: "", attackScenario: "", callerAssumptions: [], claimedImpact: "", claimedState: "" }
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(w.gateway.callCount).toBe(0)
   })
 
   test("Task 3 inconclusive narrative claim commits UNVERIFIED through terminal CAS", async () => {

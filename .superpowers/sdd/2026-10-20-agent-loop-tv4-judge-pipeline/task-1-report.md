@@ -17,7 +17,7 @@ No code changes were warranted: the existing tests and implementations already d
 
 ## Reference inspection
 
-The required paths could not be inspected: `.opencode_reference/packages/core/src/session/runner/{step.ts,retry.ts,max-steps.ts,index.ts}` is absent from this worktree. Searching the worktree’s parent also found no `step.ts` at the specified reference path. Existing source files include attribution headers where adaptation had already occurred; no new code was adapted in this task.
+The reference files were inspected in the original checkout by the controller during review; they were not copied into this worktree, so the Task 1 implementer did not inspect them. No code was adapted in Task 1.
 
 ## Verification
 

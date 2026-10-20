@@ -67,6 +67,11 @@ export interface DeconstructedClaim {
   claimedState: string
 }
 
+export const isValidDeconstructedClaim = (claim: DeconstructedClaim): boolean =>
+  (claim.targetContracts.length > 0 || claim.targetFunctions.length > 0) &&
+  claim.rootCause.trim() !== "" && claim.attackScenario.trim() !== "" &&
+  claim.claimedImpact.trim() !== "" && claim.claimedState.trim() !== ""
+
 export type IngestionResult =
   | { kind: "missing_poc" }
   | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[] }

@@ -26,11 +26,17 @@ import type {
   ToolExecutionResult,
   ToolRegistryPort,
 } from "../src/ports"
+import { isValidDeconstructedClaim } from "../src/ports"
 import type { StepOutcome } from "../src/step-outcome"
 import type { JudgeVerdict } from "../src/verdict"
 import { digest } from "./fixtures"
 
 type Expect<T extends true> = T
+
+test("deconstructed claims require a target and semantic fields", () => {
+  expect(isValidDeconstructedClaim({ targetContracts: [], targetFunctions: [], rootCause: "", attackScenario: "", callerAssumptions: [], claimedImpact: "", claimedState: "" })).toBe(false)
+  expect(isValidDeconstructedClaim({ targetContracts: ["Vault"], targetFunctions: [], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance decreases" })).toBe(true)
+})
 
 type DeepKeys<T> = T extends readonly (infer Item)[]
   ? DeepKeys<Item>

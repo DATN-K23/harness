@@ -39,6 +39,7 @@ export const createProbeCounter = (used = 0): ProbeCounter => ({ used })
 
 export interface StateProbeOptions {
   sanitized: SanitizedPoc
+  claim?: DeconstructedClaim
   stage: StageInput
   sanitizer: SanitizerPort
   sandbox: SandboxPort
@@ -71,7 +72,7 @@ const isVariableList = (value: unknown): value is string[] =>
  * limit is checked and reserved before the first await, so concurrent calls from one response cannot exceed it.
  */
 export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefined => {
-  if (selectTier(options.sanitized) === 1 || options.maxProbeRuns <= 0) return undefined
+  if (selectTier(options.sanitized) === 1 || options.maxProbeRuns <= 0 || options.claim === undefined) return undefined
   const { counter, maxProbeRuns } = options
   const evidence = options.evidence ?? new Map<string, { before: string; after: string }>()
   return {
@@ -93,6 +94,9 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
           args,
           'call run_state_probe with {"stateVariables": ["totalSupply"]}.',
         )
+      const target = stateVariables[0]!
+      if (options.claim === undefined || (!options.claim.claimedState.includes(target) && !options.claim.claimedImpact.includes(target)))
+        return failure("Invalid target for run_state_probe: the expression is not present in the deconstructed claim.", args, "probe only an exact state expression named in the claim.")
       if (counter.used >= maxProbeRuns)
         return failure(
           `run_state_probe was not run: the limit of ${maxProbeRuns} state probe runs for this adjudication is reached.`,

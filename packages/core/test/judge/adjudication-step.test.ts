@@ -33,6 +33,7 @@ const setup = (hasSubmitterAssertions: boolean, maxProbeRuns = 2) => {
   const sandbox = new ScriptedSandbox({ stateProbe: [probeResult] })
   const probe = stateProbeFor({
     sanitized: sanitized(hasSubmitterAssertions),
+    claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply change", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
     stage: { runId: "run-1", snapshotId: "snap-1" },
     sanitizer,
     sandbox,

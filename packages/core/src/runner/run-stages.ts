@@ -1,4 +1,4 @@
-import { DefaultMaxProbeRuns, type BceSlice, type ContextItem, type DeconstructedClaim, type ToolRegistryPort } from "@harness/protocol"
+import { DefaultMaxProbeRuns, isValidDeconstructedClaim, type BceSlice, type ContextItem, type DeconstructedClaim, type ToolRegistryPort } from "@harness/protocol"
 import {
   RunStateProbeToolName,
   buildInitialContext,
@@ -83,6 +83,8 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     () => deps.ingestion.ingest({ ...stage, finding: input.finding }, signal),
     () => undefined,
   )
+  if (ingested.kind === "narrative_only" && !isValidDeconstructedClaim(ingested.claim))
+    return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report claim is incomplete and cannot be verified.", reasoning: "The deconstructed claim lacks required target or semantic fields.", citesEvidence: [] } } }
   if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
   if (ingested.kind === "narrative_only") {
     if (ingested.pocCode !== undefined) {
@@ -141,9 +143,10 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
 
 /** The run's registry: the snapshot tools, plus `run_state_probe` only for a sanitized assertion-free PoC. */
-const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number) => {
+const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number, claim?: DeconstructedClaim) => {
   const probe = stateProbeFor({
     sanitized,
+    ...(claim === undefined ? {} : { claim }),
     stage: { runId: context.runId, snapshotId: context.input.snapshotId },
     sanitizer: context.deps.sanitizer,
     sandbox: context.deps.sandbox,
@@ -163,7 +166,7 @@ export const enterStageFour = async (
   staged: Extract<Staged, { kind: "passed" }>,
 ): Promise<{ items: ContextItem[]; tools: ToolRegistryPort; traceDigest: string }> => {
   const { deps, input, signal } = context
-  const tools = staged.sanitized === undefined ? deps.tools : toolsFor(context, staged.sanitized, 0)
+  const tools = staged.sanitized === undefined ? deps.tools : toolsFor(context, staged.sanitized, 0, staged.claim)
   const filtered = await deps.security.filterSecrets(staged.trace, signal).catch(asFault("worker_interrupted"))
   const shaped = await deps.contextEngine
     .shapeToolResult({ content: filtered.content, toolName: "execution_trace", policy: input.config.policy })
@@ -235,5 +238,7 @@ export const recoverTools = async (context: StageContext, history: HydratedHisto
         message: "the sanitizer no longer accepts the persisted PoC, so the state probe cannot be restored",
       },
     }
-  return { kind: "ready", tools: toolsFor(context, sanitized, history.probeRunsUsed), traceDigest }
+  const claimItem = history.items.find((item) => item.type === "candidate_finding")
+  const claim = claimItem === undefined ? undefined : (() => { try { return JSON.parse(claimItem.content.slice(claimItem.content.indexOf("\n") + 1)) as DeconstructedClaim } catch { return undefined } })()
+  return { kind: "ready", tools: toolsFor(context, sanitized, history.probeRunsUsed, claim), traceDigest }
 }

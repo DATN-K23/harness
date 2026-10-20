@@ -110,7 +110,7 @@ describe("MultiTurnRunner", () => {
         safetyMarginFactor: 1.2, recentWindowTokens: 10, toolOutputMaxTokens: 10, toolOutputMaxLines: 10, maxCompactions: 0,
         flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } },
       modelLimits: { maxContextTokens: 32768, maxOutputTokens: 100, safetyMarginFactor: 1.2 },
-      budget: { totalTokensUsed: 0, totalTokenLimit: 10000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+      budget: { totalTokensUsed: 0, totalTokenLimit: 10000, compactionsCount: 0, costUsd: 0 },
     }
     const base = { runId: "r", stepIndex: 1, attemptIndex: 1, profileId: "m", items }
     const first = await engine.prepare({ ...common, request: { ...base, maxOutputTokens: 8 } })
@@ -124,7 +124,7 @@ describe("MultiTurnRunner", () => {
     const result = await engine.record({
       actualUsage: null,
       modelLimits: { maxContextTokens: 32768, maxOutputTokens: 100, safetyMarginFactor: 1.2 },
-      budget: { totalTokensUsed: 27, totalTokenLimit: 1000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+      budget: { totalTokensUsed: 27, totalTokenLimit: 1000, compactionsCount: 0, costUsd: 0 },
     })
     expect(result.totalTokensUsed).toBe(27)
     expect(result.tokenDelta).toBe(0)
@@ -140,7 +140,7 @@ describe("MultiTurnRunner", () => {
         safetyMarginFactor: 1.2, recentWindowTokens: 10, toolOutputMaxTokens: 10, toolOutputMaxLines: 10, maxCompactions: 0,
         flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } },
       modelLimits: { maxContextTokens: 32_768, maxOutputTokens: 16, safetyMarginFactor: 1.2 },
-      budget: { totalTokensUsed: 0, totalTokenLimit: 10_000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
+      budget: { totalTokensUsed: 0, totalTokenLimit: 10_000, compactionsCount: 0, costUsd: 0 },
     })
     expect(result.status).toBe("ready")
   })
@@ -509,7 +509,6 @@ describe("MultiTurnRunner", () => {
       snapshotId: "snap-1",
       limits: {
         wallClockTimeoutMs: 60000,
-        costCeilingUsd: 5,
         totalTokenBudget: 100000,
         maxSteps: 10,
         maxToolCalls: 1, // Cap is 1, but model asked for 2
@@ -943,7 +942,6 @@ describe("MultiTurnRunner", () => {
       retry: DefaultRetryConfig,
       limits: {
         wallClockTimeoutMs: 60000,
-        costCeilingUsd: 5,
         totalTokenBudget: 100000,
         maxSteps: 10,
         noProgressMaxRepeats: 3,
@@ -1067,7 +1065,7 @@ describe("MultiTurnRunner", () => {
     const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name,
       name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : name !== "enableInfraRetry" && name !== "enableSchemaRepair" && name !== "enableMaxStepsForcing"]))
     const built = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig,
-      limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 },
+      limits: { wallClockTimeoutMs: 60000, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 },
       systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
     const payload = { snapshot: built.snapshot, snapshotDigest: built.digest }
     await store.appendEvent({ claim: firstClaim.claim, expectedStateVersion: firstClaim.stateVersion, event: {
@@ -1107,7 +1105,7 @@ describe("MultiTurnRunner", () => {
     }
     const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name,
       name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : name !== "enableInfraRetry" && name !== "enableSchemaRepair" && name !== "enableMaxStepsForcing"]))
-    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 },
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 },
     systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
     const payload = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "custom", requestOptions: { maxOutputTokens: 32, temperature: 0.3 } }
     await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload, payloadDigest: digestOf(payload), occurredAt: new Date(now).toISOString() } })
@@ -1142,7 +1140,7 @@ describe("MultiTurnRunner", () => {
       recentWindowTokens: 1000, toolOutputMaxTokens: 1000, toolOutputMaxLines: 100, maxCompactions: 0,
       flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } }
     const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name, name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : false]))
-    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: "sha256:" + "0".repeat(64), verdictSchemaDigest: "sha256:" + "1".repeat(64) })
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: "sha256:" + "0".repeat(64), verdictSchemaDigest: "sha256:" + "1".repeat(64) })
     const started = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "default", requestOptions: {} }
     await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload: started, payloadDigest: digestOf(started), occurredAt: new Date(now).toISOString() } })
     const item = { id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }
@@ -1175,7 +1173,7 @@ describe("MultiTurnRunner", () => {
       recentWindowTokens: 1000, toolOutputMaxTokens: 1000, toolOutputMaxLines: 100, maxCompactions: 0,
       flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } }
     const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name, name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : false]))
-    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 500, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, totalTokenBudget: 500, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
     const started = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "default", requestOptions: { maxOutputTokens: 100 } }
     await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload: started, payloadDigest: digestOf(started), occurredAt: new Date(now).toISOString() } })
     const item = { id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }
@@ -1191,7 +1189,7 @@ describe("MultiTurnRunner", () => {
     const prepare = engine.prepare.bind(engine)
     engine.prepare = async (input) => { restoredTokens = input.budget.totalTokensUsed; return prepare(input) }
     let providerCalls = 0
-    const gateway: ModelGatewayPort = { async executeAttempt() { providerCalls++; return { attemptId: "must-not-run", finishReason: "stop", content: "unexpected", latencyMs: 1 } } }
+    const gateway: ModelGatewayPort = { async executeAttempt() { providerCalls++; return { attemptId: "must-not-run", finishReason: "stop", content: "unexpected", usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 } } }
     const result = await new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
       .execute({ runId, workerId: "resume", prompt: "Audit prompt", snapshotId: "snap-1", maxOutputTokens: 100, limits: { totalTokenBudget: 500 }, providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 32768, maxOutputTokens: 4096 } })
     expect(restoredTokens).toBe(400)
@@ -1496,7 +1494,7 @@ describe("MultiTurnRunner", () => {
     expect((completed?.payload as { outputTruncated?: boolean }).outputTruncated).toBe(true)
   })
 
-  test("Unpriced run records the disabled cost check", async () => {
+  test("unpriced usage is preserved without cost-ceiling telemetry", async () => {
     const unpricedUsage = { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0, pricing: "unpriced" as const }
     const store = new InMemoryRunStore({ clock })
     const gateway = new ScriptedGateway([
@@ -1515,7 +1513,6 @@ describe("MultiTurnRunner", () => {
         latencyMs: 20,
       },
     ])
-    let costEstimates = 0
     const runner = new MultiTurnRunner({
       store,
       gateway,
@@ -1523,10 +1520,6 @@ describe("MultiTurnRunner", () => {
       snapshot: new MockSnapshot(),
       contextEngine: new PassThroughContextEngine(),
       clock,
-      estimateCostUsd: () => {
-        costEstimates += 1
-        return 1
-      },
       estimatePromptTokens: () => 10,
     })
 
@@ -1534,18 +1527,17 @@ describe("MultiTurnRunner", () => {
       prompt: "Audit Vault.sol",
       snapshotId: "snap-unpriced",
       pricing: "unpriced",
-      limits: { maxSteps: 3, maxToolCalls: 3, costCeilingUsd: 0.01 },
+      limits: { maxSteps: 3, maxToolCalls: 3 },
     })
     const started = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "run.started")
 
-    expect((started?.payload as { costBudgetEnforced?: boolean }).costBudgetEnforced).toBe(false)
+    expect(started?.payload).not.toHaveProperty("costBudgetEnforced")
     expect(result.state).toBe("completed")
     expect(gateway.calls).toHaveLength(2)
-    expect(costEstimates).toBe(0)
     expect(result.usage.pricing).toBe("unpriced")
   })
 
-  test("Priced runs still stop at the cost ceiling", async () => {
+  test("priced cost does not stop a run", async () => {
     const store = new InMemoryRunStore({ clock })
     const gateway = new ScriptedGateway([
       {
@@ -1563,12 +1555,12 @@ describe("MultiTurnRunner", () => {
       prompt: "Audit Vault.sol",
       snapshotId: "snap-priced",
       pricing: "priced",
-      limits: { maxSteps: 3, maxToolCalls: 3, costCeilingUsd: 0.01 },
+      limits: { maxSteps: 3, maxToolCalls: 3 },
     })
 
-    expect(result.state).toBe("budget_exhausted")
-    expect(result.terminalReason).toBe("cost_budget")
-    expect(registry.calls).toHaveLength(0)
+    expect(result.state).toBe("completed")
+    expect(result.usage.costUsd).toBe(0.021)
+    expect(registry.calls).toHaveLength(1)
   })
 
   test("Effective settings are recorded per run", async () => {

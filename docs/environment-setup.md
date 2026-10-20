@@ -39,15 +39,16 @@ The CLI finds the nearest `.env` by walking up from the working directory, so th
 | `MODEL_OUTPUT_TOKENS_FIELD` | Request field carrying that limit | `max_tokens` (default) or `max_completion_tokens` |
 | `MODEL_INPUT_COST_PER_MTOK` / `MODEL_OUTPUT_COST_PER_MTOK` | Explicit USD price per million tokens; set both or neither | unset |
 | `HARNESS_SNAPSHOT_DIR` | Snapshot storage directory | `<repo>/data/snapshots` |
-| `HARNESS_MAX_STEPS`, `HARNESS_MAX_TOOL_CALLS`, `HARNESS_MAX_TOTAL_TOKENS`, `HARNESS_MAX_COST_USD` | Default limits for snapshot runs | runner defaults |
+| `HARNESS_MAX_STEPS`, `HARNESS_MAX_TOOL_CALLS`, `HARNESS_MAX_TOTAL_TOKENS` | Default limits for snapshot runs | runner defaults |
 
-Every multi-turn run records its effective output field, prices and limits in its `run.started` event.
+Every multi-turn run records its effective output field, prices and non-cost execution limits in its `run.started` event.
+Harness does not enforce a monetary spend cap; configure provider-side limits if you need a hard spending limit.
 
 **Cost rule:** when a model is neither in the pricing registry nor priced by the two `*_COST_PER_MTOK` variables:
 - its cost is **unknown**;
 - the CLI prints `unknown`, never `$0`;
 - the database stores `NULL`;
-- the run records `costBudgetEnforced: false`, because a cost ceiling cannot be enforced without a price.
+- the run continues subject to its token, step, tool-call and wall-clock limits; Harness does not enforce a monetary spend cap.
 
 > **Security Note**: Never commit `.env` containing real API keys or passwords. Harness automatically masks credentials in logs, CLI output, and trajectory events.
 
@@ -133,7 +134,7 @@ Multi-turn run against a snapshot, where the model can call `read_file`, `grep`,
 
 ```bash
 bun run cli:run -- --snapshot snap_a17543c5d14e --prompt "Report any reentrancy bug with file:line evidence" \
-  --max-steps 6 --max-tool-calls 6 --max-output-tokens 1024 --max-total-tokens 50000 --max-cost-usd 0.5 --timeout 120000
+  --max-steps 6 --max-tool-calls 6 --max-output-tokens 1024 --max-total-tokens 50000 --timeout 120000
 ```
 
 - **Precedence:** a flag overrides the matching `HARNESS_*` or `MODEL_*` variable, which overrides the runner default.

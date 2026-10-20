@@ -85,7 +85,6 @@ export const flags: ResolvedFlags = {
 
 export const limits: BudgetLimits = {
   wallClockTimeoutMs: 3_600_000,
-  costCeilingUsd: 10,
   totalTokenBudget: 1_000_000,
   maxSteps: 10,
   noProgressMaxRepeats: 3,
@@ -233,11 +232,10 @@ export const createHarness = async (options: HarnessOptions) => {
     flags: resolvedFlags,
     policy,
     modelLimits: { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.1 },
-    budget: { totalTokensUsed: 0, totalTokenLimit: 1_000_000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 10 },
+    budget: { totalTokensUsed: 0, totalTokenLimit: 1_000_000, compactionsCount: 0, costUsd: 0 },
     limits: resolvedLimits,
     stopState: {
       startedAtMs,
-      costUsd: 0,
       totalTokens: 0,
       completedSteps: 0,
       contextBudgetExhausted: false,

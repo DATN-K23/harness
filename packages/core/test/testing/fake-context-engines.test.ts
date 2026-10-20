@@ -42,7 +42,6 @@ const budget = (overrides: Partial<RunBudget> = {}): RunBudget => ({
   totalTokenLimit: 100_000,
   compactionsCount: 0,
   costUsd: 0,
-  costCeilingUsd: 10,
   ...overrides,
 })
 

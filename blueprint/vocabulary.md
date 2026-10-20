@@ -55,11 +55,13 @@ Desktop connection states: `runtime_starting`, `ready`, `runtime_unavailable`, `
 
 | Namespace | Canonical values |
 |---|---|
-| budget | `max_steps`, `max_tool_calls`, `total_tokens`, `wall_clock`, `no_progress`, `context_budget`, `cost_budget` |
+| budget | `max_steps`, `max_tool_calls`, `total_tokens`, `wall_clock`, `no_progress`, `context_budget` |
 | provider/profile | `pre_network_profile_rejected`, `pre_network_experiment_rejected`, `provider_permanent`, `provider_transient_primary`, `provider_retries_exhausted`, `attempt_outcome_unknown` |
 | contract | `invalid_input`, `schema_repair_exhausted`, `evidence_invalid`, `incompatible_version` |
 | security/source | `source_registration_denied`, `snapshot_integrity`, `workspace_preflight` |
 | operator/infrastructure | `cancelled_by_user`, `work_handoff_failure`, `persistence_failure`, `worker_interrupted` |
+
+Historical run records may contain `cost_budget`; readers retain compatibility with that legacy terminal reason, but new runs do not emit it.
 
 ## Run event types
 
@@ -90,5 +92,4 @@ Desktop connection states: `runtime_starting`, `ready`, `runtime_unavailable`, `
 | relative source path | UTF-8 POSIX form without leading slash, `.`, `..` or host-root encoding |
 | native selected path | `EPHEMERAL_SENSITIVE` source-registration input only; never persisted/hashed into run data |
 | line span | One-based inclusive `start_line`, `end_line` |
-
 

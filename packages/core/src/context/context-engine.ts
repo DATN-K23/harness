@@ -111,7 +111,7 @@ export class ProductionContextEngine implements ContextEnginePort {
       input.modelLimits.maxContextTokens, input.modelLimits.maxOutputTokens,
       input.policy.safetyMarginFactor, input.modelLimits.safetyMarginFactor,
       input.budget.totalTokensUsed, input.budget.totalTokenLimit, input.budget.compactionsCount,
-      input.budget.costUsd, input.budget.costCeilingUsd, input.policy.compactionThreshold]
+       input.budget.costUsd, input.policy.compactionThreshold]
     if (nums.some((value) => !Number.isFinite(value)) ||
       input.policy.windowLimitTokens <= 0 || input.policy.outputReserveTokens <= 0 ||
       input.policy.recentWindowTokens < 0 || input.policy.toolOutputMaxTokens <= 0 ||
@@ -121,7 +121,7 @@ export class ProductionContextEngine implements ContextEnginePort {
       input.policy.safetyMarginFactor < 1 || input.modelLimits.safetyMarginFactor < 1 ||
       input.policy.safetyMarginFactor !== input.modelLimits.safetyMarginFactor ||
       input.budget.totalTokensUsed < 0 || input.budget.totalTokenLimit <= 0 || input.budget.totalTokensUsed > input.budget.totalTokenLimit ||
-      input.budget.compactionsCount < 0 || input.budget.costUsd < 0 || input.budget.costCeilingUsd < 0 || input.budget.costUsd > input.budget.costCeilingUsd ||
+       input.budget.compactionsCount < 0 || input.budget.costUsd < 0 ||
       input.policy.compactionThreshold <= 0 || input.policy.compactionThreshold > 1 ||
       (request.maxOutputTokens !== undefined && (!Number.isInteger(request.maxOutputTokens) || request.maxOutputTokens <= 0))) {
       return { status: "stop", stopReason: "context_budget", preparedItems: input.items, telemetry: {

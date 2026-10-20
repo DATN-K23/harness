@@ -25,7 +25,6 @@ import { createIdGenerator } from "../../src/util/id"
 const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.001 }
 const limits = {
   wallClockTimeoutMs: 60_000,
-  costCeilingUsd: 5,
   totalTokenBudget: 100_000,
   maxSteps: 10,
   maxToolCalls: 20,
@@ -116,8 +115,7 @@ const makeRunner = (input: {
   snapshot?: Snapshot
   clock?: { nowMs: () => number }
   skippedFiles?: () => Promise<Array<{ path: string; reason: string }>>
-    estimatePromptTokens?: (request: ModelAttemptRequest) => number
-    estimateCostUsd?: (profileId: string, promptTokens: number, outputTokens: number) => number | undefined
+  estimatePromptTokens?: (request: ModelAttemptRequest) => number
 }) => {
   const store = input.store ?? new InMemoryRunStore({ clock: input.clock ?? { nowMs: () => 1000 } })
   const snapshot = input.snapshot ?? new Snapshot()
@@ -132,7 +130,6 @@ const makeRunner = (input: {
       clock: input.clock,
       skippedFiles: input.skippedFiles,
       estimatePromptTokens: input.estimatePromptTokens,
-      estimateCostUsd: input.estimateCostUsd,
     }),
     store,
     snapshot,
@@ -262,7 +259,7 @@ describe("multi-turn runner hardening", () => {
     expect(promptItem?.content).toContain(permalink)
   })
 
-  test("stops after a tool-calling response crosses the cost ceiling without dispatching", async () => {
+  test("cost reported by a tool-calling response does not stop dispatch", async () => {
     const registry = new Registry()
     const gateway = new QueueGateway([
       toolResponse([call("cost-call")], { ...usage, costUsd: 0.02 }),
@@ -272,13 +269,12 @@ describe("multi-turn runner hardening", () => {
     const result = await runner.execute({
       prompt: "Audit",
       snapshotId: "snapshot-1",
-      limits: { ...limits, costCeilingUsd: 0.01 },
+      limits,
     })
 
-    expect(result.state).toBe("budget_exhausted")
-    expect(result.terminalReason).toBe("cost_budget")
-    expect(registry.calls).toHaveLength(0)
-    expect(gateway.calls).toBe(1)
+    expect(result.state).toBe("completed")
+    expect(registry.calls).toHaveLength(1)
+    expect(gateway.calls).toBe(2)
   })
 
   test("checks the output reserve before making a second provider attempt", async () => {
@@ -323,24 +319,21 @@ describe("multi-turn runner hardening", () => {
     expect(gateway.calls).toBe(0)
   })
 
-  test("stops before a provider call when estimated cost exceeds the remaining cost budget", async () => {
+  test("estimated cost does not stop a provider call", async () => {
     const gateway = new QueueGateway([answer()])
     const { runner } = makeRunner({
       gateway,
       estimatePromptTokens: () => 100,
-      estimateCostUsd: () => 0.01,
     })
 
     const result = await runner.execute({
       prompt: "Audit",
       snapshotId: "snapshot-1",
-      limits: { ...limits, costCeilingUsd: 0.001 },
+      limits,
     })
 
-    expect(result.state).toBe("budget_exhausted")
-    expect(result.terminalReason).toBe("cost_budget")
-    expect(result.observedLimits).toContain("cost_budget")
-    expect(gateway.calls).toBe(0)
+    expect(result.state).toBe("completed")
+    expect(gateway.calls).toBe(1)
   })
 
   test("allows a provider call when pricing is unknown and the request fits the token budget", async () => {
@@ -348,13 +341,12 @@ describe("multi-turn runner hardening", () => {
     const { runner } = makeRunner({
       gateway,
       estimatePromptTokens: () => 100,
-      estimateCostUsd: () => undefined,
     })
 
     const result = await runner.execute({
       prompt: "Audit",
       snapshotId: "snapshot-1",
-      limits: { ...limits, costCeilingUsd: 0.0001 },
+      limits,
     })
 
     expect(result.state).toBe("completed")
@@ -518,7 +510,7 @@ describe("multi-turn runner hardening", () => {
     expect((await store.loadRun(result.runId))?.state).toBe("failed")
   })
 
-  test("completes a final text answer even when its reported usage crosses a limit", async () => {
+  test("completes a final text answer and reports cost usage", async () => {
     const gateway = new QueueGateway([
       answer({ usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: 0.02 } }),
     ])
@@ -527,12 +519,12 @@ describe("multi-turn runner hardening", () => {
     const result = await runner.execute({
       prompt: "Audit",
       snapshotId: "snapshot-1",
-      limits: { ...limits, costCeilingUsd: 0.01 },
+      limits,
     })
 
     expect(result.state).toBe("completed")
     expect(result.output).toBe("Done")
-    expect(result.observedLimits).toContain("cost_budget")
+    expect(result.usage.costUsd).toBe(0.02)
   })
 })
 

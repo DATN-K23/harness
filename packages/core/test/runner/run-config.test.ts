@@ -34,7 +34,6 @@ const inputWith = (flags: ResolvedFlags): RunConfigInput => ({
   retry: DefaultRetryConfig,
   limits: {
     wallClockTimeoutMs: 600_000,
-    costCeilingUsd: 5,
     totalTokenBudget: 400_000,
     maxSteps: 25,
     noProgressMaxRepeats: 3,

@@ -239,7 +239,7 @@ export interface VerifyHydrationInput {
   history: HydratedHistory
   policy: ContextPolicy
   modelLimits: ModelLimits
-  limits: Pick<BudgetLimits, "totalTokenBudget" | "costCeilingUsd">
+  limits: Pick<BudgetLimits, "totalTokenBudget">
   request?: ModelAttemptRequest
 }
 
@@ -272,7 +272,6 @@ export const verifyHydration = async (input: VerifyHydrationInput): Promise<Hydr
         totalTokenLimit: input.limits.totalTokenBudget,
         compactionsCount: point.compactionsCount,
         costUsd: point.totalsFromAttempts.costUsd,
-        costCeilingUsd: input.limits.costCeilingUsd,
       },
     })
     .then(

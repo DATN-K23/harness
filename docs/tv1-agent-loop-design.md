@@ -304,7 +304,6 @@ export interface RunBudget {
   totalTokenLimit: number;          // Ngân sách tối đa của run
   compactionsCount: number;         // Đã nén mấy lần
   costUsd: number;
-  costCeilingUsd: number;
 }
 
 export interface PrepareResult {
@@ -463,7 +462,6 @@ export type StepOutcome =
 
 export type StopReason = 
   | 'wall_clock_timeout'
-  | 'cost_budget_exhausted'
   | 'total_tokens_exhausted'
   | 'max_steps_exceeded'
   | 'context_budget_exhausted'
@@ -471,7 +469,6 @@ export type StopReason =
 
 export interface BudgetLimits {
   wallClockTimeoutMs: number;
-  costCeilingUsd: number;
   totalTokenBudget: number;
   maxSteps: number;
   noProgressMaxRepeats: number; // Mặc định: 3 lần lặp cùng tool call
@@ -479,7 +476,7 @@ export interface BudgetLimits {
 ```
 
 Thứ tự ưu tiên đánh giá khi có nhiều giới hạn cùng chạm ngưỡng tại một safe boundary:
-$$\text{wall\_clock\_timeout} \succ \text{cost\_budget\_exhausted} \succ \text{total\_tokens\_exhausted} \succ \text{max\_steps\_exceeded} \succ \text{context\_budget\_exhausted} \succ \text{no\_progress\_detected}$$
+$$\text{wall\_clock\_timeout} \succ \text{total\_tokens\_exhausted} \succ \text{max\_steps\_exceeded} \succ \text{context\_budget\_exhausted} \succ \text{no\_progress\_detected}$$
 
 ---
 

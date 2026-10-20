@@ -38,6 +38,10 @@ describe("parseCliArgs", () => {
     expect(parsed.prompt).toBeUndefined()
     expect(parsed.model).toBeUndefined()
   })
+
+  test("rejects the removed max-cost option", () => {
+    expect(() => parseCliArgs(["run", "--max-cost-usd", "0.05"])).toThrow("Unknown option '--max-cost-usd'")
+  })
 })
 
 
@@ -51,7 +55,7 @@ test("help lists repository, snapshot, run and view commands", async () => {
   expect(output.join("\n")).toContain("  view           ")
   expect(output.join("\n")).toContain("--snapshot <id>")
   expect(output.join("\n")).toContain("--json")
-  expect(HelpMessage).toContain("--max-cost-usd")
+  expect(HelpMessage).not.toContain("--max-cost-usd")
 })
 
 
@@ -64,8 +68,8 @@ test("parses repeatable include roots and snapshot run budgets", () => {
   expect(parsed.positionals).toEqual(["./repo"])
   expect(parsed.includeRoots).toEqual(["src", "contracts"])
   expect(parsed.snapshotId).toBe("snap_test")
-  const run = parseCliArgs(["run", "--snapshot", "snap_test", "--max-steps", "5", "--max-cost-usd", "0.2"])
+  const run = parseCliArgs(["run", "--snapshot", "snap_test", "--max-steps", "5"])
   expect(run.snapshot).toBe("snap_test")
   expect(run.maxSteps).toBe("5")
-  expect(run.maxCostUsd).toBe("0.2")
+  expect(run).not.toHaveProperty("maxCostUsd")
 })

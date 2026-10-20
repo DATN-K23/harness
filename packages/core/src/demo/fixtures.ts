@@ -75,7 +75,6 @@ export const demoFlags: ResolvedFlags = {
 
 export const demoLimits: BudgetLimits = {
   wallClockTimeoutMs: 3_600_000,
-  costCeilingUsd: 10,
   totalTokenBudget: 1_000_000,
   maxSteps: 10,
   noProgressMaxRepeats: 3,

@@ -69,7 +69,6 @@ export interface RunBudget {
   totalTokenLimit: number
   compactionsCount: number
   costUsd: number
-  costCeilingUsd: number
 }
 
 export const TransformationSchema = z.object({

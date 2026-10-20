@@ -70,7 +70,7 @@ describe("history hydrator", () => {
     const items: ContextItem[] = [{ id: "sys", turn: 0, type: "system_prompt", isPinned: true, content: "x" }]
     const request = { runId: "r", stepIndex: 1, attemptIndex: 1, profileId: "m", items, tools: [] }
     const engine = new ProductionContextEngine(createO200kTokenizer())
-    const budget = { totalTokensUsed: 0, totalTokenLimit: 100000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 5 }
+  const budget = { totalTokensUsed: 0, totalTokenLimit: 100000, compactionsCount: 0, costUsd: 0 }
     const prepared = await engine.prepare({ items, request, policy, modelLimits, budget })
     if (prepared.status !== "ready") throw new Error("setup allocation did not prepare")
     const point = { sequence: 1, stepIndex: 1, contentDigest: prepared.telemetry.contentDigest, requestDigest: prepared.telemetry.requestDigest, items, totalsFromAttempts: usageOf(0, 0), compactionsCount: 0 }

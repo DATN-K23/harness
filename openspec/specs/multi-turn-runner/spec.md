@@ -84,8 +84,7 @@ terminate the run.
 
 ### Requirement: Enforced limits with an explicit stop reason
 Before starting any next provider attempt or tool dispatch the runner SHALL evaluate the
-model-turn count, the tool-call count, the wall-clock budget, and the cost and token
-budgets. When one or more limits are exhausted the runner SHALL stop with the
+model-turn count, the tool-call count, the wall-clock budget, and the token budget. When one or more limits are exhausted the runner SHALL stop with the
 highest-precedence exhausted reason, record the exhausted limit in telemetry, and start
 no further provider or tool work.
 
@@ -175,7 +174,7 @@ The runner SHALL sanitize all model-visible text in two tiers before persisting 
 ### Requirement: Post-response and resumed budget enforcement
 The runner SHALL enforce its limits at these points:
 
-- **After every model response:** before tool approval or dispatch, it SHALL evaluate the wall-clock, token, cost, model-turn and tool-call limits again, and SHALL dispatch no tool when a limit is exhausted.
+- **After every model response:** before tool approval or dispatch, it SHALL evaluate the wall-clock, token, model-turn and tool-call limits again, and SHALL dispatch no tool when a limit is exhausted.
 - **Before every provider attempt:** it SHALL stop with the total-token reason when the remaining token budget is smaller than the configured maximum output tokens.
 - **On a final text answer:** a final answer that exhausted a limit SHALL complete the run. Every exhausted limit SHALL be returned in the run result (`observedLimits`) and SHALL be derivable from the persisted `provider.attempted` events together with the limits recorded in `run.started`.
 - **On resume:** it SHALL restore the run start time from the persisted `run.started` event and the completed tool-call count from history.
@@ -185,11 +184,6 @@ The runner SHALL enforce its limits at these points:
 - **GIVEN** a total-token budget of 10,000 with 9,500 tokens already used and a maximum of 1,024 output tokens
 - **WHEN** the runner prepares the next provider attempt
 - **THEN** no attempt is made and the run ends `budget_exhausted` with the total-token reason
-
-#### Scenario: Cost ceiling crossed by a tool-calling response
-- **GIVEN** a cost ceiling of 0.01 USD and a model response costing 0.02 USD that requests a tool
-- **WHEN** the response is processed
-- **THEN** no tool is dispatched and the run ends `budget_exhausted` with the cost reason
 
 #### Scenario: Resumed run keeps its tool-call count
 - **GIVEN** a run with a tool-call cap of 3 that completed 3 tool calls before the worker stopped
@@ -236,22 +230,12 @@ Provider failures with category `rate_limit` or `transport` SHALL end the run wi
 - **THEN** the returned promise resolves with a `failed` result and does not reject
 
 ### Requirement: Prompt- and cost-aware pre-call guards
-Before each provider attempt, the runner SHALL estimate the request's prompt tokens. It SHALL stop with the total-token reason when the remaining token budget is smaller than the estimated prompt tokens plus the maximum output tokens. When a cost estimator is supplied and returns a value, the runner SHALL stop with the cost reason when the estimated cost of the attempt exceeds the remaining cost budget. An estimator that cannot price the model SHALL disable only the cost check.
+Before each provider attempt, the runner SHALL estimate the request's prompt tokens. It SHALL stop with the total-token reason when the remaining token budget is smaller than the estimated prompt tokens plus the maximum output tokens. Cost data MAY be reported as actual or estimated usage, but SHALL NOT control run admission or execution.
 
 #### Scenario: Large prompt cannot fit the remaining budget
 - **GIVEN** a remaining token budget of 1,000, no output-token limit, and a next request whose estimated prompt is 1,500 tokens
 - **WHEN** the runner prepares the attempt
 - **THEN** no attempt is made and the run ends `budget_exhausted` with the total-token reason
-
-#### Scenario: Estimated cost exceeds the remaining cost budget
-- **GIVEN** a remaining cost budget of 0.001 USD and a cost estimator that prices the next attempt at 0.01 USD
-- **WHEN** the runner prepares the attempt
-- **THEN** no attempt is made and the run ends `budget_exhausted` with the cost reason
-
-#### Scenario: Unknown pricing disables only the cost check
-- **GIVEN** a cost estimator that returns `undefined` for the run's model
-- **WHEN** the runner prepares an attempt that fits the token budget
-- **THEN** the attempt is made
 
 ### Requirement: Assistant text of tool turns is persisted
 When a model response requests tools and also carries text, the runner SHALL persist that text, sanitized with the full tier, as an `assistant_reasoning` context item for the turn. It SHALL do so before the turn's tool request items, so that the persisted trajectory and the next request contain what the model said.
@@ -289,15 +273,9 @@ A response with finish reason `length` SHALL NOT be treated as a tool request. W
 - **THEN** it ends `completed` with `outputTruncated: true` and no tool is dispatched
 
 ### Requirement: Unpriced profiles do not enforce the cost ceiling
-When the run's profile is unpriced, the runner SHALL:
+When model pricing is unavailable, the runner SHALL preserve unknown/unpriced usage reporting and SHALL apply token, step, tool-call and wall-clock limits normally. The runner SHALL NOT reject or stop a run because the model is unpriced.
 
-- record `costBudgetEnforced: false` in `run.started`;
-- skip the cost pre-call guard;
-- report pricing `unpriced` in the run result's usage once any attempt is unpriced.
-
-Token, step, tool-call and wall-clock limits SHALL remain enforced.
-
-#### Scenario: Unpriced run records the disabled cost check
-- **GIVEN** a gateway whose responses are all `unpriced` and a cost ceiling of 0.01 USD
+#### Scenario: Unpriced run uses non-cost limits
+- **GIVEN** a gateway whose responses are unpriced and a run whose token, step, tool-call and wall-clock limits are not exhausted
 - **WHEN** the run executes two steps
-- **THEN** `run.started` has `costBudgetEnforced: false`, the run is not stopped for cost, and the result usage is `unpriced`
+- **THEN** it completes according to those limits and reports usage pricing as `unpriced`

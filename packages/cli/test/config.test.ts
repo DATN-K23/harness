@@ -120,14 +120,18 @@ describe("loadRuntimeConfig", () => {
       HARNESS_MAX_STEPS: "5",
       HARNESS_MAX_TOOL_CALLS: "20",
       HARNESS_MAX_TOTAL_TOKENS: "50000",
-      HARNESS_MAX_COST_USD: "0.25",
     })
 
     expect(config.modelOutputTokensField).toBe("max_completion_tokens")
     expect(config.modelInputCostPerMTok).toBe(2.5)
     expect(config.modelOutputCostPerMTok).toBe(10)
     expect(config.snapshotDir).toBe("D:/audit/snapshots")
-    expect(config.runLimits).toEqual({ maxSteps: 5, maxToolCalls: 20, totalTokenBudget: 50_000, costCeilingUsd: 0.25 })
+    expect(config.runLimits).toEqual({ maxSteps: 5, maxToolCalls: 20, totalTokenBudget: 50_000 })
+  })
+
+  test("ignores the removed cost ceiling environment variable", () => {
+    const config = loadRuntimeConfig({ ...validEnv, HARNESS_MAX_COST_USD: "0.25" })
+    expect(config.runLimits).toEqual({})
   })
 
 })

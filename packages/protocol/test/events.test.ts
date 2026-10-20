@@ -215,7 +215,7 @@ describe("event payloads", () => {
     expect(TrajectoryEventSchema.safeParse(event({ type: "run.started", payload })).success).toBe(true)
   })
 
-  test("run.started records optional provider profile and cost-budget enforcement", () => {
+  test("run.started records optional provider profile and accepts legacy cost-budget telemetry", () => {
     const payload = {
       ...payloads["run.started"],
       costBudgetEnforced: false,

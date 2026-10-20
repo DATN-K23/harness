@@ -270,7 +270,7 @@ Before `accepted -> queued` for a real-provider run, the application resolves an
 
 ## Budget exhaustion
 
-When checks observe multiple exhausted limits at one safe boundary, choose by fixed precedence: `wall_clock`, `cost_budget`, `total_tokens`, `max_steps`, `context_budget`, `no_progress`. Record all observed exhausted limits in telemetry but exactly one `terminal_reason`.
+When checks observe multiple exhausted limits at one safe boundary, choose by fixed precedence: `wall_clock`, `total_tokens`, `max_steps`, `context_budget`, `no_progress`. Record all observed exhausted limits in telemetry but exactly one `terminal_reason`. Monetary cost is reported as usage metadata and is not a stop condition.
 
 No provider or tool action starts after a terminal transition or after the chosen limit is known. In-flight provider calls may not be physically cancelled; their late result is recorded only as a safe orphan-attempt observation and cannot mutate the terminal run.
 

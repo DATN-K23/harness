@@ -49,7 +49,6 @@ export const snapshot = (): RunConfigSnapshot => ({
   },
   budget: {
     wallClockTimeoutMs: 600000,
-    costCeilingUsd: 5,
     totalTokenBudget: 500000,
     maxSteps: 20,
     noProgressMaxRepeats: 3,

@@ -52,7 +52,6 @@ Options:
   --max-tool-calls <count>    Maximum tool calls for a snapshot run
   --max-output-tokens <count> Maximum output tokens per provider attempt
   --max-total-tokens <count>  Maximum total tokens for the run
-  --max-cost-usd <amount>     Maximum priced usage cost for the run
   --include-root <dir>        Include only this repository-relative path (repeatable)
   --snapshot-id <id>          Set an explicit ID when registering a repository
   --id <runId>                Run identifier to inspect (required for view)
@@ -79,7 +78,6 @@ export interface CliParsedArgs {
   maxToolCalls?: string
   maxOutputTokens?: string
   maxTotalTokens?: string
-  maxCostUsd?: string
 }
 
 export type CliWriter = (text: string) => void
@@ -95,6 +93,7 @@ export interface RunCliDependencies {
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
+  if (args.includes("--max-cost-usd")) throw new Error("Unknown option '--max-cost-usd'. See --help.")
   const { values, positionals } = parseArgs({
     args,
     options: {
@@ -112,7 +111,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       "max-tool-calls": { type: "string" },
       "max-output-tokens": { type: "string" },
       "max-total-tokens": { type: "string" },
-      "max-cost-usd": { type: "string" },
     },
     allowPositionals: true,
     strict: false,
@@ -140,7 +138,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     maxToolCalls: asString(values["max-tool-calls"]),
     maxOutputTokens: asString(values["max-output-tokens"]),
     maxTotalTokens: asString(values["max-total-tokens"]),
-    maxCostUsd: asString(values["max-cost-usd"]),
   }
 }
 
@@ -268,25 +265,16 @@ async function runCommand(
         "--max-total-tokens",
         "positiveInteger",
       )
-      const maxCostUsd = resolveLimit(
-        parsed.maxCostUsd,
-        effectiveConfig?.runLimits.costCeilingUsd,
-        5,
-        "--max-cost-usd",
-        "nonNegativeNumber",
-      )
       const limits = {
         wallClockTimeoutMs: timeoutMs,
         maxSteps: maxSteps.value,
         maxToolCalls: maxToolCalls.value,
         totalTokenBudget: maxTotalTokens.value,
-        costCeilingUsd: maxCostUsd.value,
       }
       const validation = [
         parseLimit(parsed.maxSteps, "--max-steps", "positiveInteger"),
         parseLimit(parsed.maxToolCalls, "--max-tool-calls", "positiveInteger"),
         parseLimit(parsed.maxTotalTokens, "--max-total-tokens", "positiveInteger"),
-        parseLimit(parsed.maxCostUsd, "--max-cost-usd", "nonNegativeNumber"),
       ].find((item) => item.error)
       if (validation?.error) {
         stderr(`Error: ${validation.error}`)
@@ -300,9 +288,6 @@ async function runCommand(
       const profilePricing = parsed.mock
         ? "priced"
         : priceUsage(profileId, { promptTokens: 0, completionTokens: 0 }, priceOverride).pricing
-      if (profilePricing === "unpriced") {
-        stdout(redactSecrets(`Warning: cost is unknown for model ${profileId}; cost budget is not enforced.`, secrets))
-      }
 
       if (parsed.mock) {
         store = new InMemoryRunStore({ clock: { nowMs: () => Date.now() } })
@@ -343,10 +328,6 @@ async function runCommand(
           ? new PassThroughContextEngine()
           : new ProductionContextEngine(createO200kTokenizer()),
         secrets,
-        estimateCostUsd: (model, promptTokens, outputTokens) => {
-          const estimate = priceUsage(model, { promptTokens, completionTokens: outputTokens }, priceOverride)
-          return estimate.pricing === "priced" ? estimate.costUsd : undefined
-        },
       }).execute({
         prompt,
         snapshotId: parsed.snapshot,

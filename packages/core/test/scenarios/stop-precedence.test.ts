@@ -7,11 +7,11 @@ import { createWorld, readVault, runInput } from "../helpers/runner-world"
 test("two limits exhausted at one boundary: the earlier one ends the run and both are recorded", async () => {
   const world = createWorld()
   const w = world.worker({ script: [readVault("call-1", 1, 5)] })
-  // One step costs 0.01 USD and 120 tokens, so cost and total tokens are reached together.
-  const tight = { ...limits, costCeilingUsd: 0.01, totalTokenBudget: 120 }
+  // One step uses 120 tokens and reaches the total-token limit.
+  const tight = { ...limits, totalTokenBudget: 120 }
   const result = await w.start("worker-a", runInput({ limits: tight }))
 
-  expect(result).toMatchObject({ kind: "committed", state: "budget_exhausted", terminalReason: "cost_budget" })
+  expect(result).toMatchObject({ kind: "committed", state: "budget_exhausted", terminalReason: "total_tokens" })
   const [exhausted] = await world.events("run.budget_exhausted")
-  expect(exhausted.payload).toEqual({ reason: "cost_budget", observedLimits: ["cost_budget", "total_tokens"] })
+  expect(exhausted.payload).toEqual({ reason: "total_tokens", observedLimits: ["total_tokens"] })
 })

@@ -11,10 +11,9 @@ import {
 } from "../src/stop-conditions"
 
 describe("stop reason precedence", () => {
-  test("lists the seven stop reasons in the documented order", () => {
+  test("lists the six non-cost stop reasons in the documented order", () => {
     expect([...StopPrecedence]).toEqual([
       "wall_clock_timeout",
-      "cost_budget_exhausted",
       "total_tokens_exhausted",
       "max_steps_exceeded",
       "max_tool_calls_exceeded",
@@ -35,13 +34,12 @@ describe("stop reason to terminal reason mapping", () => {
   test("is unique: no two stop reasons share a terminal reason and every terminal reason is used", () => {
     const mapped = StopReasons.map((reason) => StopReasonToTerminalReason[reason])
     expect(new Set(mapped).size).toBe(StopReasons.length)
-    expect([...mapped].sort()).toEqual([...BudgetTerminalReasons].sort())
+    expect([...mapped].sort()).toEqual(BudgetTerminalReasons.filter((reason) => reason !== "cost_budget").sort())
   })
 
   test("maps names exactly as the design document states", () => {
     expect(StopReasonToTerminalReason).toEqual({
       wall_clock_timeout: "wall_clock",
-      cost_budget_exhausted: "cost_budget",
       total_tokens_exhausted: "total_tokens",
       max_steps_exceeded: "max_steps",
       max_tool_calls_exceeded: "max_tool_calls",
@@ -68,13 +66,12 @@ describe("terminal reason vocabulary", () => {
 describe("BudgetLimitsSchema", () => {
   const limits = {
     wallClockTimeoutMs: 600000,
-    costCeilingUsd: 5,
-    totalTokenBudget: 500000,
+      totalTokenBudget: 500000,
     maxSteps: 20,
     noProgressMaxRepeats: 3,
   }
 
-  test("accepts the five documented limits without maxToolCalls (additive/backward compatible)", () => {
+  test("accepts the non-cost limits without maxToolCalls", () => {
     expect(BudgetLimitsSchema.safeParse(limits).success).toBe(true)
   })
 
@@ -88,5 +85,18 @@ describe("BudgetLimitsSchema", () => {
     expect(BudgetLimitsSchema.safeParse({ ...limits, maxSteps: 0 }).success).toBe(false)
     const { noProgressMaxRepeats: _omitted, ...rest } = limits
     expect(BudgetLimitsSchema.safeParse(rest).success).toBe(false)
+  })
+
+  test("preserves a legacy cost ceiling in historical snapshots without making it required", () => {
+    const parsed = BudgetLimitsSchema.safeParse({
+      wallClockTimeoutMs: 600000,
+      totalTokenBudget: 500000,
+      maxSteps: 20,
+      noProgressMaxRepeats: 3,
+      costCeilingUsd: 5,
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.costCeilingUsd).toBe(5)
+    expect(BudgetLimitsSchema.safeParse(limits).success).toBe(true)
   })
 })

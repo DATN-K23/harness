@@ -110,7 +110,6 @@ export const RuntimeConfigSchema = z
     maxSteps: optionalPositiveInteger,
     maxToolCalls: optionalPositiveInteger,
     maxTotalTokens: optionalPositiveInteger,
-    maxCostUsd: optionalNonNegativeNumber,
   })
   .superRefine((config, ctx) => {
     if (config.modelInputCostPerMTok !== undefined && config.modelOutputCostPerMTok === undefined) {
@@ -128,13 +127,12 @@ export const RuntimeConfigSchema = z
       })
     }
   })
-  .transform(({ maxSteps, maxToolCalls, maxTotalTokens, maxCostUsd, ...config }) => ({
+  .transform(({ maxSteps, maxToolCalls, maxTotalTokens, ...config }) => ({
     ...config,
     runLimits: {
       ...(maxSteps !== undefined ? { maxSteps } : {}),
       ...(maxToolCalls !== undefined ? { maxToolCalls } : {}),
       ...(maxTotalTokens !== undefined ? { totalTokenBudget: maxTotalTokens } : {}),
-      ...(maxCostUsd !== undefined ? { costCeilingUsd: maxCostUsd } : {}),
     },
   }))
 
@@ -166,7 +164,6 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   maxSteps: "HARNESS_MAX_STEPS",
   maxToolCalls: "HARNESS_MAX_TOOL_CALLS",
   maxTotalTokens: "HARNESS_MAX_TOTAL_TOKENS",
-  maxCostUsd: "HARNESS_MAX_COST_USD",
 }
 
 /**
@@ -194,7 +191,6 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     maxSteps: env.HARNESS_MAX_STEPS,
     maxToolCalls: env.HARNESS_MAX_TOOL_CALLS,
     maxTotalTokens: env.HARNESS_MAX_TOTAL_TOKENS,
-    maxCostUsd: env.HARNESS_MAX_COST_USD,
   }
 
   const result = RuntimeConfigSchema.safeParse(rawInput)

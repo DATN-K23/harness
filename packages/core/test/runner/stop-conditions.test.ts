@@ -10,7 +10,6 @@ import {
 
 const limits: BudgetLimits = {
   wallClockTimeoutMs: 60_000,
-  costCeilingUsd: 1,
   totalTokenBudget: 100_000,
   maxSteps: 10,
   noProgressMaxRepeats: 3,
@@ -19,7 +18,6 @@ const limits: BudgetLimits = {
 const startedAtMs = 1_000
 const within: StopState = {
   startedAtMs,
-  costUsd: 0.5,
   totalTokens: 50_000,
   completedSteps: 5,
   completedToolCalls: 2,
@@ -29,7 +27,6 @@ const within: StopState = {
 const nowWithin = startedAtMs + 10_000
 
 const exhaust = (reason: StopReason): Partial<StopState> => {
-  if (reason === "cost_budget_exhausted") return { costUsd: 1 }
   if (reason === "total_tokens_exhausted") return { totalTokens: 100_000 }
   if (reason === "max_steps_exceeded") return { completedSteps: 10 }
   if (reason === "max_tool_calls_exceeded") return { completedToolCalls: 10 }
@@ -68,39 +65,34 @@ describe("evaluateStop", () => {
     },
   )
 
-  test("pair matrix covers all 21 pairs", () => {
-    expect(pairs).toHaveLength(21)
+test("pair matrix covers all 15 pairs", () => {
+    expect(pairs).toHaveLength(15)
   })
 
   test.each(pairs)("pair %s + %s selects the higher precedence and observes both", (first, second) => {
     expect(evaluateWith([second, first])).toEqual({ selected: first, observed: [first, second] })
   })
 
-  test("triple matrix covers all 35 triples", () => {
-    expect(triples).toHaveLength(35)
+test("triple matrix covers all 20 triples", () => {
+    expect(triples).toHaveLength(20)
   })
 
   test.each(triples)("triple %s + %s + %s selects the highest precedence and observes all three", (a, b, c) => {
     expect(evaluateWith([c, b, a])).toEqual({ selected: a, observed: inPrecedence([a, b, c]) })
   })
 
-  test("cost, total tokens and max steps together select cost and list all three", () => {
-    const result = evaluateWith(["max_steps_exceeded", "total_tokens_exhausted", "cost_budget_exhausted"])
-    expect(result.selected).toBe("cost_budget_exhausted")
-    expect(result.observed).toEqual(["cost_budget_exhausted", "total_tokens_exhausted", "max_steps_exceeded"])
+  test("total tokens and max steps select total tokens", () => {
+    const result = evaluateWith(["max_steps_exceeded", "total_tokens_exhausted"])
+    expect(result.selected).toBe("total_tokens_exhausted")
+    expect(result.observed).toEqual(["total_tokens_exhausted", "max_steps_exceeded"])
   })
 
-  test("all seven exhausted selects wall clock and lists every reason in precedence order", () => {
+  test("all six exhausted selects wall clock and lists every reason in precedence order", () => {
     expect(evaluateWith(StopPrecedence)).toEqual({ selected: "wall_clock_timeout", observed: [...StopPrecedence] })
   })
 
-  test("unpriced runs skip only the cost ceiling check", () => {
-    const overCost = { ...within, costUsd: 2 }
-    expect(evaluateStop(overCost, limits, nowWithin).selected).toBe("cost_budget_exhausted")
-    expect(evaluateStop(overCost, limits, nowWithin, false)).toEqual({ selected: undefined, observed: [] })
-    expect(evaluateStop({ ...overCost, totalTokens: 100_000 }, limits, nowWithin, false).selected).toBe(
-      "total_tokens_exhausted",
-    )
+  test("cost usage does not affect stop decisions", () => {
+    expect(evaluateStop(within, limits, nowWithin)).toEqual({ selected: undefined, observed: [] })
   })
 
   test("a limit is exhausted exactly when it is reached", () => {
@@ -108,7 +100,6 @@ describe("evaluateStop", () => {
     expect(evaluateStop({ ...within, completedSteps: 10 }, limits, nowWithin).selected).toBe("max_steps_exceeded")
     expect(evaluateStop(within, limits, startedAtMs + 59_999).selected).toBeUndefined()
     expect(evaluateStop(within, limits, startedAtMs + 60_000).selected).toBe("wall_clock_timeout")
-    expect(evaluateStop({ ...within, costUsd: 0.999 }, limits, nowWithin).selected).toBeUndefined()
     expect(evaluateStop({ ...within, totalTokens: 99_999 }, limits, nowWithin).selected).toBeUndefined()
     expect(evaluateStop({ ...within, completedToolCalls: 9 }, { ...limits, maxToolCalls: 10 }, nowWithin).selected).toBeUndefined()
     expect(evaluateStop({ ...within, completedToolCalls: 10 }, { ...limits, maxToolCalls: 10 }, nowWithin).selected).toBe("max_tool_calls_exceeded")

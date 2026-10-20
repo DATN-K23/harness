@@ -12,7 +12,7 @@ const policy: ContextPolicy = {
     enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false },
 }
 const limits: ModelLimits = { maxContextTokens: 32768, maxOutputTokens: 8192, safetyMarginFactor: 1.2 }
-const budget: RunBudget = { totalTokensUsed: 10, totalTokenLimit: 20000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 }
+const budget: RunBudget = { totalTokensUsed: 10, totalTokenLimit: 20000, compactionsCount: 0, costUsd: 0 }
 const item = (id: string, content: string, isPinned = false): ContextItem => ({ id, turn: 0, type: "system_prompt", isPinned, content })
 
 describe("ProductionContextEngine", () => {

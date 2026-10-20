@@ -123,7 +123,6 @@ export const EventPayloadSchemas = {
   "run.started": z.object({
     snapshot: RunConfigSnapshotSchema,
     snapshotDigest: Sha256DigestSchema,
-    costBudgetEnforced: z.boolean().optional(),
     profileId: z.string().optional(),
     requestOptions: z.object({ maxOutputTokens: z.number().int().positive().optional(), temperature: z.number().finite().optional(), seed: z.number().int().optional() }).optional(),
     providerProfile: z

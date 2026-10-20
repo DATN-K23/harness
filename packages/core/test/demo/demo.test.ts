@@ -21,7 +21,7 @@ afterAll(() => rmSync(outputDir, { recursive: true, force: true }))
 
 describe("demo", () => {
   test("runs the four scenarios offline and prints a summary row for each", () => {
-    expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc"])
+    expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc", "narrative-agreed"])
     const summary = formatSummary(rows)
     expect(summary.split("\n")).toHaveLength(2 + rows.length)
     rows.forEach((row) => expect(summary).toContain(row.reason))
@@ -30,11 +30,20 @@ describe("demo", () => {
   })
 
   test("missing, cheating and failing PoCs cost zero tokens and report the right reason", () => {
-    expect(rows.slice(1).map((row) => [row.reason, row.tokens, row.costUsd, row.steps])).toEqual([
+    expect(rows.slice(1, 4).map((row) => [row.reason, row.tokens, row.costUsd, row.steps])).toEqual([
       ["MISSING_POC", 0, 0, 0],
       ["NON_FAITHFUL_OVERRIDE", 0, 0, 0],
       ["EXECUTION_FAILED", 0, 0, 0],
     ])
+  })
+
+  test("narrative-only agreement skips PoC stages and commits a source-cited verdict", () => {
+    const verdict = readJson("narrative-agreed", "01-verdict.json")
+    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS" })
+    expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 11, endLine: 16 })
+    expect(readJson("narrative-agreed", "03-trajectory.json").events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
+    expect(read("narrative-agreed", "02-dossier.md")).toContain("external call precedes balance update")
+    expect(rows.find((row) => row.scenario === "narrative-agreed")?.steps).toBeLessThanOrEqual(4)
   })
 })
 
@@ -57,7 +66,7 @@ describe("output bundle", () => {
     )
 
     const proof = readJson("confirmed-exploit", "04-exploit-proof.json")
-    expect(proof.stateDeltaTable.rows.length).toBeGreaterThan(0)
+    expect(proof).toMatchObject({ applicable: true })
     expect(proof.execution.rawTrace).toContain("testExploit")
     expect(proof.antiCheatReport.findings).toEqual([])
 

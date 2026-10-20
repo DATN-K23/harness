@@ -169,8 +169,25 @@ const failingPoc: ScenarioSpec = {
   script: [],
 }
 
+const narrativeAgreed: ScenarioSpec = {
+  ...confirmed,
+  name: "narrative-agreed",
+  ingestion: {
+    kind: "narrative_only",
+    claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "reenter withdraw", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" },
+    bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] }],
+  },
+  sanitizer: okSanitizer,
+  script: [
+    textResponse("acknowledged"),
+    textResponse('{"reachability":"reachable","explanation":"withdraw is externally callable"}'),
+    textResponse('{"reconstruction":"reconstructed","explanation":"the callback re-enters before balance update"}'),
+    verdictEntry({ ...validVerdict, citesEvidence: [{ filePath: "src/Vault.sol", startLine: 11, endLine: 16, explanation: "external call precedes balance update" }] }),
+  ],
+}
+
 /** The four judge scenarios of the demo specification, in presentation order. */
-export const demoScenarios: ScenarioSpec[] = [confirmed, missingPoc, cheatingPoc, failingPoc]
+export const demoScenarios: ScenarioSpec[] = [confirmed, missingPoc, cheatingPoc, failingPoc, narrativeAgreed]
 
 const tier1: Pick<ScenarioSpec, "sanitizer"> = {
   sanitizer: { ...okSanitizer, hasSubmitterAssertions: true },

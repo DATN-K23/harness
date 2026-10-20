@@ -158,6 +158,7 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   modelBaseUrl: "MODEL_BASE_URL",
   modelTimeoutMs: "MODEL_TIMEOUT_MS",
   modelMaxOutputTokens: "MODEL_MAX_OUTPUT_TOKENS",
+  modelMaxContextTokens: "MODEL_MAX_CONTEXT_TOKENS",
   modelOutputTokensField: "MODEL_OUTPUT_TOKENS_FIELD",
   modelInputCostPerMTok: "MODEL_INPUT_COST_PER_MTOK",
   modelOutputCostPerMTok: "MODEL_OUTPUT_COST_PER_MTOK",

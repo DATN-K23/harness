@@ -101,6 +101,21 @@ describe("executeViewCommand", () => {
     expect(output).toContain("[REDACTED]")
   })
 
+  test("multi-turn JSON retains prompt digest but omits raw prompt", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const runId = "run-json-prompt-digest"
+    const prompt = "sk-sensitive-looking-prompt-marker-123"
+    store.seedRun(runId, "queued", prompt, "snapshot-json")
+
+    const { exitCode, output } = await executeViewCommand({ id: runId, json: true }, { store })
+    const json = JSON.parse(output)
+
+    expect(exitCode).toBe(0)
+    expect(json.promptDigest).toBe(digestOf(prompt))
+    expect(json).not.toHaveProperty("prompt")
+    expect(output).not.toContain(prompt)
+  })
+
   test("displays rich run record for failed run with error and category redacted", async () => {
     const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
     const runId = "run-failed-303"

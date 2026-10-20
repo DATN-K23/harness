@@ -16,6 +16,7 @@ Status: complete; reviewer findings fixed (attempt identity follow-up).
 ## Verification
 
 - `bun test packages/core/test/runner/run-queries.test.ts packages/cli/test/cli-view.test.ts` — 15 pass, 0 fail.
+- Added CLI JSON regression for sensitive-looking prompts: digest is retained, raw `prompt` key/content are absent. `bun test packages/cli/test/cli-view.test.ts --test-name-pattern='prompt digest'` — 1 pass, 0 fail.
 - No DB suite or live test run.
 
 ## Limitations

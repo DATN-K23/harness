@@ -158,47 +158,17 @@ export class JudgeStep {
     const persist = persistTo(deps.sink)
     const consensus = input.items.findLast((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional consensus: "))
     const consensusStatus = consensus?.content.slice("Bidirectional consensus: ".length)
-    if (consensusStatus === "agreed-invalid") {
-      const evidence = input.items.find((item) => item.type === "bce_sliced_ast")
-      const citation = evidence && /^([^\s]+) \(lines (\d+)-(\d+)\)\n([\s\S]*)$/.exec(evidence.content)
-      if (citation) {
-        const [, filePath, start, end, source] = citation
-        const read = await deps.snapshot.readLines({ snapshotId: input.snapshotId, path: filePath, startLine: Number(start), endLine: Number(end) }, input.signal)
-        if (read.kind === "ok" && source.includes(read.lines.join("\n"))) {
-          const exact = read.lines.join("\n")
-          const filtered = await deps.security.filterSecrets(exact, input.signal)
-          return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-            runId, findingId: input.findingId, validity: "invalid", verificationStatus: "FAIL", reasonCode: "BENIGN_MECHANICS", confidence: "HIGH",
-            summary: "Bidirectional verification found an unavoidable blocking condition.",
-            reasoning: "The blocking condition is supported by a source span verified against the immutable snapshot.",
-            citesEvidence: [{ filePath, startLine: Number(start), endLine: Number(end), explanation: "Snapshot-backed source span for the blocking condition.", snippet: filtered.content, contentDigest: textDigest(exact) }],
-            ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-          }) })
-        }
-      }
-      return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
-        summary: "The blocking condition has no snapshot-grounded citation.",
-        reasoning: "Bidirectional outputs indicated a blocker, but no exact BCE source range was verified against the immutable snapshot, so the claim remains unverified.",
-        citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-      }) })
-    }
-    if (consensus !== undefined && (consensusStatus === "disputed" || consensusStatus === "inconclusive"))
-      return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
-        summary: "The disputed claim has no resolved bounded witness.",
-        reasoning: "No typed witness result is available to resolve the targeted claim, so it remains unverified rather than invalid.",
-        citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-      }) })
     const newItem: ToolBranchContext["newItem"] = (type, content, toolMeta) => ({
-      id: deps.ids.next("itm_"),
-      turn: input.stepIndex,
-      type,
-      isPinned: false,
-      content,
+      id: deps.ids.next("itm_"), turn: input.stepIndex, type, isPinned: false, content,
       ...(toolMeta === undefined ? {} : { toolMeta }),
     })
-
+    if (consensusStatus === "agreed-invalid" && !input.items.some((item) => item.type === "bce_sliced_ast"))
+      return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
+        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
+        summary: "The blocking consensus has no source evidence.",
+        reasoning: "No BCE source citation is available to verify the blocker against the immutable snapshot, so the result remains unresolved.",
+        citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+      }) })
     // Gate 1: context preflight. The engine signals; the step decides and never calls the gateway on stop/compaction.
     const preparation = await deps.contextEngine
       .prepare({ items: input.items, policy: input.policy, modelLimits: input.modelLimits, budget: input.budget })
@@ -327,7 +297,51 @@ export class JudgeStep {
 
     const text = response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
-    const calls = response.toolCalls ?? []
+    let calls = response.toolCalls ?? []
+
+    if (consensusStatus === "disputed" || consensusStatus === "inconclusive") {
+      const alreadyAttemptedProbe = input.items.some((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))
+      const priorProbe = input.items.findLast((item) => item.type === "tool_result" && item.toolMeta?.toolName === "run_state_probe")
+      const probeRequest = input.items.findLast((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))
+      const unresolved = () => finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
+        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
+        summary: "The disputed claim remains unresolved by bounded evidence.",
+        reasoning: "No semantic resolution was established by the targeted witness; execution status alone is not proof.", citesEvidence: [],
+        ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
+      }) })
+      if (priorProbe?.toolMeta?.isError || (priorProbe !== undefined && !priorProbe.content.includes("exit code 0"))) return unresolved()
+      if (priorProbe !== undefined) {
+        const requested = probeRequest === undefined ? undefined : JSON.parse(probeRequest.content) as { arguments?: { stateVariables?: unknown } }
+        const targets = requested?.arguments?.stateVariables
+        if (!Array.isArray(targets) || targets.length !== 1) return unresolved()
+        const target = String(targets[0])
+        const verdictInput = (() => {
+          try { return JSON.parse(text) as Record<string, unknown> } catch { return undefined }
+        })()
+        if (verdictInput?.targetedCondition !== target) return unresolved()
+        const semanticVerdict = await synthesizeVerdict(
+          { snapshot: deps.snapshot, security: deps.security },
+          { text, runId, findingId: input.findingId, snapshotId: input.snapshotId, traceDigest: input.traceDigest,
+            enableSchemaRepair: input.flags.enableSchemaRepair, repairsUsed: input.repairsUsed, signal: input.signal },
+        ).catch(asFault("worker_interrupted"))
+        if (semanticVerdict.kind === "accepted") return finish({ type: "completed", verdict: semanticVerdict.verdict })
+        if (semanticVerdict.kind === "repair") return finish({ type: "continue_turn", toolOutcomes: [] }, {
+          newItems: [...reasoning, newItem("system_prompt", semanticVerdict.feedback)], repairsUsed: input.repairsUsed + 1,
+        })
+        return unresolved()
+      }
+      const probeCall = calls.find((call) => call.name === "run_state_probe")
+      const probeAvailable = input.tools.definitions().some((tool) => tool.name === "run_state_probe")
+      if (priorProbe === undefined && probeRequest === undefined && probeAvailable && probeCall !== undefined && !forced) {
+        const branch = await runToolBranch({ deps, input, persist, newItem, toolsDisabled: false }, [probeCall])
+        if (branch.kind === "cancelled")
+          return finish({ type: "failed", error: "cancelled before witness dispatch", reason: "cancelled_by_user" }, { cancelledAt: branch.boundary })
+        return finish({ type: "continue_turn", toolOutcomes: branch.outcomes }, { newItems: [...reasoning, ...branch.items] })
+      }
+      if (priorProbe === undefined && probeRequest === undefined && probeAvailable && !forced && !alreadyAttemptedProbe)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", "For disputed consensus, call run_state_probe at most once for exactly one state variable explicitly named in the claim. After the probe, include targetedCondition equal to that exact requested expression in your final JSON verdict. Process exit alone is not proof; do not create or modify tests.")] })
+      if (priorProbe === undefined) return unresolved()
+    }
 
     const direction = input.items.findLast((item) => item.type === "system_prompt" && item.content.startsWith("Verification direction: "))
     const directionName = direction?.content.includes("forward") ? "forward" : "backward"
@@ -372,33 +386,12 @@ export class JudgeStep {
         const consensus = forward.kind === "ok" && backward.kind === "ok"
           ? decideConsensus(forward.result, backward.result)
           : "inconclusive"
-        if (consensus === "agreed-valid" || consensus === "agreed-invalid") {
-          const source = input.items.find((item) => item.type === "bce_sliced_ast")
-          const citation = source && /^([^\s]+) \(lines (\d+)-(\d+)\)\n([\s\S]*)$/.exec(source.content)
-          if (!citation) return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`), newItem("system_prompt", "No ranged BCE citation is available; return an UNVERIFIED verdict instead of making a consensus-only validity claim.")] })
-          const [, filePath, start, end, sourceText] = citation
-          const sourceRead = await deps.snapshot.readLines({ snapshotId: input.snapshotId, path: filePath, startLine: Number(start), endLine: Number(end) }, input.signal)
-          if (sourceRead.kind !== "ok" || !sourceText.includes(sourceRead.lines.join("\n")))
-            return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`), newItem("system_prompt", "The BCE citation did not resolve against the immutable snapshot; return UNVERIFIED.")] })
-          const exact = sourceRead.lines.join("\n")
-          const filtered = await deps.security.filterSecrets(exact, input.signal)
-          const verdict = consensus === "agreed-valid"
-            ? {
-                runId, findingId: input.findingId, validity: "valid" as const, verificationStatus: "PASS" as const,
-                reasonCode: "EXPLOIT_CONFIRMED" as const, severity: "HIGH" as const, confidence: "HIGH" as const,
-                summary: "Bidirectional verification agrees that the claimed impact is reachable.",
-                reasoning: "Forward exploration found a reachable attack path and backward reconstruction found a feasible path to the claimed impact.",
-                citesEvidence: [{ filePath, startLine: Number(start), endLine: Number(end), explanation: "Snapshot-backed BCE source for the consensus claim.", snippet: filtered.content, contentDigest: textDigest(exact) }], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-              }
-            : {
-                runId, findingId: input.findingId, validity: "invalid" as const, verificationStatus: "FAIL" as const,
-                reasonCode: "BENIGN_MECHANICS" as const, confidence: "HIGH" as const,
-                summary: "Bidirectional verification found an unavoidable blocking condition.",
-                reasoning: "Forward reachability or backward reconstruction found a blocking condition that prevents the claimed impact from being achieved.",
-                citesEvidence: [{ filePath, startLine: Number(start), endLine: Number(end), explanation: "Snapshot-backed BCE source for the consensus claim.", snippet: filtered.content, contentDigest: textDigest(exact) }], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-              }
-          return finish({ type: "completed", verdict: JudgeVerdictSchema.parse(verdict) })
-        }
+        if (consensus === "agreed-valid" || consensus === "agreed-invalid")
+          return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [
+            resultItem,
+            newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`),
+            newItem("system_prompt", "Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite exact snapshot lines; otherwise return validity unverified with reasonCode UNRESOLVED. Consensus by itself does not establish validity."),
+          ] })
         return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`)] })
       }
       return finish({ type: "continue_turn", toolOutcomes: [] }, {

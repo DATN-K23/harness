@@ -19,3 +19,18 @@
 - From `packages/core`: `bun run typecheck` — passed.
 - `git diff --check` — passed.
 - No OpenCode runner code was adapted and no dependency was added.
+
+## Follow-up review fix (2026-10-21)
+
+- Disputed/inconclusive consensus now offers the already-registered `run_state_probe` path only when that safe tool is available (its existing sanitizer Tier 2 gate and configured run counter remain authoritative). It will request one state expression explicitly named in the claim, persist the request/result through the normal tool event sink, and enforce no repeated dispatch once a request/result exists.
+- Failed/error probe output yields `UNRESOLVED`/`UNVERIFIED`. A successful process exit does not directly decide the claim; subsequent verdict input must include `targetedCondition` exactly matching the requested expression and passes through `synthesizeVerdict` snapshot citation resolution. Missing/mismatched targeted condition remains UNVERIFIED.
+- Consensus outputs no longer create fixed-confidence `PASS`/`FAIL` based merely on an arbitrary BCE slice. A normative verdict with exact snapshot citations is required; absent/unsupported evidence becomes UNRESOLVED/UNVERIFIED. Unrelated BCE coverage was added.
+- Added isolated `witness-resolution.test.ts` coverage for one registered dispatch, no second dispatch with prior request/result, failed probe, exit-zero without targeted resolution, and unrelated BCE evidence. Existing Task 3 terminal runner cases were inspected and retained; attempted extra scripted runner cases were removed because they exhausted before the witness path due to test prompt choreography and did not provide valid coverage.
+- **Remaining concern:** the disputed witness path is covered at deterministic `JudgeStep` level; the added end-to-end Tier 2 script was not stabilized, and there is no new dedicated full-runner test demonstrating probe dispatch plus terminal CAS in one scenario. Existing terminal CAS tests remain in the runner suite. The state-probe contract remains text-shaped, so strict typed targeted-condition semantics are still limited to the model's exact `targetedCondition` response and snapshot-validated verdict citation.
+
+### Follow-up verification
+
+- From `packages/core`: `bun test test/runner/witness-resolution.test.ts test/runner/judge-step.test.ts test/judge/adjudication-step.test.ts test/judge/verdict-synthesizer.test.ts test/prompts/prompts.test.ts` — 71 passed, 0 failed.
+- From `packages/core`: `bun run typecheck` — passed.
+- `git diff --check` — passed.
+- Full `JudgeRunner` probe-dispatch/CAS integration is not verified by a new scenario in this follow-up; attempted scripted end-to-end additions exhausted before reaching the witness path and were removed. Existing Task 3 runner terminal cases remain intact.

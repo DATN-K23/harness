@@ -52,13 +52,13 @@ describe("JudgeStep: seven gates", () => {
   })
 
   test("disputed consensus commits UNVERIFIED instead of claiming invalidity", async () => {
-    const h = await createHarness({ script: [] })
+    const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
       { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" } })
-    expect(h.gateway.callCount).toBe(0)
+    expect(h.gateway.callCount).toBeGreaterThan(0)
   })
 
   test("gate order: prepare, gateway, record, then the tool runs and is filtered before it is shaped", async () => {

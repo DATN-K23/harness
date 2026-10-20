@@ -62,8 +62,8 @@ describe("demo", () => {
     expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", citesEvidence: [] })
     const trajectory = readJson("disputed-witness", "03-trajectory.json")
     expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(9)
-    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 9, usage: { promptTokens: 180, completionTokens: 90, totalTokens: 270 } })
-    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.009)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 9, usage: { promptTokens: 280, completionTokens: 120, totalTokens: 400 } })
+    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.033)
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
       ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
@@ -79,10 +79,10 @@ describe("demo", () => {
     expect(probeResult?.payload.item.content).toContain("balanceOf(attacker)")
     expect(probeResult?.payload.item.content).toContain("3000000000000000000")
     expect(read("disputed-witness", "04-exploit-proof.json")).toContain("balanceOf(attacker)")
-    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 270 })
-    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.009)
-    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 9, tokens: 270 })
-    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.009)
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 400 })
+    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.033)
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 9, tokens: 400 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.033)
   })
 })
 

@@ -80,6 +80,14 @@ export interface ContextTelemetrySummary {
   transformations: Array<{ action: string; targetItemId: string; tokensBefore: number; tokensAfter: number; savings: number }>
 }
 
+function parseUsage(value: unknown): ContextTelemetrySummary["actualUsage"] {
+  if (typeof value !== "object" || value === null) return null
+  const usage = value as Record<string, unknown>
+  const values = [usage.promptTokens, usage.completionTokens, usage.totalTokens]
+  if (!values.every((item) => typeof item === "number" && Number.isSafeInteger(item) && item >= 0)) return null
+  return { promptTokens: values[0] as number, completionTokens: values[1] as number, totalTokens: values[2] as number }
+}
+
 /** Reconstructs a structured multi-turn summary, identifying each tool call by its step and call ID. */
 export async function getMultiTurnExecutionSummary(
   runId: string,
@@ -132,7 +140,7 @@ export async function getMultiTurnExecutionSummary(
       const payload = event.payload as { stepIndex?: unknown; attemptIndex?: unknown; usage?: unknown }
       if (typeof payload.stepIndex === "number" && typeof payload.attemptIndex === "number") {
         const usage = payload.usage
-        actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, usage && typeof usage === "object" ? usage as ContextTelemetrySummary["actualUsage"] : null)
+        actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, parseUsage(usage))
         const stepAllocations = [...allocationsByAttempt.entries()].filter(([key]) => key.startsWith(`${payload.stepIndex}:`))
         const allocation = allocationsByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`)
           ?? (payload.attemptIndex === 0 && stepAllocations.length === 1

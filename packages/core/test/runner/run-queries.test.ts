@@ -273,3 +273,20 @@ test("does not attach ambiguous legacy zero-based usage to multiple allocations"
   const summary = await getMultiTurnExecutionSummary(runId, store)
   expect(summary?.contextTelemetry.map((item) => item.actualUsage)).toEqual([null, null])
 })
+
+test("ignores malformed provider usage during context correlation", async () => {
+  const runId = "run-malformed-usage"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 100, estimatedSafetyTokens: 100, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: "content", actualUsage: null, usageDelta: null }
+  const events = [
+    event(1, "context.allocated", { stepIndex: 1, telemetry }),
+    event(2, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 1, profileId: "model", usage: { promptTokens: NaN, completionTokens: 2, totalTokens: 3, secret: "raw" }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry[0].actualUsage).toBeNull()
+  expect(summary?.contextTelemetry[0].usageDelta).toBeNull()
+})

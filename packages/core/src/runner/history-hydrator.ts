@@ -160,15 +160,16 @@ export const hydrateHistory = (events: readonly TrajectoryEvent[]): Hydration =>
       const { stepIndex } = EventPayloadSchemas["step.started"].parse(event.payload)
       history.stepIndex = Math.max(history.stepIndex, stepIndex)
     }
-    if (event.type === "provider.attempted") {
-      const attempt = EventPayloadSchemas["provider.attempted"].parse(event.payload)
-      const sum = history.totalsFromAttempts
-      history.totalsFromAttempts = {
-        promptTokens: sum.promptTokens + attempt.usage.promptTokens,
-        completionTokens: sum.completionTokens + attempt.usage.completionTokens,
-        totalTokens: sum.totalTokens + attempt.usage.totalTokens,
-        costUsd: sum.costUsd + attempt.costUsd,
-        ...(sum.pricing === "unpriced" || attempt.usage.pricing === "unpriced" ? { pricing: "unpriced" as const } : {}),
+      if (event.type === "provider.attempted") {
+        const attempt = EventPayloadSchemas["provider.attempted"].parse(event.payload)
+        const sum = history.totalsFromAttempts
+        const usage = attempt.usage
+        history.totalsFromAttempts = {
+          promptTokens: sum.promptTokens + (usage?.promptTokens ?? 0),
+          completionTokens: sum.completionTokens + (usage?.completionTokens ?? 0),
+          totalTokens: sum.totalTokens + (usage?.totalTokens ?? 0),
+          costUsd: sum.costUsd + (attempt.costUsd ?? 0),
+          ...(sum.pricing === "unpriced" || usage?.pricing === "unpriced" || usage === null ? { pricing: "unpriced" as const } : {}),
       }
     }
     if (event.type === "tool.requested") {

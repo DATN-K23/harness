@@ -176,7 +176,7 @@ describe("JudgeRunner: compaction", () => {
     )
     const identities = attempts.map((attempt) => `${attempt.stepIndex}/${attempt.purpose}/${attempt.attemptIndex}`)
     expect(identities).toEqual(["1/reasoning/1", "2/compaction/1", "2/reasoning/1"])
-    expect(attempts.reduce((sum, attempt) => sum + attempt.usage.totalTokens, 0)).toBe(result.usage.totalTokens)
+    expect(attempts.reduce((sum, attempt) => sum + (attempt.usage?.totalTokens ?? 0), 0)).toBe(result.usage.totalTokens)
   })
 
   test("compaction disabled: budget_exhausted(context_budget) and no summary attempt", async () => {

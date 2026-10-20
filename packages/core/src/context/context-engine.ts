@@ -67,7 +67,12 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   }
 
   protected ready(input: PrepareInput, estimate: number): PrepareResult {
-    return { status: "ready", preparedItems: input.items, preparedRequest: input.request, telemetry: this.telemetry(input, estimate) }
+    return {
+      status: "ready",
+      preparedItems: input.items,
+      ...(input.request !== undefined ? { preparedRequest: input.request } : {}),
+      telemetry: this.telemetry(input, estimate),
+    }
   }
 }
 

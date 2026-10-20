@@ -124,9 +124,13 @@ export const EventPayloadSchemas = {
     snapshot: RunConfigSnapshotSchema,
     snapshotDigest: Sha256DigestSchema,
     costBudgetEnforced: z.boolean().optional(),
+    profileId: z.string().optional(),
+    requestOptions: z.object({ maxOutputTokens: z.number().int().positive().optional(), temperature: z.number().finite().optional(), seed: z.number().int().optional() }).optional(),
     providerProfile: z
       .object({
         outputTokensField: z.enum(["max_tokens", "max_completion_tokens"]),
+        maxContextTokens: z.number().int().positive().optional(),
+        maxOutputTokens: z.number().int().positive().optional(),
         inputCostPerMTok: z.number().nonnegative().optional(),
         outputCostPerMTok: z.number().nonnegative().optional(),
       })

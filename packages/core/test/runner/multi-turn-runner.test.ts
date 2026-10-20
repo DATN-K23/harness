@@ -130,7 +130,7 @@ describe("MultiTurnRunner", () => {
     expect(result.tokenDelta).toBe(0)
   })
 
-  test("uses the smaller explicit output cap as effective reserve when supplied", async () => {
+  test("rejects an explicit output cap larger than the shared reserve", async () => {
     const engine = new ProductionContextEngine(createO200kTokenizer())
     const items = [{ id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }]
     const result = await engine.prepare({
@@ -143,7 +143,16 @@ describe("MultiTurnRunner", () => {
       budget: { totalTokensUsed: 0, totalTokenLimit: 10_000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 1 },
     })
     expect(result.status).toBe("ready")
-    expect(result.telemetry.outputReserveTokens).toBe(16)
+  })
+
+  test("rejects explicit output cap above model limit before gateway", async () => {
+    const gateway = new ScriptedGateway([])
+    const runner = new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new ProductionContextEngine(createO200kTokenizer()), clock })
+    const result = await runner.execute({ prompt: "Audit", snapshotId: "snap", maxOutputTokens: 100,
+      providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 32768, maxOutputTokens: 50 } })
+    expect(result.state).toBe("failed")
+    expect(result.terminalReason).toBe("invalid_input")
+    expect(gateway.calls).toHaveLength(0)
   })
 
   test("sanitizes tool output before shaping and persists only the shaped result", async () => {
@@ -202,6 +211,72 @@ describe("MultiTurnRunner", () => {
     expect(recordedUsage).toBeNull()
     const attemptEvent = (await store.loadEvents({ runId: result.runId })).find((event) => event.type === "provider.attempted")
     if (attemptEvent?.type === "provider.attempted") expect(attemptEvent.payload.usage).toBeNull()
+  })
+
+  test("missing usage consumes conservative estimate before the next step", async () => {
+    const seenBudgets: number[] = []
+    const engine = new PassThroughContextEngine()
+    const prepare = engine.prepare.bind(engine)
+    engine.prepare = async (input) => { seenBudgets.push(input.budget.totalTokensUsed); return prepare(input) }
+    const gateway: ModelGatewayPort = { async executeAttempt(request) {
+      return { attemptId: `missing-${request.stepIndex}`, finishReason: request.stepIndex === 1 ? "tool_calls" : "stop",
+        ...(request.stepIndex === 1 ? { toolCalls: [{ id: "c", name: "read_file", arguments: { path: "contracts/Vault.sol" } }] } : { content: "ok" }), latencyMs: 1 } as ModelAttemptResponse
+    } }
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { totalTokenBudget: 100_000 } })
+    expect(result.state).toBe("completed")
+    expect(seenBudgets[1]).toBeGreaterThan(seenBudgets[0])
+  })
+
+  test("missing usage estimate can exhaust total token budget before a subsequent provider call", async () => {
+    const engine = new PassThroughContextEngine()
+    let prepareCount = 0
+    let providerCalls = 0
+    const originalPrepare = engine.prepare.bind(engine)
+    engine.prepare = async (input) => {
+      prepareCount += 1
+      const prepared = await originalPrepare(input)
+      prepared.telemetry.estimatedInputTokens = 300
+      prepared.telemetry.outputReserveTokens = 10
+      return prepared
+    }
+    const gateway: ModelGatewayPort = { async executeAttempt(request) {
+      providerCalls += 1
+      return { attemptId: `missing-${request.stepIndex}`, finishReason: "tool_calls",
+        toolCalls: [{ id: `call-${request.stepIndex}`, name: "read_file", arguments: { path: "contracts/Vault.sol" } }], latencyMs: 1 } as unknown as ModelAttemptResponse
+    } }
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", maxOutputTokens: 10, limits: { totalTokenBudget: 500 } })
+    expect(result.state).toBe("budget_exhausted")
+    expect(providerCalls).toBe(1)
+    expect(prepareCount).toBeGreaterThanOrEqual(2)
+  })
+
+
+  test("read_file truncation metadata gives the next relative line range", async () => {
+    const registry: ToolRegistryPort = { definitions: () => new MockRegistry().definitions(), async execute() {
+      return { content: "one\ntwo\nthree", isError: false, filePath: "contracts/Vault.sol", lineRange: [1, 3], isTruncated: true }
+    } }
+    const calls: string[] = []
+    const shapedContent: string[] = []
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const shape = engine.shapeToolResult.bind(engine)
+    engine.shapeToolResult = async (input) => {
+      calls.push(JSON.stringify(input))
+      const shaped = await shape({ ...input, policy: { ...input.policy, toolOutputMaxLines: 1,
+        toolOutputMaxTokens: createO200kTokenizer().count("[truncated read_file output: showing 1 of 3 lines; read contracts/Vault.sol from line 2]") + 8 } })
+      shapedContent.push(shaped.content)
+      return shaped
+    }
+    const gateway = new ScriptedGateway([
+      { attemptId: "tool", finishReason: "tool_calls", toolCalls: [{ id: "call", name: "read_file", arguments: { path: "contracts/Vault.sol", startLine: 1 } }], usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 },
+      { attemptId: "done", finishReason: "stop", content: "ok", usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 },
+    ])
+    await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry, snapshot: new MockSnapshot(), contextEngine: engine, clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", maxOutputTokens: 16, providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 32768, maxOutputTokens: 4096 } })
+    expect(calls[0]).toContain('"path":"contracts/Vault.sol"')
+    expect(calls[0]).toContain('"lineRange":[1,3]')
+    expect(shapedContent[0]).toContain("contracts/Vault.sol from line 2")
   })
 
   test("fails closed if a ready context engine omits the prepared request", async () => {
@@ -1012,6 +1087,77 @@ describe("MultiTurnRunner", () => {
     const runner = new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
     const resumed = await runner.execute({ runId, workerId: "resumer", prompt: "Audit prompt", snapshotId: "snap-1" })
     expect(observedPolicy, JSON.stringify({ resumed, observedPolicy })).toEqual(policy)
+  })
+
+  test("resume with omitted request options restores persisted output and sampling settings", async () => {
+    let now = 1000
+    const clock = { nowMs: () => now }
+    const store = new InMemoryRunStore({ clock, leaseMs: 1 })
+    const runId = "run-resume-options"
+    store.seedRun(runId, "queued", "Audit prompt", "snap-1")
+    const claim = await store.claim({ runId, workerId: "first" })
+    if (claim.kind !== "claimed") throw new Error("setup claim failed")
+    const { buildRunConfigSnapshot } = require("../../src/runner/run-config")
+    const { DefaultRetryConfig, ResolvedFlagNames } = require("@harness/protocol")
+    const { digestOf, sha256Hex } = require("../../src/util/digest")
+    const policy = {
+      policyVersion: "v1", windowLimitTokens: 16384, outputReserveTokens: 4096, compactionThreshold: 0.8, safetyMarginFactor: 1.2,
+      recentWindowTokens: 1000, toolOutputMaxTokens: 1000, toolOutputMaxLines: 100, maxCompactions: 0,
+      flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false },
+    }
+    const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name,
+      name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : name !== "enableInfraRetry" && name !== "enableSchemaRepair" && name !== "enableMaxStepsForcing"]))
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 },
+    systemPromptDigest: `sha256:${sha256Hex("sys")}`, verdictSchemaDigest: `sha256:${sha256Hex("verdict")}` })
+    const payload = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "custom", requestOptions: { maxOutputTokens: 32, temperature: 0.3 } }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload, payloadDigest: digestOf(payload), occurredAt: new Date(now).toISOString() } })
+    const item = { id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "item", type: "context.item_added", schemaVersion: 1, payload: { item }, payloadDigest: digestOf({ item }), occurredAt: new Date(now).toISOString() } })
+    await store.transition({ claim: claim.claim, expectedState: "queued", expectedStateVersion: claim.stateVersion, nextState: "running" })
+    now += 2
+    const seen: ModelAttemptRequest[] = []
+    const engine = new PassThroughContextEngine()
+    const prepare = engine.prepare.bind(engine)
+    engine.prepare = async (input) => { const result = await prepare(input); if (input.request) seen.push(input.request); return result }
+    const gateway = new ScriptedGateway([{ attemptId: "resume", finishReason: "stop", content: "ok", usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 }])
+    await new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: engine, clock })
+      .execute({ runId, workerId: "resume", prompt: "Audit prompt", snapshotId: "snap-1" })
+    expect(seen[0]?.profileId).toBe("custom")
+    expect(seen[0]?.maxOutputTokens).toBe(32)
+    expect(seen[0]?.temperature).toBe(0.3)
+  })
+
+  test("resume fails closed before gateway when request digest cannot be reconstructed", async () => {
+    let now = 1000
+    const clock = { nowMs: () => now }
+    const store = new InMemoryRunStore({ clock, leaseMs: 1 })
+    const runId = "run-resume-bad-request"
+    store.seedRun(runId, "queued", "Audit prompt", "snap-1")
+    const claim = await store.claim({ runId, workerId: "first" })
+    if (claim.kind !== "claimed") throw new Error("setup claim failed")
+    const { digestOf } = require("../../src/util/digest")
+    const { buildRunConfigSnapshot } = require("../../src/runner/run-config")
+    const { DefaultRetryConfig, ResolvedFlagNames } = require("@harness/protocol")
+    const policy = { policyVersion: "v1", windowLimitTokens: 16384, outputReserveTokens: 4096, compactionThreshold: 0.8, safetyMarginFactor: 1.2,
+      recentWindowTokens: 1000, toolOutputMaxTokens: 1000, toolOutputMaxLines: 100, maxCompactions: 0,
+      flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false } }
+    const flags = Object.fromEntries(ResolvedFlagNames.map((name: string) => [name, name in policy.flags ? policy.flags[name as keyof typeof policy.flags] : false]))
+    const cfg = buildRunConfigSnapshot({ flags, policy, retry: DefaultRetryConfig, limits: { wallClockTimeoutMs: 60000, costCeilingUsd: 5, totalTokenBudget: 100000, maxSteps: 10, noProgressMaxRepeats: 3 }, systemPromptDigest: "sha256:" + "0".repeat(64), verdictSchemaDigest: "sha256:" + "1".repeat(64) })
+    const started = { snapshot: cfg.snapshot, snapshotDigest: cfg.digest, profileId: "default", requestOptions: {} }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "start", type: "run.started", schemaVersion: 1, payload: started, payloadDigest: digestOf(started), occurredAt: new Date(now).toISOString() } })
+    const item = { id: "sys", turn: 1, type: "system_prompt" as const, isPinned: true, content: "x" }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "item", type: "context.item_added", schemaVersion: 1, payload: { item }, payloadDigest: digestOf({ item }), occurredAt: new Date(now).toISOString() } })
+    const allocation = { stepIndex: 1, telemetry: { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 1, estimatedSafetyTokens: 0, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 100000, contentDigest: digestOf([item]), requestDigest: "sha256:" + "f".repeat(64), estimatedOutputTokens: 4096 } }
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "allocation", type: "context.allocated", schemaVersion: 1, payload: allocation, payloadDigest: digestOf(allocation), occurredAt: new Date(now).toISOString() } })
+    await store.appendEvent({ claim: claim.claim, expectedStateVersion: claim.stateVersion, event: { eventId: "step", type: "step.started", schemaVersion: 1, payload: { stepIndex: 1, toolsDisabled: false }, payloadDigest: digestOf({ stepIndex: 1, toolsDisabled: false }), occurredAt: new Date(now).toISOString() } })
+    await store.transition({ claim: claim.claim, expectedState: "queued", expectedStateVersion: claim.stateVersion, nextState: "running" })
+    now += 2
+    const gateway = new ScriptedGateway([])
+    const result = await new MultiTurnRunner({ store, gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new ProductionContextEngine(createO200kTokenizer()), clock })
+      .execute({ runId, workerId: "resume", prompt: "Audit prompt", snapshotId: "snap-1", providerProfile: { outputTokensField: "max_tokens", maxContextTokens: 32768, maxOutputTokens: 4096 } })
+    expect(result.state).toBe("failed")
+    expect(result.terminalReason).toBe("persistence_failure")
+    expect(gateway.calls).toHaveLength(0)
   })
 
   test("resumed run fails closed when persisted context policy is malformed", async () => {

@@ -24,6 +24,7 @@ Status: implemented; three Important review findings fixed in follow-up commit.
 - Missing-usage representation is additive: `provider.attempted.usage` and `costUsd` accept null; historical numeric usage remains accepted. Multi-turn does not write a relational attempt row when usage is absent because its existing schema requires numeric token columns.
 - Re-review fix: resume compatibility fallback now applies only when `contextPolicy` is genuinely absent. An explicitly present `undefined`, `null`, or malformed value fails closed before the provider call.
 - `read_file` already supports `startLine`/`endLine`; no offset API change was needed.
+- Final branch-review rulings: conservative estimates plus output reserve are charged to the logical context budget when usage is unavailable, without changing null provider usage or public actual-usage totals. The logical estimate is restored from persisted allocations lacking an actual-usage attempt. Explicit output caps above the shared reserve or model output cap fail before gateway; smaller caps use `min(shared reserve, request cap)`. Production prepare validates finite/coherent positive limits and returns valid stop telemetry on malformed profiles. Resume hydration rebuilds each canonical request from persisted allocation items and current run configuration, compares its request digest, and fails closed if request verification is unavailable/mismatched. Profile caps, profile ID, and request options are persisted in `run.started` and conflicts are rejected before claim. Read-file continuations use safe relative path/range/next-line markers when they fit; full continuation metadata remains actionable even when content marker must be shortened.
 
 ## Verification
 
@@ -35,6 +36,7 @@ Status: implemented; three Important review findings fixed in follow-up commit.
 - Non-DB CLI tests (run, view, args, config, redaction, snapshot): 46 pass, 0 fail. Package-wide CLI test command includes the PostgreSQL persistence E2E; not run as requested. No database/schema suite run.
 - Protocol typecheck passes. Core/CLI typecheck still reports only the pre-existing `packages/core/src/tool/handlers/grep.ts` Worker `.once` errors (TS2339 x3, TS7006).
 - `git diff --check` passes.
+- Final review follow-up verification: focused context, multi-turn, hydration, CLI snapshot and config tests — 83 pass, 0 fail; context/runner/hydrator/read-file/fake-engine/protocol set — 173 pass, 0 fail. Core typecheck still has only the existing `grep.ts` Worker typing errors.
 
 ## Limitations
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { ContextItem, ContextPolicy, ModelLimits, RunBudget } from "@harness/protocol"
 import { ProductionContextEngine } from "../../src/context/context-engine"
 import { createO200kTokenizer } from "../../src/context/o200k-tokenizer"
+import { PrepareResultSchema } from "@harness/protocol"
 
 const policy: ContextPolicy = {
   policyVersion: "sprint-6-v1", windowLimitTokens: 16384, outputReserveTokens: 4096,
@@ -32,6 +33,44 @@ describe("ProductionContextEngine", () => {
     const differentItems = [item("instructions", "Different text", true)]
     expect((await engine.prepare({ items: differentItems, request: requestFor(differentItems), policy, modelLimits: limits, budget })).telemetry.requestDigest)
       .not.toBe(result.telemetry.requestDigest)
+  })
+
+  test("rejects an explicit output cap larger than the shared reserve before sending", async () => {
+    const items = [item("safe", "ok")]
+    const result = await engine.prepare({ items, request: { ...requestFor(items), maxOutputTokens: 4097 }, policy, modelLimits: { ...limits, maxOutputTokens: 8192 }, budget })
+    expect(result.status).toBe("stop")
+  })
+
+  test("smaller explicit output cap becomes the effective reserve", async () => {
+    const items = [item("small", "ok")]
+    const result = await engine.prepare({ items, request: { ...requestFor(items), maxOutputTokens: 16 }, policy, modelLimits: limits, budget })
+    expect(result.status).toBe("ready")
+    expect(result.telemetry.outputReserveTokens).toBe(16)
+  })
+
+  test("rejects malformed runtime profiles before allocating context", async () => {
+    const items = [item("safe", "ok")]
+    const invalidInputs = [
+      { policy: { ...policy, safetyMarginFactor: Number.NaN } },
+      { policy: { ...policy, outputReserveTokens: -1 } },
+      { policy: { ...policy, windowLimitTokens: 0 } },
+      { modelLimits: { ...limits, maxOutputTokens: 0 } },
+      { modelLimits: { ...limits, maxContextTokens: 10, maxOutputTokens: 20 } },
+      { budget: { ...budget, totalTokenLimit: 0 } },
+    ]
+    for (const invalid of invalidInputs) {
+      const result = await engine.prepare({ items, request: requestFor(items), policy, modelLimits: limits, budget, ...invalid } as never)
+      expect(result.status).toBe("stop")
+      expect(PrepareResultSchema.safeParse(result).success).toBe(true)
+    }
+  })
+
+  test("rejects output caps beyond the model limit and reserves the exact smaller request cap", async () => {
+    const items = [item("small", "ok")]
+    const tooLarge = await engine.prepare({ items, request: { ...requestFor(items), maxOutputTokens: 9 }, policy: { ...policy, outputReserveTokens: 16 }, modelLimits: { ...limits, maxOutputTokens: 8 }, budget })
+    expect(tooLarge.status).toBe("stop")
+    const smaller = await engine.prepare({ items, request: { ...requestFor(items), maxOutputTokens: 4 }, policy: { ...policy, outputReserveTokens: 16 }, modelLimits: limits, budget })
+    expect(smaller.telemetry.outputReserveTokens).toBe(4)
   })
 
   test("fails closed when pinned content plus reserved output cannot fit", async () => {
@@ -67,7 +106,7 @@ describe("ProductionContextEngine", () => {
       items,
       request: requestFor(items),
       policy: { ...policy, windowLimitTokens: exactWindow, outputReserveTokens },
-      modelLimits: { ...limits, maxContextTokens: exactWindow },
+      modelLimits: { ...limits, maxContextTokens: exactWindow, maxOutputTokens: outputReserveTokens },
       budget: { ...budget, totalTokenLimit: exactWindow + budget.totalTokensUsed },
     })
     expect(result.status).toBe("ready")
@@ -114,5 +153,13 @@ describe("ProductionContextEngine", () => {
     const result = await engine.shapeToolResult({ content: "line 1\nline 2\nline 3", toolName: "read_file", policy: { ...policy, toolOutputMaxTokens: 1 } })
     expect(result.isTruncated).toBe(true)
     expect(result.continuationNote).toContain("truncated read_file output")
+  })
+
+  test("read_file continuation identifies safe relative path and next line", async () => {
+    const tokenizer = createO200kTokenizer()
+    const marker = "[truncated read_file output: showing 1 of 3 lines; read contracts/Vault.sol from line 2]"
+    const result = await engine.shapeToolResult({ content: "a\nb\nc", toolName: "read_file", path: "contracts/Vault.sol", lineRange: [1, 3], policy: { ...policy, toolOutputMaxTokens: tokenizer.count(marker) + tokenizer.count("a\n"), toolOutputMaxLines: 1 } })
+    expect(result.continuationNote).toContain("contracts/Vault.sol from line 2")
+    expect(tokenizer.count(result.content)).toBeLessThanOrEqual(tokenizer.count(marker) + tokenizer.count("a\n"))
   })
 })

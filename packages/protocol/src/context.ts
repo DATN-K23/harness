@@ -158,5 +158,5 @@ export interface ContextEnginePort {
     budget: RunBudget
   }): Promise<RecordResult>
 
-  shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy }): Promise<ShapeToolResultOutcome>
+  shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy; path?: string; lineRange?: [number, number] }): Promise<ShapeToolResultOutcome>
 }

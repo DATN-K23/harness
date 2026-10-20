@@ -5,7 +5,7 @@ export interface TokenizerPort {
   count(text: string): number
 }
 
-/** Creates a pure-JavaScript o200k tokenizer; callers should reuse it and dispose it at lifecycle end. */
+/** Creates a pure-JavaScript o200k tokenizer; callers should reuse it. */
 export const createO200kTokenizer = (): TokenizerPort => {
   const encoding = getEncoding("o200k_base")
   return {

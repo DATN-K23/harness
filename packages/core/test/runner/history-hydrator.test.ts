@@ -8,10 +8,10 @@ import {
   verifyHydration,
 } from "../../src/runner/history-hydrator"
 import { PassThroughContextEngine } from "../../src/testing/fake-context-engines"
+import { ProductionContextEngine, createO200kTokenizer } from "../../src/context"
 import { textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import { createIdGenerator } from "../../src/util/id"
 import { baseItems, createHarness, limits, policy, validVerdict } from "./judge-step-harness"
-
 const readVault = (id: string, costUsd: number) =>
   toolCallResponse([{ id, name: "read_file", arguments: { path: "src/Vault.sol", startLine: 1, endLine: 5 } }], {
     usage: usageOf(120, 30, costUsd),
@@ -44,7 +44,7 @@ const runTwoSteps = async (options: { skipStepOneItems?: boolean } = {}) => {
   return { h, first, second, items: [...beforeStepTwo, ...second.newItems] }
 }
 
-const modelLimits = { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.1 }
+const modelLimits = { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.2 }
 
 const verify = (history: Parameters<typeof verifyHydration>[0]["history"]) =>
   verifyHydration({ engine: new PassThroughContextEngine(), history, policy, modelLimits, limits })
@@ -65,6 +65,21 @@ describe("history hydrator", () => {
     expect(history.terminalPending).toBeUndefined()
     expect(await verify(history)).toEqual({ kind: "verified" })
   })
+
+  test("production hydration re-prepares with canonical request and fails on request digest mismatch", async () => {
+    const items: ContextItem[] = [{ id: "sys", turn: 0, type: "system_prompt", isPinned: true, content: "x" }]
+    const request = { runId: "r", stepIndex: 1, attemptIndex: 1, profileId: "m", items, tools: [] }
+    const engine = new ProductionContextEngine(createO200kTokenizer())
+    const budget = { totalTokensUsed: 0, totalTokenLimit: 100000, compactionsCount: 0, costUsd: 0, costCeilingUsd: 5 }
+    const prepared = await engine.prepare({ items, request, policy, modelLimits, budget })
+    if (prepared.status !== "ready") throw new Error("setup allocation did not prepare")
+    const point = { sequence: 1, stepIndex: 1, contentDigest: prepared.telemetry.contentDigest, requestDigest: prepared.telemetry.requestDigest, items, totalsFromAttempts: usageOf(0, 0), compactionsCount: 0 }
+    const history = { items, transformations: [], compactionsCount: 0, stepIndex: 1, totalsFromAttempts: usageOf(0, 0), repairsUsed: 0, probeRunsUsed: 0, pendingToolCalls: [], lastAllocated: point, allocations: [point], lastSequence: 1 }
+    const check = async (canonicalRequest: typeof request) => verifyHydration({ engine, history, policy, modelLimits, limits, request: canonicalRequest })
+    expect(await check(request)).toEqual({ kind: "verified" })
+    expect((await check({ ...request, tools: [{ name: "corrupt" }] } as never)).kind).toBe("mismatch")
+  })
+
 
   test("hydration mismatch: a lost item changes the digest: persistence_failure and no model call", async () => {
     const { h } = await runTwoSteps({ skipStepOneItems: true })

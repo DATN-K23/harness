@@ -8,6 +8,7 @@ import {
   type EventPayload,
   type ModelLimits,
   type ModelUsage,
+  type ModelAttemptRequest,
   type TrajectoryEvent,
 } from "@harness/protocol"
 import { RunStateProbeToolName } from "../judge/adjudication-step"
@@ -36,6 +37,7 @@ export interface AllocationPoint {
   sequence: number
   stepIndex: number
   contentDigest: string
+  requestDigest?: string
   items: ContextItem[]
   totalsFromAttempts: ModelUsage
   compactionsCount: number
@@ -56,6 +58,7 @@ export interface HydratedHistory {
   probeRunsUsed: number
   pendingToolCalls: PendingToolCall[]
   lastAllocated?: AllocationPoint
+  allocations: AllocationPoint[]
   /** A terminal event is persisted but the run is still `running`: finish the transition, make no model call. */
   terminalPending?: TrajectoryEvent
   lastSequence: number
@@ -124,6 +127,7 @@ export const hydrateHistory = (events: readonly TrajectoryEvent[]): Hydration =>
     repairsUsed: 0,
     probeRunsUsed: 0,
     lastSequence: events.length,
+    allocations: [],
   }
   const requested: Array<Omit<PendingToolCall, "hasRequestItem">> = []
   const requestItems = new Set<string>()
@@ -147,14 +151,17 @@ export const hydrateHistory = (events: readonly TrajectoryEvent[]): Hydration =>
       history.transformations.push(EventPayloadSchemas["context.transformed"].parse(event.payload))
     if (event.type === "context.allocated") {
       const allocated = EventPayloadSchemas["context.allocated"].parse(event.payload)
-      history.lastAllocated = {
+      const point = {
         sequence: event.sequence,
         stepIndex: allocated.stepIndex,
         contentDigest: allocated.telemetry.contentDigest,
+        ...(allocated.telemetry.requestDigest === undefined ? {} : { requestDigest: allocated.telemetry.requestDigest }),
         items: [...items],
         totalsFromAttempts: history.totalsFromAttempts,
         compactionsCount: history.compactionsCount,
       }
+      history.allocations.push(point)
+      history.lastAllocated = point
     }
     if (event.type === "step.started") {
       const { stepIndex } = EventPayloadSchemas["step.started"].parse(event.payload)
@@ -233,6 +240,7 @@ export interface VerifyHydrationInput {
   policy: ContextPolicy
   modelLimits: ModelLimits
   limits: Pick<BudgetLimits, "totalTokenBudget" | "costCeilingUsd">
+  request?: ModelAttemptRequest
 }
 
 /**
@@ -251,9 +259,12 @@ export const verifyHydration = async (input: VerifyHydrationInput): Promise<Hydr
     expectedDigest: point.contentDigest,
     ...(actualDigest === undefined ? {} : { actualDigest }),
   })
+  if (point.requestDigest !== undefined && input.request === undefined)
+    return mismatch(`canonical request is unavailable while verifying step ${point.stepIndex}`)
   const prepared = await input.engine
     .prepare({
       items: point.items,
+      ...(input.request === undefined ? {} : { request: input.request }),
       policy: input.policy,
       modelLimits: input.modelLimits,
       budget: {
@@ -272,6 +283,8 @@ export const verifyHydration = async (input: VerifyHydrationInput): Promise<Hydr
     return mismatch(
       `context engine failed while re-preparing step ${point.stepIndex}: ${describeError(prepared.error)}`,
     )
+  if (point.requestDigest !== undefined && prepared.result.telemetry.requestDigest !== point.requestDigest)
+    return mismatch(`hydrated request for step ${point.stepIndex} does not match its persisted digest`, prepared.result.telemetry.requestDigest)
   if (prepared.result.status !== "ready")
     return mismatch(`context engine returned ${prepared.result.status} when re-preparing step ${point.stepIndex}`)
   const actualDigest = digestOf(prepared.result.preparedItems)

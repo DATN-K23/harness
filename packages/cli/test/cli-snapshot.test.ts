@@ -231,8 +231,9 @@ describe("snapshot-backed CLI runs", () => {
         costCeilingUsd: 0.1,
       })
       const started = summary?.events.find((event) => event.type === "run.started")
-      expect((started?.payload as { providerProfile?: { outputTokensField?: string } }).providerProfile?.outputTokensField)
-        .toBe("max_tokens")
+      expect((started?.payload as { providerProfile?: { outputTokensField?: string; maxContextTokens?: number; maxOutputTokens?: number }; requestOptions?: { maxOutputTokens?: number } }).providerProfile)
+        .toMatchObject({ outputTokensField: "max_tokens", maxContextTokens: 131072, maxOutputTokens: 4096 })
+      expect((started?.payload as { requestOptions?: { maxOutputTokens?: number } }).requestOptions?.maxOutputTokens).toBe(77)
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

@@ -91,6 +91,31 @@ describe("JudgeRunner: zero-token fast-reject", () => {
 })
 
 describe("JudgeRunner: reasoning loop", () => {
+  test("Tier 2 probe dispatch and result are committed with terminal outcome via CAS", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
+      stateProbe: { exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
+      script: [
+        textResponse("acknowledged"),
+        textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+        textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+        textResponse("Bidirectional consensus: disputed"),
+        toolCallResponse([{ id: "probe-1", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]),
+        textResponse(JSON.stringify({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The probe does not resolve the claim.", reasoning: "The measured total supply changed, but the available evidence does not connect that change to the claimed unauthorized impact.", citesEvidence: [] })),
+      ],
+    })
+    const result = await w.start("worker-a", runInput({ maxProbeRuns: 1 }))
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(w.sandbox.stateProbeCalls).toHaveLength(1)
+    expect(w.sanitizer.probeCalls).toHaveLength(1)
+    expect((await world.events("tool.requested")).some((event) => event.payload.toolName === "run_state_probe")).toBe(true)
+    expect(await world.state()).toBe("completed")
+    await expectContiguous(world)
+  })
+
   test("Task 3 inconclusive narrative claim commits UNVERIFIED through terminal CAS", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }

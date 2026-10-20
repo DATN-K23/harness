@@ -9,6 +9,8 @@ import {
   type RunStorePort,
   type SandboxPort,
   type SandboxResult,
+  type SanitizerPort,
+  type StateProbeResult,
   type SanitizerResult,
 } from "@harness/protocol"
 import type { SetTimer } from "../../src/runner/cancellation"
@@ -134,9 +136,12 @@ export interface WorkerOptions {
   ingestion?: IngestionResult
   sanitizer?: SanitizerResult
   sandbox?: SandboxResult
+  stateProbe?: StateProbeResult
+  sanitizerResult?: SanitizerResult
   /** Wraps the scripted gateway or sandbox, e.g. to break a port's contract; the scripted fake stays inspectable. */
   wrapGateway?: (gateway: ScriptedModelGateway) => ModelGatewayPort
   wrapSandbox?: (sandbox: ScriptedSandbox) => SandboxPort
+  wrapSanitizer?: (sanitizer: ScriptedSanitizer) => SanitizerPort
   /** Defaults to a timer that never fires. */
   setTimer?: SetTimer
 }
@@ -160,8 +165,11 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
     const engine = workerOptions.engine ?? new PassThroughContextEngine()
     const registry = new InMemoryToolRegistry({ files, deniedPrefixes: ["secrets"] })
     const ingestion = new ScriptedIngestion([workerOptions.ingestion ?? okIngestion])
-    const sanitizer = new ScriptedSanitizer([workerOptions.sanitizer ?? okSanitizer])
-    const sandbox = new ScriptedSandbox({ singleShot: [workerOptions.sandbox ?? okSandbox] })
+    const sanitizer = new ScriptedSanitizer([workerOptions.sanitizerResult ?? workerOptions.sanitizer ?? okSanitizer])
+    const sandbox = new ScriptedSandbox({
+      singleShot: [workerOptions.sandbox ?? okSandbox],
+      ...(workerOptions.stateProbe === undefined ? {} : { stateProbe: [workerOptions.stateProbe] }),
+    })
     const runner = new JudgeRunner({
       store,
       contextEngine: engine,
@@ -170,7 +178,7 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
       security: new RegexSecurityFilter(),
       snapshot: new InMemorySnapshot({ snapshotId: "snap-1", files }),
       ingestion,
-      sanitizer,
+      sanitizer: workerOptions.wrapSanitizer?.(sanitizer) ?? sanitizer,
       sandbox: workerOptions.wrapSandbox?.(sandbox) ?? sandbox,
       cancellation,
       clock,

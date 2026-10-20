@@ -49,6 +49,11 @@ const probeCall = (callId: string) => ({
   arguments: { stateVariables: ["totalSupply"] },
 })
 
+const multiProbeCall = (callId: string) => ({
+  ...probeCall(callId),
+  arguments: { stateVariables: ["totalSupply", "balanceOf(attacker)"] },
+})
+
 describe("adjudication step: tier selection and state probe", () => {
   test("run_state_probe is offered only in Tier 2 (no submitter assertions)", () => {
     const names = (hasAssertions: boolean) =>
@@ -75,6 +80,15 @@ describe("adjudication step: tier selection and state probe", () => {
     expect(third.content).toContain("limit of 2 state probe runs")
     expect(third.content).toContain("Suggested next step:")
     expect(registry.calls).toHaveLength(0)
+  })
+
+  test("a probe request must name exactly one variable", async () => {
+    const { tools, sandbox, sanitizer } = setup(false)
+    const result = await tools.execute(multiProbeCall("probe-multiple"))
+    expect(result.isError).toBe(true)
+    expect(result.content).toContain("exactly one")
+    expect(sanitizer.probeCalls).toHaveLength(0)
+    expect(sandbox.stateProbeCalls).toHaveLength(0)
   })
 })
 

@@ -50,3 +50,11 @@
 - Fixed the existing runner integration/CAS test fixture: its inconclusive runner script ended after the second directional answer and omitted the final UNVERIFIED verdict response, causing `provider_permanent` instead of testing the expected terminal CAS. With the missing model response supplied, it exercises terminal `run.completed`, completed state, and contiguous event sequence through the runner path. A full Tier-2 probe-to-CAS scenario remains unestablished.
 - Verification from `packages/core`: focused witness, JudgeRunner, adjudication and verdict-synthesis suites — 58 passed, 0 failed; `bun run typecheck` passed; `git diff --check` passed.
 - Recovery caveat: exact delta values are deliberately not persisted in events. A takeover rebuilds an empty typed witness record; resumed resolution therefore remains UNVERIFIED rather than trusting presentation text. Persisting typed witness evidence safely would require a follow-up contract/event design.
+
+## Fix round 5 (2026-10-21)
+
+- Added an explicit multi-expression probe test. `run_state_probe` now rejects stateVariables unless exactly one non-empty expression is provided, before sanitizer injection or sandbox execution. This aligns trust-boundary validation with the prompt and avoids a keyed evidence map selecting the wrong expression from a multi-target call.
+- Added a focused full `JudgeRunner` Tier 2 probe-to-terminal-CAS test using existing sanitizer/sandbox ports: assertion-free PoC, disputed consensus, one safe probe dispatch/result, and a completed UNVERIFIED verdict committed to the store with contiguous trajectory sequence.
+- Added a probe-bound exhaustion case where a prior successful probe result is present and another requested dispatch hits maxProbeRuns; it asserts terminal UNVERIFIED and no extra underlying probe call.
+- Verification from `packages/core`: `bun test test/judge/adjudication-step.test.ts test/runner/witness-resolution.test.ts test/runner/judge-runner.test.ts` — 38 passed, 0 failed; `bun run typecheck` passed; `git diff --check` passed.
+- The end-to-end runner scenario intentionally does not treat exit code as semantic proof; it commits UNVERIFIED. Existing verdict logic still requires exact typed delta matching and normative snapshot citation synthesis for a resolved validity verdict.

@@ -62,7 +62,7 @@ const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " 
 
 const isVariableList = (value: unknown): value is string[] =>
   Array.isArray(value) &&
-  value.length > 0 &&
+  value.length === 1 &&
   value.every((entry) => typeof entry === "string" && entry.trim() !== "")
 
 /**
@@ -89,9 +89,9 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
       const { stateVariables } = args
       if (!isVariableList(stateVariables))
         return failure(
-          "Invalid arguments for run_state_probe: stateVariables must be a non-empty list of state variable expressions.",
+          "Invalid arguments for run_state_probe: stateVariables must contain exactly one state variable expression.",
           args,
-          'call run_state_probe with {"stateVariables": ["totalSupply", "balanceOf(attacker)"]}.',
+          'call run_state_probe with {"stateVariables": ["totalSupply"]}.',
         )
       if (counter.used >= maxProbeRuns)
         return failure(

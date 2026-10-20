@@ -234,3 +234,25 @@ test("correlates allocations with provider usage and omits raw readback content"
   expect(summary?.contextTelemetry[0]).toMatchObject({ actualUsage: { totalTokens: 100 }, usageDelta: 0 })
   expect(summary?.events).toHaveLength(3)
 })
+
+test("matches multiple allocations to one-based provider attempts in order", async () => {
+  const runId = "run-context-retries"
+  const make = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `e-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const telemetry = (estimatedInputTokens: number, digest: string) => ({ tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens, estimatedSafetyTokens: estimatedInputTokens, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 0, budgetRemainingTokens: 16000, contentDigest: digest, requestDigest: `sha256:${digest.repeat(64).slice(0, 64)}`, actualUsage: null, usageDelta: null })
+  const usage = (promptTokens: number, completionTokens: number, totalTokens: number) => ({ promptTokens, completionTokens, totalTokens })
+  const events = [
+    make(1, "context.allocated", { stepIndex: 1, telemetry: telemetry(100, "a") }),
+    make(2, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 1, profileId: "model", usage: usage(110, 10, 120), costUsd: 0, latencyMs: 1, retryDecision: "retry", backoffMs: 1 }),
+    make(3, "context.allocated", { stepIndex: 1, telemetry: telemetry(200, "b") }),
+    make(4, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 2, profileId: "model", usage: null, costUsd: null, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "failed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry.map(({ actualUsage, usageDelta }) => ({ actualUsage, usageDelta }))).toEqual([
+    { actualUsage: usage(110, 10, 120), usageDelta: 20 },
+    { actualUsage: null, usageDelta: null },
+  ])
+})

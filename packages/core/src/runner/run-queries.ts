@@ -93,7 +93,7 @@ export async function getMultiTurnExecutionSummary(
   const contextTelemetry: ContextTelemetrySummary[] = []
   const transformationsByStep = new Map<number, ContextTelemetrySummary["transformations"]>()
   const actualByAttempt = new Map<string, { promptTokens: number; completionTokens: number; totalTokens: number } | null>()
-  const allocationsByStep = new Map<number, ContextTelemetrySummary[]>()
+  const allocationsByAttempt = new Map<string, ContextTelemetrySummary>()
   let currentStepIndex = 1
 
   for (const event of events) {
@@ -110,27 +110,31 @@ export async function getMultiTurnExecutionSummary(
       const t = payload.telemetry
       contextTelemetry.push({
         stepIndex: payload.stepIndex,
-        attemptIndex: (allocationsByStep.get(payload.stepIndex)?.length ?? 0),
+        attemptIndex: (() => {
+          const attempts = [...allocationsByAttempt.keys()]
+            .filter((key) => key.startsWith(`${payload.stepIndex}:`))
+            .map((key) => Number(key.split(":")[1]))
+          return attempts.length ? Math.max(...attempts) + 1 : 1
+        })(),
         policyVersion: t.policyVersion,
         tokenizer: "o200k_base",
         estimatedInputTokens: t.estimatedInputTokens,
         ...(typeof t.estimatedOutputTokens === "number" ? { estimatedOutputTokens: t.estimatedOutputTokens } : {}),
         outputReserveTokens: t.outputReserveTokens,
         estimatedSafetyTokens: t.estimatedSafetyTokens,
-        actualUsage: actualByAttempt.get(`${payload.stepIndex}:0`) ?? t.actualUsage ?? null,
+        actualUsage: t.actualUsage ?? null,
         usageDelta: t.usageDelta ?? null,
         ...(typeof t.requestDigest === "string" ? { requestDigest: t.requestDigest } : {}),
         transformations: transformationsByStep.get(payload.stepIndex) ?? [],
       })
-      const allocations = allocationsByStep.get(payload.stepIndex) ?? []
-      allocations.push(contextTelemetry[contextTelemetry.length - 1])
-      allocationsByStep.set(payload.stepIndex, allocations)
+      allocationsByAttempt.set(`${payload.stepIndex}:${contextTelemetry[contextTelemetry.length - 1].attemptIndex}`, contextTelemetry[contextTelemetry.length - 1])
     } else if (event.type === "provider.attempted") {
       const payload = event.payload as { stepIndex?: unknown; attemptIndex?: unknown; usage?: unknown }
       if (typeof payload.stepIndex === "number" && typeof payload.attemptIndex === "number") {
         const usage = payload.usage
         actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, usage && typeof usage === "object" ? usage as ContextTelemetrySummary["actualUsage"] : null)
-        const allocation = allocationsByStep.get(payload.stepIndex)?.[payload.attemptIndex]
+        const allocation = allocationsByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`)
+          ?? (payload.attemptIndex === 0 ? allocationsByAttempt.get(`${payload.stepIndex}:1`) : undefined)
         if (allocation) {
           allocation.actualUsage = actualByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`) ?? null
           allocation.usageDelta = allocation.actualUsage ? allocation.actualUsage.totalTokens - allocation.estimatedInputTokens : null

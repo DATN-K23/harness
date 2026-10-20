@@ -7,6 +7,7 @@
 .opencode/
 .opencode_reference/
 superpowers/
+.superpowers/
 opencode_docs/
 data/
 node_modules/

@@ -186,6 +186,15 @@ export const enterStageFour = async (
     shapedTrace,
     ids: deps.ids,
   })
+  if (staged.claim !== undefined && staged.claim.targetFunctions.length + staged.claim.targetContracts.length > 0) {
+    items.push({
+      id: deps.ids.next("itm_"),
+      turn: 0,
+      type: "system_prompt",
+      isPinned: true,
+      content: "Verification direction: forward",
+    })
+  }
   for (const item of items) await context.persist("context.item_added", { item })
   const traceItem = items.find((item) => item.type === "execution_trace")
   if (shaped.isTruncated && traceItem !== undefined)

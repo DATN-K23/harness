@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { ContextItem, ModelAttemptError } from "@harness/protocol"
 import { loadPrompt } from "../../src/prompts/index"
+import { parseForwardResult } from "../../src/judge/bidirectional-verifier"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
 import { errorResponse, textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import { digestOf, textDigest } from "../../src/util/digest"
@@ -18,6 +19,27 @@ const http = (statusCode: number, message = `HTTP ${statusCode}`): ModelAttemptE
 const maxStepsPrompt = loadPrompt("max-steps.v1").text
 
 describe("JudgeStep: seven gates", () => {
+  test("forward verification is validated and queued as a separate backward step", async () => {
+    const h = await createHarness({ script: [textResponse('{"reachability":"reachable","explanation":"entry reaches sink"}')] })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "direction", turn: 0, type: "system_prompt", isPinned: true, content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}` },
+    ] }))
+    expect(result.newItems.some((item) => item.content.startsWith("Bidirectional forward result:"))).toBe(true)
+    expect(result.newItems.find((item) => item.content.startsWith("Verification direction: backward"))).toBeDefined()
+    expect(parseForwardResult('{"reachability":"reachable","explanation":"entry reaches sink"}').kind).toBe("ok")
+  })
+
+  test("verification tool calls stay restricted to registered snapshot reads", async () => {
+    const h = await createHarness({ script: [readVault()] })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "direction", turn: 0, type: "system_prompt", isPinned: true, content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}` },
+    ] }))
+    expect(h.registry.calls.map((call) => call.toolName)).toEqual(["read_file"])
+    expect(result.outcome.type).toBe("continue_turn")
+  })
+
   test("gate order: prepare, gateway, record, then the tool runs and is filtered before it is shaped", async () => {
     const h = await createHarness({ script: [readVault()] })
     const result = await h.step.execute(h.input())

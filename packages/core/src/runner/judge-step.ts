@@ -18,8 +18,14 @@ import {
   type StopReason,
   type ToolRegistryPort,
 } from "@harness/protocol"
-import { synthesizeVerdict } from "../judge/verdict-synthesizer"
+import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
+import {
+  decideConsensus,
+  parseBackwardResult,
+  parseForwardResult,
+} from "../judge/bidirectional-verifier"
 import { loadPrompt } from "../prompts/index"
+import type { PromptName } from "../prompts/index"
 import { digestOf } from "../util/digest"
 import type { IdGenerator } from "../util/id"
 import { checkBoundary, type CancellationBoundary } from "./cancellation"
@@ -287,6 +293,56 @@ export class JudgeStep {
     const text = response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
     const calls = response.toolCalls ?? []
+
+    const direction = input.items.findLast((item) => item.type === "system_prompt" && item.content.startsWith("Verification direction: "))
+    const directionName = direction?.content.includes("forward") ? "forward" : "backward"
+    const directionAlreadyComplete = input.items.some(
+      (item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${directionName} result:`),
+    )
+    if (calls.length === 0 && direction !== undefined && !directionAlreadyComplete) {
+      const isForward = direction.content.includes("forward")
+      if (!direction.content.includes(loadPrompt(isForward ? "forward-verification.v1" : "backward-verification.v1").text))
+        return finish({ type: "continue_turn", toolOutcomes: [] }, {
+          newItems: [newItem("system_prompt", `${direction.content}\n${loadPrompt(isForward ? "forward-verification.v1" : "backward-verification.v1").text}`)],
+        })
+      const parsed = isForward ? parseForwardResult(text) : parseBackwardResult(text)
+      if (parsed.kind === "invalid") {
+        const attempt = input.repairsUsed + 1
+        const maxRepairs = input.flags.enableSchemaRepair ? MaxSchemaRepairs : 0
+        await persist("verdict.validation_failed", { attempt, issues: [{ reason: "SCHEMA_VIOLATION", path: [] }] })
+        if (input.repairsUsed >= maxRepairs)
+          return finish({ type: "failed", error: "bidirectional output validation failed", reason: "schema_repair_exhausted" })
+        return finish({ type: "continue_turn", toolOutcomes: [] }, {
+          newItems: [
+            ...reasoning,
+            newItem(
+              "system_prompt",
+              `${direction.content}\nReturn only JSON with the required ${isForward ? "reachability" : "reconstruction"} and explanation fields. Validation attempt ${attempt}.`,
+            ),
+          ],
+          repairsUsed: input.repairsUsed + 1,
+        })
+      }
+      const resultItem = newItem("assistant_reasoning", `Bidirectional ${isForward ? "forward" : "backward"} result: ${JSON.stringify(parsed.result)}`)
+      const opposite = isForward ? "backward" : "forward"
+      if (input.items.some((item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${opposite} result:`))) {
+        const forwardText = isForward
+          ? JSON.stringify(parsed.result)
+          : input.items.find((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional forward result:"))!.content.split(": ").slice(1).join(": ")
+        const backwardText = isForward
+          ? input.items.find((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional backward result:"))!.content.split(": ").slice(1).join(": ")
+          : JSON.stringify(parsed.result)
+        const forward = parseForwardResult(forwardText)
+        const backward = parseBackwardResult(backwardText)
+        const consensus = forward.kind === "ok" && backward.kind === "ok"
+          ? decideConsensus(forward.result, backward.result)
+          : "inconclusive"
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`)] })
+      }
+      return finish({ type: "continue_turn", toolOutcomes: [] }, {
+        newItems: [resultItem, ...(isForward ? [newItem("system_prompt", `Verification direction: ${opposite}\n${loadPrompt("backward-verification.v1").text}`)] : [])],
+      })
+    }
 
     // Gate 5: text without tool calls is the verdict.
     if (calls.length === 0) {

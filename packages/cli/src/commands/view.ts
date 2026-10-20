@@ -35,7 +35,12 @@ export async function executeViewCommand(
     const summary = await getMultiTurnExecutionSummary(runId, deps.store)
     if (!summary) return { exitCode: 1, output: `Error: Run '${runId}' not found in persistent store.` }
     const redactedSummary = JSON.parse(redactSecrets(JSON.stringify(summary), secrets)) as typeof summary
-      const safeSummary = { ...redactedSummary, promptDigest: digestOf(summary.prompt ?? "") }
+      const { events: _events, attempts: _attempts, toolCalls: rawToolCalls, ...boundedSummary } = redactedSummary
+      const safeSummary = {
+        ...boundedSummary,
+        toolCalls: rawToolCalls.map(({ resultContent: _resultContent, ...call }) => call),
+        promptDigest: digestOf(summary.prompt ?? ""),
+      }
     if (options.json) return { exitCode: 0, output: JSON.stringify(safeSummary, null, 2) }
     const lines = [
       "========================================",

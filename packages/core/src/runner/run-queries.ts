@@ -60,13 +60,14 @@ export interface MultiTurnExecutionSummary {
   outputTruncated?: boolean
   toolCalls: ReconstructedToolCall[]
   steps: MultiTurnStepSummary[]
+  contextTelemetry: ContextTelemetrySummary[]
   attempts: Record<string, unknown>[]
   events: TrajectoryEvent[]
-  contextTelemetry: ContextTelemetrySummary[]
 }
 
 export interface ContextTelemetrySummary {
   stepIndex: number
+  attemptIndex: number
   policyVersion: string
   tokenizer: "o200k_base"
   estimatedInputTokens: number
@@ -90,7 +91,9 @@ export async function getMultiTurnExecutionSummary(
   const events = await getRunHistory(runId, store)
   const toolCallMap = new Map<string, ReconstructedToolCall>()
   const contextTelemetry: ContextTelemetrySummary[] = []
-  let pendingTransformations: ContextTelemetrySummary["transformations"] = []
+  const transformationsByStep = new Map<number, ContextTelemetrySummary["transformations"]>()
+  const actualByAttempt = new Map<string, { promptTokens: number; completionTokens: number; totalTokens: number } | null>()
+  const allocationsByStep = new Map<number, ContextTelemetrySummary[]>()
   let currentStepIndex = 1
 
   for (const event of events) {
@@ -99,24 +102,40 @@ export async function getMultiTurnExecutionSummary(
       currentStepIndex = payload.stepIndex
     } else if (event.type === "context.transformed") {
       const payload = event.payload as { action: string; targetItemId: string; tokensBefore: number; tokensAfter: number }
-      pendingTransformations.push({ ...payload, savings: Math.max(0, payload.tokensBefore - payload.tokensAfter) })
+      const list = transformationsByStep.get(currentStepIndex) ?? []
+      list.push({ ...payload, savings: Math.max(0, payload.tokensBefore - payload.tokensAfter) })
+      transformationsByStep.set(currentStepIndex, list)
     } else if (event.type === "context.allocated") {
       const payload = event.payload as { stepIndex: number; telemetry: Record<string, any> }
       const t = payload.telemetry
       contextTelemetry.push({
         stepIndex: payload.stepIndex,
+        attemptIndex: (allocationsByStep.get(payload.stepIndex)?.length ?? 0),
         policyVersion: t.policyVersion,
         tokenizer: "o200k_base",
         estimatedInputTokens: t.estimatedInputTokens,
         ...(typeof t.estimatedOutputTokens === "number" ? { estimatedOutputTokens: t.estimatedOutputTokens } : {}),
         outputReserveTokens: t.outputReserveTokens,
         estimatedSafetyTokens: t.estimatedSafetyTokens,
-        actualUsage: t.actualUsage ?? null,
+        actualUsage: actualByAttempt.get(`${payload.stepIndex}:0`) ?? t.actualUsage ?? null,
         usageDelta: t.usageDelta ?? null,
         ...(typeof t.requestDigest === "string" ? { requestDigest: t.requestDigest } : {}),
-        transformations: pendingTransformations,
+        transformations: transformationsByStep.get(payload.stepIndex) ?? [],
       })
-      pendingTransformations = []
+      const allocations = allocationsByStep.get(payload.stepIndex) ?? []
+      allocations.push(contextTelemetry[contextTelemetry.length - 1])
+      allocationsByStep.set(payload.stepIndex, allocations)
+    } else if (event.type === "provider.attempted") {
+      const payload = event.payload as { stepIndex?: unknown; attemptIndex?: unknown; usage?: unknown }
+      if (typeof payload.stepIndex === "number" && typeof payload.attemptIndex === "number") {
+        const usage = payload.usage
+        actualByAttempt.set(`${payload.stepIndex}:${payload.attemptIndex}`, usage && typeof usage === "object" ? usage as ContextTelemetrySummary["actualUsage"] : null)
+        const allocation = allocationsByStep.get(payload.stepIndex)?.[payload.attemptIndex]
+        if (allocation) {
+          allocation.actualUsage = actualByAttempt.get(`${payload.stepIndex}:${payload.attemptIndex}`) ?? null
+          allocation.usageDelta = allocation.actualUsage ? allocation.actualUsage.totalTokens - allocation.estimatedInputTokens : null
+        }
+      }
     } else if (event.type === "tool.requested") {
       const payload = event.payload as {
         callIndex: number
@@ -231,8 +250,8 @@ export async function getMultiTurnExecutionSummary(
       (left, right) => left.stepIndex - right.stepIndex || left.callIndex - right.callIndex,
     ),
     steps,
+    contextTelemetry,
     attempts,
     events,
-    contextTelemetry,
   }
 }

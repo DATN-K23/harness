@@ -142,7 +142,7 @@ describe("run-queries", () => {
   })
 })
 
-test("reconstructs repeated call IDs independently for each step", async () => {
+  test("reconstructs repeated call IDs independently for each step", async () => {
   const runId = "run-reused-call-id"
   const makeEvent = (
     sequence: number,
@@ -216,4 +216,21 @@ test("reconstructs repeated call IDs independently for each step", async () => {
   expect(summary?.toolCalls).toHaveLength(2)
   expect(summary?.toolCalls.map((item) => item.stepIndex)).toEqual([1, 2])
   expect(summary?.toolCalls.map((item) => item.resultContent)).toEqual(["first result", "second result"])
+})
+
+test("correlates allocations with provider usage and omits raw readback content", async () => {
+  const runId = "run-context-readback"
+  const event = (sequence: number, type: TrajectoryEvent["type"], payload: Record<string, unknown>): TrajectoryEvent => ({
+    eventId: `event-${sequence}`, runId, sequence, type, schemaVersion: 1, payload,
+    payloadDigest: `sha256:${"0".repeat(64)}`, occurredAt: "2026-10-18T10:00:00.000Z",
+  })
+  const events = [
+    event(1, "context.transformed", { action: "truncated", targetItemId: "item-1", tokensBefore: 100, tokensAfter: 40, replacementNote: "bounded" }),
+    event(2, "context.allocated", { stepIndex: 1, telemetry: { tokenizer: "o200k_base", policyVersion: "v1", estimatedInputTokens: 100, estimatedSafetyTokens: 120, windowLimitTokens: 16384, outputReserveTokens: 4096, tokensSaved: 60, budgetRemainingTokens: 16000, contentDigest: "content", requestDigest: `sha256:${"1".repeat(64)}`, actualUsage: null, usageDelta: null } }),
+    event(3, "provider.attempted", { stepIndex: 1, purpose: "reasoning", attemptIndex: 0, profileId: "model", usage: { promptTokens: 90, completionTokens: 10, totalTokens: 100 }, costUsd: 0, latencyMs: 1, retryDecision: "none", backoffMs: 0 }),
+  ]
+  const store = { loadRun: async () => ({ runId, state: "completed", stateVersion: 1 } satisfies RunRecord), loadEvents: async () => events } as unknown as RunStorePort
+  const summary = await getMultiTurnExecutionSummary(runId, store)
+  expect(summary?.contextTelemetry[0]).toMatchObject({ actualUsage: { totalTokens: 100 }, usageDelta: 0 })
+  expect(summary?.events).toHaveLength(3)
 })

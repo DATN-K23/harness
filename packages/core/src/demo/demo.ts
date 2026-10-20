@@ -24,7 +24,7 @@ const reasonOf = (result: JudgeRunResult) => {
   return result.verdict?.reasonCode ?? result.terminalReason ?? result.state
 }
 
-/** Runs the four judge scenarios offline and writes one seven-pillar bundle per scenario under `outputDir`. */
+/** Runs the offline judge scenarios and writes one seven-pillar bundle per scenario under `outputDir`. */
 export const runDemo = async (outputDir = DefaultOutputDir): Promise<DemoRow[]> => {
   const rows: DemoRow[] = []
   for (const [index, spec] of demoScenarios.entries()) {

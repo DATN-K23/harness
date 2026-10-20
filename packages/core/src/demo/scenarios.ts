@@ -186,8 +186,30 @@ const narrativeAgreed: ScenarioSpec = {
   ],
 }
 
-/** The four judge scenarios of the demo specification, in presentation order. */
-export const demoScenarios: ScenarioSpec[] = [confirmed, missingPoc, cheatingPoc, failingPoc, narrativeAgreed]
+const disputedWitness: ScenarioSpec = {
+  ...confirmed,
+  name: "disputed-witness",
+  ingestion: {
+    kind: "ok",
+    pocCode: poc,
+    claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "reenter withdraw", callerAssumptions: [], claimedImpact: "attacker receives more ether than deposited", claimedState: "balanceOf(attacker) increases by more than the deposit" },
+    bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] }],
+  },
+  sanitizer: okSanitizer,
+  stateProbes: [{ ...probe, stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3000000000000000000" }] }],
+  script: [
+    textResponse("forward", { usage: usageOf(20, 10, 0.001) }),
+    textResponse('{"reachability":"incomplete","explanation":"The claimed payout magnitude needs measurement."}', { usage: usageOf(20, 10, 0.001) }),
+    textResponse("backward", { usage: usageOf(20, 10, 0.001) }),
+    textResponse('{"reconstruction":"reconstructed","explanation":"A callback can re-enter withdraw before the balance update."}', { usage: usageOf(20, 10, 0.001) }),
+    textResponse("Bidirectional consensus: disputed", { usage: usageOf(20, 10, 0.001) }),
+    toolCallResponse([{ id: "witness-1", name: "run_state_probe", arguments: { stateVariables: ["balanceOf(attacker)"] } }], { usage: usageOf(20, 10, 0.001) }),
+    textResponse("The source call ordering permits repeated withdrawals, and the probe measured the resulting balance increase.", { usage: usageOf(20, 10, 0.001) }),
+  ],
+}
+
+/** Offline judge scenarios, in presentation order. */
+export const demoScenarios: ScenarioSpec[] = [confirmed, missingPoc, cheatingPoc, failingPoc, narrativeAgreed, disputedWitness]
 
 const tier1: Pick<ScenarioSpec, "sanitizer"> = {
   sanitizer: { ...okSanitizer, hasSubmitterAssertions: true },

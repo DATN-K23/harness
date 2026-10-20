@@ -21,7 +21,7 @@ afterAll(() => rmSync(outputDir, { recursive: true, force: true }))
 
 describe("demo", () => {
   test("runs the offline scenarios and prints a summary row for each", () => {
-    expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc", "narrative-agreed"])
+    expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc", "narrative-agreed", "disputed-witness"])
     const summary = formatSummary(rows)
     expect(summary.split("\n")).toHaveLength(2 + rows.length)
     rows.forEach((row) => expect(summary).toContain(row.reason))
@@ -55,6 +55,27 @@ describe("demo", () => {
     expect(readJson("narrative-agreed", "05-context-economics.json").totals).toMatchObject({ totalTokens: 100, costUsd: 0.02 })
     expect(read("narrative-agreed", "02-dossier.md")).toContain("external call precedes balance update")
     expect(rows.find((row) => row.scenario === "narrative-agreed")).toMatchObject({ steps: 4, tokens: 100, costUsd: 0.02 })
+  })
+
+  test("disputed report uses the bounded scripted witness and correctly remains UNVERIFIED", () => {
+    const verdict = readJson("disputed-witness", "01-verdict.json")
+    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", citesEvidence: [] })
+    const trajectory = readJson("disputed-witness", "03-trajectory.json")
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(7)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 7, usage: { promptTokens: 140, completionTokens: 70, totalTokens: 210, costUsd: 0.007 } })
+    const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
+    expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
+      ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
+      ["stage.started", "sanitizer", undefined], ["stage.finished", "sanitizer", "ok"],
+      ["stage.started", "sandbox", undefined], ["stage.finished", "sandbox", "ok"],
+    ])
+    const witness = trajectory.events.filter((event: { type: string; payload: { toolName?: string } }) =>
+      ["tool.requested", "tool.completed"].includes(event.type) && event.payload.toolName === "run_state_probe")
+    expect(witness.map((event: { type: string }) => event.type)).toEqual(["tool.requested", "tool.completed"])
+    expect(witness[0].payload.arguments).toEqual({ stateVariables: ["balanceOf(attacker)"] })
+    expect(read("disputed-witness", "04-exploit-proof.json")).toContain("balanceOf(attacker)")
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 210, costUsd: 0.007 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 7, tokens: 210, costUsd: 0.007 })
   })
 })
 

@@ -277,7 +277,7 @@ The plan must define precisely:
 - [ ] **Step 3: Inject `ContextEnginePort` into `MultiTurnRunnerDeps`** using dependency injection; do not silently use a fake engine in real CLI runs.
 - [ ] **Step 4: Call `prepare` after base request assembly and before cost/token guards/provider call.** Use the prepared model-visible representation for guards, attempt persistence, gateway call and digest event.
 - [ ] **Step 5: Persist context allocation/transformation records in append-only order** before provider attempt; on persistence failure fail closed without sending the provider request.
-- [ ] **Step 6: Call `record` after each provider response** and feed returned totals into the next prepare/budget check; document handling for missing usage and failed attempts.
+- [ ] **Step 6: Call `record` after each provider response** and feed returned totals into the next prepare/budget check; when usage is unavailable, add the prepared estimate plus reserved output to conservative token accounting while actual provider usage remains null.
 - [ ] **Step 7: Call `shapeToolResult` after source/error sanitization and before persistence/history append**; preserve call-result pairing, relative path/range/offset, and raw immutable history policy.
 - [ ] **Step 8: Verify resumed runs rebuild the same prepared request view from persisted items/policy** and do not reapply transformation or change policy.
 - [ ] **Step 9: Run focused multi-turn runner, hardening and integration tests.**

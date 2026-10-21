@@ -8,7 +8,7 @@ No policy-only sanitizer was added either. Without a verified parser/toolchain a
 
 ## Prerequisites to resume
 
-1. Explicit authorization for the narrowly scoped Docker/image inspection and benign disposable-fixture integration work; hostile fixtures need separate explicit authorization.
+1. Authorization is separate by action: (a) pulling/inspecting an image without starting a container does not authorize running it; (b) benign disposable-container integration requires explicit authorization; and (c) hostile PoC execution requires its own explicit authorization. No authorization is inferred from approval of the implementation plan.
 2. Pull and inspect an immutable Foundry image digest; verify its contents, Foundry/solc versions, entrypoint and non-root identity, then record an approved image decision.
 3. Verify on supported macOS Docker Desktop configurations that the daemon enforces network isolation, read-only bind mounts/root, UID/GID behavior, dropped capabilities/no-new-privileges, bounded tmpfs and CPU/RAM/PIDs, timeout/cancellation/kill, output bounds and cleanup. Linux CLI flag availability does not prove these properties.
 4. Only then implement the production process adapter and test every Docker invocation argument, mount and environment boundary, plus guarded benign integration cases. Keep `enablePocExecution` disabled in production composition until that review is complete; Task 4 reports that explicitly setting it true currently allows the existing sanitizer/sandbox path.

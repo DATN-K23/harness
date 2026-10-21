@@ -2,6 +2,7 @@
 import { JudgeSubmitRequestSchema, type JudgeSubmitRequest } from "@harness/protocol"
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { isAuthorizedLocalRequest } from "./runtime-security"
+import { ApiCompatibility } from "./runtime-security"
 
 type StoredRun = Awaited<ReturnType<NonNullable<import("@harness/protocol").RunStorePort["loadRun"]>>>
 type StoredEvent = import("@harness/protocol").TrajectoryEvent
@@ -61,6 +62,15 @@ export const createJudgeApi = (deps: {
     if (!isAuthorizedLocalRequest(request, deps.credential))
       return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
     const url = new URL(request.url)
+    if (request.method === "GET" && url.pathname === "/v1/health") {
+      return Response.json({
+        endpointId: "harness-local-runtime",
+        apiVersion: ApiCompatibility.apiVersion,
+        contractDigest: ApiCompatibility.contractDigest,
+        buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
+        capabilities: ["judge-submit", "run-query", "event-poll", "cancellation"],
+      })
+    }
     const runMatch = /^\/v1\/judge\/runs\/([^/]+)(?:\/(events))?$/.exec(url.pathname)
     const cancelMatch = /^\/v1\/judge\/runs\/([^/]+)\/cancel$/.exec(url.pathname)
     if (request.method === "POST" && cancelMatch) {

@@ -2,6 +2,19 @@ import { describe, expect, test } from "bun:test"
 import { createJudgeApi } from "../src/judge-api"
 
 describe("Judge submission API", () => {
+  test("health endpoint returns authenticated API compatibility identity", async () => {
+    const app = createJudgeApi({ credential: "test-credential", submit: async () => ({ kind: "accepted", runId: "r" }) })
+    const response = await app.fetch(new Request("http://localhost/v1/health", { headers: { authorization: "Bearer test-credential" } }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      endpointId: "harness-local-runtime",
+      apiVersion: 1,
+      contractDigest: "sha256:harness-api-v1",
+      buildVersion: "1",
+      capabilities: ["judge-submit", "run-query", "event-poll", "cancellation"],
+    })
+  })
+
   test("returns 202 only after durable submit has accepted finding and snapshot", async () => {
     let accepted = false
     const app = createJudgeApi({

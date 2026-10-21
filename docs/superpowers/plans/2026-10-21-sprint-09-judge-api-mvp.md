@@ -104,7 +104,7 @@
 - [x] **4.1 RED/GREEN:** Added tests for loopback host allowlist, actual listener factory rejecting public binds before invoking listener, and route-level Bearer auth rejecting before body parsing/admission. Constant-time credential comparison adapted from upstream `ServerAuth.authorized`; server typecheck/tests pass.
 - [x] **4.2 Decision gate:** Team confirmed macOS Keychain through the native host as credential custody. API/server must receive the resolved credential only through an injected native-host boundary; do not add renderer access, plaintext files, anonymous fallback or token-in-URL.
 - [x] **4.3 RED/GREEN:** Added Swift Security.framework generic-password helper and Bun bridge. Tests verify create-once/read-existing/rotate, exact credential travels through stdin (never argv), unsupported OS and Keychain errors fail closed, and a real uniquely named Keychain item can be read/rotated/removed. `swiftc -typecheck` and macOS integration test pass. Server exports provider for trusted startup composition.
-- [ ] **4.4 RED/GREEN:** Compatibility validator/unit tests exist, but health/discovery route and startup handshake are not wired; add endpoint identity, API/runtime version, contract digest, build/capabilities and reject incompatible operations before marking complete.
+- [x] **4.4 RED/GREEN:** Added authenticated `/v1/health` handshake exposing endpoint ID, API version, contract digest, build version and capabilities; compatibility validator rejects mismatches and client must disable operations. Server tests/typecheck pass.
 
 ### Task 5: Submission API and work dispatch
 

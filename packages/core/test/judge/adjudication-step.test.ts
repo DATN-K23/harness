@@ -22,6 +22,7 @@ const sanitized = (hasSubmitterAssertions: boolean): Sanitized => ({
 })
 
 const probeResult: StateProbeResult = {
+  outcome: "passed",
   exitCode: 0,
   trace: "[PASS] testExploit()",
   stateDeltas: [{ variable: "totalSupply", before: "100", after: "250" }],

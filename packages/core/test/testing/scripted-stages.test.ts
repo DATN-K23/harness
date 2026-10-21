@@ -79,9 +79,10 @@ describe("ScriptedSanitizer", () => {
 })
 
 describe("ScriptedSandbox", () => {
-  const passed: SandboxResult = { exitCode: 0, trace: "[PASS] test_exploit() (gas: 91234)", durationMs: 420 }
-  const failed: SandboxResult = { exitCode: 1, trace: "[FAIL] test_exploit()", durationMs: 90 }
+  const passed: SandboxResult = { outcome: "passed", exitCode: 0, trace: "[PASS] test_exploit() (gas: 91234)", durationMs: 420 }
+  const failed: SandboxResult = { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] test_exploit()", durationMs: 90 }
   const probe: StateProbeResult = {
+    outcome: "passed",
     exitCode: 0,
     trace: "probe trace",
     stateDeltas: [{ variable: "balances[victim]", before: "100 ether", after: "0" }],

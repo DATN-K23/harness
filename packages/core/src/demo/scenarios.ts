@@ -31,6 +31,7 @@ const okSanitizer: SanitizerResult = {
 }
 
 const okSandbox: SandboxResult = {
+  outcome: "passed",
   exitCode: 0,
   trace:
     "[PASS] testExploit() (gas: 214530)\n  Vault::withdraw(1 ether)\n    attacker::receive() -> Vault::withdraw(1 ether)",
@@ -38,6 +39,7 @@ const okSandbox: SandboxResult = {
 }
 
 const probe: StateProbeResult = {
+  outcome: "passed",
   exitCode: 0,
   trace: "[PASS] testExploit() with state probes",
   stateDeltas: [
@@ -165,7 +167,7 @@ const cheatingPoc: ScenarioSpec = {
 const failingPoc: ScenarioSpec = {
   ...confirmed,
   name: "failing-poc",
-  sandbox: { exitCode: 1, trace: "[FAIL] testExploit() reverted: Vault: insufficient", durationMs: 920 },
+  sandbox: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit() reverted: Vault: insufficient", durationMs: 920 },
   script: [],
 }
 

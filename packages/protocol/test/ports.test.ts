@@ -198,10 +198,10 @@ describe("stage ports", () => {
     }
     const sandbox: SandboxPort = {
       async runSingleShot(): Promise<SandboxResult> {
-        return { exitCode: 0, trace: "trace", durationMs: 5 }
+        return { outcome: "passed", exitCode: 0, trace: "trace", durationMs: 5 }
       },
       async runStateProbe(): Promise<StateProbeResult> {
-        return { exitCode: 0, trace: "probe", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] }
+        return { outcome: "passed", exitCode: 0, trace: "probe", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] }
       },
     }
     const input = { runId: "run-1", snapshotId: "snap-1" }

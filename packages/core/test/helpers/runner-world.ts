@@ -73,6 +73,7 @@ export const okSanitizer: SanitizerResult = {
 }
 
 export const okSandbox: SandboxResult = {
+  outcome: "passed",
   exitCode: 0,
   trace: "[PASS] testExploit()\n  withdraw -> call{value}",
   durationMs: 12,
@@ -182,7 +183,7 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
     const ingestion = new ScriptedIngestion([workerOptions.ingestion ?? okIngestion])
     const sanitizer = new ScriptedSanitizer([workerOptions.sanitizerResult ?? workerOptions.sanitizer ?? okSanitizer])
     const sandbox = new ScriptedSandbox({
-      singleShot: [workerOptions.sandbox ?? okSandbox],
+      singleShot: [workerOptions.sandbox === undefined ? okSandbox : { ...workerOptions.sandbox, outcome: workerOptions.sandbox.outcome ?? (workerOptions.sandbox.exitCode === 0 ? "passed" : "assertion_failed") }],
       ...(workerOptions.stateProbe === undefined ? {} : { stateProbe: [workerOptions.stateProbe] }),
     })
     const runner = new JudgeRunner({

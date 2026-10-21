@@ -25,8 +25,6 @@ export type SanitizedPoc = Extract<SanitizerResult, { kind: "ok" }>
 
 export const RunStateProbeToolName = "run_state_probe"
 
-const MaxFailedTraceChars = 2_000
-
 export const selectTier = (sanitized: Pick<SanitizedPoc, "hasSubmitterAssertions">): AdjudicationTier =>
   sanitized.hasSubmitterAssertions ? 1 : 2
 
@@ -112,11 +110,9 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
       )
       const probe = await options.sandbox.runStateProbe({ ...options.stage, probedTestFile }, signal)
       evidence.clear()
-      if (probe.exitCode !== 0) {
-        const trace =
-          probe.trace.length > MaxFailedTraceChars ? `...${probe.trace.slice(-MaxFailedTraceChars)}` : probe.trace
+      if (probe.outcome !== "passed") {
         return failure(
-          `State probe run ${run} of ${maxProbeRuns} failed: the probed PoC exited with code ${probe.exitCode}, so no state delta was measured.\nTrace tail:\n${trace}`,
+          `State probe run ${run} of ${maxProbeRuns} did not pass (${probe.outcome}); no state delta was measured.`,
           args,
           "probe fewer or different state variables, or decide from the evidence already gathered.",
         )

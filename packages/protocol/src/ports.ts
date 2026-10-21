@@ -107,6 +107,7 @@ export interface SanitizerPort {
 }
 
 export interface SandboxResult {
+  outcome: "passed" | "assertion_failed" | "infrastructure_failed" | "setup_failed" | "timed_out"
   exitCode: number
   trace: string
   durationMs: number
@@ -119,6 +120,7 @@ export interface StateDelta {
 }
 
 export interface StateProbeResult {
+  outcome: "passed" | "assertion_failed" | "infrastructure_failed" | "setup_failed" | "timed_out"
   exitCode: number
   trace: string
   stateDeltas: StateDelta[]

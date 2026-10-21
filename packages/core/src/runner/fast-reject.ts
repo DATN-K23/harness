@@ -4,7 +4,6 @@ import { JudgeVerdictSchema, type AntiCheatFinding, type JudgeVerdict } from "@h
 export type FastReject =
   | { reasonCode: "MISSING_POC" }
   | { reasonCode: "NON_FAITHFUL_OVERRIDE"; findings: readonly AntiCheatFinding[] }
-  | { reasonCode: "EXECUTION_FAILED"; exitCode: number; traceDigest: string }
 
 export type FastRejectReason = FastReject["reasonCode"]
 
@@ -30,10 +29,6 @@ const wording = (reject: FastReject) => {
       summary: "Rejected by the sanitizer: the PoC does not faithfully exercise the target.",
       reasoning: `The pre-execution anti-cheat filter flagged the submitted PoC (${flaggedRules(reject.findings)}). A PoC that overrides target logic, mocks internal state or reaches outside the sandbox does not demonstrate the reported vulnerability, so the finding is invalid. ${NotRepaired}`,
     }
-  return {
-    summary: "Rejected by the sandbox: the PoC did not run successfully.",
-    reasoning: `The submitted PoC exited with code ${reject.exitCode} in the isolated sandbox, so it does not compile or the exploit reverts. Only a PoC that runs successfully can demonstrate the vulnerability, so the finding is invalid. ${NotRepaired}`,
-  }
 }
 
 /** A schema-valid fast-reject verdict; parsing it here means a wording change can never commit an invalid verdict. */
@@ -47,5 +42,4 @@ export const fastRejectVerdict = (identity: { runId: string; findingId: string }
     confidence: "HIGH",
     ...wording(reject),
     citesEvidence: [],
-    ...(reject.reasonCode === "EXECUTION_FAILED" ? { traceDigest: reject.traceDigest } : {}),
   })

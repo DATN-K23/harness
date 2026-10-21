@@ -80,14 +80,22 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
 
-  test("sandbox failure: EXECUTION_FAILED with zero gateway calls", async () => {
+  test("sandbox failure is unverified: an exit code alone is not evidence of invalidity", async () => {
     const world = createWorld()
-    const w = world.worker({ sandbox: { exitCode: 1, trace: "[FAIL] testExploit() reverted", durationMs: 4 } })
-    await expectFastReject(world, w, await w.start(), "EXECUTION_FAILED")
+    const w = world.worker({ sandbox: { outcome: "infrastructure_failed", exitCode: 1, trace: "[FAIL] testExploit() reverted", durationMs: 4 } })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
+    expect(w.gateway.callCount).toBe(0)
     const [sandboxFinished] = (await world.events("stage.finished")).filter(
       (event) => event.payload.stage === "sandbox",
     )
     expect(sandboxFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "EXECUTION_FAILED" })
+  })
+
+  test("an assertion failure without validated claim evidence remains unverified", async () => {
+    const world = createWorld()
+    const w = world.worker({ sandbox: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit()", durationMs: 4 } })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" } })
   })
 })
 
@@ -98,7 +106,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const w = world.worker({
       ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
-      stateProbe: { exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
+      stateProbe: { outcome: "passed", exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
       script: [
         textResponse("acknowledged"),
         textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
@@ -123,7 +131,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const w = world.worker({
       ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
-      stateProbe: { exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3 ether" }] },
+      stateProbe: { outcome: "passed", exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3 ether" }] },
       script: [
         textResponse("acknowledged"),
         textResponse('{"reachability":"incomplete","explanation":"The disputed payout magnitude requires measurement."}'),

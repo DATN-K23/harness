@@ -40,7 +40,7 @@ const runStage = async <Result>(
   context: StageContext,
   stage: StageName,
   call: () => Promise<Result>,
-  rejected: (result: Result) => FastRejectReason | undefined,
+  rejected: (result: Result) => string | undefined,
 ) => {
   const { clock } = context.deps
   const startedAt = clock.nowMs()
@@ -102,10 +102,15 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
         context,
         "sandbox",
         () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
-        (result) => (result.exitCode === 0 ? undefined : "EXECUTION_FAILED"),
+        (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
       )
-      if (executed.exitCode !== 0)
-        return reject({ reasonCode: "EXECUTION_FAILED", exitCode: executed.exitCode, traceDigest: textDigest(executed.trace) })
+      if (executed.outcome !== "passed")
+        return { kind: "ended", terminal: { state: "completed", verdict: {
+          runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
+          reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
+          reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
+          citesEvidence: [], traceDigest: textDigest(executed.trace),
+        } } }
       return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
     }
     return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
@@ -129,14 +134,15 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     context,
     "sandbox",
     () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
-    (result) => (result.exitCode === 0 ? undefined : "EXECUTION_FAILED"),
+    (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
   )
-  if (executed.exitCode !== 0)
-    return reject({
-      reasonCode: "EXECUTION_FAILED",
-      exitCode: executed.exitCode,
-      traceDigest: textDigest(executed.trace),
-    })
+  if (executed.outcome !== "passed")
+    return { kind: "ended", terminal: { state: "completed", verdict: {
+      runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
+      reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
+      reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
+      citesEvidence: [], traceDigest: textDigest(executed.trace),
+    } } }
   return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
 }
 

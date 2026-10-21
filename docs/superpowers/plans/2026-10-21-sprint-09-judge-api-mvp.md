@@ -8,6 +8,8 @@
 
 **Tech stack:** Existing TypeScript/Bun/Turborepo workspace, Zod, Drizzle/PostgreSQL, existing core/protocol ports; no HTTP dependency until native Bun server proves insufficient.
 
+**Keychain implementation choice (approved):** Use a minimal Swift helper with macOS Security.framework generic-password entries. The Bun bridge sends secret bytes only through stdin/stdout, never process arguments/environment/files; keep the credential in memory, and fail closed on non-macOS or any Keychain error. No UI/full desktop shell is added.
+
 **OpenCode reuse is a prerequisite:** Before implementing each component, search `.opencode_reference` for the closest implementation and tests. Port/adapt compatible logic first, preserving its error handling and adding the required header `// Adapted from OpenCode packages/<path> @ 3f393d78bf (MIT License). See NOTICE.` plus a `NOTICE` entry. Reimplement only when no equivalent exists or the upstream design conflicts with Harness contracts/runtime; record the exact source paths inspected and why reuse was rejected.
 
 **Scope references:** `docs/core-team-timeline.md` Sprint 9–10, `blueprint/architecture/sequences.md` Judge submission flow, `blueprint/architecture/module-layout.md` package responsibilities, existing implementation in `packages/{protocol,core,schema,server,cli}`. OpenSpec commands/artifacts are not part of this workflow.
@@ -61,6 +63,8 @@
 - `packages/core/src/runner/*`, `packages/core/src/testing/*`: admission/cancellation/work use cases and deterministic fakes at capability boundary.
 - `packages/schema/src/db/schema.ts`, migrations, `packages/schema/src/store/*`: durable run admission, idempotency, outbox/work, cursor query and atomic terminal writes.
 - `packages/server/src/*`: local API handler, auth/discovery/compatibility and runtime composition.
+- `packages/server/native/keychain-credential.swift`: native Security.framework helper; action/service/account via argv, secret only via stdin/stdout.
+- `packages/server/src/keychain-credential.ts`: Bun bridge for create/read/rotate, using injected command runner in tests.
 - `packages/cli/src/*`: serve/start composition only; ordinary commands consume runtime API if required by established architecture.
 - Tests stay alongside owners in `packages/{protocol,core,schema,server,cli}/test`.
 
@@ -97,7 +101,7 @@
 
 - [x] **4.1 RED/GREEN (helper only):** Added tests for loopback host allowlist and credential decision helper, observed RED before module existed, then GREEN after adapting constant-time auth comparison from upstream `ServerAuth.authorized`. This does not yet prove actual listener binding or middleware enforcement; route/startup integration remains open.
 - [x] **4.2 Decision gate:** Team confirmed macOS Keychain through the native host as credential custody. API/server must receive the resolved credential only through an injected native-host boundary; do not add renderer access, plaintext files, anonymous fallback or token-in-URL.
-- [ ] **4.3 RED/GREEN:** Add a native-host Keychain credential port/adapter; test rotation preserves run IDs, secret never enters URLs/logs/events/exports, and unavailable Keychain fails closed. The current repository contains no desktop/native-host package, so do not claim this is satisfied by the server helper.
+- [x] **4.3 RED/GREEN:** Added Swift Security.framework generic-password helper and Bun bridge. Tests verify create-once/read-existing/rotate, exact credential travels through stdin (never argv), unsupported OS and Keychain errors fail closed, and a real uniquely named Keychain item can be read/rotated/removed. `swiftc -typecheck` and macOS integration test pass. Server exports provider for trusted startup composition.
 - [ ] **4.4 RED/GREEN:** Test health/discovery reports endpoint identity, API/runtime versions, contract digest, build and capabilities; incompatible major/digest blocks mutations and returns actionable safe error. Implement handshake and run server tests.
 
 ### Task 5: Submission API and work dispatch

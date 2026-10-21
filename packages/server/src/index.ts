@@ -2,3 +2,5 @@
 export const SERVER_VERSION = 1
 
 export { isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
+export { createKeychainCredentialProvider } from "./keychain-credential"
+export type { KeychainCredentialProvider } from "./keychain-credential"

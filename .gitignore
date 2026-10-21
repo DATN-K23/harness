@@ -12,6 +12,9 @@ docs/superpowers/*
 !docs/superpowers/plans/
 docs/superpowers/plans/*
 !docs/superpowers/plans/2026-10-21-sprint-09-judge-api-mvp.md
+!packages/server/native/
+packages/server/native/*
+!packages/server/native/keychain-credential.swift
 .superpowers/
 opencode_docs/
 data/

@@ -37,3 +37,11 @@ Pending.
 - BCE remains explicitly unavailable/incomplete because the compiler selection is still unpinned. No Docker or compiler was used.
 - Verification: `bun test packages/core/test/ingestion packages/core/test/runner packages/core/test/judge packages/protocol/test` — **608 pass, 0 fail**; `bun turbo typecheck` — **6 packages successful**; `git diff --check` — passed.
 - Fix commit: `aab7a53` (`fix(core): handle fenced PoC reports safely`).
+
+## Fix round 2 — string-aware comment stripping
+
+- Replaced regex comment removal with a small conservative scanner that preserves single/double-quoted Solidity strings, handles escapes, and strips actual line/block comments. Unterminated quoted strings or block comments cause target mapping to stay incomplete.
+- Added regression with a same-line URL string (`https://...`) before the target function. It failed before the fix because the `//` truncated the declaration; it passes afterward.
+- Verification: `bun test packages/core/test/ingestion/snapshot-ingestion.test.ts` — **12 pass, 0 fail**; `bun run --cwd packages/core typecheck` — passed; `git diff --check` — passed.
+- Task 3 still does **not** satisfy its requested BCE caller/callee/state/modifier evidence: exact `solc` selection remains unresolved, so analysis is explicitly unavailable/incomplete. No compiler or Docker was run; no BCE claim is made.
+- Fix commit: `0a93574` (`fix(core): preserve Solidity strings when stripping comments`).

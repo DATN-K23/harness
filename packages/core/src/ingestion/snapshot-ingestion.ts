@@ -30,10 +30,43 @@ const parseClaim = (report: string, pocCode?: string): { claim: DeconstructedCla
   }
 }
 
-const sourceWithoutComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, "")
+const sourceWithoutComments = (source: string): string | undefined => {
+  let result = ""
+  let quote = ""
+  let lineComment = false
+  let blockComment = false
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]!
+    const next = source[i + 1]
+    if (lineComment) {
+      if (char === "\n") { lineComment = false; result += char }
+      else result += " "
+    } else if (blockComment) {
+      if (char === "*" && next === "/") { result += "  "; i++; blockComment = false }
+      else result += char === "\n" ? "\n" : " "
+    } else if (quote) {
+      result += char
+      if (char === "\\" && next !== undefined) { result += next; i++ }
+      else if (char === quote) quote = ""
+    } else if (char === "'" || char === '"') {
+      quote = char
+      result += char
+    } else if (char === "/" && next === "/") {
+      lineComment = true
+      result += "  "
+      i++
+    } else if (char === "/" && next === "*") {
+      blockComment = true
+      result += "  "
+      i++
+    } else result += char
+  }
+  return quote || blockComment || lineComment ? undefined : result
+}
 
 const hasTargetInContract = (source: string, contract: string, functionName: string) => {
   const code = sourceWithoutComments(source)
+  if (code === undefined) return false
   const declaration = new RegExp(`\\b(?:abstract\\s+)?contract\\s+${contract}\\b[^\\{]*\\{`, "g")
   for (const match of code.matchAll(declaration)) {
     const start = match.index! + match[0].length

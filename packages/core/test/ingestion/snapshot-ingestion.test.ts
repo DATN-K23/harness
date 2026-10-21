@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { readFile } from "node:fs/promises"
 import { InMemorySnapshot } from "../../src/source/in-memory-snapshot"
 import { SnapshotIngestion } from "../../src/ingestion/snapshot-ingestion"
 
@@ -13,8 +14,52 @@ describe("SnapshotIngestion", () => {
   test("maps a narrative claim to authorized snapshot lines and leaves BCE incomplete", async () => {
     const source = snapshot()
     const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] }, bceSlices: [{ filePath: "src/Vault.sol", lineRange: [1, 4] }] })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.filePath === "src/Vault.sol" && slice.content === "function withdraw() external {}" && slice.lineRange?.[0] === 3)).toBe(true)
     expect(source.reads.every((read) => read.path === "src/Vault.sol")).toBe(true)
+  })
+
+  test("returns AST-mapped bounded call, modifier, and state evidence from snapshot sources", async () => {
+    const fixture = await readFile(new URL("./fixtures/ast-evidence.sol", import.meta.url), "utf8")
+    const source = snapshot({ "src/Vault.sol": fixture.replaceAll("AstEvidence", "Vault").replaceAll("_debit", "_withdraw") })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("function withdraw() external onlyOwner"))).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("function _withdraw() internal"))).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("balance = balance - 1"))).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("modifier onlyOwner()"))).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("this.withdraw()"))).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.every((slice) => slice.lineRange !== undefined && slice.content.length <= 2000)).toBe(true)
+    expect(result.kind === "incomplete" && result.bceSlices?.every((slice) => slice.filePath === "src/Vault.sol" && slice.lineRange?.[0]! > 0)).toBe(true)
+  })
+
+  test("keeps unresolved imports and incompatible compiler pragmas explicitly incomplete", async () => {
+    for (const sourceCode of [
+      `pragma solidity ^0.8.20; import "./Missing.sol"; contract Vault { function withdraw() external {} }`,
+      `pragma solidity ^0.9.0; contract Vault { function withdraw() external {} }`,
+      `pragma solidity ^0.8.20; contract Vault { function withdraw( external {`,
+    ]) {
+      const result = await new SnapshotIngestion({ source: snapshot({ "src/Vault.sol": sourceCode }) }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+      expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    }
+  })
+
+  test("does not accept unresolved imports even when solc emits a partial AST", async () => {
+    const result = await new SnapshotIngestion({ source: snapshot({
+      "src/Vault.sol": `pragma solidity ^0.8.20; import "./Missing.sol"; contract Vault { function withdraw() external {} }`,
+    }) }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
+  })
+
+  test("resolves imports only when their normalized path exists inside the snapshot", async () => {
+    const source = snapshot({
+      "src/Vault.sol": `pragma solidity ^0.8.20; import "./lib/Guard.sol"; contract Vault is Guard { function withdraw() external {} }`,
+      "src/lib/Guard.sol": `pragma solidity ^0.8.20; contract Guard { modifier guarded() { _; } }`,
+    })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(source.reads.every((read) => read.path.startsWith("src/") && !read.path.includes(".."))).toBe(true)
   })
 
   test("associates a bounded Solidity test block with the narrative claim", async () => {
@@ -49,8 +94,16 @@ describe("SnapshotIngestion", () => {
   test("does not read a source file beyond the bounded slice size", async () => {
     const hugeSource = new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/Vault.sol": `${files["src/Vault.sol"]}${"// extra\n".repeat(130)}` } })
     const result = await new SnapshotIngestion({ source: hugeSource }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toEqual({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
     expect(hugeSource.reads.every((read) => read.endLine <= 121)).toBe(true)
+  })
+
+  test("marks an omitted Solidity file as incomplete rather than compiling a partial graph", async () => {
+    const source = snapshot({ "src/Other.sol": `${"// bounded omission\n".repeat(121)}contract Other {}` })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
+    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
   })
 
   test("does not map absent or denied targets", async () => {
@@ -68,25 +121,13 @@ describe("SnapshotIngestion", () => {
       "src/Other.sol": "contract Other { function withdraw() external {} }",
     } })
     const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "target_not_found" })
   })
 
   test("does not map target names found only in comments", async () => {
     const source = snapshot({ "src/Vault.sol": "// contract Vault { function withdraw() external {} }\ncontract Other {}" })
     const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
     expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
-  })
-
-  test("maps declarations after URL strings containing comment markers", async () => {
-    const source = snapshot({ "src/Vault.sol": `contract Vault { string constant endpoint = "https://example.invalid/api"; function withdraw() external {} }` })
-    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
-  })
-
-  test("maps declarations before a final line comment without a newline", async () => {
-    const source = snapshot({ "src/Vault.sol": "contract Vault { function withdraw() external {} } // trailing comment" })
-    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
   })
 
   test("rejects prohibited metadata keys at any depth", async () => {

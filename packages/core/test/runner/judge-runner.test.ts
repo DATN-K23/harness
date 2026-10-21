@@ -210,6 +210,20 @@ describe("JudgeRunner: reasoning loop", () => {
     await expectContiguous(world)
   })
 
+  test("continues judging a valid candidate claim when BCE returns explicit incomplete context", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "incomplete", reason: "bce_unavailable", claim, bceSlices: [] }, script: [
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"BCE is incomplete.","citesEvidence":[]}'),
+    ] })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    expect(w.gateway.callCount).toBe(4)
+  })
+
   test("Task 3 agreed-invalid narrative claim without BCE source is terminally UNVERIFIED", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }

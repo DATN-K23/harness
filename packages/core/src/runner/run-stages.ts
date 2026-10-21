@@ -87,16 +87,20 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 
   const beforeIngestion = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "ingestion", signal })
   if (beforeIngestion.kind === "cancel") return cancelled(beforeIngestion.boundary)
-  const ingested = await runStage(
+  let ingested = await runStage(
     context,
     "ingestion",
     () => deps.ingestion.ingest({ ...stage, finding: input.finding }, signal),
     () => undefined,
   )
+  if (ingested.kind === "incomplete" && ingested.claim) {
+    const incomplete = ingested
+    ingested = { kind: "narrative_only", claim: incomplete.claim!, ...(incomplete.pocCode ? { pocCode: incomplete.pocCode } : {}), bceSlices: incomplete.bceSlices ?? [], bceStatus: "incomplete" }
+  }
   if (ingested.kind === "narrative_only" && !isValidDeconstructedClaim(ingested.claim))
     return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report claim is incomplete and cannot be verified.", reasoning: "The deconstructed claim lacks required target or semantic fields.", citesEvidence: [] } } }
   if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
-  if (ingested.kind === "incomplete") return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete: ${ingested.reason}.`, citesEvidence: [] } } }
+  if (ingested.kind === "incomplete" && !ingested.claim) return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete: ${ingested.reason}.`, citesEvidence: [] } } }
   if (ingested.kind === "narrative_only") {
     if (ingested.pocCode !== undefined) {
       const sanitized = await runStage(
@@ -119,12 +123,12 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
           reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
           citesEvidence: [], traceDigest: textDigest(executed.trace),
         } } }
-      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
+      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], sanitized, trace: executed.trace }
     }
-    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
+    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
   }
   if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
-  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices, trace: "" }
+  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
   const pocCode = ingested.pocCode
 
   const sanitized = await runStage(
@@ -148,7 +152,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
       reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
       citesEvidence: [], traceDigest: textDigest(executed.trace),
     } } }
-  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices, sanitized, trace: executed.trace }
+  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], sanitized, trace: executed.trace }
 }
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns

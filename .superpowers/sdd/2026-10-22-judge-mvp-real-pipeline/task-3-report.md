@@ -27,7 +27,7 @@ The adapter returns `incomplete` with reason `bce_unavailable` after successful 
 
 ## Commit
 
-Pending.
+Fix round 4 commit: pending.
 
 ## Fix round 1 — review findings
 
@@ -53,3 +53,12 @@ Pending.
 - Verification: `bun test packages/core/test/ingestion/snapshot-ingestion.test.ts` — **13 pass, 0 fail**; `bun run --cwd packages/core typecheck` — passed; `git diff --check` — passed.
 - Task 3 still does **not** satisfy BCE caller/callee/state/modifier requirements because exact `solc` selection remains unresolved. No compiler or Docker was run; no BCE is claimed.
 - Fix commit: `9cc87e2` (`fix(core): accept EOF after Solidity line comments`).
+
+## Fix round 4 — pinned solc AST BCE
+
+- Replaced the old regex-only source retrieval with Standard JSON AST analysis using exact `solc` npm package `0.8.30` (`0.8.30+commit.73712a01` runtime check); `bun.lock` pins package integrity and its installed package `LICENSE` and registry metadata report MIT. The compiler is bundled in `solc-js`; no runtime compiler download or callback exists. Decision record now distinguishes this local AST pin from unverified Foundry runtime compiler/image selection.
+- Reads project sources only through `SourceSnapshotPort`; caps at 128 Solidity files, 120 lines/file, 512 KiB aggregate source, and 16 AST slices. Skips prohibited paths. AST UTF-8 byte offsets are mapped back to bounded original source slices and 1-based lines. Relative imports are checked for normalized in-snapshot paths; compiler errors, unsupported pragma/compiler, unresolved imports, omitted sources and ambiguous targets are explicit `incomplete` outcomes.
+- Extracts target contract/function, direct callees, callers represented in project AST, applied modifier definitions, referenced state declarations, and reachable direct call declarations where AST references resolve. Evidence slices remain context only: result always carries `bce_unavailable`/incomplete and no absent edge supports a negative verdict. The runner now continues valid candidate claims with incomplete BCE as advisory context instead of prematurely terminating them.
+- Added a sanitized fixture for target/caller/callee/modifier/state evidence and tests for AST source mapping, import boundary/resolution, malformed/unsupported compiler input, graph-incomplete outcomes, resource bounds, prohibited metadata, and runner continuation. Existing narrative/PoC report parsing retained.
+- Verification: focused ingestion + runner tests — **425 pass, 0 fail**; `bun turbo typecheck` — **6/6 packages successful**; `git diff --check` — passed. No Docker, Foundry, hostile PoC, or runtime compilation was run.
+- Limitations: static analysis is intentionally not a complete call/data-flow graph, does not claim soundness/completeness, and is bounded to exact solc 0.8.30 with the current safe relative-import profile. ABI getter / dynamically dispatched / assembly / indirect edges may be missing; always incomplete. Source AST context cannot establish a blocked path.

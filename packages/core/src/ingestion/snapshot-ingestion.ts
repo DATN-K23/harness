@@ -1,7 +1,12 @@
 import type { BceSlice, DeconstructedClaim, IngestionPort, IngestionResult, SourceSnapshotPort } from "@harness/protocol"
+import solc from "solc"
 
 const MaxReportBytes = 64_000
 const MaxSourceLines = 120
+const MaxProjectBytes = 512_000
+const MaxBceSlices = 16
+const MaxSourceFiles = 128
+const SolcVersion = "0.8.30+commit.73712a01"
 const prohibitedKey = /(?:ground.?truth|adjudication|scor(?:e|ing)|label)/i
 const fields = ["Target", "Root cause", "Attack scenario", "Impact", "State"] as const
 
@@ -30,57 +35,6 @@ const parseClaim = (report: string, pocCode?: string): { claim: DeconstructedCla
   }
 }
 
-const sourceWithoutComments = (source: string): string | undefined => {
-  let result = ""
-  let quote = ""
-  let lineComment = false
-  let blockComment = false
-  for (let i = 0; i < source.length; i++) {
-    const char = source[i]!
-    const next = source[i + 1]
-    if (lineComment) {
-      if (char === "\n") { lineComment = false; result += char }
-      else result += " "
-    } else if (blockComment) {
-      if (char === "*" && next === "/") { result += "  "; i++; blockComment = false }
-      else result += char === "\n" ? "\n" : " "
-    } else if (quote) {
-      result += char
-      if (char === "\\" && next !== undefined) { result += next; i++ }
-      else if (char === quote) quote = ""
-    } else if (char === "'" || char === '"') {
-      quote = char
-      result += char
-    } else if (char === "/" && next === "/") {
-      lineComment = true
-      result += "  "
-      i++
-    } else if (char === "/" && next === "*") {
-      blockComment = true
-      result += "  "
-      i++
-    } else result += char
-  }
-  return quote || blockComment ? undefined : result
-}
-
-const hasTargetInContract = (source: string, contract: string, functionName: string) => {
-  const code = sourceWithoutComments(source)
-  if (code === undefined) return false
-  const declaration = new RegExp(`\\b(?:abstract\\s+)?contract\\s+${contract}\\b[^\\{]*\\{`, "g")
-  for (const match of code.matchAll(declaration)) {
-    const start = match.index! + match[0].length
-    let depth = 1
-    let end = start
-    for (; end < code.length && depth > 0; end++) {
-      if (code[end] === "{") depth++
-      else if (code[end] === "}") depth--
-    }
-    if (depth === 0 && new RegExp(`\\bfunction\\s+${functionName}\\b`).test(code.slice(start, end - 1))) return true
-  }
-  return false
-}
-
 export class SnapshotIngestion implements IngestionPort {
   constructor(private readonly options: { source: SourceSnapshotPort; maxReportBytes?: number }) {}
 
@@ -102,18 +56,132 @@ export class SnapshotIngestion implements IngestionPort {
       .filter((path) => !/(?:ground.?truth|adjudication|scor(?:e|ing))/i.test(path))
       .filter((path) => path.endsWith(".sol"))
       .sort()
+    if (paths.length > MaxSourceFiles) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
     let exceededSourceBound = false
+    let omittedSolidityFile = false
+    const sourceFiles: Record<string, { content: string }> = {}
+    let projectBytes = 0
     for (const path of paths) {
       let read = await this.options.source.readLines({ snapshotId: input.snapshotId, path, startLine: 1, endLine: MaxSourceLines + 1 }, signal)
       if (read.kind === "out_of_range") {
-        if (read.lineCount > MaxSourceLines) { exceededSourceBound = true; continue }
+        if (read.lineCount > MaxSourceLines) { exceededSourceBound = true; omittedSolidityFile = true; continue }
         read = await this.options.source.readLines({ snapshotId: input.snapshotId, path, startLine: 1, endLine: read.lineCount }, signal)
-      } else if (read.kind === "ok") { exceededSourceBound = true; continue }
+      } else if (read.kind === "ok") { exceededSourceBound = true; omittedSolidityFile = true; continue }
       if (read.kind !== "ok") continue
-      if (!hasTargetInContract(read.lines.join("\n"), parsed.claim.targetContracts[0]!, parsed.claim.targetFunctions[0]!)) continue
-      const bceSlices: BceSlice[] = [{ filePath: path, content: read.lines.join("\n"), lineRange: [1, read.lines.length] }]
-      return { kind: "incomplete", reason: "bce_unavailable", ...parsed, bceSlices }
+      const content = read.lines.join("\n")
+      projectBytes += new TextEncoder().encode(content).byteLength
+      if (projectBytes > MaxProjectBytes) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      sourceFiles[path] = { content }
     }
-    return { kind: "incomplete", reason: exceededSourceBound ? "bce_unavailable" : "target_not_found" }
+    if (omittedSolidityFile) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+    if (Object.keys(sourceFiles).length === 0) return { kind: "incomplete", reason: exceededSourceBound ? "bce_unavailable" : "target_not_found" }
+    try {
+      if (!solc.version().startsWith(SolcVersion)) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      const input = { language: "Solidity", sources: sourceFiles, settings: { outputSelection: { "*": { "*": [], "": ["ast"] } } } }
+      const output = JSON.parse(solc.compile(JSON.stringify(input))) as { errors?: { severity: string }[]; sources?: Record<string, { id: number; ast: AstNode }> }
+      if (output.errors?.some((error) => error.severity === "error")) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      for (const [sourcePath, content] of Object.entries(sourceFiles)) {
+        if (/\bimport\s+(?![^"']*["'])/.test(content.content)) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+        const imports = [...content.content.matchAll(/\bimport\s+(?:[^"']*?from\s*)?["']([^"']+)["']/g)].map((match) => match[1]!)
+        if (imports.length && imports.some((specifier) => !resolveSnapshotImport(sourcePath, specifier, paths).some((resolved) => resolved in sourceFiles)))
+          return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      }
+      const target = parsed.claim.targetContracts[0]!
+      const targetFunction = parsed.claim.targetFunctions[0]!
+      const contractNodes = Object.entries(output.sources ?? {}).flatMap(([filePath, source]) => findNodes(source.ast, "ContractDefinition")
+        .filter((node) => node.name === target).map((node) => ({ filePath, sourceId: source.id, node })))
+      if (contractNodes.length === 0) return { kind: "incomplete", reason: "target_not_found" }
+      if (contractNodes.length !== 1) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      const [{ filePath, node: contract }] = contractNodes
+      const contractChildren = (contract.nodes ?? []) as AstNode[]
+      const functions = contractChildren.filter((node: AstNode) => node.nodeType === "FunctionDefinition")
+      const targetNodes = functions.filter((node) => node.name === targetFunction)
+      if (targetNodes.length === 0) return { kind: "incomplete", reason: "target_not_found" }
+      if (targetNodes.length !== 1 || !sourceFiles[filePath]) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      const selected = new Set<number>([targetNodes[0]!.id])
+      const declarations = new Map<number, AstNode>()
+      for (const source of Object.values(output.sources ?? {})) for (const declaration of findNodes(source.ast, "FunctionDefinition")) declarations.set(declaration.id, declaration)
+      for (const fn of functions) if (fn.id !== targetNodes[0]!.id && callsId(fn, targetNodes[0]!.id)) selected.add(fn.id)
+      const scanCalls = (fn: AstNode) => {
+        for (const call of findNodes(fn, "FunctionCall")) {
+          const id = findNodes(call.expression, "MemberAccess")[0]?.referencedDeclaration ?? call.expression?.referencedDeclaration
+          if (typeof id === "number" && declarations.has(id)) selected.add(id)
+        }
+      }
+      let pending = [...selected]
+      const visited = new Set<number>()
+      while (pending.length) {
+        const id = pending.pop()!
+        if (visited.has(id)) continue
+        visited.add(id)
+        const fn = declarations.get(id)
+        if (!fn) continue
+        const before = selected.size
+        scanCalls(fn)
+        if (selected.size > before) pending.push(...[...selected].filter((candidate) => !visited.has(candidate)))
+      }
+      for (const fn of functions) if (fn.id !== targetNodes[0]!.id && callsId(fn, targetNodes[0]!.id)) selected.add(fn.id)
+      for (const modifier of targetNodes[0]!.modifiers ?? []) if (typeof modifier.modifierName?.referencedDeclaration === "number") selected.add(modifier.modifierName.referencedDeclaration)
+      const stateIds = new Set<number>(contractChildren.filter((entry: AstNode) => entry.nodeType === "VariableDeclaration" && entry.stateVariable).map((entry: AstNode) => entry.id))
+      const stateAccess = new Map<number, string>()
+      const evidenceIds = new Set(selected)
+      for (const id of selected) {
+        const fn = declarations.get(id)
+        if (!fn) continue
+        for (const assignment of findNodes(fn, "Assignment")) {
+          const stateId = findNodes(assignment.leftHandSide, "Identifier").find((reference) => reference.referencedDeclaration !== undefined && stateIds.has(reference.referencedDeclaration))?.referencedDeclaration
+          if (stateId !== undefined) { evidenceIds.add(stateId); stateAccess.set(stateId, "write") }
+        }
+        for (const reference of findNodes(fn, "Identifier")) if (reference.referencedDeclaration !== undefined && stateIds.has(reference.referencedDeclaration)) {
+          evidenceIds.add(reference.referencedDeclaration)
+          if (!stateAccess.has(reference.referencedDeclaration)) stateAccess.set(reference.referencedDeclaration, "read")
+        }
+      }
+      const modifiers = new Map<number, AstNode>()
+      for (const source of Object.values(output.sources ?? {})) for (const modifier of findNodes(source.ast, "ModifierDefinition")) modifiers.set(modifier.id, modifier)
+      for (const id of selected) {
+        const modifier = modifiers.get(id)
+        if (modifier) for (const reference of findNodes(modifier, "Identifier")) if (reference.referencedDeclaration !== undefined && stateIds.has(reference.referencedDeclaration)) evidenceIds.add(reference.referencedDeclaration)
+      }
+      for (const id of evidenceIds) { const declaration = contractChildren.find((entry: AstNode) => entry.id === id); if (declaration) selected.add(id) }
+      selected.add(contract.id)
+      const bceSlices = astSlices(sourceFiles, output.sources ?? {}, selected, MaxBceSlices)
+      if (bceSlices.length === 0) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
+      return { kind: "incomplete", reason: "bce_unavailable", ...parsed, bceSlices }
+    } catch { return { kind: "incomplete", reason: "bce_unavailable", ...parsed } }
   }
+}
+
+type AstNode = { id: number; nodeType: string; name?: string; src?: string; referencedDeclaration?: number; stateVariable?: boolean; [key: string]: any }
+const findNodes = (node: AstNode, kind: string): AstNode[] => [ ...(node.nodeType === kind ? [node] : []), ...Object.values(node).flatMap((value) => Array.isArray(value) ? value.flatMap((child) => child && typeof child === "object" && "nodeType" in child ? findNodes(child as AstNode, kind) : []) : value && typeof value === "object" && "nodeType" in value ? findNodes(value as AstNode, kind) : []) ]
+const callsId = (fn: AstNode, id: number) => findNodes(fn, "Identifier").concat(findNodes(fn, "MemberAccess")).some((node) => node.referencedDeclaration === id)
+const resolveSnapshotImport = (from: string, specifier: string, paths: string[]) => {
+  if (!specifier.startsWith("./") && !specifier.startsWith("../")) return []
+  const segments = from.split("/").slice(0, -1)
+  for (const segment of specifier.split("/")) {
+    if (segment === "" || segment === ".") continue
+    if (segment === "..") { if (segments.length === 0) return []; segments.pop() }
+    else segments.push(segment)
+  }
+  const resolved = segments.join("/")
+  return paths.includes(resolved) ? [resolved] : []
+}
+const astSlices = (files: Record<string, { content: string }>, sources: Record<string, { id: number; ast: AstNode }>, ids: Set<number>, max: number): BceSlice[] => {
+  const byId = new Map(Object.entries(sources).flatMap(([path, source]) => findNodes(source.ast, "ContractDefinition").concat(findNodes(source.ast, "FunctionDefinition"), findNodes(source.ast, "ModifierDefinition"), findNodes(source.ast, "VariableDeclaration")).filter((node) => ids.has(node.id)).map((node) => [node.id, { path, src: node.src } as const])))
+  const slices: BceSlice[] = []
+  for (const id of ids) {
+    const entry = byId.get(id)
+    if (!entry?.src || slices.length >= max) continue
+    const [start, length, sourceId] = entry.src.split(":").map(Number)
+    const filePath = Object.entries(sources).find(([, source]) => source.id === sourceId)?.[0]
+    const content = filePath && files[filePath]?.content
+    if (content === undefined || !Number.isInteger(start) || !Number.isInteger(length)) continue
+    const bytes = new TextEncoder().encode(content)
+    if (start < 0 || length < 0 || start + length > bytes.length) continue
+    const before = new TextDecoder().decode(bytes.slice(0, start)).split("\n").length
+    const text = new TextDecoder().decode(bytes.slice(start, start + length))
+    const lineCount = text.split("\n").length
+    slices.push({ filePath: filePath!, content: text, lineRange: [before, before + lineCount - 1] })
+  }
+  return slices
 }

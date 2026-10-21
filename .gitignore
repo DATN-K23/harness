@@ -7,6 +7,11 @@
 .opencode/
 .opencode_reference/
 superpowers/
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/plans/
+docs/superpowers/plans/*
+!docs/superpowers/plans/2026-10-21-sprint-09-judge-api-mvp.md
 .superpowers/
 opencode_docs/
 data/

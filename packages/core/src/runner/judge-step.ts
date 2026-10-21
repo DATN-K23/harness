@@ -163,7 +163,8 @@ export class JudgeStep {
       id: deps.ids.next("itm_"), turn: input.stepIndex, type, isPinned: false, content,
       ...(toolMeta === undefined ? {} : { toolMeta }),
     })
-    if (consensusStatus === "agreed-invalid" && !input.items.some((item) => item.type === "bce_sliced_ast"))
+    const bceIncomplete = input.items.some((item) => item.type === "system_prompt" && item.content.startsWith("BCE status: incomplete."))
+    if (consensusStatus === "agreed-invalid" && (bceIncomplete || !input.items.some((item) => item.type === "bce_sliced_ast")))
       return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
         runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
         summary: "The blocking consensus has no source evidence.",
@@ -434,7 +435,19 @@ export class JudgeStep {
           signal: input.signal,
         },
       ).catch(asFault("worker_interrupted"))
-      if (synthesis.kind === "accepted") return finish({ type: "completed", verdict: synthesis.verdict })
+      if (synthesis.kind === "accepted") {
+        if (bceIncomplete && synthesis.verdict.validity !== "unverified")
+          return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
+            ...synthesis.verdict,
+            validity: "unverified",
+            verificationStatus: "UNVERIFIED",
+            reasonCode: "UNRESOLVED",
+            confidence: "LOW",
+            summary: "The claim remains unresolved because BCE is incomplete.",
+            reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
+          }) })
+        return finish({ type: "completed", verdict: synthesis.verdict })
+      }
       await persist("verdict.validation_failed", {
         attempt: synthesis.attempt,
         issues: synthesis.issues.map((issue) => ({ reason: issue.reason, path: issue.path })),

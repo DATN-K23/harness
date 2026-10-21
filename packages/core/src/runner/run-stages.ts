@@ -34,7 +34,7 @@ class SandboxCallFailed extends Error {
 
 export type Staged =
   | { kind: "ended"; terminal: TerminalCommit }
-  | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[]; sanitized?: SanitizedPoc; trace: string }
+  | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[]; bceIncomplete: boolean; sanitized?: SanitizedPoc; trace: string }
 
 export type Tooling =
   { kind: "ready"; tools: ToolRegistryPort; traceDigest?: string } | { kind: "ended"; terminal: TerminalCommit }
@@ -104,7 +104,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   if (ingested.kind === "narrative_only") {
     if (ingested.pocCode !== undefined) {
       if (!input.config.enablePocExecution)
-        return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
+        return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
       const sanitized = await runStage(
         context,
         "sanitizer",
@@ -125,14 +125,14 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
           reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
           citesEvidence: [], traceDigest: textDigest(executed.trace),
         } } }
-      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], sanitized, trace: executed.trace }
+      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, sanitized, trace: executed.trace }
     }
-    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
+    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: ingested.bceStatus === "incomplete", trace: "" }
   }
   if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
-  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
+  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, trace: "" }
   if (!input.config.enablePocExecution)
-    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
+    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, trace: "" }
   const pocCode = ingested.pocCode
 
   const sanitized = await runStage(
@@ -156,7 +156,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
       reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
       citesEvidence: [], traceDigest: textDigest(executed.trace),
     } } }
-  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], sanitized, trace: executed.trace }
+  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, sanitized, trace: executed.trace }
 }
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
@@ -201,6 +201,7 @@ export const enterStageFour = async (
     finding: input.finding,
     pocCode: staged.pocCode ?? "",
     bceSlices: staged.bceSlices,
+    bceIncomplete: staged.bceIncomplete,
     tier: staged.sanitized?.hasSubmitterAssertions ? 1 : 2,
     ...(staged.claim === undefined ? {} : { claim: staged.claim }),
     maxProbeRuns: maxProbeRunsOf(input),

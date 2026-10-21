@@ -83,6 +83,20 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     expect((await world.events("run.started"))[0].payload.snapshot).toMatchObject({ enablePocExecution: true })
   })
 
+  test("explicit opt-in does not make narrative-only input generate or execute a witness", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved by incomplete evidence.","reasoning":"No submitter PoC was provided, and witness synthesis is not available.","citesEvidence":[]}'),
+    ] })
+    await w.start("worker-a", runInput({ enablePocExecution: true }))
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+  })
+
   test("legacy missing_poc remains a compatibility fast-reject", async () => {
     const world = createWorld()
     const w = world.worker({ ingestion: { kind: "missing_poc" } })
@@ -249,19 +263,35 @@ describe("JudgeRunner: reasoning loop", () => {
     expect(w.gateway.callCount).toBe(4)
   })
 
-  test("Task 3 agreed-invalid narrative claim without BCE source is terminally UNVERIFIED", async () => {
+  test("Task 3 incomplete BCE cannot infer invalidity from a blocking consensus", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [{ filePath: "src/Vault.sol", content: "line 10 of Vault.sol", lineRange: [10, 10] }], bceStatus: "incomplete" }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"blocked","explanation":"guard"}'),
       textResponse('{"reconstruction":"blocked","explanation":"sink unreachable"}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved by incomplete evidence.","reasoning":"Both model directions report a blocker, but BCE is incomplete and missing paths cannot prove a guard blocks the claim.","citesEvidence":[]}'),
     ] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(await world.events("run.completed")).toHaveLength(1)
     expect(await world.state()).toBe("completed")
     await expectContiguous(world)
+  })
+
+  test("incomplete BCE blocks a citation-valid static PASS and narrative-only never runs a witness", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [], bceStatus: "incomplete" }, script: [
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"reachable","explanation":"entry reaches target"}'),
+      textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
+      textResponse('{"validity":"valid","verificationStatus":"PASS","reasonCode":"EXPLOIT_CONFIRMED","severity":"HIGH","confidence":"HIGH","summary":"Withdraw permits an attacker to drain funds.","reasoning":"The cited source lines resolve, but BCE remains incomplete and does not establish the claimed path.","citesEvidence":[{"filePath":"src/Vault.sol","startLine":10,"endLine":20,"explanation":"state update after call"}]}'),
+    ] })
+    const result = await w.start("worker-a", runInput({ enablePocExecution: true }))
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
 
   test("narrative-only report reaches semantic verification without PoC sanitation", async () => {

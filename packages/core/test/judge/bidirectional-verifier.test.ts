@@ -11,9 +11,13 @@ describe("bidirectional consensus", () => {
     expect(decideConsensus({ reachability: "blocked" }, { reconstruction: "blocked" })).toBe("agreed-invalid")
   })
 
-  test("one blocking result plus incomplete evidence refutes", () => {
-    expect(decideConsensus({ reachability: "blocked" }, { reconstruction: "incomplete" })).toBe("agreed-invalid")
-    expect(decideConsensus({ reachability: "incomplete" }, { reconstruction: "blocked" })).toBe("agreed-invalid")
+  test("a blocked direction cannot refute an incomplete opposite direction", () => {
+    expect(decideConsensus({ reachability: "blocked" }, { reconstruction: "incomplete" })).toBe("disputed")
+    expect(decideConsensus({ reachability: "incomplete" }, { reconstruction: "blocked" })).toBe("disputed")
+  })
+
+  test("only two explicitly blocked directions agree on invalidity", () => {
+    expect(decideConsensus({ reachability: "blocked" }, { reconstruction: "blocked" })).toBe("agreed-invalid")
   })
 
   test("non-blocking disagreement is disputed and incomplete agreement is inconclusive", () => {

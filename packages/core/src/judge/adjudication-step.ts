@@ -162,6 +162,7 @@ export interface InitialContextInput {
   pocCode: string
   claim?: DeconstructedClaim
   bceSlices: readonly BceSlice[]
+  bceIncomplete?: boolean
   tier: AdjudicationTier
   maxProbeRuns: number
   /** The Judge system prompt, which also states the verdict format. */
@@ -220,6 +221,7 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
         `${slice.filePath}${slice.lineRange === undefined ? "" : ` (lines ${slice.lineRange[0]}-${slice.lineRange[1]})`}\n${slice.content}`,
       ),
     ),
+    ...(input.bceIncomplete ? [pinned("system_prompt", "BCE status: incomplete. Source slices are retrieval context only; missing edges prove nothing. Return UNVERIFIED unless independent validated evidence establishes the claim.")] : []),
     pinned("execution_trace", input.shapedTrace),
   ]
 }

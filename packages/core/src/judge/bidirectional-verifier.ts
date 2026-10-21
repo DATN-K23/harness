@@ -32,8 +32,6 @@ export const parseBackwardResult = (text: string): ParsedResult<BackwardResult &
 
 export const decideConsensus = (forward: ForwardResult, backward: BackwardResult): ConsensusDecision => {
   if (forward.reachability === "blocked" && backward.reconstruction === "blocked") return "agreed-invalid"
-  if (forward.reachability === "blocked" && backward.reconstruction === "incomplete") return "agreed-invalid"
-  if (backward.reconstruction === "blocked" && forward.reachability === "incomplete") return "agreed-invalid"
   if (forward.reachability === "reachable" && backward.reconstruction === "reconstructed") return "agreed-valid"
   if (forward.reachability === "incomplete" && backward.reconstruction === "incomplete") return "inconclusive"
   if (forward.reachability === "blocked" || backward.reconstruction === "blocked") return "disputed"

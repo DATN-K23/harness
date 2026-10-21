@@ -16,6 +16,7 @@ import {
   type TerminalReason,
   type TrajectoryEvent,
 } from "@harness/protocol"
+import { digestOf } from "@harness/core"
 import { and, asc, eq, gt, notInArray, sql } from "drizzle-orm"
 import { createDatabaseClient, type DatabaseClient } from "../db/client"
 import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../db/schema"
@@ -134,6 +135,26 @@ export class PostgresRunStore implements RunStorePort {
       if (TerminalRunStates.some((terminal) => terminal === run.state)) {
         return { kind: "unavailable", reason: "terminal" }
       }
+      if (run.cancelRequestedAt) {
+        const stateVersion = run.stateVersion + 1
+        await tx.update(runs).set({
+          state: "cancelled",
+          stateVersion,
+          terminalReason: "cancelled_by_user",
+          updatedAt: new Date(now),
+        }).where(eq(runs.id, run.id))
+        await tx.insert(events).values({
+          id: `cancel:${run.id}:${stateVersion}`,
+          runId: run.id,
+          sequence: (await tx.select({ maxSeq: sql<number>`coalesce(max(${events.sequence}), 0)` }).from(events).where(eq(events.runId, run.id)))[0]!.maxSeq + 1,
+          eventType: "run.cancelled",
+          schemaVersion: 1,
+          payload: { reason: "cancelled_by_user", boundary: "before_claim" },
+          payloadDigest: digestOf({ reason: "cancelled_by_user", boundary: "before_claim" }),
+          occurredAt: new Date(now),
+        })
+        return { kind: "unavailable", reason: "terminal" }
+      }
       if (run.claimExpiresAt && now < run.claimExpiresAt.getTime()) {
         return { kind: "unavailable", reason: "already_claimed" }
       }
@@ -162,6 +183,40 @@ export class PostgresRunStore implements RunStorePort {
         state: updated.state as RunState,
         stateVersion: updated.stateVersion,
       }
+    })
+  }
+
+  async requestCancellation(runId: string): Promise<{ kind: "cancelled" | "already_cancelled" | "terminal" | "not_found" }> {
+    const now = this.clock.nowMs()
+    return await this.client.db.transaction(async (tx) => {
+      const [run] = await tx.select().from(runs).where(eq(runs.id, runId)).for("update")
+      if (!run) return { kind: "not_found" }
+      if (TerminalRunStates.some((terminal) => terminal === run.state)) return { kind: "terminal" }
+      if (run.cancelRequestedAt) return { kind: "already_cancelled" }
+      if (run.state === "queued" || run.state === "accepted") {
+        const stateVersion = run.stateVersion + 1
+        await tx.update(runs).set({
+          state: "cancelled",
+          stateVersion,
+          terminalReason: "cancelled_by_user",
+          cancelRequestedAt: new Date(now),
+          updatedAt: new Date(now),
+        }).where(eq(runs.id, runId))
+        const [last] = await tx.select({ maxSeq: sql<number>`coalesce(max(${events.sequence}), 0)` }).from(events).where(eq(events.runId, runId))
+        await tx.insert(events).values({
+          id: `cancel:${runId}:${stateVersion}`,
+          runId,
+          sequence: Number(last?.maxSeq ?? 0) + 1,
+          eventType: "run.cancelled",
+          schemaVersion: 1,
+          payload: { reason: "cancelled_by_user", boundary: "before_claim" },
+          payloadDigest: digestOf({ reason: "cancelled_by_user", boundary: "before_claim" }),
+          occurredAt: new Date(now),
+        })
+        return { kind: "cancelled" }
+      }
+      await tx.update(runs).set({ cancelRequestedAt: new Date(now), updatedAt: new Date(now) }).where(eq(runs.id, runId))
+      return { kind: "cancelled" }
     })
   }
 

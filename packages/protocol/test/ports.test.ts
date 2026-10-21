@@ -256,7 +256,7 @@ describe("tool, filter, snapshot and runtime ports", () => {
     const clock: ClockPort = { nowMs: () => 1_700_000_000_000 }
     const random: RandomPort = { next: () => 0.5 }
     const sleep: SleepPort = { sleep: async () => undefined }
-    const cancellation: CancellationPort = { isRequested: async () => false }
+    const cancellation: CancellationPort = { request: async () => ({ kind: "requested" }), isRequested: async () => false }
 
     expect(tools.definitions()[0].name).toBe("read_file")
     const call = { runId: "run-1", callId: "c", toolName: "read_file", arguments: { path: "a" } }

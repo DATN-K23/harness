@@ -189,4 +189,39 @@ describe("Judge submission API", () => {
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/events", { headers: { authorization: "Bearer test-credential" } }))
     expect(await response.json()).toEqual({ events: [], nextCursor: null })
   })
+
+  test("cancellation request is routed to durable cancellation port and is idempotent", async () => {
+    const calls: string[] = []
+    const app = createJudgeApi({
+      credential: "test-credential",
+      submit: async () => ({ kind: "accepted", runId: "run-1" }),
+      store: {
+        requestCancellation: async (runId: string) => {
+          calls.push(runId)
+          return calls.length === 1 ? { kind: "cancelled" } : { kind: "already_cancelled" }
+        },
+      } as never,
+    })
+    const headers = { authorization: "Bearer test-credential" }
+    const first = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/cancel", { method: "POST", headers }))
+    const again = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/cancel", { method: "POST", headers }))
+    expect(first.status).toBe(202)
+    expect(again.status).toBe(200)
+    expect(await first.json()).toEqual({ runId: "run-1", cancellation: "requested" })
+    expect(await again.json()).toEqual({ runId: "run-1", cancellation: "already_requested" })
+    expect(calls).toEqual(["run-1", "run-1"])
+  })
+
+  test("rejects cancellation of unknown and already-terminal runs", async () => {
+    const app = createJudgeApi({
+      credential: "test-credential",
+      submit: async () => ({ kind: "accepted", runId: "run-1" }),
+      store: {
+        requestCancellation: async (runId: string) => runId === "missing" ? { kind: "not_found" } : { kind: "terminal" },
+      } as never,
+    })
+    const headers = { authorization: "Bearer test-credential" }
+    expect((await app.fetch(new Request("http://localhost/v1/judge/runs/missing/cancel", { method: "POST", headers }))).status).toBe(404)
+    expect((await app.fetch(new Request("http://localhost/v1/judge/runs/completed/cancel", { method: "POST", headers }))).status).toBe(409)
+  })
 })

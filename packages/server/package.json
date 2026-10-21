@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@harness/core": "workspace:*",
-    "@harness/protocol": "workspace:*"
+    "@harness/protocol": "workspace:*",
+    "@harness/schema": "workspace:*"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",

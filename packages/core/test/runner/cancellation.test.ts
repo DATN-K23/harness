@@ -5,6 +5,7 @@ import { checkBoundary, createRunSignal, type RunBoundary } from "../../src/runn
 class FakeCancellation {
   readonly polls: string[] = []
   requested = false
+  async request() { this.requested = true; return { kind: "requested" as const } }
   async isRequested(runId: string) {
     this.polls.push(runId)
     return this.requested
@@ -98,6 +99,7 @@ describe("checkBoundary", () => {
   test("forwards the abort signal to the port", async () => {
     const signals: Array<AbortSignal | undefined> = []
     const port = {
+      request: async () => ({ kind: "requested" as const }),
       isRequested: async (_runId: string, signal?: AbortSignal) => {
         signals.push(signal)
         return false

@@ -80,8 +80,9 @@ export class FakeCancellation implements CancellationPort {
   private readonly requested = new Set<string>()
   private requestAfterPolls: number | undefined
 
-  request(runId: string) {
+  async request(runId: string) {
     this.requested.add(runId)
+    return { kind: "requested" as const }
   }
 
   /** The poll with this 1-based number, and every later one, reports a request. */

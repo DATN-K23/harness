@@ -51,4 +51,17 @@ describe("local runtime security", () => {
     const request = new Request("http://127.0.0.1/health?token=installation-secret")
     expect(isAuthorizedLocalRequest(request, "installation-secret")).toBe(false)
   })
+
+  test("refuses service startup when no Keychain credential can be supplied", async () => {
+    const { startLocalRuntime } = await import("../src/local-runtime")
+    let listenCalls = 0
+    expect(() => startLocalRuntime({
+      hostname: "127.0.0.1",
+      port: 4312,
+      credential: undefined,
+      listen: () => { listenCalls++; return {} },
+      fetch: async () => Response.json({ ok: true }),
+    })).toThrow("Keychain credential unavailable")
+    expect(listenCalls).toBe(0)
+  })
 })

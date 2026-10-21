@@ -375,6 +375,27 @@ describe("JudgeRunner: recovery by hydration", () => {
 })
 
 describe("JudgeRunner: cooperative cancellation", () => {
+  test("a durable cancellation request is observed before the next provider boundary", async () => {
+    const world = createWorld()
+    const w = world.worker({ script: [verdictText] })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed" })
+
+    const cancelledWorld = createWorld()
+    const cancellation = cancelledWorld.cancellation
+    const original = cancellation.isRequested.bind(cancellation)
+    let polls = 0
+    cancellation.isRequested = async (runId, signal) => {
+      polls++
+      return polls >= 4 || await original(runId, signal)
+    }
+    const cancelledWorker = cancelledWorld.worker({ script: [verdictText] })
+    const cancelled = await cancelledWorker.start()
+    expect(cancelled).toMatchObject({ kind: "committed", state: "cancelled" })
+    expect(cancelledWorker.gateway.callCount).toBe(0)
+    expect(await cancelledWorld.events("run.cancelled")).toHaveLength(1)
+  })
+
   // Polls: 1 before ingestion, 2 before the sandbox, 3 before step 1's prepare, 4 after it, 5 before its tools,
   // 6 before step 2's prepare.
   test("cancel before the provider call of step 2: no attempt for step 2, cancelled, earlier events kept", async () => {

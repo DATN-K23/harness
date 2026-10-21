@@ -1,10 +1,88 @@
 import { describe, expect, test } from "bun:test"
 import { eq, getTableColumns } from "drizzle-orm"
-import { idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
+import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("terminal transition winning a cancellation race remains immutable", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 })
+    const store = new PostgresRunStore({ client })
+    const runId = `cancel-complete-race-${Date.now()}`
+    try {
+      await store.seedRun(runId, "running")
+      const claimed = await store.claim({ runId, workerId: "worker-race" })
+      if (claimed.kind !== "claimed") throw new Error("expected run claim")
+      await store.transition({
+        claim: claimed.claim,
+        expectedState: "running",
+        expectedStateVersion: claimed.stateVersion,
+        nextState: "completed",
+        resultContent: "done",
+      })
+      expect(await store.requestCancellation(runId)).toEqual({ kind: "terminal" })
+      expect((await store.loadRun(runId))?.state).toBe("completed")
+      expect((await client.db.select().from(events).where(eq(events.runId, runId)))).toHaveLength(0)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
+  test("PostgresCancellation request is visible to subsequent runner boundary polls", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresCancellation } = await import("../src/store/postgres-cancellation")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const store = new PostgresRunStore({ client })
+    const cancellation = new PostgresCancellation(client)
+    const runId = `cancel-signal-${Date.now()}`
+    try {
+      await store.seedRun(runId, "running")
+      expect(await cancellation.isRequested(runId)).toBe(false)
+      await cancellation.request(runId)
+      expect(await cancellation.isRequested(runId)).toBe(true)
+      await cancellation.request(runId)
+      expect(await cancellation.isRequested(runId)).toBe(true)
+      const requestedEvents = await client.db.select().from(events).where(eq(events.runId, runId))
+      expect(requestedEvents.map(({ eventType }) => eventType)).toEqual(["run.cancel_requested"])
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
+  test("queued cancellation is durable, idempotent, and prevents run claim", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 })
+    const store = new PostgresRunStore({ client })
+    const runId = `cancel-queued-${Date.now()}`
+
+    try {
+      await store.admit({
+        runId,
+        findingId: "finding-cancel",
+        reportMarkdown: "A report",
+        snapshotId: "snapshot-1",
+        config: {},
+        idempotencyKey: `key-${runId}`,
+        requestDigest: `sha256:${"6".repeat(64)}`,
+      })
+      expect(await store.requestCancellation(runId)).toEqual({ kind: "cancelled" })
+      expect(await store.requestCancellation(runId)).toEqual({ kind: "terminal" })
+      expect((await store.loadRun(runId))?.state).toBe("cancelled")
+      expect(await store.claim({ runId, workerId: "worker-after-cancel" })).toEqual({ kind: "unavailable", reason: "terminal" })
+      const eventRows = await client.db.select().from(events).where(eq(events.runId, runId))
+      expect(eventRows.map(({ eventType }) => eventType)).toEqual(["run.cancelled"])
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
   test("concurrent identical admissions converge on one run ID", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")

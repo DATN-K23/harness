@@ -246,5 +246,6 @@ export interface SleepPort {
 }
 
 export interface CancellationPort {
+  request(runId: string, signal?: AbortSignal): Promise<{ kind: "requested" | "already_requested" | "terminal" | "not_found" }>
   isRequested(runId: string, signal?: AbortSignal): Promise<boolean>
 }

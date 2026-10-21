@@ -109,7 +109,7 @@
 ### Task 5: Submission API and work dispatch
 
 - [x] **5.1 RED/GREEN:** Added submission route tests for `202` only after accepted submit, invalid payload, missing snapshot, idempotency conflict, malformed JSON and oversized body. Added application submission service using canonical `digestOf`, immutable snapshot preflight, `RunStorePort.admit`, configured profile snapshot and generated ID; no adapter `seedRun` use. Concurrent identical DB submissions now converge after a unique-key race. Server/schema/core typechecks and suites pass.
-- [x] **5.2 RED/GREEN (worker seam):** Outbox worker test proves it passes only durable run ID through claim/execute, client abort is not wired to work, and service reloads finding/snapshot/frozen config from PostgreSQL run record. Full `JudgeRunner` composition still requires runtime dependency provider.
+- [x] **5.2 RED/GREEN (worker seam):** Outbox worker test proves it passes durable run ID through claim/execute, client abort is not wired to work, and service reloads finding/snapshot/frozen config from run record. Full `JudgeRunner` composition still requires a production runtime dependency provider and is not yet end-to-end.
 - [x] **5.3 RED/GREEN (retryable handoff):** Test proves execution throw leaves outbox unpublished/claimed so lease expiry makes it recoverable; no route manufactures invalid verdict. Admission/provider outcome ambiguity remains persisted in existing runner attempt/event records.
 
 ### Task 6: Safe run and event retrieval
@@ -120,15 +120,15 @@
 
 ### Task 7: Durable cancellation and lifecycle
 
-- [ ] **7.1 RED:** Test cancellation request is durable/idempotent for accepted/queued work and prevents claim/start. Implement control operation and pass core/schema tests.
-- [ ] **7.2 RED/GREEN:** Test running cancellation is observed at provider/tool boundaries, preserves earlier events, and terminal run cancellation is no-op. Integrate existing `CancellationPort`/`JudgeRunner`; pass core lifecycle tests.
-- [ ] **7.3 RED/GREEN:** Test cancellation racing completion has one CAS winner and never rewrites terminal result. Run in-memory + Postgres conformance tests.
+- [x] **7.1 RED/GREEN:** Durable cancellation operation is idempotent; queued run transitions to cancelled with appended terminal event in same transaction, cannot be claimed; running requests remain durable and append `run.cancel_requested`. API maps requested/repeated/missing/terminal outcomes; schema/server tests pass.
+- [x] **7.2 RED/GREEN:** Existing `JudgeRunner` polling boundaries observe `CancellationPort`; running cancellation is detected before provider/tool work and commits `run.cancelled`, retaining prior events. Postgres cancellation poll test and core runner lifecycle suite pass.
+- [x] **7.3 RED/GREEN:** PostgreSQL terminal transition winning the race leaves run completed and cancellation returns terminal without appending events; schema test passes; existing CAS/store contract suite remains green.
 
 ### Task 8: Terminal result and error semantics
 
-- [ ] **8.1 RED:** Test reasoning-only successful result is `unverified` / `UNVERIFIED` and evidence is snapshot-resolved; preserve existing schema and pass verdict/runner tests.
-- [ ] **8.2 RED/GREEN:** Test provider/runtime failure yields failed execution state/error and no `invalid` verdict; run core/server tests.
-- [ ] **8.3 RED/GREEN:** Inject terminal transaction failure and assert verdict/evidence, usage, terminal event and state are all-or-nothing; run schema/core persistence suites.
+- [x] **8.1 RED/GREEN (existing contract verified):** Existing `witness-resolution`, `verdict-synthesizer`, and `JudgeRunner` tests prove reasoning-only results stay `unverified`/`UNVERIFIED` and evidence is resolved against snapshot. Ran targeted 30-test verdict/runner suites.
+- [x] **8.2 RED/GREEN (existing contract verified):** Existing runner recovery tests prove provider/runtime/persistence failures terminate as execution failures and do not synthesize `invalid`. Core suite passed after cancellation port integration.
+- [ ] **8.3 BLOCKED BY EXISTING RECOVERY DESIGN:** `RunWriter` intentionally appends terminal event then CAS-transitions run; a crash leaves a terminal-pending event that `finishPending` recovers. This preserves committed verdict and recovery, but contradicts this plan's strict all-or-nothing terminal transaction. Resolve by choosing whether to replace pending-terminal recovery with a transaction-capable terminal store operation before claiming 8.3 complete.
 
 ### Task 9: End-to-end integration and release gates
 
@@ -147,3 +147,5 @@ Use the plan-specific workspace under `.superpowers/sdd/2026-10-21-sprint-09-jud
 - Security, persistence, API, worker, cancellation and terminal concerns are separate task groups with tests owned by their package.
 - The only implementation decision deliberately unresolved is approved protected credential/rendezvous facility; it is a blocking security decision, not an assumption.
 - Tests cover prohibited payloads, snapshot failures, idempotency conflicts/concurrency, outbox crash windows, ambiguous paid attempt, public bind/auth failures, cursor tampering/cross-run access, cancellation races, unverified verdicts and atomic terminal commit.
+
+**Current implementation limits:** API creation/retrieval/cancellation handlers and durable primitives are implemented; production server startup that resolves Keychain at process boot, wires local listener/auth/cursor secret, publishes outbox and composes all JudgeRunner dependencies is still required. Do not label Sprint 9 end-to-end complete until Tasks 8–9 implement/test that application composition.

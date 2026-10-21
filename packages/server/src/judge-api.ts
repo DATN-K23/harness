@@ -13,6 +13,7 @@ export interface JudgeSubmissionService {
 export interface JudgeQueryStore {
   loadRun(runId: string): Promise<StoredRun>
   loadEvents(input: { runId: string; afterSequence?: number }): Promise<StoredEvent[]>
+  requestCancellation?(runId: string): Promise<{ kind: "cancelled" | "already_cancelled" | "terminal" | "not_found" }>
 }
 
 interface EventCursor {
@@ -61,6 +62,16 @@ export const createJudgeApi = (deps: {
       return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
     const url = new URL(request.url)
     const runMatch = /^\/v1\/judge\/runs\/([^/]+)(?:\/(events))?$/.exec(url.pathname)
+    const cancelMatch = /^\/v1\/judge\/runs\/([^/]+)\/cancel$/.exec(url.pathname)
+    if (request.method === "POST" && cancelMatch) {
+      if (!deps.store?.requestCancellation)
+        return Response.json({ error: { code: "unavailable", message: "Run cancellation is unavailable" } }, { status: 503 })
+      const result = await deps.store.requestCancellation(decodeURIComponent(cancelMatch[1]))
+      if (result.kind === "not_found") return Response.json({ error: { code: "not_found", message: "Run not found" } }, { status: 404 })
+      if (result.kind === "terminal") return Response.json({ error: { code: "conflict", message: "Run is already terminal" } }, { status: 409 })
+      if (result.kind === "already_cancelled") return Response.json({ runId: decodeURIComponent(cancelMatch[1]), cancellation: "already_requested" })
+      return Response.json({ runId: decodeURIComponent(cancelMatch[1]), cancellation: "requested" }, { status: 202 })
+    }
     if (request.method === "GET" && runMatch) {
       if (!deps.store) return Response.json({ error: { code: "unavailable", message: "Run queries are unavailable" } }, { status: 503 })
       const runId = decodeURIComponent(runMatch[1])

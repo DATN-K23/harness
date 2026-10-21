@@ -79,6 +79,7 @@ class FakeSleep {
 class FakeCancellation {
   polls = 0
   requested = false
+  async request() { this.requested = true; return { kind: "requested" as const } }
   async isRequested() {
     this.polls += 1
     return this.requested

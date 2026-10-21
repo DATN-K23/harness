@@ -15,6 +15,7 @@ export const runs = pgTable(
     claimToken: text("claim_token"),
     claimVersion: integer("claim_version").notNull().default(0),
     claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
+    cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
     modelProfile: varchar("model_profile", { length: 64 }),
     resultContent: text("result_content"),
     errorMessage: text("error_message"),

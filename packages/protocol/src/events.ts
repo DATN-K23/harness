@@ -68,6 +68,7 @@ export const CancellationBoundaries = [
   "before_sandbox",
   "before_provider_call",
   "before_tool_dispatch",
+  "before_claim",
 ] as const
 
 export const RetryDecisions = ["none", "retry", "permanent", "exhausted", "context_overflow", "disabled"] as const

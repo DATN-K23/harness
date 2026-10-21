@@ -66,8 +66,8 @@
 
 ### Task 1: Request boundary and ground-truth isolation
 
-- [ ] **1.1 RED:** Add a protocol/server test that nested `GroundTruthLabel`, adjudication/report/scoring, credentials and raw host-path fields are rejected before service invocation. Run `bun test <test-file>` and confirm failure because the request decoder/API is absent.
-- [ ] **1.2 GREEN:** Implement the smallest Zod request decoder using existing `CandidateFinding` contract; reject unknown/prohibited keys recursively and enforce non-empty/bounded report and snapshot ID. Verify the focused test and `bun run --cwd packages/protocol test`.
+- [x] **1.1 RED:** Added the protocol test for nested `GroundTruthLabel`; confirmed it failed because `judge-submit` schema module was absent.
+- [x] **1.2 GREEN:** Implemented Zod request decoder using `CandidateFinding` fields; recursively rejects prohibited metadata/credentials, rejects unknown keys, and bounds report/finding/snapshot IDs. Focused test and protocol package suite pass.
 - [x] **1.3 RED/GREEN:** Add wrong types, empty finding, excessive report, malformed object shape and unknown-field payload tests; malformed HTTP JSON/body-size and safe `400` mapping are covered with the submission route in Task 5.1. Run protocol test red, implement the schema bounds/strict shape, rerun focused and protocol package tests.
 
 ### Task 2: Atomic run admission and idempotency

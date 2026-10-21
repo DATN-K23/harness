@@ -58,6 +58,31 @@ describe("JudgeRunner: state machine", () => {
 })
 
 describe("JudgeRunner: zero-token fast-reject", () => {
+  test.each([undefined, false])("extracted PoC is not sanitized or executed when runtime is disabled (%s)", async (enablePocExecution) => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText],
+    })
+    const inputConfig = { enablePocExecution: enablePocExecution ?? false }
+    const result = await w.start("worker-a", runInput(inputConfig))
+    expect(result).toMatchObject({ kind: "committed", state: "completed" })
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect((await world.events("run.started"))[0].payload.snapshot).toMatchObject({ enablePocExecution: false })
+  })
+
+  test("explicit runtime opt-in retains the sanitizer and sandbox PoC path", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] }, script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText] })
+    await w.start("worker-a", runInput({ enablePocExecution: true }))
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(1)
+    expect(w.sandbox.singleShotCalls).toHaveLength(1)
+    expect((await world.events("run.started"))[0].payload.snapshot).toMatchObject({ enablePocExecution: true })
+  })
+
   test("legacy missing_poc remains a compatibility fast-reject", async () => {
     const world = createWorld()
     const w = world.worker({ ingestion: { kind: "missing_poc" } })
@@ -589,6 +614,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       retry: true,
       limits: true,
       maxProbeRuns: true,
+      enablePocExecution: true,
       modelLimits: true,
       profileId: true,
     } satisfies Record<keyof JudgeRunConfig, true>

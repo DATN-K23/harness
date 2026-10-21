@@ -16,6 +16,7 @@ export interface RunConfigInput {
   retry: RetryConfig
   limits: BudgetLimits
   maxProbeRuns?: number
+  enablePocExecution?: boolean
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
@@ -39,6 +40,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     budget: input.limits,
     ...(input.toolLimits !== undefined ? { toolLimits: input.toolLimits } : {}),
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
+    enablePocExecution: input.enablePocExecution ?? false,
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
   })

@@ -116,6 +116,7 @@ export const RunConfigSnapshotSchema = z
     budget: BudgetLimitsSchema,
     toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
+    enablePocExecution: z.boolean().default(false),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
   })

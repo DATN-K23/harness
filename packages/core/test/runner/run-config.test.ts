@@ -51,6 +51,7 @@ describe("buildRunConfigSnapshot", () => {
     expect(digest).toBe(digestOf(snapshot))
     expect(digest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(snapshot.maxProbeRuns).toBe(DefaultMaxProbeRuns)
+    expect(snapshot.enablePocExecution).toBe(false)
     expect(snapshot.contextPolicy).toEqual(inputWith(allOn).policy)
     expect(snapshot.budget).toEqual(inputWith(allOn).limits)
   })
@@ -93,6 +94,7 @@ describe("buildRunConfigSnapshot", () => {
       { ...input, retry: { ...input.retry, maxRetries: 1 } },
       { ...input, limits: { ...input.limits, maxSteps: 10 } },
       { ...input, maxProbeRuns: 5 },
+      { ...input, enablePocExecution: true },
       { ...input, systemPromptDigest: `sha256:${sha256Hex("other prompt")}` },
       { ...input, verdictSchemaDigest: `sha256:${sha256Hex("other schema")}` },
     ]

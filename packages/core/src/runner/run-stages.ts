@@ -103,6 +103,8 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   if (ingested.kind === "incomplete" && !ingested.claim) return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete: ${ingested.reason}.`, citesEvidence: [] } } }
   if (ingested.kind === "narrative_only") {
     if (ingested.pocCode !== undefined) {
+      if (!input.config.enablePocExecution)
+        return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
       const sanitized = await runStage(
         context,
         "sanitizer",
@@ -129,6 +131,8 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   }
   if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
   if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
+  if (!input.config.enablePocExecution)
+    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], trace: "" }
   const pocCode = ingested.pocCode
 
   const sanitized = await runStage(
@@ -240,7 +244,7 @@ export const recoverTools = async (context: StageContext, history: HydratedHisto
   const probeOffered = history.items.some(
     (item) => item.type === "tool_description" && item.content.startsWith(`${RunStateProbeToolName}:`),
   )
-  if (!probeOffered) return { kind: "ready", tools: deps.tools, traceDigest }
+  if (!probeOffered || !input.config.enablePocExecution) return { kind: "ready", tools: deps.tools, traceDigest }
   const pocCode = history.items.find((item) => item.type === "submitter_poc")?.content ?? ""
   const sanitized = await deps.sanitizer
     .sanitize({ runId, snapshotId: input.snapshotId, pocCode }, signal)

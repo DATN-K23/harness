@@ -56,6 +56,8 @@ export interface JudgeRunConfig {
   retry: RetryConfig
   limits: BudgetLimits
   maxProbeRuns?: number
+  /** Runtime PoC execution remains disabled until the selected sandbox is validated. */
+  enablePocExecution?: boolean
   modelLimits: ModelLimits
   profileId: string
 }
@@ -329,6 +331,7 @@ class RunExecution {
           retry: config.retry,
           limits: config.limits,
           maxProbeRuns: config.maxProbeRuns,
+          enablePocExecution: config.enablePocExecution,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
         }),

@@ -49,6 +49,7 @@ export const baseConfig: JudgeRunConfig = {
   policy,
   retry: DefaultRetryConfig,
   limits,
+  enablePocExecution: true,
   modelLimits: { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.1 },
   profileId: "profile-a",
 }

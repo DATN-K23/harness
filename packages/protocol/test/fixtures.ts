@@ -54,6 +54,7 @@ export const snapshot = (): RunConfigSnapshot => ({
     noProgressMaxRepeats: 3,
   },
   maxProbeRuns: 2,
+  enablePocExecution: false,
   systemPromptDigest: digest("a"),
   verdictSchemaDigest: digest("b"),
 })

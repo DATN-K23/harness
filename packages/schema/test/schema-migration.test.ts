@@ -1,10 +1,91 @@
 import { describe, expect, test } from "bun:test"
-import { getTableColumns } from "drizzle-orm"
-import { modelAttempts, runs } from "../src/db/schema"
+import { eq, getTableColumns } from "drizzle-orm"
+import { idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("admit persists finding identity and immutable run configuration", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const store = new PostgresRunStore({ client })
+    const runId = `admission-config-${Date.now()}`
+    const idempotencyKey = `key-${runId}`
+    const config = { profileId: "research-default", maxSteps: 8 }
+
+    try {
+      await store.admit({
+        runId,
+        findingId: "finding-specific",
+        reportMarkdown: "A report",
+        snapshotId: "snapshot-1",
+        config,
+        idempotencyKey,
+        requestDigest: `sha256:${"c".repeat(64)}`,
+      })
+      const [run] = await client.db.select().from(runs).where(eq(runs.id, runId))
+      expect(run.findingId).toBe("finding-specific")
+      expect(run.configSnapshot).toEqual(config)
+      expect(await client.db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey))).toHaveLength(1)
+      expect(await client.db.select().from(outbox).where(eq(outbox.runId, runId))).toHaveLength(1)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
+  test("admission transaction rolls back run, idempotency key and outbox together", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const store = new PostgresRunStore({ client })
+    const existingRunId = `admission-existing-${Date.now()}`
+    const runId = `admission-rollback-${Date.now()}`
+    const idempotencyKey = `key-${existingRunId}`
+
+    try {
+      await store.seedRun(existingRunId)
+      await client.db.insert(idempotencyKeys).values({
+        key: idempotencyKey,
+        requestDigest: `sha256:${"b".repeat(64)}`,
+        runId: existingRunId,
+      })
+      await expect(
+        store.admit({
+          runId,
+          findingId: "finding-1",
+          reportMarkdown: "A report",
+          snapshotId: "snapshot-1",
+          config: {},
+          idempotencyKey,
+          requestDigest: `sha256:${"a".repeat(64)}`,
+        }),
+      ).rejects.toThrow()
+      expect(await client.db.select().from(runs).where(eq(runs.id, runId))).toHaveLength(0)
+      expect(await client.db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey))).toMatchObject([
+        { runId: existingRunId },
+      ])
+      expect(await client.db.select().from(outbox).where(eq(outbox.runId, runId))).toHaveLength(0)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, existingRunId))
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
+  test("admission tables persist idempotency bindings and durable work intent", () => {
+    const idempotencyColumns = getTableColumns(idempotencyKeys)
+    expect(idempotencyColumns.key.name).toBe("key")
+    expect(idempotencyColumns.requestDigest.name).toBe("request_digest")
+    expect(idempotencyColumns.runId.name).toBe("run_id")
+
+    const outboxColumns = getTableColumns(outbox)
+    expect(outboxColumns.runId.name).toBe("run_id")
+    expect(outboxColumns.status.notNull).toBe(true)
+    expect(outboxColumns.publishedAt.notNull).toBe(false)
+  })
+
   test("runs table includes nullable snapshotId column", () => {
     const columns = getTableColumns(runs)
     expect(columns.snapshotId).toBeDefined()
@@ -43,5 +124,11 @@ describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
     expect(pricingMigration).toContain('ALTER TABLE "model_attempts" ALTER COLUMN "cost_usd" DROP NOT NULL')
     expect(pricingMigration).toContain('ADD COLUMN "pricing" varchar(16) DEFAULT \'priced\' NOT NULL')
     expect(pricingMigration.match(/--> statement-breakpoint/g)).toHaveLength(2)
+
+    const admissionMigration = readFileSync(resolve(import.meta.dir, "../drizzle/0003_lowly_gorilla_man.sql"), "utf-8")
+    expect(admissionMigration).toContain('CREATE TABLE "idempotency_keys"')
+    expect(admissionMigration).toContain('CREATE TABLE "outbox"')
+    expect(admissionMigration).not.toContain('ADD COLUMN "step_index"')
+    expect(admissionMigration).not.toContain('ADD COLUMN "snapshot_id"')
   })
 })

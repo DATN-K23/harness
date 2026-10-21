@@ -72,8 +72,8 @@
 
 ### Task 2: Atomic run admission and idempotency
 
-- [ ] **2.1 RED:** Add schema-store test that admission atomically persists run, immutable config, idempotency binding and outbox item; inject failure at each write and assert none are partially visible. Run the focused test and observe expected missing-operation failure.
-- [ ] **2.2 GREEN:** Add the narrow run-control admission port/operation and PostgreSQL transaction/migration; preserve existing CAS/claim semantics. Run focused store tests and `bun run --cwd packages/schema test`.
+- [x] **2.1 RED:** Added a PostgreSQL collision test at idempotency insert; it failed because `store.admit` did not exist. After implementation, verified transaction rollback leaves no run or outbox and retains the original idempotency binding; separately verified successful admission persists finding ID, config snapshot, idempotency binding and outbox.
+- [x] **2.2 GREEN:** Added `PostgresRunStore.admit` transaction, finding/config run columns, idempotency/outbox tables and additive migrations `0003`/`0004`; migration and schema package tests/typecheck pass. Store contract semantics unchanged.
 - [ ] **2.3 RED/GREEN:** Test same key/same canonical digest returns same run ID, changed digest conflicts, missing key behavior follows existing API contract, and concurrent duplicate submissions create one run. Implement digest/idempotency logic; run focused tests and store suite.
 - [ ] **2.4 RED/GREEN:** Test unknown snapshot/config is rejected before commit and accepted snapshot ID/config are frozen in run record; implement resolution at trusted application boundary, run relevant core/schema tests.
 

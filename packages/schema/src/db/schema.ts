@@ -8,6 +8,8 @@ export const runs = pgTable(
     id: text("id").primaryKey(),
     prompt: text("prompt").default(""),
     snapshotId: text("snapshot_id"),
+    findingId: text("finding_id"),
+    configSnapshot: jsonb("config_snapshot").$type<Record<string, unknown>>(),
     state: varchar("state", { length: 32 }).notNull().default("queued"),
     stateVersion: integer("state_version").notNull().default(1),
     claimToken: text("claim_token"),
@@ -83,6 +85,28 @@ export const modelAttempts = pgTable(
       table.attemptNumber,
     ),
   ],
+)
+
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    key: text("key").primaryKey(),
+    requestDigest: varchar("request_digest", { length: 71 }).notNull(),
+    runId: text("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("idempotency_keys_run_id_idx").on(table.runId)],
+)
+
+export const outbox = pgTable(
+  "outbox",
+  {
+    runId: text("run_id").primaryKey().references(() => runs.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("outbox_status_created_at_idx").on(table.status, table.createdAt)],
 )
 
 export type Run = typeof runs.$inferSelect

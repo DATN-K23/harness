@@ -17,7 +17,7 @@ import {
 } from "@harness/protocol"
 import { and, asc, eq, gt, notInArray, sql } from "drizzle-orm"
 import { createDatabaseClient, type DatabaseClient } from "../db/client"
-import { events, modelAttempts, runs } from "../db/schema"
+import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../db/schema"
 import { redactSecrets, sanitizeSecrets } from "./redaction"
 
 export const DefaultLeaseMs = 300_000
@@ -45,6 +45,39 @@ export class PostgresRunStore implements RunStorePort {
     }
     this.clock = options.clock ?? { nowMs: () => Date.now() }
     this.leaseMs = options.leaseMs ?? DefaultLeaseMs
+  }
+
+  async admit(input: {
+    runId: string
+    findingId: string
+    reportMarkdown: string
+    snapshotId: string
+    config: Record<string, unknown>
+    idempotencyKey: string
+    requestDigest: string
+  }): Promise<void> {
+    const now = new Date(this.clock.nowMs())
+    await this.client.db.transaction(async (tx) => {
+      await tx.insert(runs).values({
+        id: input.runId,
+        prompt: input.reportMarkdown,
+        snapshotId: input.snapshotId,
+        findingId: input.findingId,
+        configSnapshot: input.config,
+        state: "queued",
+        stateVersion: 1,
+        claimVersion: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await tx.insert(idempotencyKeys).values({
+        key: input.idempotencyKey,
+        requestDigest: input.requestDigest,
+        runId: input.runId,
+        createdAt: now,
+      })
+      await tx.insert(outbox).values({ runId: input.runId, status: "pending", createdAt: now })
+    })
   }
 
   async claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult> {

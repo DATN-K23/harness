@@ -70,6 +70,8 @@
 
 **Reuse review:** `.opencode_reference/packages/server/src` has no Judge submission/CandidateFinding boundary or recursive scorer-data rejection. The reference CLI debug redactor is for diagnostic output, not a trusted input decoder. Harness already has the matching recursive forbidden-key policy in `packages/protocol/src/events.ts`; reuse that shared project helper rather than duplicate it. No OpenCode port is appropriate for this task.
 
+**Task 1 follow-up:** A1's initial test covered only `GroundTruthLabel`. The request decoder test matrix still needs to prove all forbidden key families, normalized spelling, nested arrays and raw path/credential cases from `events.test.ts`; complete this protocol test before declaring A1 fully covered.
+
 - [x] **1.1 RED:** Added the protocol test for nested `GroundTruthLabel`; confirmed it failed because `judge-submit` schema module was absent.
 - [x] **1.2 GREEN:** Implemented Zod request decoder using `CandidateFinding` fields; recursively rejects prohibited metadata/credentials, rejects unknown keys, and bounds report/finding/snapshot IDs. Focused test and protocol package suite pass.
 - [x] **1.3 RED/GREEN:** Add wrong types, empty finding, excessive report, malformed object shape and unknown-field payload tests; malformed HTTP JSON/body-size and safe `400` mapping are covered with the submission route in Task 5.1. Run protocol test red, implement the schema bounds/strict shape, rerun focused and protocol package tests.
@@ -77,6 +79,8 @@
 ### Task 2: Atomic run admission and idempotency
 
 **Reuse review:** `.opencode_reference/packages/core/src/database` provides SQLite/Effect transaction patterns, but no Judge admission, idempotency registry or transactional outbox; its persistence/runtime contracts differ from this Harness PostgreSQL/Drizzle adapter. The implementation therefore reuses Harness's existing Drizzle transaction, CAS and store conventions. Before adding run-claim logic, continue checking upstream transaction helpers; do not port a SQLite-specific schema or Effect layer into this package solely to increase copied code.
+
+**Task 2 follow-up:** Extend acceptance tests for concurrent same-key submissions and migration from empty/current schema; implementation currently covers serial same-key replay/conflict and transaction rollback.
 
 - [x] **2.1 RED:** Added a PostgreSQL collision test at idempotency insert; it failed because `store.admit` did not exist. After implementation, verified transaction rollback leaves no run or outbox and retains the original idempotency binding; separately verified successful admission persists finding ID, config snapshot, idempotency binding and outbox.
 - [x] **2.2 GREEN:** Added `PostgresRunStore.admit` transaction, finding/config run columns, idempotency/outbox tables and additive migrations `0003`/`0004`; migration and schema package tests/typecheck pass. Store contract semantics unchanged.
@@ -91,9 +95,9 @@
 
 ### Task 4: Local API authentication, discovery and handshake
 
-- [ ] **4.1 RED:** Test server rejects non-loopback/public binding and missing authentication. Run focused server test and confirm failure before implementation.
-- [ ] **4.2 Decision gate:** Inspect platform dependencies/code for an approved protected credential store and installation-scoped rendezvous. If none exists, stop and ask the team; do not implement plaintext fallback, anonymous localhost or invent a custody design.
-- [ ] **4.3 RED/GREEN:** If an approved backend exists, test credential rotation preserves run IDs, secret never enters URLs/logs/events/exports, and unavailable backend fails closed; implement auth/discovery with injected platform port, run focused server security tests.
+- [x] **4.1 RED/GREEN (helper only):** Added tests for loopback host allowlist and credential decision helper, observed RED before module existed, then GREEN after adapting constant-time auth comparison from upstream `ServerAuth.authorized`. This does not yet prove actual listener binding or middleware enforcement; route/startup integration remains open.
+- [x] **4.2 Decision gate:** Team confirmed macOS Keychain through the native host as credential custody. API/server must receive the resolved credential only through an injected native-host boundary; do not add renderer access, plaintext files, anonymous fallback or token-in-URL.
+- [ ] **4.3 RED/GREEN:** Add a native-host Keychain credential port/adapter; test rotation preserves run IDs, secret never enters URLs/logs/events/exports, and unavailable Keychain fails closed. The current repository contains no desktop/native-host package, so do not claim this is satisfied by the server helper.
 - [ ] **4.4 RED/GREEN:** Test health/discovery reports endpoint identity, API/runtime versions, contract digest, build and capabilities; incompatible major/digest blocks mutations and returns actionable safe error. Implement handshake and run server tests.
 
 ### Task 5: Submission API and work dispatch

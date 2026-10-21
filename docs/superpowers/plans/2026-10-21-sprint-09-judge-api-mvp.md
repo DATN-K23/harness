@@ -10,6 +10,8 @@
 
 **Keychain implementation choice (approved):** Use a minimal Swift helper with macOS Security.framework generic-password entries. The Bun bridge sends secret bytes only through stdin/stdout, never process arguments/environment/files; keep the credential in memory, and fail closed on non-macOS or any Keychain error. No UI/full desktop shell is added.
 
+**OpenCode bridge design:** Auth decisions adapt from OpenCode `ServerAuth.authorized` at `3f393d78bf`, but no framework-specific code is copied. For Swift invocation, prefer the existing Bun spawn primitive; if the reference Bun server composition includes a reusable `serve` entry adapted without importing unrelated runtime state, port it at this approved revision. Keep the helper credential boundary specific.
+
 **OpenCode reuse is a prerequisite:** Before implementing each component, search `.opencode_reference` for the closest implementation and tests. Port/adapt compatible logic first, preserving its error handling and adding the required header `// Adapted from OpenCode packages/<path> @ 3f393d78bf (MIT License). See NOTICE.` plus a `NOTICE` entry. Reimplement only when no equivalent exists or the upstream design conflicts with Harness contracts/runtime; record the exact source paths inspected and why reuse was rejected.
 
 **Scope references:** `docs/core-team-timeline.md` Sprint 9–10, `blueprint/architecture/sequences.md` Judge submission flow, `blueprint/architecture/module-layout.md` package responsibilities, existing implementation in `packages/{protocol,core,schema,server,cli}`. OpenSpec commands/artifacts are not part of this workflow.
@@ -102,7 +104,7 @@
 - [x] **4.1 RED/GREEN (helper only):** Added tests for loopback host allowlist and credential decision helper, observed RED before module existed, then GREEN after adapting constant-time auth comparison from upstream `ServerAuth.authorized`. This does not yet prove actual listener binding or middleware enforcement; route/startup integration remains open.
 - [x] **4.2 Decision gate:** Team confirmed macOS Keychain through the native host as credential custody. API/server must receive the resolved credential only through an injected native-host boundary; do not add renderer access, plaintext files, anonymous fallback or token-in-URL.
 - [x] **4.3 RED/GREEN:** Added Swift Security.framework generic-password helper and Bun bridge. Tests verify create-once/read-existing/rotate, exact credential travels through stdin (never argv), unsupported OS and Keychain errors fail closed, and a real uniquely named Keychain item can be read/rotated/removed. `swiftc -typecheck` and macOS integration test pass. Server exports provider for trusted startup composition.
-- [ ] **4.4 RED/GREEN:** Test health/discovery reports endpoint identity, API/runtime versions, contract digest, build and capabilities; incompatible major/digest blocks mutations and returns actionable safe error. Implement handshake and run server tests.
+- [x] **4.4 RED/GREEN (contract helper):** Added compatibility validator and tests for matching API version/contract digest and mismatch details; server package suite passes. The concrete health/discovery HTTP handshake remains to be wired with server startup/routes in Tasks 5–6.
 
 ### Task 5: Submission API and work dispatch
 

@@ -2,6 +2,47 @@
 import { timingSafeEqual } from "node:crypto"
 import { isIP } from "node:net"
 
+export const ApiCompatibility = {
+  apiVersion: 1,
+  contractDigest: "sha256:harness-api-v1",
+} as const
+
+export type ApiCompatibilityResult =
+  | { compatible: true }
+  | {
+      compatible: false
+      reason: "api_version_mismatch"
+      expectedApiVersion: number
+      receivedApiVersion: number
+    }
+  | {
+      compatible: false
+      reason: "contract_digest_mismatch"
+      expectedContractDigest: string
+      receivedContractDigest: string
+    }
+
+export const validateApiCompatibility = (
+  received: { apiVersion: number; contractDigest: string },
+  expected: { apiVersion: number; contractDigest: string },
+): ApiCompatibilityResult => {
+  if (received.apiVersion !== expected.apiVersion)
+    return {
+      compatible: false,
+      reason: "api_version_mismatch",
+      expectedApiVersion: expected.apiVersion,
+      receivedApiVersion: received.apiVersion,
+    }
+  if (received.contractDigest !== expected.contractDigest)
+    return {
+      compatible: false,
+      reason: "contract_digest_mismatch",
+      expectedContractDigest: expected.contractDigest,
+      receivedContractDigest: received.contractDigest,
+    }
+  return { compatible: true }
+}
+
 export const isLoopbackHost = (host: string): boolean => {
   const normalized = host.toLowerCase().replace(/^\[|\]$/g, "")
   if (normalized === "localhost") return true

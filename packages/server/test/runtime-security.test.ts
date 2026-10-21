@@ -1,7 +1,26 @@
 import { describe, expect, test } from "bun:test"
-import { isLoopbackHost, isAuthorizedLocalRequest } from "../src/runtime-security"
+import { ApiCompatibility, validateApiCompatibility, isLoopbackHost, isAuthorizedLocalRequest } from "../src/runtime-security"
 
 describe("local runtime security", () => {
+  test("accepts compatible API version and contract digest", () => {
+    expect(validateApiCompatibility(ApiCompatibility, ApiCompatibility)).toEqual({ compatible: true })
+  })
+
+  test("rejects incompatible major version or contract digest with upgrade details", () => {
+    expect(validateApiCompatibility({ apiVersion: 2, contractDigest: ApiCompatibility.contractDigest }, ApiCompatibility)).toEqual({
+      compatible: false,
+      reason: "api_version_mismatch",
+      expectedApiVersion: 1,
+      receivedApiVersion: 2,
+    })
+    expect(validateApiCompatibility({ apiVersion: 1, contractDigest: "sha256:other" }, ApiCompatibility)).toEqual({
+      compatible: false,
+      reason: "contract_digest_mismatch",
+      expectedContractDigest: "sha256:harness-api-v1",
+      receivedContractDigest: "sha256:other",
+    })
+  })
+
   test("allows loopback hosts and refuses public interface binds", () => {
     expect(isLoopbackHost("127.0.0.1")).toBe(true)
     expect(isLoopbackHost("::1")).toBe(true)

@@ -2,6 +2,7 @@
 
 import {
   TerminalRunStates,
+  type AdmissionResult,
   type AppendResult,
   type ClaimResult,
   type ClockPort,
@@ -47,45 +48,46 @@ export class PostgresRunStore implements RunStorePort {
     this.leaseMs = options.leaseMs ?? DefaultLeaseMs
   }
 
-  async admit(input: {
-    runId: string
-    findingId: string
-    reportMarkdown: string
-    snapshotId: string
-    config: Record<string, unknown>
-    idempotencyKey: string
-    requestDigest: string
-  }): Promise<{ kind: "accepted" | "replayed"; runId: string } | { kind: "conflict" }> {
+  async admit(input: Parameters<NonNullable<RunStorePort["admit"]>>[0]): Promise<AdmissionResult> {
     const now = new Date(this.clock.nowMs())
-    return await this.client.db.transaction(async (tx) => {
-      const [existing] = await tx.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, input.idempotencyKey)).for("update")
-      if (existing) {
-        return existing.requestDigest === input.requestDigest
-          ? { kind: "replayed", runId: existing.runId }
-          : { kind: "conflict" }
-      }
+    try {
+      return await this.client.db.transaction(async (tx) => {
+        const [existing] = await tx.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, input.idempotencyKey)).for("update")
+        if (existing) {
+          return existing.requestDigest === input.requestDigest
+            ? { kind: "replayed", runId: existing.runId }
+            : { kind: "conflict" }
+        }
 
-      await tx.insert(runs).values({
-        id: input.runId,
-        prompt: input.reportMarkdown,
-        snapshotId: input.snapshotId,
-        findingId: input.findingId,
-        configSnapshot: input.config,
-        state: "queued",
-        stateVersion: 1,
-        claimVersion: 0,
-        createdAt: now,
-        updatedAt: now,
+        await tx.insert(runs).values({
+          id: input.runId,
+          prompt: input.reportMarkdown,
+          snapshotId: input.snapshotId,
+          findingId: input.findingId,
+          configSnapshot: input.config,
+          state: "queued",
+          stateVersion: 1,
+          claimVersion: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await tx.insert(idempotencyKeys).values({
+          key: input.idempotencyKey,
+          requestDigest: input.requestDigest,
+          runId: input.runId,
+          createdAt: now,
+        })
+        await tx.insert(outbox).values({ runId: input.runId, status: "pending", createdAt: now })
+        return { kind: "accepted", runId: input.runId }
       })
-      await tx.insert(idempotencyKeys).values({
-        key: input.idempotencyKey,
-        requestDigest: input.requestDigest,
-        runId: input.runId,
-        createdAt: now,
-      })
-      await tx.insert(outbox).values({ runId: input.runId, status: "pending", createdAt: now })
-      return { kind: "accepted", runId: input.runId }
-    })
+    } catch (error) {
+      if ((error as { code?: string }).code !== "23505") throw error
+      const [existing] = await this.client.db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, input.idempotencyKey))
+      if (!existing) throw error
+      return existing.requestDigest === input.requestDigest
+        ? { kind: "replayed", runId: existing.runId }
+        : { kind: "conflict" }
+    }
   }
 
   async loadPendingOutbox(limit = 100): Promise<string[]> {
@@ -304,6 +306,8 @@ export class PostgresRunStore implements RunStorePort {
       ...(run.terminalReason ? { terminalReason: run.terminalReason as TerminalReason } : {}),
       ...(run.prompt !== null && run.prompt !== undefined ? { prompt: run.prompt } : {}),
       ...(run.snapshotId !== null && run.snapshotId !== undefined ? { snapshotId: run.snapshotId } : {}),
+      ...(run.findingId !== null && run.findingId !== undefined ? { findingId: run.findingId } : {}),
+      ...(run.configSnapshot !== null && run.configSnapshot !== undefined ? { configSnapshot: run.configSnapshot } : {}),
       ...(run.modelProfile !== null && run.modelProfile !== undefined ? { modelProfile: run.modelProfile } : {}),
       ...(run.resultContent !== null && run.resultContent !== undefined ? { resultContent: run.resultContent } : {}),
       ...(run.errorMessage !== null && run.errorMessage !== undefined ? { errorMessage: run.errorMessage } : {}),

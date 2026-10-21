@@ -90,7 +90,7 @@
 
 - [x] **2.1 RED:** Added a PostgreSQL collision test at idempotency insert; it failed because `store.admit` did not exist. After implementation, verified transaction rollback leaves no run or outbox and retains the original idempotency binding; separately verified successful admission persists finding ID, config snapshot, idempotency binding and outbox.
 - [x] **2.2 GREEN:** Added `PostgresRunStore.admit` transaction, finding/config run columns, idempotency/outbox tables and additive migrations `0003`/`0004`; migration and schema package tests/typecheck pass. Store contract semantics unchanged.
-- [x] **2.3 RED/GREEN:** Store-level same key/same digest replays the original run ID; changed digest conflicts without creating another run/outbox and preserves original binding. Focused schema tests and package suite pass. Request canonicalization, missing-key HTTP contract and concurrent submission race are verified at the application boundary in Task 5.1.
+- [x] **2.3 RED/GREEN:** Store-level same key/same digest replays the original run ID; changed digest conflicts without creating another run/outbox and preserves original binding. PostgreSQL concurrent identical admissions converge after unique-key race; service concurrency test proves callers receive persisted run ID, not their candidate ID. API requires idempotency key and reports digest conflict. Schema/server suites pass.
 - [x] **2.4 GREEN:** Admission test confirms run record persists the accepted snapshot ID and immutable config alongside finding ID, idempotency binding and outbox. Snapshot existence/authorization is checked at the trusted application boundary in Task 5.1 before store admission.
 
 ### Task 3: Durable outbox handoff and recovery
@@ -108,9 +108,9 @@
 
 ### Task 5: Submission API and work dispatch
 
-- [ ] **5.1 RED:** Test `POST` valid finding + snapshot commits admission before returning `202` with stable run ID/status URL; invalid payload/snapshot does not create work. Implement route calling admission operation (never adapter-specific `seedRun`) and run server tests.
-- [ ] **5.2 RED/GREEN:** Test dispatch carries only stable run ID, worker claims from durable store and invokes existing `JudgeRunner`; client disconnect does not cancel. Implement worker composition and pass server/core tests.
-- [ ] **5.3 RED/GREEN:** Test dispatch failure leaves recoverable work and cannot fabricate invalid verdict. Implement error mapping/republication behavior and run server/core/schema suites.
+- [x] **5.1 RED/GREEN:** Added submission route tests for `202` only after accepted submit, invalid payload, missing snapshot, idempotency conflict, malformed JSON and oversized body. Added application submission service using canonical `digestOf`, immutable snapshot preflight, `RunStorePort.admit`, configured profile snapshot and generated ID; no adapter `seedRun` use. Concurrent identical DB submissions now converge after a unique-key race. Server/schema/core typechecks and suites pass.
+- [x] **5.2 RED/GREEN (worker seam):** Outbox worker test proves it passes only durable run ID through claim/execute, client abort is not wired to work, and service reloads finding/snapshot/frozen config from PostgreSQL run record. Full `JudgeRunner` composition still requires runtime dependency provider.
+- [x] **5.3 RED/GREEN (retryable handoff):** Test proves execution throw leaves outbox unpublished/claimed so lease expiry makes it recoverable; no route manufactures invalid verdict. Admission/provider outcome ambiguity remains persisted in existing runner attempt/event records.
 
 ### Task 6: Safe run and event retrieval
 

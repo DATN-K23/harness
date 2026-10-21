@@ -92,6 +92,10 @@ export class FaultyStore implements RunStorePort {
 
   constructor(readonly inner: InMemoryRunStore) {}
 
+  admit(...args: Parameters<RunStorePort["admit"]>) {
+    return this.inner.admit(...args)
+  }
+
   failWhen(matches: (event: NewTrajectoryEvent) => boolean, options: { sticky: boolean }) {
     this.failure = { matches, ...options }
   }

@@ -12,6 +12,10 @@ import { runScenario } from "../src/demo/world"
 class DuplicatingStore implements RunStorePort {
   constructor(private readonly inner: RunStorePort) {}
 
+  admit(...args: Parameters<RunStorePort["admit"]>) {
+    return this.inner.admit(...args)
+  }
+
   claim(...args: Parameters<RunStorePort["claim"]>) {
     return this.inner.claim(...args)
   }

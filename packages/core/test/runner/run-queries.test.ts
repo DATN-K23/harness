@@ -64,6 +64,7 @@ describe("run-queries", () => {
 
       // Mock store that returns out-of-order events
       const mockStore = {
+        admit: async () => ({ kind: "accepted" as const, runId }),
         loadRun: async () => undefined,
         claim: async () => ({ kind: "unavailable" as const, reason: "not_found" as const }),
         appendEvent: async () => ({ kind: "stale" as const, reason: "claim_lost" as const }),

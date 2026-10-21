@@ -103,6 +103,11 @@ const newEvent: NewTrajectoryEvent = {
 class RecordingStore implements RunStorePort {
   calls: string[] = []
 
+  async admit() {
+    this.calls.push("admit")
+    return { kind: "accepted" as const, runId: "run-1" }
+  }
+
   async claim(): Promise<ClaimResult> {
     this.calls.push("claim")
     return { kind: "claimed", claim, state: "running", stateVersion: 3 }

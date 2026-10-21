@@ -149,6 +149,20 @@ export interface RunClaim {
   claimVersion: number
 }
 
+export interface RunAdmission {
+  runId: string
+  findingId: string
+  reportMarkdown: string
+  snapshotId: string
+  config: Record<string, unknown>
+  idempotencyKey: string
+  requestDigest: string
+}
+
+export type AdmissionResult =
+  | { kind: "accepted" | "replayed"; runId: string }
+  | { kind: "conflict" }
+
 // Adapted from OpenCode packages/core/src/session/runner/llm.ts @ 3f393d78bf (MIT License). See NOTICE.
 export interface RunRecord {
   runId: string
@@ -157,6 +171,8 @@ export interface RunRecord {
   terminalReason?: TerminalReason
   prompt?: string
   snapshotId?: string
+  findingId?: string
+  configSnapshot?: Record<string, unknown>
   modelProfile?: string
   resultContent?: string
   errorMessage?: string
@@ -183,6 +199,7 @@ export type TransitionResult = { kind: "transitioned"; stateVersion: number } | 
 
 /** Every mutation carries the claim and expected state version; a stale write returns `stale` and changes nothing. */
 export interface RunStorePort {
+  admit(input: RunAdmission, signal?: AbortSignal): Promise<AdmissionResult>
   findActiveRunsBySnapshot?(snapshotId: string): Promise<string[]>
   claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult>
   appendEvent(

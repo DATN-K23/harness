@@ -2,9 +2,11 @@ import {
   TerminalRunStates,
   type AppendResult,
   type ClaimResult,
+  type AdmissionResult,
   type ClockPort,
   type NewTrajectoryEvent,
   type RunClaim,
+  type RunAdmission,
   type RunRecord,
   type RunState,
   type RunStorePort,
@@ -20,13 +22,15 @@ export interface InMemoryRunStoreOptions {
   leaseMs?: number
 }
 
-export type RunStoreOperation = "claim" | "appendEvent" | "transition" | "loadRun" | "loadEvents"
+export type RunStoreOperation = "admit" | "claim" | "appendEvent" | "transition" | "loadRun" | "loadEvents"
 
 interface StoredRun {
   record: RunRecord
   events: TrajectoryEvent[]
   claim?: RunClaim & { expiresAtMs: number }
   claimVersion: number
+  idempotencyKey?: string
+  requestDigest?: string
 }
 
 const isTerminal = (state: RunState) => TerminalRunStates.some((terminal) => terminal === state)
@@ -71,6 +75,31 @@ export class InMemoryRunStore implements RunStorePort {
     this.leaseMs = options.leaseMs ?? DefaultLeaseMs
   }
 
+  async admit(input: RunAdmission, signal?: AbortSignal): Promise<AdmissionResult> {
+    this.enter("admit", signal)
+    const existing = [...this.runs.values()].find((run) => run.idempotencyKey === input.idempotencyKey)
+    if (existing)
+      return existing.requestDigest === input.requestDigest
+        ? { kind: "replayed", runId: existing.record.runId }
+        : { kind: "conflict" }
+    this.runs.set(input.runId, {
+      record: {
+        runId: input.runId,
+        state: "queued",
+        stateVersion: 1,
+        prompt: input.reportMarkdown,
+        snapshotId: input.snapshotId,
+        findingId: input.findingId,
+        configSnapshot: input.config,
+      },
+      events: [],
+      claimVersion: 0,
+      idempotencyKey: input.idempotencyKey,
+      requestDigest: input.requestDigest,
+    })
+    return { kind: "accepted", runId: input.runId }
+  }
+
   /** Test setup: creates a run the way the (out of scope) acceptance path would. */
   seedRun(runId: string, state: RunState = "queued", prompt = "", snapshotId?: string) {
     if (this.runs.has(runId)) throw new Error(`run ${runId} already exists`)
@@ -79,8 +108,8 @@ export class InMemoryRunStore implements RunStorePort {
         runId,
         state,
         stateVersion: 1,
-        prompt,
-        ...(snapshotId ? { snapshotId } : {}),
+    prompt,
+    ...(snapshotId ? { snapshotId } : {}),
       },
       events: [],
       claimVersion: 0,

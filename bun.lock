@@ -81,6 +81,7 @@
     "packages/server": {
       "name": "@harness/server",
       "dependencies": {
+        "@harness/core": "workspace:*",
         "@harness/protocol": "workspace:*",
       },
       "devDependencies": {

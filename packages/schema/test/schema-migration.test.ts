@@ -5,6 +5,38 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("concurrent identical admissions converge on one run ID", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 4 })
+    const store = new PostgresRunStore({ client })
+    const base = `admission-race-${Date.now()}`
+    const input = {
+      findingId: "finding-race",
+      reportMarkdown: "A report",
+      snapshotId: "snapshot-1",
+      config: {},
+      idempotencyKey: `key-${base}`,
+      requestDigest: `sha256:${"7".repeat(64)}`,
+    }
+
+    try {
+      const result = await Promise.all([
+        store.admit({ ...input, runId: `${base}-a` }),
+        store.admit({ ...input, runId: `${base}-b` }),
+      ])
+      expect(result.every((item) => item.kind !== "conflict")).toBe(true)
+      const [first, second] = result
+      if (first.kind === "conflict" || second.kind === "conflict") throw new Error("identical concurrent requests must not conflict")
+      expect([first.runId, second.runId]).toEqual([first.runId, first.runId])
+      expect(await client.db.select().from(runs).where(eq(runs.id, first.runId))).toHaveLength(1)
+      expect(await client.db.select().from(outbox).where(eq(outbox.runId, first.runId))).toHaveLength(1)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.findingId, "finding-race"))
+      await client.close()
+    }
+  })
+
   test("expired outbox claim can be reclaimed after publisher failure", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")

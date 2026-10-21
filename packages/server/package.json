@@ -12,6 +12,7 @@
     "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
+    "@harness/core": "workspace:*",
     "@harness/protocol": "workspace:*"
   },
   "devDependencies": {

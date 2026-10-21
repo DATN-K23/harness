@@ -65,6 +65,10 @@ class InterruptibleStore implements RunStorePort {
 
   constructor(private readonly inner: RunStorePort) {}
 
+  admit(...args: Parameters<RunStorePort["admit"]>) {
+    return this.inner.admit(...args)
+  }
+
   interruptWhen(matches: (event: NewTrajectoryEvent) => boolean) {
     this.matches = matches
   }

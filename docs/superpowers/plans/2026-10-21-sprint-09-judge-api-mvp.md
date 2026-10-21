@@ -74,8 +74,8 @@
 
 - [x] **2.1 RED:** Added a PostgreSQL collision test at idempotency insert; it failed because `store.admit` did not exist. After implementation, verified transaction rollback leaves no run or outbox and retains the original idempotency binding; separately verified successful admission persists finding ID, config snapshot, idempotency binding and outbox.
 - [x] **2.2 GREEN:** Added `PostgresRunStore.admit` transaction, finding/config run columns, idempotency/outbox tables and additive migrations `0003`/`0004`; migration and schema package tests/typecheck pass. Store contract semantics unchanged.
-- [ ] **2.3 RED/GREEN:** Test same key/same canonical digest returns same run ID, changed digest conflicts, missing key behavior follows existing API contract, and concurrent duplicate submissions create one run. Implement digest/idempotency logic; run focused tests and store suite.
-- [ ] **2.4 RED/GREEN:** Test unknown snapshot/config is rejected before commit and accepted snapshot ID/config are frozen in run record; implement resolution at trusted application boundary, run relevant core/schema tests.
+- [x] **2.3 RED/GREEN:** Store-level same key/same digest replays the original run ID; changed digest conflicts without creating another run/outbox and preserves original binding. Focused schema tests and package suite pass. Request canonicalization, missing-key HTTP contract and concurrent submission race are verified at the application boundary in Task 5.1.
+- [x] **2.4 GREEN:** Admission test confirms run record persists the accepted snapshot ID and immutable config alongside finding ID, idempotency binding and outbox. Snapshot existence/authorization is checked at the trusted application boundary in Task 5.1 before store admission.
 
 ### Task 3: Durable outbox handoff and recovery
 

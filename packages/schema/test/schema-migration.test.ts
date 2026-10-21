@@ -5,6 +5,40 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("admit replays an identical idempotency key and conflicts on a different digest", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const store = new PostgresRunStore({ client })
+    const firstRunId = `admission-idempotency-a-${Date.now()}`
+    const secondRunId = `${firstRunId}-b`
+    const idempotencyKey = `key-${firstRunId}`
+    const requestDigest = `sha256:${"d".repeat(64)}`
+    const admission = {
+      findingId: "finding-1",
+      reportMarkdown: "A report",
+      snapshotId: "snapshot-1",
+      config: {},
+      idempotencyKey,
+      requestDigest,
+    }
+
+    try {
+      expect(await store.admit({ ...admission, runId: firstRunId })).toEqual({ kind: "accepted", runId: firstRunId })
+      expect(await store.admit({ ...admission, runId: secondRunId })).toEqual({ kind: "replayed", runId: firstRunId })
+      expect(await store.admit({
+        ...admission,
+        runId: `${secondRunId}-conflict`,
+        requestDigest: `sha256:${"e".repeat(64)}`,
+      })).toEqual({ kind: "conflict" })
+      expect(await client.db.select().from(runs).where(eq(runs.id, secondRunId))).toHaveLength(0)
+      expect(await client.db.select().from(outbox).where(eq(outbox.runId, firstRunId))).toHaveLength(1)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, firstRunId))
+      await client.close()
+    }
+  })
+
   test("admit persists finding identity and immutable run configuration", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
@@ -35,7 +69,7 @@ describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
     }
   })
 
-  test("admission transaction rolls back run, idempotency key and outbox together", async () => {
+  test("idempotency conflict creates no run or outbox and retains the original binding", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
     const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
@@ -51,8 +85,7 @@ describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
         requestDigest: `sha256:${"b".repeat(64)}`,
         runId: existingRunId,
       })
-      await expect(
-        store.admit({
+      expect(await store.admit({
           runId,
           findingId: "finding-1",
           reportMarkdown: "A report",
@@ -60,8 +93,7 @@ describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
           config: {},
           idempotencyKey,
           requestDigest: `sha256:${"a".repeat(64)}`,
-        }),
-      ).rejects.toThrow()
+        })).toEqual({ kind: "conflict" })
       expect(await client.db.select().from(runs).where(eq(runs.id, runId))).toHaveLength(0)
       expect(await client.db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, idempotencyKey))).toMatchObject([
         { runId: existingRunId },

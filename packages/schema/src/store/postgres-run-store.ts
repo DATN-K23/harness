@@ -55,9 +55,16 @@ export class PostgresRunStore implements RunStorePort {
     config: Record<string, unknown>
     idempotencyKey: string
     requestDigest: string
-  }): Promise<void> {
+  }): Promise<{ kind: "accepted" | "replayed"; runId: string } | { kind: "conflict" }> {
     const now = new Date(this.clock.nowMs())
-    await this.client.db.transaction(async (tx) => {
+    return await this.client.db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, input.idempotencyKey)).for("update")
+      if (existing) {
+        return existing.requestDigest === input.requestDigest
+          ? { kind: "replayed", runId: existing.runId }
+          : { kind: "conflict" }
+      }
+
       await tx.insert(runs).values({
         id: input.runId,
         prompt: input.reportMarkdown,
@@ -77,6 +84,7 @@ export class PostgresRunStore implements RunStorePort {
         createdAt: now,
       })
       await tx.insert(outbox).values({ runId: input.runId, status: "pending", createdAt: now })
+      return { kind: "accepted", runId: input.runId }
     })
   }
 

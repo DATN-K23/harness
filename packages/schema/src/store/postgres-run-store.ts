@@ -98,11 +98,14 @@ export class PostgresRunStore implements RunStorePort {
     return rows.map(({ runId }) => runId)
   }
 
-  async claimOutbox(runId: string): Promise<boolean> {
+  async claimOutbox(runId: string, leaseMs = DefaultLeaseMs): Promise<boolean> {
     const [row] = await this.client.db
       .update(outbox)
-      .set({ status: "claimed" })
-      .where(and(eq(outbox.runId, runId), eq(outbox.status, "pending")))
+      .set({ status: "claimed", claimExpiresAt: new Date(this.clock.nowMs() + leaseMs) })
+      .where(and(
+        eq(outbox.runId, runId),
+        sql`(${outbox.status} = 'pending' or (${outbox.status} = 'claimed' and ${outbox.claimExpiresAt} <= to_timestamp(${this.clock.nowMs()} / 1000.0)))`,
+      ))
       .returning({ runId: outbox.runId })
     return row !== undefined
   }

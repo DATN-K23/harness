@@ -79,7 +79,7 @@
 
 ### Task 3: Durable outbox handoff and recovery
 
-- [x] **3.1 RED/GREEN:** Tests verify committed pending work is retrievable, claim transitions pending→claimed once under concurrent publishers, publication is one-way/idempotent, and pending query hides published work. PostgreSQL schema tests and schema package suite pass. Transactional commit-before-outbox is verified by Task 2 rollback/admission tests.
+- [x] **3.1 RED/GREEN:** Tests verify committed pending work is retrievable, claim transitions pending→claimed once under concurrent publishers, expired claim can be reclaimed, publication is one-way/idempotent, and pending query hides published work. PostgreSQL schema tests, migration, and schema package suite pass. Transactional commit-before-outbox is verified by Task 2 rollback/admission tests.
 - [ ] **3.2 RED/GREEN:** Test duplicate work delivery results in one active claim, lease takeover works, and stale worker cannot append/transition. Reuse `RunStorePort` contract suite; add only missing durable operations and pass in-memory + Postgres conformance.
 - [ ] **3.3 RED/GREEN:** Test restart recovers accepted work and never silently replays provider attempt with ambiguous outcome. Integrate existing hydration/attempt ledger; focused recovery tests and core/schema suites pass.
 

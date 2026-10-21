@@ -5,6 +5,34 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("expired outbox claim can be reclaimed after publisher failure", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    let now = Date.now()
+    const store = new PostgresRunStore({ client, clock: { nowMs: () => now } })
+    const runId = `outbox-lease-${Date.now()}`
+
+    try {
+      await store.admit({
+        runId,
+        findingId: "finding-1",
+        reportMarkdown: "A report",
+        snapshotId: "snapshot-1",
+        config: {},
+        idempotencyKey: `key-${runId}`,
+        requestDigest: `sha256:${"8".repeat(64)}`,
+      })
+      expect(await store.claimOutbox(runId, 500)).toBe(true)
+      expect(await store.claimOutbox(runId, 500)).toBe(false)
+      now += 501
+      expect(await store.claimOutbox(runId, 500)).toBe(true)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
   test("two outbox publishers cannot both claim the same pending item", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")

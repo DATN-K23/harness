@@ -103,6 +103,7 @@ export const outbox = pgTable(
   {
     runId: text("run_id").primaryKey().references(() => runs.id, { onDelete: "cascade" }),
     status: varchar("status", { length: 16 }).notNull().default("pending"),
+    claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

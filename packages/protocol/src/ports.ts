@@ -74,7 +74,8 @@ export const isValidDeconstructedClaim = (claim: DeconstructedClaim): boolean =>
 
 export type IngestionResult =
   | { kind: "missing_poc" }
-  | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[] }
+  | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[]; bceStatus?: "incomplete" }
+  | { kind: "incomplete"; reason: "unsupported_report" | "target_not_found" | "bce_unavailable"; claim?: DeconstructedClaim; pocCode?: string; bceSlices?: BceSlice[] }
   | { kind: "invalid_report" }
   | { kind: "ok"; pocCode: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
 

@@ -1,6 +1,7 @@
 export { canonicalJson, digestOf, sha256Hex, textDigest } from "./util/digest"
 export { truncateText } from "./util/truncate"
 export { sanitizeSourceContent, sanitizeSystemText } from "./util/sanitize"
+export { SnapshotIngestion } from "./ingestion/snapshot-ingestion"
 export type { TruncateOptions, TruncateResult } from "./util/truncate"
 export { createIdGenerator, systemIdSources } from "./util/id"
 export type { IdGenerator, IdGeneratorOptions } from "./util/id"

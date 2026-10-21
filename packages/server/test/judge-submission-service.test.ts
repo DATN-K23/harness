@@ -183,4 +183,5 @@ describe("Judge submission service", () => {
     await expect(worker.runOnce()).rejects.toThrow("runner failed")
     expect(order).toEqual([])
   })
+
 })

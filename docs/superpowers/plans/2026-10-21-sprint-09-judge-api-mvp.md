@@ -104,12 +104,12 @@
 - [x] **4.1 RED/GREEN:** Added tests for loopback host allowlist, actual listener factory rejecting public binds before invoking listener, and route-level Bearer auth rejecting before body parsing/admission. Constant-time credential comparison adapted from upstream `ServerAuth.authorized`; server typecheck/tests pass.
 - [x] **4.2 Decision gate:** Team confirmed macOS Keychain through the native host as credential custody. API/server must receive the resolved credential only through an injected native-host boundary; do not add renderer access, plaintext files, anonymous fallback or token-in-URL.
 - [x] **4.3 RED/GREEN:** Added Swift Security.framework generic-password helper and Bun bridge. Tests verify create-once/read-existing/rotate, exact credential travels through stdin (never argv), unsupported OS and Keychain errors fail closed, and a real uniquely named Keychain item can be read/rotated/removed. `swiftc -typecheck` and macOS integration test pass. Server exports provider for trusted startup composition.
-- [x] **4.4 RED/GREEN (contract helper):** Added compatibility validator and tests for matching API version/contract digest and mismatch details; server package suite passes. The concrete health/discovery HTTP handshake remains to be wired with server startup/routes in Tasks 5–6.
+- [ ] **4.4 RED/GREEN:** Compatibility validator/unit tests exist, but health/discovery route and startup handshake are not wired; add endpoint identity, API/runtime version, contract digest, build/capabilities and reject incompatible operations before marking complete.
 
 ### Task 5: Submission API and work dispatch
 
 - [x] **5.1 RED/GREEN:** Added submission route tests for `202` only after accepted submit, invalid payload, missing snapshot, idempotency conflict, malformed JSON and oversized body. Added application submission service using canonical `digestOf`, immutable snapshot preflight, `RunStorePort.admit`, configured profile snapshot and generated ID; no adapter `seedRun` use. Concurrent identical DB submissions now converge after a unique-key race. Server/schema/core typechecks and suites pass.
-- [x] **5.2 RED/GREEN (worker seam):** Outbox worker test proves it passes durable run ID through claim/execute, client abort is not wired to work, and service reloads finding/snapshot/frozen config from run record. Full `JudgeRunner` composition still requires a production runtime dependency provider and is not yet end-to-end.
+- [ ] **5.2 RED/GREEN:** Outbox worker seam and persisted input reload are tested, but production `JudgeRunner` composition/dependency provider is not wired. Complete worker composition and prove request disconnect does not cancel an actual Judge run before marking done.
 - [x] **5.3 RED/GREEN (retryable handoff):** Test proves execution throw leaves outbox unpublished/claimed so lease expiry makes it recoverable; no route manufactures invalid verdict. Admission/provider outcome ambiguity remains persisted in existing runner attempt/event records.
 
 ### Task 6: Safe run and event retrieval
@@ -128,7 +128,7 @@
 
 - [x] **8.1 RED/GREEN (existing contract verified):** Existing `witness-resolution`, `verdict-synthesizer`, and `JudgeRunner` tests prove reasoning-only results stay `unverified`/`UNVERIFIED` and evidence is resolved against snapshot. Ran targeted 30-test verdict/runner suites.
 - [x] **8.2 RED/GREEN (existing contract verified):** Existing runner recovery tests prove provider/runtime/persistence failures terminate as execution failures and do not synthesize `invalid`. Core suite passed after cancellation port integration.
-- [ ] **8.3 BLOCKED BY EXISTING RECOVERY DESIGN:** `RunWriter` intentionally appends terminal event then CAS-transitions run; a crash leaves a terminal-pending event that `finishPending` recovers. This preserves committed verdict and recovery, but contradicts this plan's strict all-or-nothing terminal transaction. Resolve by choosing whether to replace pending-terminal recovery with a transaction-capable terminal store operation before claiming 8.3 complete.
+- [ ] **8.3 DESIGN CONFLICT:** `RunWriter` intentionally appends terminal event then CAS-transitions run; a crash leaves a terminal-pending event that `finishPending` recovers. This preserves recovery but contradicts this plan's strict all-or-nothing terminal transaction. Implement a transaction-capable terminal operation without losing crash recovery, or formally revise this plan's acceptance requirement before marking complete.
 
 ### Task 9: End-to-end integration and release gates
 
@@ -145,7 +145,7 @@ Use the plan-specific workspace under `.superpowers/sdd/2026-10-21-sprint-09-jud
 
 - All acceptance requirements A1–A5 map to task groups 1–8; durable handoff/recovery is explicit, not an in-process shortcut.
 - Security, persistence, API, worker, cancellation and terminal concerns are separate task groups with tests owned by their package.
-- The only implementation decision deliberately unresolved is approved protected credential/rendezvous facility; it is a blocking security decision, not an assumption.
+- Remaining delivery gaps are production server startup/handshake/outbox-worker-to-JudgeRunner composition and the terminal atomicity design conflict described in Task 8.3.
 - Tests cover prohibited payloads, snapshot failures, idempotency conflicts/concurrency, outbox crash windows, ambiguous paid attempt, public bind/auth failures, cursor tampering/cross-run access, cancellation races, unverified verdicts and atomic terminal commit.
 
 **Current implementation limits:** API creation/retrieval/cancellation handlers and durable primitives are implemented; production server startup that resolves Keychain at process boot, wires local listener/auth/cursor secret, publishes outbox and composes all JudgeRunner dependencies is still required. Do not label Sprint 9 end-to-end complete until Tasks 8–9 implement/test that application composition.

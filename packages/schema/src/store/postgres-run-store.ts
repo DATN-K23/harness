@@ -88,6 +88,34 @@ export class PostgresRunStore implements RunStorePort {
     })
   }
 
+  async loadPendingOutbox(limit = 100): Promise<string[]> {
+    const rows = await this.client.db
+      .select({ runId: outbox.runId })
+      .from(outbox)
+      .where(eq(outbox.status, "pending"))
+      .orderBy(asc(outbox.createdAt))
+      .limit(limit)
+    return rows.map(({ runId }) => runId)
+  }
+
+  async claimOutbox(runId: string): Promise<boolean> {
+    const [row] = await this.client.db
+      .update(outbox)
+      .set({ status: "claimed" })
+      .where(and(eq(outbox.runId, runId), eq(outbox.status, "pending")))
+      .returning({ runId: outbox.runId })
+    return row !== undefined
+  }
+
+  async markOutboxPublished(runId: string): Promise<boolean> {
+    const [row] = await this.client.db
+      .update(outbox)
+      .set({ status: "published", publishedAt: new Date(this.clock.nowMs()) })
+      .where(and(eq(outbox.runId, runId), eq(outbox.status, "claimed")))
+      .returning({ runId: outbox.runId })
+    return row !== undefined
+  }
+
   async claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult> {
     signal?.throwIfAborted()
     const now = this.clock.nowMs()

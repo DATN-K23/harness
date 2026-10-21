@@ -20,3 +20,7 @@ No policy-only sanitizer was added either. Without a verified parser/toolchain a
 - Inspected the current `SanitizerPort`/`SandboxPort`, sandbox constraint defaults, and sanitizer call sites. Existing `validateSandboxConstraints` checks only network mode and positive timeout; it is not a production Docker adapter or a complete isolation policy.
 - No tests or typechecks were run because this task made no code changes. No Docker pull/run, Foundry execution, hostile code execution, or external workload was performed.
 - Task 5 remains incomplete. This report does not claim runtime PoC support or a verified sanitizer.
+
+## Addendum
+
+- Commit `d9285f7` clarifies the separate authorization required for image inspection, benign disposable-container integration, and hostile PoC execution; implementation-plan approval authorizes none of them.

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { ApiCompatibility, validateApiCompatibility, isLoopbackHost, isAuthorizedLocalRequest } from "../src/runtime-security"
+import { listenLocal } from "../src/local-server"
 
 describe("local runtime security", () => {
   test("accepts compatible API version and contract digest", () => {
@@ -36,6 +37,14 @@ describe("local runtime security", () => {
     expect(isAuthorizedLocalRequest(request(), "installation-secret")).toBe(false)
     expect(isAuthorizedLocalRequest(request("wrong-secret"), "installation-secret")).toBe(false)
     expect(isAuthorizedLocalRequest(request("installation-secret"), "installation-secret")).toBe(true)
+  })
+
+  test("refuses public bind hosts before invoking the listener", () => {
+    let listenCalls = 0
+    expect(() => listenLocal("0.0.0.0", 1234, () => { listenCalls++; return {} })).toThrow("Server must bind to loopback")
+    expect(listenCalls).toBe(0)
+    expect(listenLocal("127.0.0.1", 1234, () => { listenCalls++; return {} })).toEqual({})
+    expect(listenCalls).toBe(1)
   })
 
   test("never accepts a credential from the URL", () => {

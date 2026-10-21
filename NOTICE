@@ -67,6 +67,7 @@ their attribution.
 - file: packages/schema/src/store/postgres-run-store.ts | source: packages/schema/src/index.ts | attribution: header
 - file: packages/server/src/runtime-security.ts | source: packages/server/src/auth.ts | attribution: header
 - file: packages/server/src/index.ts | source: packages/server/src/index.ts | attribution: header
+- file: packages/server/src/judge-api.ts | source: packages/server/src/index.ts | attribution: header
 - file: packages/schema/src/store/redaction.ts | source: packages/schema/src/index.ts | attribution: header
 - file: packages/llm/package.json | source: packages/llm/package.json | attribution: notice-only
 - file: packages/llm/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only

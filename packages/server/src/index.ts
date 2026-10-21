@@ -11,4 +11,6 @@ export { createJudgeSubmissionService, loadAdmittedJudgeInput } from "./judge-su
 export type { JudgeSubmissionServiceDeps } from "./judge-submission-service"
 export { createOutboxWorker } from "./outbox-worker"
 export type { OutboxWorkerDeps } from "./outbox-worker"
+export type { JudgeQueryStore } from "./judge-api"
+export { listenLocal } from "./local-server"
 export type { AdmissionResult, RunAdmission } from "@harness/protocol"

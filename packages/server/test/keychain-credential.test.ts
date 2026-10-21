@@ -59,5 +59,5 @@ describe("Keychain credential provider", () => {
       expect(removed.error).toBeUndefined()
       expect(removed.status).toBe(0)
     }
-  })
+  }, 15_000)
 })

@@ -92,6 +92,21 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     expect(sandboxFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "EXECUTION_FAILED" })
   })
 
+  test.each(["setup_failed", "timed_out"] as const)("sandbox %s outcome is unverified", async (outcome) => {
+    const world = createWorld()
+    const w = world.worker({ sandbox: { outcome, exitCode: 1, trace: "", durationMs: 4 } })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
+  })
+
+  test("a thrown sandbox error ends unverified instead of interrupting the worker", async () => {
+    const world = createWorld()
+    const w = world.worker({ wrapSandbox: (sandbox) => ({
+      runSingleShot: async () => { throw new Error("sandbox unavailable") },
+      runStateProbe: (input, signal) => sandbox.runStateProbe(input, signal),
+    }) })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
+  })
+
   test("an assertion failure without validated claim evidence remains unverified", async () => {
     const world = createWorld()
     const w = world.worker({ sandbox: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit()", durationMs: 4 } })

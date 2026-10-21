@@ -25,3 +25,22 @@ Static valid verdicts continue through `synthesizeVerdict`, which resolves citat
 No event schema or verdict fields were added. Port result shapes are intentionally stricter, so concrete sandbox adapters must report a classified outcome before they can typecheck against this port. The repository currently has no production sandbox adapter; runtime remains blocked and must be explicitly enabled only after its isolation prerequisites are verified. Assertion failures are conservatively UNVERIFIED pending validated test/trace evidence and a separately designed evidence-validation path.
 
 Commit: `71807f9` (`fix(core): distinguish sandbox outcome from exit status`).
+
+## Fix round 1
+
+Addressed reviewer findings:
+
+- Sandbox port rejections now become `EXECUTION_FAILED` / `UNVERIFIED`; unrelated stage errors remain `worker_interrupted`. Abort-triggered rejections retain the existing wall-clock/cancellation handling.
+- Successful state-probe deltas are individually secret-filtered and bounded to 1,000 characters before both model exposure and evidence storage. The verdict wire shape is unchanged.
+- Added direct coverage for `setup_failed`, `timed_out`, thrown sandbox calls, and secret/size handling at the delta boundary.
+
+TDD: `bun test packages/core/test/runner/judge-runner.test.ts packages/core/test/judge/adjudication-step.test.ts` initially showed the thrown sandbox case returning `worker_interrupted` and delta data leaking/unbounded. After the fix: **41 pass, 0 fail**.
+
+Verification:
+
+- `bun run --cwd packages/core typecheck` — passed.
+- `bun run --cwd packages/protocol typecheck` — passed.
+- Focused tests above — **41 pass, 0 fail**.
+- No Docker was enabled or run; no isolation claim is made.
+
+Scope note: only the two affected core test files and implementation files were changed for this round; existing unrelated workspace modifications were left untouched.

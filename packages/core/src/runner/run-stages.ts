@@ -28,6 +28,10 @@ export interface StageContext {
 
 type StageName = "ingestion" | "sanitizer" | "sandbox"
 
+class SandboxCallFailed extends Error {
+  constructor(readonly sandboxError: unknown) { super("sandbox call failed") }
+}
+
 export type Staged =
   | { kind: "ended"; terminal: TerminalCommit }
   | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[]; sanitized?: SanitizedPoc; trace: string }
@@ -48,6 +52,7 @@ const runStage = async <Result>(
   await context.persist("stage.started", { stage })
   const result = await call().catch(async (error: unknown) => {
     await context.persist("stage.finished", { stage, outcome: "failed", durationMs: durationMs() })
+    if (stage === "sandbox" && !context.signal?.aborted) throw new SandboxCallFailed(error)
     throw new StepFault("worker_interrupted", error)
   })
   const reasonCode = rejected(result)
@@ -74,6 +79,11 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
       verdict: fastRejectVerdict({ runId, findingId: input.finding.findingId }, fastReject),
     })
   const cancelled = (boundary: CancellationBoundary) => end({ state: "cancelled", boundary })
+  const sandboxFailure = (): Staged => ({ kind: "ended", terminal: { state: "completed", verdict: {
+    runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
+    reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
+    reasoning: "The sandbox failed before reporting a validated test outcome.", citesEvidence: [],
+  } } })
 
   const beforeIngestion = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "ingestion", signal })
   if (beforeIngestion.kind === "cancel") return cancelled(beforeIngestion.boundary)
@@ -98,12 +108,9 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
         return reject({ reasonCode: "NON_FAITHFUL_OVERRIDE", findings: sanitized.findings })
       const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
       if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
-      const executed = await runStage(
-        context,
-        "sandbox",
-        () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
-        (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
-      )
+      let executed: Awaited<ReturnType<typeof deps.sandbox.runSingleShot>>
+      try { executed = await runStage(context, "sandbox", () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal), (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED")) }
+      catch (error) { if (error instanceof SandboxCallFailed) return sandboxFailure(); throw error }
       if (executed.outcome !== "passed")
         return { kind: "ended", terminal: { state: "completed", verdict: {
           runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
@@ -130,12 +137,9 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 
   const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
   if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
-  const executed = await runStage(
-    context,
-    "sandbox",
-    () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
-    (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
-  )
+  let executed: Awaited<ReturnType<typeof deps.sandbox.runSingleShot>>
+  try { executed = await runStage(context, "sandbox", () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal), (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED")) }
+  catch (error) { if (error instanceof SandboxCallFailed) return sandboxFailure(); throw error }
   if (executed.outcome !== "passed")
     return { kind: "ended", terminal: { state: "completed", verdict: {
       runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
@@ -156,6 +160,7 @@ const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed:
     stage: { runId: context.runId, snapshotId: context.input.snapshotId },
     sanitizer: context.deps.sanitizer,
     sandbox: context.deps.sandbox,
+    security: context.deps.security,
     maxProbeRuns: maxProbeRunsOf(context.input),
     counter: createProbeCounter(probeRunsUsed),
     evidence: context.probeEvidence,

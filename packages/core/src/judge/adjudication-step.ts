@@ -6,6 +6,7 @@ import type {
   SandboxPort,
   SanitizerPort,
   SanitizerResult,
+  SecurityFilterPort,
   StageInput,
   ToolCall,
   ToolDefinition,
@@ -14,6 +15,9 @@ import type {
 } from "@harness/protocol"
 import { NextStepMarker, describeArguments } from "../step/parallel-tool-dispatcher"
 import type { IdGenerator } from "../util/id"
+import { bounded } from "../runner/judge-step-support"
+
+const MaxStateDeltaChars = 1_000
 
 /**
  * Tier 1: the submitter's PoC asserts something, and the model judges whether the assertions prove a violation.
@@ -44,6 +48,7 @@ export interface StateProbeOptions {
   maxProbeRuns: number
   counter: ProbeCounter
   evidence?: Map<string, { before: string; after: string }>
+  security: SecurityFilterPort
 }
 
 export interface StateProbe {
@@ -117,10 +122,15 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
           "probe fewer or different state variables, or decide from the evidence already gathered.",
         )
       }
-      for (const delta of probe.stateDeltas) evidence.set(delta.variable, { before: delta.before, after: delta.after })
-      const rows = probe.stateDeltas.map(
-        (delta) => `| ${cell(delta.variable)} | ${cell(delta.before)} | ${cell(delta.after)} |`,
-      )
+      const rows = await Promise.all(probe.stateDeltas.map(async (delta) => {
+        const [variable, before, after] = await Promise.all(
+          [delta.variable, delta.before, delta.after].map(async (value) =>
+            bounded((await options.security.filterSecrets(value, signal)).content, MaxStateDeltaChars),
+          ),
+        )
+        evidence.set(variable, { before, after })
+        return `| ${cell(variable)} | ${cell(before)} | ${cell(after)} |`
+      }))
       const table =
         rows.length === 0
           ? "The probe reported no state values."

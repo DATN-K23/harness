@@ -8,6 +8,7 @@ import {
   stateProbeFor,
 } from "../../src/judge/adjudication-step"
 import { FakeClock, SeededRandom } from "../../src/testing/deterministic"
+import { RegexSecurityFilter } from "../../src/testing/regex-security-filter"
 import { InMemoryToolRegistry } from "../../src/testing/in-memory-tool-registry"
 import { ScriptedSandbox, ScriptedSanitizer } from "../../src/testing/scripted-stages"
 import { createIdGenerator } from "../../src/util/id"
@@ -40,6 +41,7 @@ const setup = (hasSubmitterAssertions: boolean, maxProbeRuns = 2) => {
     sandbox,
     maxProbeRuns,
     counter: createProbeCounter(),
+    security: new RegexSecurityFilter(),
   })
   return { registry, sanitizer, sandbox, tools: composeTools(registry, probe) }
 }
@@ -82,6 +84,25 @@ describe("adjudication step: tier selection and state probe", () => {
     expect(third.content).toContain("limit of 2 state probe runs")
     expect(third.content).toContain("Suggested next step:")
     expect(registry.calls).toHaveLength(0)
+  })
+
+  test("state delta values are secret-filtered and bounded before evidence or output", async () => {
+    const secret = "sk-ant-api03-AbCdEfGhIjKlMnOpQrSt"
+    const sandbox = new ScriptedSandbox({ stateProbe: [{ ...probeResult, stateDeltas: [
+      { variable: "totalSupply", before: secret, after: "x".repeat(20_001) },
+    ] }] })
+    const sanitizer = new ScriptedSanitizer([sanitized(false)])
+    const probe = stateProbeFor({
+      sanitized: sanitized(false),
+      claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply", attackScenario: "calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
+      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer, sandbox, maxProbeRuns: 1, counter: createProbeCounter(),
+      evidence: new Map(), security: new RegexSecurityFilter(),
+    })!
+    const result = await probe.execute({ stateVariables: ["totalSupply"] })
+    expect(result.content).not.toContain(secret)
+    expect(result.content.length).toBeLessThan(2_100)
+    expect(probe.evidence?.get("totalSupply")?.before).not.toContain(secret)
+    expect(probe.evidence?.get("totalSupply")?.after.length).toBeLessThanOrEqual(1_003)
   })
 
   test("a probe request must name exactly one variable", async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { ApiCompatibility, validateApiCompatibility, isLoopbackHost, isAuthorizedLocalRequest } from "../src/runtime-security"
 import { listenLocal } from "../src/local-server"
+import { startJudgeServer } from "../src/startup"
 
 describe("local runtime security", () => {
   test("accepts compatible API version and contract digest", () => {
@@ -63,5 +64,31 @@ describe("local runtime security", () => {
       fetch: async () => Response.json({ ok: true }),
     })).toThrow("Keychain credential unavailable")
     expect(listenCalls).toBe(0)
+  })
+
+  test("loads credential from Keychain provider and binds local runtime before serving", async () => {
+    const sequence: string[] = []
+    const server = await startJudgeServer<{ fetch(request: Request): Promise<Response> }>({
+      hostname: "127.0.0.1",
+      port: 4555,
+      credentialProvider: {
+        getOrCreate: async () => { sequence.push("keychain"); return "protected-secret" },
+        rotate: async () => "protected-secret-rotated",
+      },
+      createRuntime: (credential) => {
+        sequence.push(`runtime:${credential}`)
+        return { api: { fetch: async () => Response.json({ ok: true }) }, worker: { runOnce: async () => { sequence.push("worker"); return 1 } } }
+      },
+      listen: (hostname, port, fetch) => {
+        sequence.push(`listen:${hostname}:${port}`)
+        return { fetch }
+      },
+      runWorker: false,
+    })
+    expect(sequence).toEqual(["keychain", "runtime:protected-secret", "listen:127.0.0.1:4555"])
+    expect((await server.fetch(new Request("http://127.0.0.1/health", { headers: { authorization: "Bearer protected-secret" } }))).status).toBe(200)
+    expect(server.runWorkerOnce).toBeDefined()
+    await server.runWorkerOnce()
+    expect(sequence.at(-1)).toBe("worker")
   })
 })

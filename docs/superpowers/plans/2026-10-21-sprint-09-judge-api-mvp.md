@@ -135,7 +135,7 @@
 - [x] **9.1 RED/GREEN (deterministic integration):** Server E2E test submits through HTTP, admits through the persistent-store contract, publishes stable ID, claims worker, runs actual `JudgeRunner`, then retrieves completed run. Current test uses InMemoryRunStore to keep deterministic/offline; production Postgres tested separately.
 - [x] **9.2 RED/GREEN (Postgres integration):** `checkPostgresReachable` guarded store tests cover migrations, atomic admission/rollback, concurrent idempotency, terminal commit rollback, cancellation, claims and event ordering; tests skip gracefully without Postgres.
 - [x] **9.3 VERIFY:** `bunx turbo typecheck` and `bunx turbo test` exit 0; Swift Keychain helper `swiftc -typecheck` exits 0.
-- [ ] **9.4 DOC:** Document local startup/auth prerequisites and API examples; update `docs/core-team-timeline.md` status only when acceptance tests pass. Verify documented commands against actual implementation.
+- [x] **9.4 DOC:** Added `packages/server/README.md` with Keychain prerequisites, fail-closed behavior, API auth/payloads, runtime composition contract and remaining deployment supervision/health-handshake work. Timeline status intentionally unchanged because turnkey product startup is not yet delivered.
 
 ## Execution ledger expectations
 

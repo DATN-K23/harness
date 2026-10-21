@@ -61,7 +61,7 @@ const sourceWithoutComments = (source: string): string | undefined => {
       i++
     } else result += char
   }
-  return quote || blockComment || lineComment ? undefined : result
+  return quote || blockComment ? undefined : result
 }
 
 const hasTargetInContract = (source: string, contract: string, functionName: string) => {

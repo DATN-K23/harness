@@ -45,3 +45,11 @@ Pending.
 - Verification: `bun test packages/core/test/ingestion/snapshot-ingestion.test.ts` — **12 pass, 0 fail**; `bun run --cwd packages/core typecheck` — passed; `git diff --check` — passed.
 - Task 3 still does **not** satisfy its requested BCE caller/callee/state/modifier evidence: exact `solc` selection remains unresolved, so analysis is explicitly unavailable/incomplete. No compiler or Docker was run; no BCE claim is made.
 - Fix commit: `0a93574` (`fix(core): preserve Solidity strings when stripping comments`).
+
+## Fix round 3 — EOF after line comment
+
+- A `//` comment reaching EOF is now treated as a normal terminated comment; only unterminated strings and block comments reject source mapping.
+- Added a regression with a same-line contract/function declaration followed by a trailing `// comment` and no final newline. It failed before the change and passes afterward.
+- Verification: `bun test packages/core/test/ingestion/snapshot-ingestion.test.ts` — **13 pass, 0 fail**; `bun run --cwd packages/core typecheck` — passed; `git diff --check` — passed.
+- Task 3 still does **not** satisfy BCE caller/callee/state/modifier requirements because exact `solc` selection remains unresolved. No compiler or Docker was run; no BCE is claimed.
+- Fix commit: `9cc87e2` (`fix(core): accept EOF after Solidity line comments`).

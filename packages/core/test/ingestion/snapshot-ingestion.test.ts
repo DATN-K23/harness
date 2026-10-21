@@ -83,6 +83,12 @@ describe("SnapshotIngestion", () => {
     expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
   })
 
+  test("maps declarations before a final line comment without a newline", async () => {
+    const source = snapshot({ "src/Vault.sol": "contract Vault { function withdraw() external {} } // trailing comment" })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
+  })
+
   test("rejects prohibited metadata keys at any depth", async () => {
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n\n{\"nested\":{\"groundTruthLabel\":\"vulnerable\"}}`) })
     expect(result).toEqual({ kind: "invalid_report" })

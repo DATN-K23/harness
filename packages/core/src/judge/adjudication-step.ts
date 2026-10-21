@@ -18,6 +18,7 @@ import type { IdGenerator } from "../util/id"
 import { bounded } from "../runner/judge-step-support"
 
 const MaxStateDeltaChars = 1_000
+const MaxStateDeltas = 32
 
 /**
  * Tier 1: the submitter's PoC asserts something, and the model judges whether the assertions prove a violation.
@@ -122,7 +123,7 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
           "probe fewer or different state variables, or decide from the evidence already gathered.",
         )
       }
-      const rows = await Promise.all(probe.stateDeltas.map(async (delta) => {
+      const rows = await Promise.all(probe.stateDeltas.slice(0, MaxStateDeltas).map(async (delta) => {
         const [variable, before, after] = await Promise.all(
           [delta.variable, delta.before, delta.after].map(async (value) =>
             bounded((await options.security.filterSecrets(value, signal)).content, MaxStateDeltaChars),

@@ -105,6 +105,30 @@ describe("adjudication step: tier selection and state probe", () => {
     expect(probe.evidence?.get("totalSupply")?.after.length).toBeLessThanOrEqual(1_003)
   })
 
+  test("state probe output and evidence omit deltas beyond the count limit", async () => {
+    const sandbox = new ScriptedSandbox({ stateProbe: [{
+      ...probeResult,
+      stateDeltas: Array.from({ length: 100 }, (_, index) => ({
+        variable: `state${index}`,
+        before: "0",
+        after: "1",
+      })),
+    }] })
+    const probe = stateProbeFor({
+      sanitized: sanitized(false),
+      claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply", attackScenario: "calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
+      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer: new ScriptedSanitizer([sanitized(false)]), sandbox,
+      maxProbeRuns: 1, counter: createProbeCounter(), evidence: new Map(), security: new RegexSecurityFilter(),
+    })!
+
+    const result = await probe.execute({ stateVariables: ["totalSupply"] })
+    expect(result.content).toContain("| state31 | 0 | 1 |")
+    expect(result.content).not.toContain("| state32 | 0 | 1 |")
+    expect(result.content.length).toBeLessThan(2_000)
+    expect(probe.evidence?.size).toBe(32)
+    expect(probe.evidence?.has("state32")).toBe(false)
+  })
+
   test("a probe request must name exactly one variable", async () => {
     const { tools, sandbox, sanitizer } = setup(false)
     const result = await tools.execute(multiProbeCall("probe-multiple"))

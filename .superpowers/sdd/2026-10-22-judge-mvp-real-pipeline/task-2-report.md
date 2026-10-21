@@ -44,3 +44,16 @@ Verification:
 - No Docker was enabled or run; no isolation claim is made.
 
 Scope note: only the two affected core test files and implementation files were changed for this round; existing unrelated workspace modifications were left untouched.
+
+## Fix round 2
+
+Addressed the scoped re-review finding that an arbitrary number of individually bounded deltas could inflate probe output and evidence. State probes now process at most 32 deltas; excess deltas are omitted from both the rendered result and recorded evidence. No unrelated logic or Docker work was changed.
+
+TDD: added a 100-delta regression asserting only the first 32 are exposed and recorded, and that the resulting content stays below 2,000 characters. Before the implementation change, `bun test packages/core/test/judge/adjudication-step.test.ts` failed as expected (`expect(received).not.toContain(expected)`). Afterward: **6 pass, 0 fail**.
+
+Verification:
+
+- `bun run --cwd packages/core typecheck` — passed.
+- `bun run --cwd packages/protocol typecheck` — passed.
+- `git diff --check` — passed.
+- No Docker was enabled or run.

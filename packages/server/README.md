@@ -18,6 +18,8 @@ Create `@harness/server`'s runtime with a `RunStorePort`, `SourceSnapshotPort`, 
 
 `startJudgeServer` accepts a platform listener and a credential provider, composes the runtime, enforces loopback and auth, and returns `runWorkerOnce()` plus `stop()`. The deployment entrypoint must invoke worker polling under its supervised lifecycle and provide the real PostgreSQL/source/provider dependency graph. This package does not yet provide a turnkey production composition or continuously supervised daemon executable.
 
+Production composition is **BLOCKED**: real ingestion, sanitizer, sandbox, PostgreSQL/provider/source wiring, and approved Docker image/isolation evidence are not available. `startJudgeServer` is a composition seam, not proof of production readiness; callers must supply the actual dependency graph. Task 3 BCE outcomes are incomplete, so the current runner cannot establish static PASS/FAIL either.
+
 ## API
 
 `POST /v1/judge/runs` requires `Idempotency-Key` and JSON:

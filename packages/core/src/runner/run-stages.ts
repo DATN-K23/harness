@@ -127,12 +127,12 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
         } } }
       return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, sanitized, trace: executed.trace }
     }
-    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: ingested.bceStatus === "incomplete", trace: "" }
+    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
   }
   if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
-  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, trace: "" }
+  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
   if (!input.config.enablePocExecution)
-    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, trace: "" }
+    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
   const pocCode = ingested.pocCode
 
   const sanitized = await runStage(
@@ -156,7 +156,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
       reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
       citesEvidence: [], traceDigest: textDigest(executed.trace),
     } } }
-  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: false, sanitized, trace: executed.trace }
+  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, sanitized, trace: executed.trace }
 }
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns

@@ -13,4 +13,4 @@
 - [x] Run focused runner tests and observe failures.
 - [x] Preserve snapshot line/digest citation validation through `synthesizeVerdict`; consensus cannot upgrade incomplete BCE to PASS.
 - [x] Preserve status semantics: this Task 3 incomplete BCE profile remains `UNVERIFIED` for static claims; no missing edge proves blocked.
-- [x] Run focused tests and the full core suite (focused passed; full suite has 4 remaining demo failures documented in `task-4-report.md`).
+- [x] Run focused tests and the full core suite (focused passed; full suite's 5 failures, including the reproduced demo expectations, are documented in `task-4-report.md`).

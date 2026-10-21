@@ -294,6 +294,19 @@ describe("JudgeRunner: reasoning loop", () => {
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
 
+  test("kind ok with no BCE status or slices cannot yield a citation-valid static PASS", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] }, script: [
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"reachable","explanation":"entry reaches target"}'),
+      textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
+      textResponse('{"validity":"valid","verificationStatus":"PASS","reasonCode":"EXPLOIT_CONFIRMED","severity":"HIGH","confidence":"HIGH","summary":"Withdraw permits an attacker to drain funds.","reasoning":"A fabricatedly complete ingestion status cannot be inferred from absent BCE slices.","citesEvidence":[{"filePath":"src/Vault.sol","startLine":10,"endLine":20,"explanation":"state update after call"}]}'),
+    ] })
+    const result = await w.start("worker-a", runInput())
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+  })
+
   test("narrative-only report reaches semantic verification without PoC sanitation", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }

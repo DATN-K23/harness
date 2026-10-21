@@ -113,6 +113,9 @@ export const createJudgeApi = (deps: {
       }
       const run = await deps.store.loadRun(runId)
       if (!run) return Response.json({ error: { code: "not_found", message: "Run not found" } }, { status: 404 })
+      const terminal = run.state === "completed"
+        ? (await deps.store.loadEvents({ runId })).findLast((event) => event.type === "run.completed")
+        : undefined
       return Response.json({
         runId: run.runId,
         state: run.state,
@@ -120,6 +123,7 @@ export const createJudgeApi = (deps: {
         ...(run.terminalReason === undefined ? {} : { terminalReason: run.terminalReason }),
         ...(run.snapshotId === undefined ? {} : { snapshotId: run.snapshotId }),
         ...(run.findingId === undefined ? {} : { findingId: run.findingId }),
+        ...(terminal?.type === "run.completed" && terminal.payload.verdict !== undefined ? { verdict: terminal.payload.verdict } : {}),
         ...(run.resultContent === undefined || run.state !== "completed" ? {} : { resultContent: run.resultContent }),
         ...(run.errorMessage === undefined ? {} : { errorMessage: run.errorMessage }),
       })

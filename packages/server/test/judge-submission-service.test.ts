@@ -235,7 +235,11 @@ describe("Judge submission service", () => {
     const { runId } = await submit.json() as { runId: string }
     expect(await runtime.worker.runOnce()).toBe(1)
     const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: "Bearer local-secret" } }))
-    expect(await run.json()).toMatchObject({ state: "completed", findingId: "finding-7" })
+    expect(await run.json()).toMatchObject({
+      state: "completed",
+      findingId: "finding-7",
+      verdict: { validity: "valid", verificationStatus: "PASS" },
+    })
   })
 
 })

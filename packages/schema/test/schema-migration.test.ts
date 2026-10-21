@@ -185,6 +185,7 @@ describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
       expect(await store.claimOutbox(runId, 500)).toBe(true)
       expect(await store.claimOutbox(runId, 500)).toBe(false)
       now += 501
+      expect(await store.loadPendingOutbox()).toEqual([runId])
       expect(await store.claimOutbox(runId, 500)).toBe(true)
     } finally {
       await client.db.delete(runs).where(eq(runs.id, runId))

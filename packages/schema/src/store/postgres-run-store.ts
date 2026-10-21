@@ -96,7 +96,7 @@ export class PostgresRunStore implements RunStorePort {
     const rows = await this.client.db
       .select({ runId: outbox.runId })
       .from(outbox)
-      .where(eq(outbox.status, "pending"))
+      .where(sql`(${outbox.status} = 'pending' or (${outbox.status} = 'claimed' and ${outbox.claimExpiresAt} <= to_timestamp(${this.clock.nowMs()} / 1000.0)))`)
       .orderBy(asc(outbox.createdAt))
       .limit(limit)
     return rows.map(({ runId }) => runId)

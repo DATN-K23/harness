@@ -51,6 +51,15 @@ describe("assembleTurnRequest", () => {
     expect(promptItem?.content).toBe("Audit contract Vault.sol for reentrancy")
   })
 
+  test("omits global source inventory and source tools from the forced final-step request", () => {
+    const request = assembleTurnRequest({ ...baseInput, toolsDisabled: true })
+    expect(request.tools).toBeUndefined()
+    expect(request.toolsDisabled).toBe(true)
+    const system = request.items.find((item) => item.type === "system_prompt")?.content ?? ""
+    expect(system).toContain("last allowed step and tools are disabled")
+    expect(system).not.toContain("contracts/Token.sol")
+  })
+
   test("redacts or sanitizes absolute host paths and rejects ground-truth labels", () => {
     const inputWithLeaks: AssembleRequestInput = {
       ...baseInput,

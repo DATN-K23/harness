@@ -71,6 +71,153 @@ class MockSnapshot implements SourceSnapshotPort {
 describe("MultiTurnRunner", () => {
   const clock = { nowMs: () => 1000 }
 
+  test("reserves the final configured step for synthesis after a tool call", async () => {
+    const gateway = new ScriptedGateway([
+      { attemptId: "inspect", finishReason: "tool_calls", content: "Read it", toolCalls: [{ id: "read", name: "read_file", arguments: { path: "contracts/Vault.sol" } }], usage: { promptTokens: 5, completionTokens: 2, totalTokens: 7, costUsd: 0 }, latencyMs: 1 },
+      { attemptId: "synthesis", finishReason: "stop", content: "Evidence summary", usage: { promptTokens: 7, completionTokens: 3, totalTokens: 10, costUsd: 0 }, latencyMs: 1 },
+    ])
+    const registry = new MockRegistry()
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { maxSteps: 2 } })
+    expect(result).toMatchObject({ state: "completed", output: "Evidence summary", stepsExecuted: 2, observedLimits: ["max_steps"] })
+    expect(gateway.calls).toHaveLength(2)
+    expect(gateway.calls[0].toolsDisabled).toBe(false)
+    expect(gateway.calls[1].toolsDisabled).toBe(true)
+    expect(gateway.calls[1].tools).toBeUndefined()
+    expect(registry.calls).toHaveLength(1)
+  })
+
+  test("does not dispatch tool calls returned by a provider on the final step", async () => {
+    const gateway = new ScriptedGateway([
+      { attemptId: "final", finishReason: "tool_calls", content: "Need one more read", toolCalls: [{ id: "late", name: "read_file", arguments: { path: "contracts/Vault.sol" } }], usage: { promptTokens: 5, completionTokens: 2, totalTokens: 7, costUsd: 0 }, latencyMs: 1 },
+    ])
+    const registry = new MockRegistry()
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { maxSteps: 1 } })
+    expect(result).toMatchObject({ state: "budget_exhausted", terminalReason: "max_steps", stepsExecuted: 1 })
+    expect(registry.calls).toHaveLength(0)
+  })
+
+  test("no-progress stops before dispatching the threshold identical tool call", async () => {
+    const call = (id: string): ModelAttemptResponse => ({
+      attemptId: id,
+      finishReason: "tool_calls",
+      content: "Read it",
+      toolCalls: [{ id, name: "read_file", arguments: { path: "contracts/Vault.sol" } }],
+      usage: { promptTokens: 5, completionTokens: 2, totalTokens: 7, costUsd: 0 },
+      latencyMs: 1,
+    })
+    const gateway = new ScriptedGateway([call("one"), call("two"), call("three")])
+    const registry = new MockRegistry()
+    const store = new InMemoryRunStore({ clock })
+    const result = await new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { maxSteps: 5, noProgressMaxRepeats: 3 } })
+    if (result.state === "failed") throw new Error(JSON.stringify(await store.loadEvents({ runId: result.runId })))
+    expect(result).toMatchObject({ state: "budget_exhausted", terminalReason: "no_progress", observedLimits: ["no_progress"] })
+    expect(registry.calls).toHaveLength(2)
+    expect(gateway.calls).toHaveLength(3)
+  })
+
+  test("no-progress resets when the tool call arguments change", async () => {
+    const responses: ModelAttemptResponse[] = ["Vault", "Other", "Other"].map((file, index) => ({
+      attemptId: `call-${index}`,
+      finishReason: "tool_calls",
+      content: "Read it",
+      toolCalls: [{ id: `call-${index}`, name: "read_file", arguments: { path: `contracts/${file}.sol` } }],
+      usage: { promptTokens: 5, completionTokens: 2, totalTokens: 7, costUsd: 0 },
+      latencyMs: 1,
+    }))
+    const gateway = new ScriptedGateway(responses)
+    const registry = new MockRegistry()
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { maxSteps: 4, noProgressMaxRepeats: 3 } })
+    expect(result.state).toBe("completed")
+    expect(registry.calls).toHaveLength(3)
+  })
+
+  test("no-progress catches a threshold repetition inside one provider response", async () => {
+    const repeated = ["a", "b", "c"].map((id) => ({ id, name: "read_file", arguments: { path: "contracts/Vault.sol" } }))
+    const gateway = new ScriptedGateway([{ attemptId: "batch", finishReason: "tool_calls", content: "Read", toolCalls: repeated, usage: { promptTokens: 5, completionTokens: 2, totalTokens: 7, costUsd: 0 }, latencyMs: 1 }])
+    const registry = new MockRegistry()
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { maxSteps: 4, maxToolCalls: 2, noProgressMaxRepeats: 3 } })
+    expect(result).toMatchObject({ state: "budget_exhausted", terminalReason: "no_progress" })
+    expect(registry.calls).toHaveLength(2)
+  })
+
+  test("cancelling an in-flight provider request persists user cancellation", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const registry = new MockRegistry()
+    const controller = new AbortController()
+    const gateway: ModelGatewayPort = {
+      async executeAttempt(request, signal) {
+        await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
+        return {
+          attemptId: "cancelled",
+          finishReason: "error",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
+          latencyMs: 1,
+          error: { category: "transport", message: "Request was aborted", isRetryable: true },
+        }
+      },
+    }
+    const running = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", signal: controller.signal })
+    setTimeout(() => controller.abort(), 0)
+    const result = await running
+    const events = await store.loadEvents({ runId: result.runId })
+    expect(result).toMatchObject({ state: "cancelled", terminalReason: "cancelled_by_user" })
+    expect(events.some((event) => event.type === "run.cancelled" && event.payload.boundary === "before_provider_call")).toBe(true)
+    expect(registry.calls).toHaveLength(0)
+  })
+
+  test("wall-clock timeout during provider call remains a budget stop", async () => {
+    const gateway: ModelGatewayPort = {
+      async executeAttempt(_request, signal) {
+        await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
+        return { attemptId: "timeout", finishReason: "error", usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }, latencyMs: 1, error: { category: "transport", message: "timeout", isRetryable: true } }
+      },
+    }
+    const result = await new MultiTurnRunner({ store: new InMemoryRunStore({ clock }), gateway, registry: new MockRegistry(), snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock })
+      .execute({ prompt: "Audit", snapshotId: "snap", limits: { wallClockTimeoutMs: 50 } })
+    expect(result).toMatchObject({ state: "budget_exhausted", terminalReason: "wall_clock", observedLimits: ["wall_clock"] })
+  })
+
+  test("cancellation during tool approval prevents dispatch", async () => {
+    const store = new InMemoryRunStore({ clock })
+    const registry = new MockRegistry()
+    const controller = new AbortController()
+    let approveStarted!: () => void
+    const approvalStarted = new Promise<void>((resolve) => { approveStarted = resolve })
+    let finishApproval!: () => void
+    const approvalPending = new Promise<"allow">((resolve) => { finishApproval = () => resolve("allow") })
+    const gateway = new ScriptedGateway([{ attemptId: "tool", finishReason: "tool_calls", content: "Read", toolCalls: [{ id: "read", name: "read_file", arguments: { path: "contracts/Vault.sol" } }], usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 }])
+    const running = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock, approval: { async decide() { approveStarted(); return approvalPending } } })
+      .execute({ prompt: "Audit", snapshotId: "snap", signal: controller.signal })
+    await approvalStarted
+    controller.abort()
+    finishApproval()
+    const result = await running
+    expect(result).toMatchObject({ state: "cancelled", terminalReason: "cancelled_by_user" })
+    expect(registry.calls).toHaveLength(0)
+  })
+
+  test("cancellation while approval is pending terminates without waiting for approval", async () => {
+    const controller = new AbortController()
+    const gateway = new ScriptedGateway([{ attemptId: "tool", finishReason: "tool_calls", content: "Read", toolCalls: [{ id: "read", name: "read_file", arguments: { path: "contracts/Vault.sol" } }], usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: 0 }, latencyMs: 1 }])
+    let approvalStarted!: () => void
+    const approvalEntered = new Promise<void>((resolve) => { approvalStarted = resolve })
+    const store = new InMemoryRunStore({ clock })
+    const registry = new MockRegistry()
+    const running = new MultiTurnRunner({ store, gateway, registry, snapshot: new MockSnapshot(), contextEngine: new PassThroughContextEngine(), clock, approval: { async decide() { approvalStarted(); return new Promise<"allow">(() => {}) } } })
+      .execute({ prompt: "Audit", snapshotId: "snap", signal: controller.signal })
+    await approvalEntered
+    controller.abort()
+    const result = await running
+    expect(result).toMatchObject({ state: "cancelled", terminalReason: "cancelled_by_user" })
+    expect(registry.calls).toHaveLength(0)
+  })
+
   test("prepares and sends the same full tool-enabled provider request", async () => {
     const store = new InMemoryRunStore({ clock })
     const gateway = new ScriptedGateway([{ attemptId: "a", finishReason: "stop", content: "ok", usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4, costUsd: 0 }, latencyMs: 1 }])

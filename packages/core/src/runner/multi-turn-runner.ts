@@ -32,7 +32,7 @@ import {
 import { EventSink } from "./event-sink"
 import { ParallelToolDispatcher } from "../tool/dispatcher"
 import { assembleTurnRequest } from "./request-assembly"
-import { evaluateStop, initialNoProgress, type StopState } from "./stop-conditions"
+import { evaluateStop, initialNoProgress, observeToolCalls, type StopState } from "./stop-conditions"
 import { buildRunConfigSnapshot } from "./run-config"
 import { hydrateHistory, interruptedToolItems, verifyHydration } from "./history-hydrator"
 import { sha256Hex } from "../util/digest"
@@ -70,6 +70,7 @@ export interface MultiTurnRunInput {
   secrets?: readonly string[]
   temperature?: number
   seed?: number
+  signal?: AbortSignal
 }
 
 export interface MultiTurnRunResult {
@@ -366,6 +367,7 @@ export class MultiTurnRunner {
       systemPromptDigest: `sha256:${sha256Hex("multi-turn-audit-v1")}`,
       verdictSchemaDigest: `sha256:${sha256Hex("multi-turn-verdict-v1")}`,
     })
+    const enableNoProgressDetection = builtConfig.snapshot.flags.enableNoProgressDetection
 
     const safeAppend = async <T extends EventType>(type: T, payload: EventPayload<T>) => {
       try {
@@ -682,6 +684,7 @@ export class MultiTurnRunner {
     let outputTruncated = false
     let terminalReason: TerminalReason | undefined = undefined
     let terminalState: RunState = "completed"
+    let cancellationBoundary: "before_provider_call" | "before_tool_dispatch" = "before_tool_dispatch"
     let terminalObservedLimits: BudgetTerminalReason[] = []
     let isTerminated = false
 
@@ -707,11 +710,21 @@ export class MultiTurnRunner {
         isTerminated = true
         break
       }
+      if (input.signal?.aborted) {
+        terminalState = "cancelled"
+        terminalReason = "cancelled_by_user"
+        cancellationBoundary = "before_provider_call"
+        terminalObservedLimits = []
+        recovery.observedLimits = []
+        isTerminated = true
+        break
+      }
+      const finalSummaryStep = stepIndex === limits.maxSteps
 
       // Record step.started event
       const appendStepStarted = await safeAppend("step.started", {
         stepIndex,
-        toolsDisabled: false,
+        toolsDisabled: finalSummaryStep,
       })
       if (!appendStepStarted.ok) {
         return this.finishRun({
@@ -743,6 +756,7 @@ export class MultiTurnRunner {
         registry: this.deps.registry,
         historyItems,
         maxToolCalls: limits.maxToolCalls,
+        toolsDisabled: finalSummaryStep,
         maxOutputTokens: input.maxOutputTokens,
         maxSourceEntries: input.maxSourceEntries,
         temperature: input.temperature,
@@ -800,6 +814,13 @@ export class MultiTurnRunner {
         isTerminated = true
         break
       }
+      if (input.signal?.aborted) {
+        terminalState = "cancelled"
+        terminalReason = "cancelled_by_user"
+        cancellationBoundary = "before_provider_call"
+        isTerminated = true
+        break
+      }
 
       const estimatedPromptTokens = prepared.telemetry.estimatedInputTokens
       const outputTokens = prepared.telemetry.outputReserveTokens
@@ -819,10 +840,15 @@ export class MultiTurnRunner {
       const attemptStartTime = clock.nowMs()
       const elapsedMs = Math.max(0, attemptStartTime - startTime)
       const remainingTime = Math.max(1, limits.wallClockTimeoutMs - elapsedMs)
-      const attemptSignal = AbortSignal.timeout(remainingTime)
+      const timeoutSignal = AbortSignal.timeout(remainingTime)
+      const attemptSignal = input.signal
+        ? AbortSignal.any([input.signal, timeoutSignal])
+        : timeoutSignal
 
       // Execute attempt via Gateway
       const rawResponse = await this.deps.gateway.executeAttempt(preparedRequest, attemptSignal)
+      const cancelledDuringAttempt = input.signal?.aborted === true
+      const timedOutDuringAttempt = !cancelledDuringAttempt && timeoutSignal.aborted
       const rawUsage = (rawResponse as unknown as { usage?: ModelUsage | null }).usage
       const response: ModelAttemptResponse = {
         ...rawResponse,
@@ -956,6 +982,23 @@ export class MultiTurnRunner {
           latencyMs: clock.nowMs() - startTime,
         })
       }
+      if (cancelledDuringAttempt) {
+        terminalState = "cancelled"
+        terminalReason = "cancelled_by_user"
+        cancellationBoundary = "before_provider_call"
+        terminalObservedLimits = []
+        recovery.observedLimits = []
+        isTerminated = true
+        break
+      }
+      if (timedOutDuringAttempt) {
+        terminalState = "budget_exhausted"
+        terminalReason = "wall_clock"
+        terminalObservedLimits = ["wall_clock"]
+        recovery.observedLimits = terminalObservedLimits
+        isTerminated = true
+        break
+      }
       if (response.error || response.finishReason === "error") {
         const errorCategory = response.error?.category ?? "transport"
         const providerTerminalReason =
@@ -1049,6 +1092,22 @@ export class MultiTurnRunner {
       stopState.completedSteps = stepIndex
       stopState.completedToolCalls = completedToolCalls
       stopState.totalTokens = totalTokens
+      const responseHasToolCalls = response.finishReason !== "length" && (response.toolCalls?.length ?? 0) > 0
+      let noProgressReachedInResponse = false
+      let acceptedCalls: ModelToolCall[] | undefined
+      if (responseHasToolCalls) {
+        acceptedCalls = []
+        for (const call of response.toolCalls!) {
+          stopState.noProgress = observeToolCalls(stopState.noProgress, [
+            { toolName: call.name, arguments: call.arguments },
+          ], enableNoProgressDetection)
+          if (enableNoProgressDetection && stopState.noProgress.repeats >= limits.noProgressMaxRepeats) {
+            noProgressReachedInResponse = true
+            break
+          }
+          acceptedCalls.push(call)
+        }
+      }
       const responseStopEvaluation = evaluateStop(
         stopState,
         limits,
@@ -1061,17 +1120,47 @@ export class MultiTurnRunner {
 
       // A response cut by the output limit is never a tool request, even when partial calls came back.
       const hasToolCalls =
-        response.finishReason !== "length" && response.toolCalls !== undefined && response.toolCalls.length > 0
+        responseHasToolCalls
       if (!hasToolCalls) {
         finalOutput = response.content
         outputTruncated = response.finishReason === "length"
         isTerminated = true
         break
       }
-      if (responseStopEvaluation.selected !== undefined) {
+      if (acceptedCalls !== undefined) response.toolCalls = acceptedCalls
+      if (responseStopEvaluation.selected !== undefined && !(responseStopEvaluation.selected === "no_progress_detected" && (acceptedCalls?.length ?? 0) > 0)) {
         terminalState = "budget_exhausted"
         terminalReason = StopReasonToTerminalReason[responseStopEvaluation.selected]
+        terminalObservedLimits = responseStopEvaluation.observed.map((reason) => StopReasonToTerminalReason[reason])
+        recovery.observedLimits = terminalObservedLimits
         finalOutput = response.content
+        isTerminated = true
+        break
+      }
+      if (noProgressReachedInResponse && acceptedCalls?.length === 0) {
+        terminalState = "budget_exhausted"
+        terminalReason = "no_progress"
+        terminalObservedLimits = ["no_progress"]
+        recovery.observedLimits = terminalObservedLimits
+        finalOutput = response.content ?? ""
+        isTerminated = true
+        break
+      }
+      if (input.signal?.aborted) {
+        terminalState = "cancelled"
+        terminalReason = "cancelled_by_user"
+        cancellationBoundary = "before_tool_dispatch"
+        terminalObservedLimits = []
+        recovery.observedLimits = []
+        isTerminated = true
+        break
+      }
+      if (finalSummaryStep && hasToolCalls) {
+        finalOutput = response.content ?? ""
+        terminalState = "budget_exhausted"
+        terminalReason = "max_steps"
+        terminalObservedLimits = [...new Set<BudgetTerminalReason>([...terminalObservedLimits, "max_steps"])]
+        recovery.observedLimits = terminalObservedLimits
         isTerminated = true
         break
       }
@@ -1091,7 +1180,29 @@ export class MultiTurnRunner {
       // Tool approval check applies only to calls that can be dispatched.
       for (const call of toolCalls) {
         if (call.argumentsError !== undefined) continue
-        const approved = await this.approval.decide(call, { runId, stepIndex })
+        const approval = this.approval.decide(call, { runId, stepIndex })
+        let onAbort: (() => void) | undefined
+        const approved = input.signal
+          ? await Promise.race([
+              approval,
+              new Promise<"cancel">((resolve) => {
+                onAbort = () => resolve("cancel")
+                if (input.signal!.aborted) onAbort()
+                else input.signal!.addEventListener("abort", onAbort, { once: true })
+              }),
+            ]).finally(() => {
+              if (onAbort !== undefined) input.signal!.removeEventListener("abort", onAbort)
+            })
+          : await approval
+        if (approved === "cancel") {
+          terminalState = "cancelled"
+          terminalReason = "cancelled_by_user"
+          cancellationBoundary = "before_tool_dispatch"
+          terminalObservedLimits = []
+          recovery.observedLimits = []
+          isTerminated = true
+          break
+        }
         if (approved === "deny") {
           terminalState = "cancelled"
           terminalReason = "cancelled_by_user"
@@ -1100,6 +1211,15 @@ export class MultiTurnRunner {
         }
       }
       if (isTerminated) break
+      if (input.signal?.aborted) {
+        terminalState = "cancelled"
+        terminalReason = "cancelled_by_user"
+        cancellationBoundary = "before_tool_dispatch"
+        terminalObservedLimits = []
+        recovery.observedLimits = []
+        isTerminated = true
+        break
+      }
 
       let callOffset = 0
       while (callOffset < toolCalls.length) {
@@ -1323,6 +1443,15 @@ export class MultiTurnRunner {
         completedToolCalls += dispatchOutcome.calls.length
         recovery.toolCallsExecuted = completedToolCalls
       }
+      if (noProgressReachedInResponse) {
+        terminalState = "budget_exhausted"
+        terminalReason = "no_progress"
+        terminalObservedLimits = ["no_progress"]
+        recovery.observedLimits = terminalObservedLimits
+        finalOutput = response.content ?? ""
+        isTerminated = true
+        break
+      }
 
       stepIndex += 1
       recovery.stepsExecuted = stepIndex - 1
@@ -1348,7 +1477,7 @@ export class MultiTurnRunner {
     } else if (terminalState === "cancelled") {
       await safeAppend("run.cancelled", {
         reason: terminalReason ?? "cancelled_by_user",
-        boundary: "before_tool_dispatch",
+        boundary: cancellationBoundary,
       })
     } else if (terminalState === "completed" && outputTruncated) {
       const appendCompleted = await safeAppend("run.completed", {

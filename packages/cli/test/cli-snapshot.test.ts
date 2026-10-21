@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { EventEmitter } from "node:events"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -138,6 +139,37 @@ describe("snapshot CLI commands", () => {
 })
 
 describe("snapshot-backed CLI runs", () => {
+  test("SIGINT aborts a provider request and persists user cancellation", async () => {
+    const root = await makeTempDir()
+    try {
+      const storage = path.join(root, "snapshots")
+      await makeSnapshot(path.join(root, "source"), storage)
+      const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+      const signals = new EventEmitter()
+      const output: string[] = []
+      const pending = runCli(["run", "--snapshot", "snap_cli_test", "--prompt", "Summarise Vault"], {
+        env: testEnv(storage),
+        storeFactory: () => store,
+        processSignals: signals,
+        gatewayFactory: () => ({
+          async executeAttempt(_request, signal) {
+            await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
+            return { attemptId: "aborted", finishReason: "error", usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }, latencyMs: 1, error: { category: "transport", message: "aborted", isRetryable: true } }
+          },
+        }),
+        stdout: (message) => output.push(message),
+      })
+      setTimeout(() => signals.emit("SIGINT"), 0)
+      const exitCode = await pending
+      const runId = output.join("\n").match(/Run ID:\s+(\S+)/)?.[1]
+      const events = runId ? await store.loadEvents({ runId }) : []
+      expect(exitCode).toBe(1)
+      expect(events.some((event) => event.type === "run.cancelled" && event.payload.reason === "cancelled_by_user")).toBe(true)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("Model reads a file and answers", async () => {
     const root = await makeTempDir()
     try {

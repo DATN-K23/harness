@@ -90,6 +90,7 @@ export interface RunCliDependencies {
   stdout?: CliWriter
   stderr?: CliWriter
   snapshotDir?: string
+  processSignals?: { on(event: "SIGINT", listener: () => void): unknown; off(event: "SIGINT", listener: () => void): unknown }
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
@@ -319,31 +320,43 @@ async function runCommand(
         throw new ConfigValidationError("Invalid runtime configuration:\n  MODEL_API_KEY: required", ["MODEL_API_KEY"])
       }
 
-      const result = await new MultiTurnRunner({
-        store,
-        gateway,
-        registry,
-        snapshot,
-        contextEngine: parsed.mock
-          ? new PassThroughContextEngine()
-          : new ProductionContextEngine(createO200kTokenizer()),
-        secrets,
-      }).execute({
-        prompt,
-        snapshotId: parsed.snapshot,
-        profileId,
-        pricing: profilePricing,
-        providerProfile: {
-          outputTokensField: effectiveConfig?.modelOutputTokensField ?? "max_tokens",
-          ...(effectiveConfig?.modelMaxContextTokens !== undefined ? { maxContextTokens: effectiveConfig.modelMaxContextTokens } : {}),
-          maxOutputTokens: effectiveConfig?.modelMaxOutputTokens ?? maxOutputTokens,
-          ...(inputPrice !== undefined ? { inputCostPerMTok: inputPrice } : {}),
-          ...(outputPrice !== undefined ? { outputCostPerMTok: outputPrice } : {}),
-        },
-        limits,
-        maxOutputTokens,
-        secrets,
-      })
+      const controller = new AbortController()
+      const signals = deps.processSignals ?? process
+      const onSigint = () => controller.abort("SIGINT")
+      signals.on("SIGINT", onSigint)
+      const wasInterrupted = () => controller.signal.aborted
+      let result: Awaited<ReturnType<MultiTurnRunner["execute"]>>
+      try {
+        result = await new MultiTurnRunner({
+          store,
+          gateway,
+          registry,
+          snapshot,
+          contextEngine: parsed.mock
+            ? new PassThroughContextEngine()
+            : new ProductionContextEngine(createO200kTokenizer()),
+          secrets,
+        }).execute({
+          prompt,
+          snapshotId: parsed.snapshot,
+          profileId,
+          pricing: profilePricing,
+          providerProfile: {
+            outputTokensField: effectiveConfig?.modelOutputTokensField ?? "max_tokens",
+            ...(effectiveConfig?.modelMaxContextTokens !== undefined ? { maxContextTokens: effectiveConfig.modelMaxContextTokens } : {}),
+            maxOutputTokens: effectiveConfig?.modelMaxOutputTokens ?? maxOutputTokens,
+            ...(inputPrice !== undefined ? { inputCostPerMTok: inputPrice } : {}),
+            ...(outputPrice !== undefined ? { outputCostPerMTok: outputPrice } : {}),
+          },
+          limits,
+          maxOutputTokens,
+          secrets,
+          signal: controller.signal,
+        })
+      } finally {
+        signals.off("SIGINT", onSigint)
+      }
+      if (wasInterrupted()) stderr("Run cancelled by Ctrl+C.")
       const usagePricing = result.usage.pricing ?? profilePricing
       const output = [
         "========================================",

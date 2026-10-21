@@ -10,6 +10,7 @@ superpowers/
 .superpowers/
 opencode_docs/
 data/
+harness-verification-data
 node_modules/
 dist/
 .turbo/

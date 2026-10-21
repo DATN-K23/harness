@@ -72,10 +72,11 @@ export function assembleTurnRequest(input: AssembleRequestInput): ModelAttemptRe
   const sourceListContent = sanitizeSystemText([
     `You are an autonomous AI smart-contract security auditor running inside a sandboxed evaluation harness.`,
     `You are analyzing an immutable source snapshot with ID: "${input.snapshotId}".`,
-    `Available source files in snapshot:`,
-    truncatedFiles.content,
+    ...(input.toolsDisabled
+      ? ["This is the last allowed step and tools are disabled. Summarize the gathered evidence and answer now."]
+      : ["Available source files in snapshot:", truncatedFiles.content]),
     unreadableInfo,
-    `\nUse the provided tools to inspect contracts and verify potential vulnerabilities before answering.`,
+    ...(input.toolsDisabled ? [] : ["\nUse the provided tools to inspect contracts and verify potential vulnerabilities before answering."]),
   ].filter(Boolean).join("\n"), secrets)
 
   const systemPromptItem: ContextItem = {

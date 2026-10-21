@@ -28,3 +28,12 @@ The adapter returns `incomplete` with reason `bce_unavailable` after successful 
 ## Commit
 
 Pending.
+
+## Fix round 1 — review findings
+
+- Limited JSON parsing to explicitly fenced `json` blocks and strips all fenced blocks before parsing report prose. Solidity/Foundry PoC contents are separately extracted before claim parsing; braces and metadata-like text inside code no longer reach JSON/prose checks.
+- Source matching removes line/block comments and requires the named function to occur within the body of the named contract declaration. This is still a retrieval heuristic, not AST analysis; unsupported/nested syntax remains incomplete by default.
+- Added regressions for realistic brace-containing Solidity PoC, code-fence metadata boundary, contract/function names split across contracts, and comment-only declarations. Tests first failed on all four cases, then passed after the adapter changes.
+- BCE remains explicitly unavailable/incomplete because the compiler selection is still unpinned. No Docker or compiler was used.
+- Verification: `bun test packages/core/test/ingestion packages/core/test/runner packages/core/test/judge packages/protocol/test` — **608 pass, 0 fail**; `bun turbo typecheck` — **6 packages successful**; `git diff --check` — passed.
+- Fix commit: `aab7a53` (`fix(core): handle fenced PoC reports safely`).

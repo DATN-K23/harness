@@ -18,9 +18,15 @@ describe("SnapshotIngestion", () => {
   })
 
   test("associates a bounded Solidity test block with the narrative claim", async () => {
-    const report = `${narrative}\n\n\`\`\`solidity\nfunction testExploit() public {}\n\`\`\``
+    const report = `${narrative}\n\n\`\`\`solidity\ncontract Exploit { function testExploit() public { require(true); } }\n\`\`\``
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", pocCode: "function testExploit() public {}" })
+    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", pocCode: "contract Exploit { function testExploit() public { require(true); } }" })
+  })
+
+  test("does not interpret code-fenced Solidity as report metadata or JSON", async () => {
+    const report = `${narrative}\n\n\`\`\`solidity\ncontract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }\n\`\`\``
+    const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })
+    expect(result).toMatchObject({ kind: "incomplete", pocCode: "contract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }" })
   })
 
   test("returns explicit incomplete for unsupported report shapes", async () => {
@@ -29,7 +35,7 @@ describe("SnapshotIngestion", () => {
   })
 
   test("rejects malformed embedded metadata instead of treating it as a claim", async () => {
-    const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n\n{ malformed json }`) })
+    const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n\n\`\`\`json\n{ malformed json }\n\`\`\``) })
     expect(result).toEqual({ kind: "invalid_report" })
   })
 
@@ -54,6 +60,21 @@ describe("SnapshotIngestion", () => {
     const result = await new SnapshotIngestion({ source: denied }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative.replace("Vault.withdraw", "Vault.withdraw")) })
     expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
     expect(denied.reads.every((read) => !read.path.includes("ground-truth"))).toBe(true)
+  })
+
+  test("does not combine a contract declaration and function from separate contracts", async () => {
+    const source = new InMemorySnapshot({ snapshotId: "snap-1", files: {
+      "src/Vault.sol": "contract Vault {}",
+      "src/Other.sol": "contract Other { function withdraw() external {} }",
+    } })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
+  })
+
+  test("does not map target names found only in comments", async () => {
+    const source = snapshot({ "src/Vault.sol": "// contract Vault { function withdraw() external {} }\ncontract Other {}" })
+    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
+    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
   })
 
   test("rejects prohibited metadata keys at any depth", async () => {

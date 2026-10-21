@@ -1,35 +1,5 @@
 import { z } from "zod"
-
-const forbiddenKeys = new Set([
-  "label",
-  "labels",
-  "groundtruth",
-  "adjudication",
-  "adjudicationreport",
-  "score",
-  "scorermetadata",
-  "hostpath",
-  "apikey",
-  "password",
-  "secret",
-  "credentials",
-  "token",
-  "accesstoken",
-  "refreshtoken",
-  "authorization",
-  "bearer",
-  "privatekey",
-])
-
-const forbiddenPaths = (value: unknown, path: (string | number)[] = []): (string | number)[][] => {
-  if (Array.isArray(value)) return value.flatMap((item, index) => forbiddenPaths(item, [...path, index]))
-  if (value === null || typeof value !== "object") return []
-  return Object.entries(value).flatMap(([key, inner]) =>
-    forbiddenKeys.has(key.toLowerCase().replaceAll(/[^a-z]/g, ""))
-      ? [[...path, key]]
-      : forbiddenPaths(inner, [...path, key]),
-  )
-}
+import { forbiddenKeyPaths } from "./events"
 
 export const JudgeSubmitRequestSchema = z
   .object({
@@ -41,7 +11,7 @@ export const JudgeSubmitRequestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    for (const path of forbiddenPaths(value)) {
+    for (const path of forbiddenKeyPaths(value)) {
       ctx.addIssue({ code: "custom", path, message: "request contains prohibited sensitive metadata" })
     }
   })

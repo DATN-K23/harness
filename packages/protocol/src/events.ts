@@ -264,7 +264,7 @@ const modelSuppliedFields: Partial<Record<EventType, readonly string[]>> = {
   "tool.requested": ["arguments", "rawArguments", "argumentsError"],
 }
 
-const forbiddenKeyPaths = (value: unknown, path: Array<string | number>): Array<Array<string | number>> => {
+export const forbiddenKeyPaths = (value: unknown, path: Array<string | number> = []): Array<Array<string | number>> => {
   if (Array.isArray(value)) return value.flatMap((item, index) => forbiddenKeyPaths(item, [...path, index]))
   if (value === null || typeof value !== "object") return []
   return Object.entries(value).flatMap(([key, inner]) =>

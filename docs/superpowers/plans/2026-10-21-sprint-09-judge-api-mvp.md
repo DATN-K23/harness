@@ -8,6 +8,8 @@
 
 **Tech stack:** Existing TypeScript/Bun/Turborepo workspace, Zod, Drizzle/PostgreSQL, existing core/protocol ports; no HTTP dependency until native Bun server proves insufficient.
 
+**OpenCode reuse is a prerequisite:** Before implementing each component, search `.opencode_reference` for the closest implementation and tests. Port/adapt compatible logic first, preserving its error handling and adding the required header `// Adapted from OpenCode packages/<path> @ 3f393d78bf (MIT License). See NOTICE.` plus a `NOTICE` entry. Reimplement only when no equivalent exists or the upstream design conflicts with Harness contracts/runtime; record the exact source paths inspected and why reuse was rejected.
+
 **Scope references:** `docs/core-team-timeline.md` Sprint 9–10, `blueprint/architecture/sequences.md` Judge submission flow, `blueprint/architecture/module-layout.md` package responsibilities, existing implementation in `packages/{protocol,core,schema,server,cli}`. OpenSpec commands/artifacts are not part of this workflow.
 
 ## SDD Acceptance Requirements
@@ -66,11 +68,15 @@
 
 ### Task 1: Request boundary and ground-truth isolation
 
+**Reuse review:** `.opencode_reference/packages/server/src` has no Judge submission/CandidateFinding boundary or recursive scorer-data rejection. The reference CLI debug redactor is for diagnostic output, not a trusted input decoder. Harness already has the matching recursive forbidden-key policy in `packages/protocol/src/events.ts`; reuse that shared project helper rather than duplicate it. No OpenCode port is appropriate for this task.
+
 - [x] **1.1 RED:** Added the protocol test for nested `GroundTruthLabel`; confirmed it failed because `judge-submit` schema module was absent.
 - [x] **1.2 GREEN:** Implemented Zod request decoder using `CandidateFinding` fields; recursively rejects prohibited metadata/credentials, rejects unknown keys, and bounds report/finding/snapshot IDs. Focused test and protocol package suite pass.
 - [x] **1.3 RED/GREEN:** Add wrong types, empty finding, excessive report, malformed object shape and unknown-field payload tests; malformed HTTP JSON/body-size and safe `400` mapping are covered with the submission route in Task 5.1. Run protocol test red, implement the schema bounds/strict shape, rerun focused and protocol package tests.
 
 ### Task 2: Atomic run admission and idempotency
+
+**Reuse review:** `.opencode_reference/packages/core/src/database` provides SQLite/Effect transaction patterns, but no Judge admission, idempotency registry or transactional outbox; its persistence/runtime contracts differ from this Harness PostgreSQL/Drizzle adapter. The implementation therefore reuses Harness's existing Drizzle transaction, CAS and store conventions. Before adding run-claim logic, continue checking upstream transaction helpers; do not port a SQLite-specific schema or Effect layer into this package solely to increase copied code.
 
 - [x] **2.1 RED:** Added a PostgreSQL collision test at idempotency insert; it failed because `store.admit` did not exist. After implementation, verified transaction rollback leaves no run or outbox and retains the original idempotency binding; separately verified successful admission persists finding ID, config snapshot, idempotency binding and outbox.
 - [x] **2.2 GREEN:** Added `PostgresRunStore.admit` transaction, finding/config run columns, idempotency/outbox tables and additive migrations `0003`/`0004`; migration and schema package tests/typecheck pass. Store contract semantics unchanged.

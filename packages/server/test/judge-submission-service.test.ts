@@ -3,6 +3,7 @@ import { createIdGenerator, digestOf } from "@harness/core"
 import { InMemorySnapshot } from "@harness/core"
 import { createJudgeSubmissionService, loadAdmittedJudgeInput } from "../src/judge-submission-service"
 import { createOutboxWorker } from "../src/outbox-worker"
+import { createJudgeRuntime } from "../src/judge-runtime"
 
 describe("Judge submission service", () => {
   test("resolves snapshot and atomically admits canonical finding/config with idempotency key", async () => {
@@ -182,6 +183,59 @@ describe("Judge submission service", () => {
     })
     await expect(worker.runOnce()).rejects.toThrow("runner failed")
     expect(order).toEqual([])
+  })
+
+  test("HTTP submission is claimed, judged and retrieved as unverified end-to-end", async () => {
+    const { InMemorySnapshot: CoreSnapshot } = await import("@harness/core")
+    const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom } = await import("@harness/core/testing")
+    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedSandbox } = await import("@harness/core/testing")
+    const { baseConfig, okIngestion, okSanitizer, okSandbox, verdictText } = await import("../../core/test/helpers/runner-world")
+    const { files } = await import("../../core/test/runner/judge-step-harness")
+    const clock = new FakeClock(Date.parse("2026-10-21T12:00:00.000Z"))
+    const snapshot = new CoreSnapshot({ snapshotId: "snap-1", files })
+    const gateway = new ScriptedModelGateway([verdictText])
+    const cancellation = new FakeCancellation()
+    const inMemory = new (await import("@harness/core/testing")).InMemoryRunStore({ clock })
+    const outbox = new Set<string>()
+    const durableStore = new Proxy(inMemory, {
+      get(target, property, receiver) {
+        if (property === "admit") return async (input: Parameters<typeof inMemory.admit>[0]) => {
+          const result = await inMemory.admit(input)
+          if (result.kind === "accepted") outbox.add(result.runId)
+          return result
+        }
+        if (property === "loadPendingOutbox") return async () => [...outbox]
+        if (property === "claimOutbox") return async (runId: string) => outbox.has(runId)
+        if (property === "markOutboxPublished") return async (runId: string) => outbox.delete(runId)
+        const value = Reflect.get(target, property, receiver)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    })
+    const runtime = createJudgeRuntime({
+      store: durableStore as never,
+      snapshots: snapshot,
+      ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
+      workerId: "worker-a",
+      config: baseConfig,
+      cursorSecret: "cursor-secret",
+      credential: "local-secret",
+      runnerDeps: () => ({
+        contextEngine: new PassThroughContextEngine(), gateway, tools: new InMemoryToolRegistry({ files }),
+        security: new RegexSecurityFilter(), snapshot, ingestion: new ScriptedIngestion([okIngestion]),
+        sanitizer: new ScriptedSanitizer([okSanitizer]), sandbox: new ScriptedSandbox({ singleShot: [okSandbox] }), cancellation, clock,
+        random: new SeededRandom(1), sleep: new FakeSleep(clock), ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
+      }),
+    })
+    const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer local-secret", "content-type": "application/json", "idempotency-key": "e2e-key" },
+      body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "A bounded report" }, snapshotId: "snap-1" }),
+    }))
+    expect(submit.status).toBe(202)
+    const { runId } = await submit.json() as { runId: string }
+    expect(await runtime.worker.runOnce()).toBe(1)
+    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: "Bearer local-secret" } }))
+    expect(await run.json()).toMatchObject({ state: "completed", findingId: "finding-7" })
   })
 
 })

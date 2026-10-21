@@ -6,6 +6,7 @@ import {
   type ContextItem,
   type ContextPolicy,
   type RunClaim,
+  type RunStorePort,
 } from "@harness/protocol"
 import { type JudgeRunConfig, type JudgeRunInput, type JudgeRunResult } from "../../src/runner/judge-runner"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
@@ -515,13 +516,28 @@ describe("JudgeRunner: never crashes the worker", () => {
 
   test("a store that throws on the terminal write: the runner resolves with a failure result", async () => {
     const world = createWorld()
-    world.store.failWhen((event) => event.type === "run.completed", { sticky: false })
+    world.store.inner.failNextEvent((event) => event.type === "run.completed")
     const w = world.worker({ script: [verdictText] })
     const result = await w.start()
 
     expect(result).toMatchObject({ kind: "committed", state: "failed", terminalReason: "persistence_failure" })
     expect(await world.events("run.completed")).toHaveLength(0)
     expect(await world.state()).toBe("failed")
+  })
+
+  test("uses atomic terminal store operation when available", async () => {
+    const world = createWorld()
+    const commits: unknown[] = []
+    world.store.commitTerminal = async (input) => {
+      commits.push(input)
+      return { kind: "transitioned", stateVersion: input.expectedStateVersion + 1 }
+    }
+    const w = world.worker({ script: [verdictText] })
+    const result = await w.start()
+    expect(result).toMatchObject({ kind: "committed", state: "completed" })
+    expect(commits).toHaveLength(1)
+    expect(commits[0]).toMatchObject({ nextState: "completed", event: { type: "run.completed" } })
+    expect(await world.events("run.completed")).toHaveLength(0)
   })
 })
 

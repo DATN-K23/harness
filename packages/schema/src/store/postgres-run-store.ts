@@ -13,6 +13,7 @@ import {
   type RunState,
   type RunStorePort,
   type TransitionResult,
+  type TerminalCommitInput,
   type TerminalReason,
   type TrajectoryEvent,
 } from "@harness/protocol"
@@ -120,6 +121,54 @@ export class PostgresRunStore implements RunStorePort {
       .where(and(eq(outbox.runId, runId), eq(outbox.status, "claimed")))
       .returning({ runId: outbox.runId })
     return row !== undefined
+  }
+
+  async commitTerminal(input: TerminalCommitInput, signal?: AbortSignal): Promise<TransitionResult> {
+    signal?.throwIfAborted()
+    return await this.client.db.transaction(async (tx) => {
+      const [run] = await tx.select().from(runs).where(eq(runs.id, input.claim.runId)).for("update")
+      if (!run || run.claimToken !== input.claim.claimToken || run.claimVersion !== input.claim.claimVersion)
+        return { kind: "stale", reason: "claim_lost" }
+      if (
+        TerminalRunStates.includes(run.state as (typeof TerminalRunStates)[number]) ||
+        run.state !== input.expectedState || run.stateVersion !== input.expectedStateVersion
+      ) return { kind: "stale", reason: "state_changed" }
+
+      const [last] = await tx.select({ maxSeq: sql<number>`coalesce(max(${events.sequence}), 0)` })
+        .from(events).where(eq(events.runId, run.id))
+      const payload = sanitizeSecrets(input.event.payload) as Record<string, unknown>
+      await tx.insert(events).values({
+        id: input.event.eventId,
+        runId: run.id,
+        sequence: Number(last?.maxSeq ?? 0) + 1,
+        eventType: input.event.type,
+        schemaVersion: input.event.schemaVersion,
+        payload,
+        payloadDigest: input.event.payloadDigest,
+        occurredAt: new Date(input.event.occurredAt),
+      })
+
+      const nextVersion = run.stateVersion + 1
+      const unpricedAttempt = input.costUsd !== null
+        ? await tx.select({ id: modelAttempts.id }).from(modelAttempts)
+          .where(and(eq(modelAttempts.runId, run.id), eq(modelAttempts.pricing, "unpriced"))).limit(1)
+        : []
+      const costIsUnknown = input.costUsd === null || unpricedAttempt.length > 0
+      await tx.update(runs).set({
+        state: input.nextState,
+        stateVersion: nextVersion,
+        terminalReason: input.terminalReason ?? null,
+        ...(input.resultContent === undefined ? {} : { resultContent: redactSecrets(input.resultContent) }),
+        ...(input.errorMessage === undefined ? {} : { errorMessage: redactSecrets(input.errorMessage) }),
+        ...(input.errorCategory === undefined ? {} : { errorCategory: input.errorCategory }),
+        ...(input.promptTokens === undefined ? {} : { promptTokens: input.promptTokens }),
+        ...(input.completionTokens === undefined ? {} : { completionTokens: input.completionTokens }),
+        ...(input.costUsd === undefined ? {} : { costUsd: costIsUnknown ? null : String(input.costUsd) }),
+        ...(input.latencyMs === undefined ? {} : { latencyMs: input.latencyMs }),
+        updatedAt: new Date(this.clock.nowMs()),
+      }).where(eq(runs.id, run.id))
+      return { kind: "transitioned", stateVersion: nextVersion }
+    })
   }
 
   async claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult> {

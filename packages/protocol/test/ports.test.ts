@@ -108,6 +108,11 @@ class RecordingStore implements RunStorePort {
     return { kind: "accepted" as const, runId: "run-1" }
   }
 
+  async commitTerminal() {
+    this.calls.push("commitTerminal")
+    return { kind: "transitioned" as const, stateVersion: 4 }
+  }
+
   async claim(): Promise<ClaimResult> {
     this.calls.push("claim")
     return { kind: "claimed", claim, state: "running", stateVersion: 3 }

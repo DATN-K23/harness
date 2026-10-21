@@ -7,6 +7,7 @@ import {
   type NewTrajectoryEvent,
   type RunClaim,
   type RunAdmission,
+  type TerminalCommitInput,
   type RunRecord,
   type RunState,
   type RunStorePort,
@@ -47,6 +48,7 @@ export class InMemoryRunStore implements RunStorePort {
   private readonly runs = new Map<string, StoredRun>()
   private readonly listeners = new Set<(event: TrajectoryEvent) => void>()
   private readonly faults: Array<{ operation: RunStoreOperation; error: Error }> = []
+  private readonly eventFaults: Array<{ matches: (event: NewTrajectoryEvent) => boolean; error: Error }> = []
   private forcedSequence: number | "duplicate" | undefined
 
   private readonly attempts: Array<{
@@ -98,6 +100,39 @@ export class InMemoryRunStore implements RunStorePort {
       requestDigest: input.requestDigest,
     })
     return { kind: "accepted", runId: input.runId }
+  }
+
+  async commitTerminal(input: TerminalCommitInput, signal?: AbortSignal): Promise<TransitionResult> {
+    this.enter("transition", signal)
+    const stored = this.runs.get(input.claim.runId)
+    if (!stored || stored.claim?.claimToken !== input.claim.claimToken || stored.claim.claimVersion !== input.claim.claimVersion)
+      return { kind: "stale", reason: "claim_lost" }
+    if (isTerminal(stored.record.state) || stored.record.state !== input.expectedState || stored.record.stateVersion !== input.expectedStateVersion)
+      return { kind: "stale", reason: "state_changed" }
+    const eventFaultIndex = this.eventFaults.findIndex((fault) => fault.matches(input.event))
+    if (eventFaultIndex !== -1) throw this.eventFaults.splice(eventFaultIndex, 1)[0].error
+    const lastSequence = stored.events.at(-1)?.sequence ?? 0
+    const event = {
+      ...input.event,
+      runId: input.claim.runId,
+      sequence: lastSequence + 1,
+      payload: input.event.payload,
+    } as TrajectoryEvent
+    stored.events.push(event)
+    stored.record = {
+      ...stored.record,
+      state: input.nextState,
+      stateVersion: stored.record.stateVersion + 1,
+      terminalReason: input.terminalReason,
+      ...(input.resultContent === undefined ? {} : { resultContent: input.resultContent }),
+      ...(input.errorMessage === undefined ? {} : { errorMessage: input.errorMessage }),
+      ...(input.errorCategory === undefined ? {} : { errorCategory: input.errorCategory }),
+      ...(input.promptTokens === undefined ? {} : { promptTokens: input.promptTokens }),
+      ...(input.completionTokens === undefined ? {} : { completionTokens: input.completionTokens }),
+      ...(input.latencyMs === undefined ? {} : { latencyMs: input.latencyMs }),
+    }
+    for (const listener of this.listeners) listener(structuredClone(event))
+    return { kind: "transitioned", stateVersion: stored.record.stateVersion }
   }
 
   /** Test setup: creates a run the way the (out of scope) acceptance path would. */
@@ -176,6 +211,10 @@ export class InMemoryRunStore implements RunStorePort {
   /** The next call of `operation` rejects with `error` before it reads or writes anything. Faults fire in order. */
   failNext(operation: RunStoreOperation, error = new Error(`injected ${operation} failure`)) {
     this.faults.push({ operation, error })
+  }
+
+  failNextEvent(matches: (event: NewTrajectoryEvent) => boolean, error = new Error("injected event failure")) {
+    this.eventFaults.push({ matches, error })
   }
 
   /** The next append proposes this sequence number; the uniqueness guard rejects it unless it is the next one. */

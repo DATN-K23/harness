@@ -96,6 +96,17 @@ export class FaultyStore implements RunStorePort {
     return this.inner.admit(...args)
   }
 
+  commitTerminal(...args: Parameters<NonNullable<RunStorePort["commitTerminal"]>>) {
+    const failure = this.failure
+    if (failure !== undefined && failure.matches(args[0].event)) {
+      if (failure.sticky) this.down = true
+      if (!failure.sticky) this.failure = undefined
+      throw Object.assign(new Error(`store unavailable while committing ${args[0].event.type}`), { reason: "persistence_failure" })
+    }
+    if (this.down) throw new Error("store unavailable")
+    return this.inner.commitTerminal(...args)
+  }
+
   failWhen(matches: (event: NewTrajectoryEvent) => boolean, options: { sticky: boolean }) {
     this.failure = { matches, ...options }
   }

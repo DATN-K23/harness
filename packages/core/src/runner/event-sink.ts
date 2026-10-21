@@ -92,7 +92,41 @@ export class EventSink {
     return queued
   }
 
+  createEvent<Type extends EventType>(type: Type, payload: EventPayload<Type>): NewTrajectoryEvent {
+    const event = this.makeEvent(type, payload)
+    this.validate(event)
+    return event
+  }
+
+  publish(event: TrajectoryEvent) {
+    this.bus?.publish(event)
+  }
+
+  nextEventId() {
+    return this.ids.next("evt_")
+  }
+
+  digestPayload(payload: unknown) {
+    return digestOf(payload)
+  }
+
+  nowIso() {
+    return new Date(this.clock.nowMs()).toISOString()
+  }
+
   private async write(type: EventType, payload: Record<string, unknown>, signal?: AbortSignal) {
+    const event = this.makeEvent(type, payload)
+    this.validate(event)
+    const result = await this.store.appendEvent(
+      { claim: this.claim, expectedStateVersion: this.expectedStateVersion, event },
+      signal,
+    )
+    if (result.kind === "stale") return { kind: "stale", reason: result.reason } satisfies EventAppendResult
+    this.bus?.publish(result.event)
+    return { kind: "appended", event: result.event } satisfies EventAppendResult
+  }
+
+  private makeEvent(type: EventType, payload: Record<string, unknown>): NewTrajectoryEvent {
     const recorded =
       type === "security.blocked" && typeof payload.input === "string"
         ? { ...payload, input: normalizeBlockedInput(payload.input) }
@@ -105,19 +139,16 @@ export class EventSink {
       payloadDigest: digestOf(recorded),
       occurredAt: new Date(this.clock.nowMs()).toISOString(),
     }
+    return event
+  }
+
+  private validate(event: NewTrajectoryEvent) {
     const checked = TrajectoryEventSchema.safeParse({ ...event, runId: this.claim.runId, sequence: 1 })
     if (!checked.success)
       throw new InvalidEventError(
-        type,
+        event.type,
         checked.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
       )
 
-    const result = await this.store.appendEvent(
-      { claim: this.claim, expectedStateVersion: this.expectedStateVersion, event },
-      signal,
-    )
-    if (result.kind === "stale") return { kind: "stale", reason: result.reason } satisfies EventAppendResult
-    this.bus?.publish(result.event)
-    return { kind: "appended", event: result.event } satisfies EventAppendResult
   }
 }

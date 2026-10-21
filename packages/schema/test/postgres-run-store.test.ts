@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm"
 import postgres from "postgres"
 import { createDatabaseClient, DEFAULT_DATABASE_URL } from "../src/db/client"
 import { runMigrations } from "../src/db/migrate"
-import { events, modelAttempts, runs } from "../src/db/schema"
+import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
 import { PostgresRunStore } from "../src/store/postgres-run-store"
 import { redactSecrets, sanitizeSecrets } from "../src/store/redaction"
 
@@ -65,6 +65,70 @@ if (postgresAvailable) {
       } finally {
         await client.db.delete(runs).where(eq(runs.id, activeRunId))
         await client.db.delete(runs).where(eq(runs.id, completedRunId))
+      }
+    })
+
+    test("admission transaction, idempotency and terminal atomic commit survive database reload", async () => {
+      const suffix = Date.now().toString()
+      const runId = `admission-e2e-${suffix}`
+      const key = `key-${suffix}`
+      const digest = `sha256:${"4".repeat(64)}`
+      try {
+        expect(await store.admit({
+          runId, findingId: "finding-pg", reportMarkdown: "Report", snapshotId: "snapshot-pg",
+          config: { profileId: "profile-pg" }, idempotencyKey: key, requestDigest: digest,
+        })).toEqual({ kind: "accepted", runId })
+        expect(await store.admit({
+          runId: `${runId}-replay`, findingId: "finding-pg", reportMarkdown: "Report", snapshotId: "snapshot-pg",
+          config: { profileId: "profile-pg" }, idempotencyKey: key, requestDigest: digest,
+        })).toEqual({ kind: "replayed", runId })
+        const claim = await store.claim({ runId, workerId: "pg-worker" })
+        expect(claim.kind).toBe("claimed")
+        if (claim.kind !== "claimed") return
+        const terminal = await store.commitTerminal({
+          claim: claim.claim,
+          expectedState: "queued",
+          expectedStateVersion: claim.stateVersion,
+          event: {
+            eventId: `event-${suffix}`, type: "run.completed", schemaVersion: EventSchemaVersion,
+            payload: { verdict: { runId, findingId: "finding-pg", validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "Inconclusive", reasoning: "Evidence insufficient", citesEvidence: [] } },
+            payloadDigest: `sha256:${"5".repeat(64)}`, occurredAt: new Date().toISOString(),
+          },
+          nextState: "completed",
+          resultContent: "Inconclusive",
+          promptTokens: 10,
+          completionTokens: 5,
+        })
+        expect(terminal.kind).toBe("transitioned")
+        expect((await store.loadRun(runId))?.state).toBe("completed")
+        expect((await store.loadEvents({ runId })).map((event) => event.type)).toEqual(["run.completed"])
+        expect(await client.db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, key))).toHaveLength(1)
+        expect(await client.db.select().from(outbox).where(eq(outbox.runId, runId))).toHaveLength(1)
+      } finally {
+        await client.db.delete(runs).where(eq(runs.id, runId))
+      }
+    })
+
+    test("Postgres run store cancellation is durable and cannot rewrite a terminal run", async () => {
+      const suffix = Date.now().toString()
+      const queuedId = `cancel-queued-pg-${suffix}`
+      const runningId = `cancel-running-pg-${suffix}`
+      try {
+        await store.seedRun(queuedId)
+        expect(await store.requestCancellation(queuedId)).toEqual({ kind: "cancelled" })
+        expect(await store.requestCancellation(queuedId)).toEqual({ kind: "terminal" })
+        expect((await store.loadRun(queuedId))?.state).toBe("cancelled")
+        expect((await store.loadEvents({ runId: queuedId })).map((event) => event.type)).toEqual(["run.cancelled"])
+
+        await store.seedRun(runningId, "running")
+        const cancellation = new (await import("../src/store/postgres-cancellation")).PostgresCancellation(client)
+        expect(await cancellation.request(runningId)).toEqual({ kind: "requested" })
+        expect(await cancellation.request(runningId)).toEqual({ kind: "already_requested" })
+        expect(await cancellation.isRequested(runningId)).toBe(true)
+        expect((await store.loadEvents({ runId: runningId })).map((event) => event.type)).toEqual(["run.cancel_requested"])
+      } finally {
+        await client.db.delete(runs).where(eq(runs.id, queuedId))
+        await client.db.delete(runs).where(eq(runs.id, runningId))
       }
     })
   })

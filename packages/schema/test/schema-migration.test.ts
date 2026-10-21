@@ -5,6 +5,55 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+  test("terminal event and run state/usage commit atomically", async () => {
+    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { PostgresRunStore } = await import("../src/store/postgres-run-store")
+    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const store = new PostgresRunStore({ client })
+    const runId = `terminal-atomic-${Date.now()}`
+    try {
+      await store.seedRun(runId, "running")
+      const claim = await store.claim({ runId, workerId: "atomic-worker" })
+      if (claim.kind !== "claimed") throw new Error("run claim unavailable")
+      const duplicateEventId = `terminal-duplicate-${Date.now()}`
+      await client.db.insert(events).values({
+        id: duplicateEventId,
+        runId,
+        sequence: 1,
+        eventType: "run.started",
+        schemaVersion: 1,
+        payload: {},
+        payloadDigest: `sha256:${"1".repeat(64)}`,
+        occurredAt: new Date(),
+      })
+      await expect(store.commitTerminal({
+        claim: claim.claim,
+        expectedState: "running",
+        expectedStateVersion: claim.stateVersion,
+        event: {
+          eventId: duplicateEventId,
+          type: "run.completed",
+          schemaVersion: 1,
+          payload: { output: "ignored" },
+          payloadDigest: `sha256:${"2".repeat(64)}`,
+          occurredAt: new Date().toISOString(),
+        },
+        nextState: "completed",
+        resultContent: "completed result",
+        promptTokens: 10,
+        completionTokens: 5,
+      })).rejects.toThrow()
+      const run = await store.loadRun(runId)
+      expect(run?.state).toBe("running")
+      expect(run?.resultContent).toBeUndefined()
+      expect(run?.promptTokens).toBeUndefined()
+      expect((await client.db.select().from(events).where(eq(events.runId, runId)))).toHaveLength(1)
+    } finally {
+      await client.db.delete(runs).where(eq(runs.id, runId))
+      await client.close()
+    }
+  })
+
   test("terminal transition winning a cancellation race remains immutable", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")

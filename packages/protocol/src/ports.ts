@@ -159,6 +159,22 @@ export interface RunAdmission {
   requestDigest: string
 }
 
+export interface TerminalCommitInput {
+  claim: RunClaim
+  expectedState: RunState
+  expectedStateVersion: number
+  event: NewTrajectoryEvent
+  nextState: RunState
+  terminalReason?: TerminalReason
+  resultContent?: string
+  errorMessage?: string
+  errorCategory?: string
+  promptTokens?: number
+  completionTokens?: number
+  costUsd?: string | number | null
+  latencyMs?: number
+}
+
 export type AdmissionResult =
   | { kind: "accepted" | "replayed"; runId: string }
   | { kind: "conflict" }
@@ -200,6 +216,7 @@ export type TransitionResult = { kind: "transitioned"; stateVersion: number } | 
 /** Every mutation carries the claim and expected state version; a stale write returns `stale` and changes nothing. */
 export interface RunStorePort {
   admit(input: RunAdmission, signal?: AbortSignal): Promise<AdmissionResult>
+  commitTerminal?(input: TerminalCommitInput, signal?: AbortSignal): Promise<TransitionResult>
   findActiveRunsBySnapshot?(snapshotId: string): Promise<string[]>
   claim(input: { runId: string; workerId: string }, signal?: AbortSignal): Promise<ClaimResult>
   appendEvent(

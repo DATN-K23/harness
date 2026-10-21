@@ -128,13 +128,13 @@
 
 - [x] **8.1 RED/GREEN (existing contract verified):** Existing `witness-resolution`, `verdict-synthesizer`, and `JudgeRunner` tests prove reasoning-only results stay `unverified`/`UNVERIFIED` and evidence is resolved against snapshot. Ran targeted 30-test verdict/runner suites.
 - [x] **8.2 RED/GREEN (existing contract verified):** Existing runner recovery tests prove provider/runtime/persistence failures terminate as execution failures and do not synthesize `invalid`. Core suite passed after cancellation port integration.
-- [ ] **8.3 DESIGN CONFLICT:** `RunWriter` intentionally appends terminal event then CAS-transitions run; a crash leaves a terminal-pending event that `finishPending` recovers. This preserves recovery but contradicts this plan's strict all-or-nothing terminal transaction. Implement a transaction-capable terminal operation without losing crash recovery, or formally revise this plan's acceptance requirement before marking complete.
+- [x] **8.3 RED/GREEN:** Added `RunStorePort.commitTerminal` with PostgreSQL and in-memory implementations that atomically persist terminal event + state + result/error. Event-insert failure test proves rollback leaves run running with no terminal aggregate. `RunWriter` uses atomic operation when available; terminal-pending recovery remains for legacy stores. Targeted runner/schema tests pass.
 
 ### Task 9: End-to-end integration and release gates
 
-- [ ] **9.1 RED/GREEN:** Add deterministic end-to-end test: register snapshot → submit → transactionally accept/outbox → claim work → scripted `JudgeRunner` → poll run/events → observe safe `unverified` verdict. Run test red first, then implementation and all directly affected package suites.
-- [ ] **9.2 RED/GREEN:** Add Postgres integration tests for migration from empty/current schema, transaction rollback, duplicate admission/delivery, cursor paging, cancellation and terminal atomicity; skip only when `checkPostgresReachable` fails.
-- [ ] **9.3 VERIFY:** Run `bun turbo typecheck` and `bunx turbo test`; expected exit 0. Do not mark earlier tasks complete based only on this final run.
+- [x] **9.1 RED/GREEN (deterministic integration):** Server E2E test submits through HTTP, admits through the persistent-store contract, publishes stable ID, claims worker, runs actual `JudgeRunner`, then retrieves completed run. Current test uses InMemoryRunStore to keep deterministic/offline; production Postgres tested separately.
+- [x] **9.2 RED/GREEN (Postgres integration):** `checkPostgresReachable` guarded store tests cover migrations, atomic admission/rollback, concurrent idempotency, terminal commit rollback, cancellation, claims and event ordering; tests skip gracefully without Postgres.
+- [x] **9.3 VERIFY:** `bunx turbo typecheck` and `bunx turbo test` exit 0; Swift Keychain helper `swiftc -typecheck` exits 0.
 - [ ] **9.4 DOC:** Document local startup/auth prerequisites and API examples; update `docs/core-team-timeline.md` status only when acceptance tests pass. Verify documented commands against actual implementation.
 
 ## Execution ledger expectations
@@ -145,7 +145,7 @@ Use the plan-specific workspace under `.superpowers/sdd/2026-10-21-sprint-09-jud
 
 - All acceptance requirements A1–A5 map to task groups 1–8; durable handoff/recovery is explicit, not an in-process shortcut.
 - Security, persistence, API, worker, cancellation and terminal concerns are separate task groups with tests owned by their package.
-- Remaining delivery gaps are production server startup/handshake/outbox-worker-to-JudgeRunner composition and the terminal atomicity design conflict described in Task 8.3.
+- Remaining delivery gap is ongoing worker supervision/outbox polling and production provider/source/runtime dependency configuration.
 - Tests cover prohibited payloads, snapshot failures, idempotency conflicts/concurrency, outbox crash windows, ambiguous paid attempt, public bind/auth failures, cursor tampering/cross-run access, cancellation races, unverified verdicts and atomic terminal commit.
 
-**Current implementation limits:** API creation/retrieval/cancellation handlers and durable primitives are implemented; production server startup that resolves Keychain at process boot, wires local listener/auth/cursor secret, publishes outbox and composes all JudgeRunner dependencies is still required. Do not label Sprint 9 end-to-end complete until Tasks 8–9 implement/test that application composition.
+**Current implementation limits:** `startJudgeServer` composes Keychain credential, authenticated loopback listener and injected runtime. `createJudgeRuntime` wires API/outbox worker/actual JudgeRunner factory. A production bootstrap still must supply real PostgreSQL/source/provider dependencies and keep invoking worker `runOnce` under a supervised lifecycle; full daemon process packaging/continuous outbox polling is not supplied by this package and is not yet tested end-to-end.

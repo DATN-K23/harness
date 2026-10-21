@@ -14,7 +14,7 @@ import {
 } from "@harness/protocol"
 import type { CancellationBoundary } from "./cancellation"
 import type { EventSink } from "./event-sink"
-import { StaleWrite, asFault, persistTo, type Persist } from "./judge-step-support"
+import { StepFault, StaleWrite, asFault, persistTo, type Persist } from "./judge-step-support"
 
 /** What the runner decided to end the run with. */
 export type TerminalCommit =
@@ -117,6 +117,32 @@ export class RunWriter {
    */
   async commit(terminal: TerminalCommit): Promise<CommittedRun> {
     const run = committedRun(terminal)
+    if (this.store.commitTerminal) {
+      const terminalData = this.terminalEvent(terminal)
+      const event = this.sink.createEvent(terminalData.type, terminalData.payload)
+      const result = await this.store.commitTerminal({
+        claim: this.claim,
+        expectedState: this.current,
+        expectedStateVersion: this.stateVersion,
+        event,
+        nextState: run.state,
+        ...(run.terminalReason === undefined ? {} : { terminalReason: run.terminalReason }),
+        ...(terminal.state === "completed" ? {
+          resultContent: terminal.verdict.summary,
+        } : terminal.state === "failed" ? {
+          errorMessage: terminal.message,
+          errorCategory: terminal.reason,
+        } : {}),
+      }).catch((error: unknown) => {
+        throw error instanceof StepFault ? error : new StepFault("persistence_failure", error)
+      })
+      if (result.kind === "stale") throw new StaleWrite(result.reason)
+      this.terminalEventWritten = true
+      this.current = run.state
+      this.stateVersion = result.stateVersion
+      this.sink.setExpectedStateVersion(result.stateVersion)
+      return run
+    }
     await this.appendTerminal(terminal)
     this.terminalEventWritten = true
     await this.transition(run.state, run.terminalReason)
@@ -144,5 +170,28 @@ export class RunWriter {
       reason: StopReasonToTerminalReason[terminal.reason],
       observedLimits: terminal.observed.map((reason) => StopReasonToTerminalReason[reason]),
     })
+  }
+
+  private terminalEvent(terminal: TerminalCommit) {
+    if (terminal.state === "completed") return {
+      type: "run.completed" as const,
+      payload: { verdict: terminal.verdict },
+    }
+    if (terminal.state === "failed") return {
+      type: "run.failed" as const,
+      payload: { reason: terminal.reason, message: terminal.message },
+    }
+    if (terminal.state === "cancelled") return {
+      type: "run.cancelled" as const,
+      payload: { reason: "cancelled_by_user" as const, boundary: terminal.boundary },
+    }
+    const payload = {
+      reason: StopReasonToTerminalReason[terminal.reason],
+      observedLimits: terminal.observed.map((reason) => StopReasonToTerminalReason[reason]),
+    }
+    return {
+      type: "run.budget_exhausted" as const,
+      payload,
+    }
   }
 }

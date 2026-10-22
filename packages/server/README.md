@@ -37,10 +37,10 @@ The API returns `202` only after durable admission with `runId`, state `accepted
 
 ## Manual local smoke test (readiness/submission path only)
 
-This smoke test confirms local Keychain/Postgres/API admission/worker persistence for a deliberately unsupported narrative. Its expected result is **UNVERIFIED**, not a vulnerability decision. It requires macOS, a dedicated local Postgres database already migrated for Harness, a valid model endpoint/key (the endpoint is contacted only if the run reaches a model call), and a source snapshot.
+This is an operator-run live-provider smoke test for local Keychain/Postgres/API admission/worker persistence, using a deliberately unsupported narrative. The expected verdict is **UNVERIFIED**, not a vulnerability decision; PoC-bearing submissions are denied and no PoC runs. It requires macOS, a dedicated local Postgres database, a sanitized Solidity source snapshot, and a valid provider endpoint/key. No provider-backed adjudication can be performed until the operator supplies a configured key locally (never in chat) and the dedicated local configuration. This environment lacks `MODEL_API_KEY`, `DATABASE_URL`, and a snapshot directory, so this provider-backed flow has not been run.
 
-1. Create a snapshot from a small sanitized Solidity project using the existing snapshot command/API, and record its opaque snapshot ID. Do not include ground-truth/adjudication/scoring data.
-2. Create/apply the schema against that dedicated database with `DATABASE_URL='<dedicated URL>' bun run db:migrate`. Then set `.env` runtime values: `DATABASE_URL`, `PROVIDER_NAME=openai` (or `openrouter` with an explicit HTTPS-compatible URL), `MODEL_NAME`, `MODEL_API_KEY`, `HARNESS_SNAPSHOT_DIR`, `HARNESS_HOST=127.0.0.1`, and a free `HARNESS_PORT` (default `4318`). For OpenRouter, set `MODEL_BASE_URL=https://openrouter.ai/api/v1`; URL credentials/query/fragment are rejected.
+1. Set `HARNESS_SNAPSHOT_DIR` to a local storage root and ingest a small sanitized Solidity project with `bun run cli:repo -- add <path-to-project> --snapshot-id manual-judge-snapshot`. The command prints the snapshot manifest; use its `snapshotId` below. Do not include ground-truth/adjudication/scoring data.
+2. Set the runtime values in `.env`: a dedicated local `DATABASE_URL`, `PROVIDER_NAME=openai` (or `openrouter` with an explicit HTTPS-compatible URL), `MODEL_NAME`, `MODEL_API_KEY`, `HARNESS_SNAPSHOT_DIR`, `HARNESS_HOST=127.0.0.1`, and a free `HARNESS_PORT` (default `4318`). For OpenRouter, set `MODEL_BASE_URL=https://openrouter.ai/api/v1`; URL credentials/query/fragment are rejected. Apply schema using `bun run db:migrate` (the CLI resolves `.env` upward). Never print or paste the key into logs, commands, chat, or documentation.
 3. Start `bun run cli:serve`. Startup checks loopback configuration, snapshot directory, PostgreSQL, provider configuration and Keychain before listening. For this shell smoke test, retrieve the installation credential from Keychain into a shell variable via the native helper (the secret is not passed as a process argument or written to a file):
 
 ```sh
@@ -49,7 +49,7 @@ swiftc packages/server/native/keychain-credential.swift -o "$KEYCHAIN_HELPER"
 HARNESS_LOCAL_API_TOKEN="$("$KEYCHAIN_HELPER" get com.harness.local-api installation)"
 ```
 
-Never enable shell tracing (`set -x`) while using this variable. 4. Send a narrative-only request (no PoC) with a unique idempotency key:
+Never enable shell tracing (`set -x`) while using this variable. 4. Send a narrative-only request (no PoC) with a unique idempotency key. The `curl` output is the run response, not a secret; avoid verbose/debug flags:
 
 ```sh
 curl -sS -H "Authorization: Bearer $HARNESS_LOCAL_API_TOKEN" \
@@ -58,7 +58,7 @@ curl -sS -H "Authorization: Bearer $HARNESS_LOCAL_API_TOKEN" \
   "http://127.0.0.1:${HARNESS_PORT:-4318}/v1/judge/runs"
 ```
 
-5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and Keychain credential. The current bounded ingestion may return `UNVERIFIED/UNRESOLVED`; the service must not be interpreted as confirming or refuting the finding. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.
+5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and Keychain credential. The expected verdict is `UNVERIFIED` (currently `UNRESOLVED`), because semantic BCE is incomplete; the service does not confirm or refute the finding. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.
 6. Stop with Ctrl-C or SIGTERM. The worker stops polling and closes the listener/database pool after active work settles. Runs/events remain in the dedicated database; do not clear shared tables as cleanup.
 
 Never use a production key/database for manual smoke tests. The live guarded listener integration is separate and requires `HARNESS_POSTGRES_E2E=1` plus `HARNESS_POSTGRES_E2E_DATABASE_URL`; it intentionally never falls back to `DATABASE_URL`. Run it only with a fresh disposable PostgreSQL container/database, for example:

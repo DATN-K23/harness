@@ -30,8 +30,13 @@ const checkPostgresReachable = async (
   }
 }
 
-test("PostgreSQL E2E opt-in rejects shared DATABASE_URL targets", () => {
-  const env = { HARNESS_POSTGRES_E2E: "1", HARNESS_POSTGRES_E2E_DATABASE_URL: "postgres://shared/db", DATABASE_URL: "postgres://shared/db" }
+test("PostgreSQL E2E rejects a shared target even when disposable-database acknowledgement is present", () => {
+  const env = {
+    HARNESS_POSTGRES_E2E: "1",
+    HARNESS_POSTGRES_E2E_DEDICATED: "1",
+    HARNESS_POSTGRES_E2E_DATABASE_URL: "postgres://shared/db",
+    DATABASE_URL: "postgres://shared/db",
+  }
   expect(() => assertDedicatedPostgresTarget(env)).toThrow("must not equal DATABASE_URL")
 })
 

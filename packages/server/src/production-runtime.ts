@@ -3,6 +3,7 @@ import { PostgresRunStore } from "@harness/schema"
 import { FOUNDRY_IMAGE, spawnDocker } from "./docker-foundry-sandbox"
 import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
 import { createKeychainCredentialProvider } from "./keychain-credential"
+import { startCheckedLocalServer } from "./production-startup"
 
 export const assertProductionJudgeConfig = <T extends { enablePocExecution?: boolean }>(config: T): T & { enablePocExecution: false } => {
   if (config.enablePocExecution === true) throw new Error("PoC execution is disabled in the production runtime")
@@ -52,22 +53,22 @@ export const startProductionLocalServer = async (options: {
     const baseUrl = new URL(options.modelBaseUrl)
     if (baseUrl.username || baseUrl.password) throw new Error("Model base URL must not contain credentials")
   }
-  await assertSnapshotRoot(options.snapshotDir)
-  const image = await spawnDocker(["docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", FOUNDRY_IMAGE], {
-    signal: new AbortController().signal, timeout: 10_000, maxOutputBytes: 4096,
-  })
-  if (image.exitCode !== 0 || !image.stdout.trim().split("\n").includes(FOUNDRY_IMAGE))
-    throw new Error("Pinned Foundry image is unavailable or digest does not match")
   const store = new PostgresRunStore({ url: options.databaseUrl })
   try {
-    await store.client.sql`select 1`
-    const credential = await createKeychainCredentialProvider().getOrCreate()
-    const server = Bun.serve({
-      hostname: options.hostname,
-      port: options.port,
-      fetch: createProductionHealthHandler(credential),
+    const started = await startCheckedLocalServer(options, {
+      checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
+      async inspectImage() {
+        const image = await spawnDocker(["docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", FOUNDRY_IMAGE], {
+          signal: new AbortController().signal, timeout: 10_000, maxOutputBytes: 4096,
+        })
+        if (image.exitCode !== 0 || !image.stdout.trim().split("\n").includes(FOUNDRY_IMAGE))
+          throw new Error("Pinned Foundry image is unavailable or digest does not match")
+      },
+      async pingDatabase() { await store.client.sql`select 1` },
+      getCredential: () => createKeychainCredentialProvider().getOrCreate(),
+      listen(hostname, port, fetch) { return Bun.serve({ hostname, port, fetch }) },
     })
-    return { server, async stop() { server.stop(true); await store.close() } }
+    return { server: started.listener, async stop() { await started.stop(); await store.close() } }
   } catch (error) {
     await store.close()
     throw error

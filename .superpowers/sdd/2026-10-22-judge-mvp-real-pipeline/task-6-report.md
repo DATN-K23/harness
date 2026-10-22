@@ -31,3 +31,11 @@ No Docker command, image pull, container, model endpoint or PostgreSQL was used.
 - TDD evidence: compatibility tests first failed against the fake digest/version requirement; lifecycle test first failed due to missing implementation module; production runtime health/startup tests were then implemented. Fixes are verified by the focused suite below.
 - Verification: `bun test packages/server/test/runtime-security.test.ts packages/server/test/judge-api.test.ts packages/server/test/production-runtime.test.ts packages/cli/test/server-lifecycle.test.ts` — 26 pass; full server/CLI tests and typechecks follow.
 - Production remains blocked; no Judge execution or PoC is exposed.
+
+## Fix round 2 — verify actual readiness gates prevent listen
+
+- Replaced the vacuous `listened` assertion with tests against internal `startCheckedLocalServer`, which executes the exact ordered startup orchestration used by production. Tests inject only that internal operation seam; the public `startProductionLocalServer` options and package exports do not accept readiness callbacks.
+- Production still binds those operations directly to fixed real checks: filesystem snapshot-root inspection, pinned Docker `image inspect`, `PostgresRunStore` `select 1`, the existing Keychain provider, and `Bun.serve`.
+- Added independent injected failures at image inspection, database ping, and Keychain credential retrieval; each asserts the listener operation counter remains exactly zero. Successful startup asserts one actual listener invocation and uses its fetch handler to confirm authenticated health. No Docker, DB, Keychain, or network was touched.
+- TDD: startup test first failed because the internal orchestration module was absent; production wired fixed operations into that orchestration only after the RED result.
+- Verification: `bun run --cwd packages/server test` — 61 pass; server typecheck passed; `bun run --cwd packages/cli test` — 54 pass (existing cancellation notice printed); CLI typecheck and `git diff --check` passed. Judge execution remains unavailable and PoC execution remains false.

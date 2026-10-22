@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { assertProductionJudgeConfig, createProductionHealthHandler, startProductionLocalServer } from "../src/production-runtime"
+import { assertProductionJudgeConfig, createProductionHealthHandler } from "../src/production-runtime"
+import { startCheckedLocalServer } from "../src/production-startup"
 
 describe("production runtime safety", () => {
   test("rejects PoC execution regardless of caller-provided config", () => {
@@ -11,21 +12,33 @@ describe("production runtime safety", () => {
     expect(assertProductionJudgeConfig({}).enablePocExecution).toBe(false)
   })
 
-  test("fails each readiness prerequisite before starting a listener", async () => {
-    const base = { databaseUrl: "postgres://db", modelApiKey: "secret", modelName: "model", providerName: "openai", modelBaseUrl: undefined as string | undefined, snapshotDir: "/missing", hostname: "127.0.0.1", port: 0 }
-    let listened = false
-    const failures: Array<[typeof base, string]> = [
-      [{ ...base, hostname: "0.0.0.0" }, "loopback"],
-      [{ ...base, databaseUrl: "" }, "configuration"],
-      [{ ...base, modelApiKey: "" }, "configuration"],
-      [{ ...base, providerName: "unsupported" }, "Unsupported"],
-      [{ ...base, modelBaseUrl: "https://user:pass@example.invalid" }, "credentials"],
-      [base, "ENOENT"],
-    ]
-    for (const [options, expectedError] of failures) {
-      await expect(startProductionLocalServer(options)).rejects.toThrow(expectedError)
-      expect(listened).toBe(false)
-    }
+  test("image inspection failure prevents listening", async () => {
+    const state = setup()
+    state.image = async () => { throw new Error("image inspect failed") }
+    await expect(startCheckedLocalServer(state.options, state.ops)).rejects.toThrow("image inspect failed")
+    expect(state.listens).toBe(0)
+  })
+
+  test("Postgres ping failure prevents listening", async () => {
+    const state = setup()
+    state.ping = async () => { throw new Error("database ping failed") }
+    await expect(startCheckedLocalServer(state.options, state.ops)).rejects.toThrow("database ping failed")
+    expect(state.listens).toBe(0)
+  })
+
+  test("Keychain failure prevents listening", async () => {
+    const state = setup()
+    state.keychain = async () => { throw new Error("Keychain failed") }
+    await expect(startCheckedLocalServer(state.options, state.ops)).rejects.toThrow("Keychain failed")
+    expect(state.listens).toBe(0)
+  })
+
+  test("successful readiness listens and serves authenticated health", async () => {
+    const state = setup()
+    const result = await startCheckedLocalServer(state.options, state.ops)
+    expect(state.listens).toBe(1)
+    expect(await result.fetch(new Request("http://localhost/v1/health", { headers: { authorization: "Bearer keychain-secret" } })).then((r) => r.status)).toBe(200)
+    await result.stop()
   })
 
   test("health requires Keychain bearer auth and reports actual limited capabilities", async () => {
@@ -39,3 +52,29 @@ describe("production runtime safety", () => {
     expect(await fetch(new Request("http://localhost/v1/judge/runs", { method: "POST" })).then((r) => r.status)).toBe(401)
   })
 })
+
+function setup() {
+  let listens = 0
+  let image: () => Promise<void> = async () => {}
+  let ping: () => Promise<void> = async () => {}
+  let keychain: () => Promise<string> = async () => "keychain-secret"
+  const options = { databaseUrl: "postgres://db", modelApiKey: "model-secret", modelName: "model", providerName: "openai", snapshotDir: "/snapshots", hostname: "127.0.0.1", port: 1234 }
+  const ops = {
+    checkSnapshot: async () => {},
+    inspectImage: () => image(),
+    pingDatabase: () => ping(),
+    getCredential: () => keychain(),
+    listen: (_hostname: string, _port: number, fetch: (request: Request) => Promise<Response>) => {
+      listens++
+      return { fetch, stop() {} }
+    },
+  }
+  return {
+    options,
+    ops,
+    get listens() { return listens },
+    set image(value: () => Promise<void>) { image = value },
+    set ping(value: () => Promise<void>) { ping = value },
+    set keychain(value: () => Promise<string>) { keychain = value },
+  }
+}

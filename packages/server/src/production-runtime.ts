@@ -1,9 +1,20 @@
 import { lstat, readdir } from "node:fs/promises"
+import { realpath } from "node:fs/promises"
+import { createIdGenerator, DiskSourceSnapshot, ProductionContextEngine, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
+import type { JudgeRunConfig } from "@harness/core"
+import { DefaultRetryConfig } from "@harness/protocol"
+import { RealModelGateway } from "@harness/llm/gateway"
 import { PostgresRunStore } from "@harness/schema"
-import { FOUNDRY_IMAGE, spawnDocker } from "./docker-foundry-sandbox"
+import { spawnDocker } from "./docker-foundry-sandbox"
 import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
 import { createKeychainCredentialProvider } from "./keychain-credential"
 import { startCheckedLocalServer } from "./production-startup"
+import { createJudgeRuntime } from "./judge-runtime"
+import { ConservativePocPolicy } from "./poc-policy"
+import { DockerFoundrySandbox } from "./docker-foundry-sandbox"
+import { RegexSecurityFilter } from "@harness/core/testing"
+import { PostgresCancellation } from "@harness/schema"
+import type { ClockPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
 
 export const assertProductionJudgeConfig = <T extends { enablePocExecution?: boolean }>(config: T): T & { enablePocExecution: false } => {
   if (config.enablePocExecution === true) throw new Error("PoC execution is disabled in the production runtime")
@@ -11,6 +22,59 @@ export const assertProductionJudgeConfig = <T extends { enablePocExecution?: boo
 }
 
 const productionJudgeConfig = assertProductionJudgeConfig({ enablePocExecution: false })
+
+export const resolveProductionSnapshot = async (storageDir: string, snapshotId: string) => {
+  const root = await realpath(storageDir)
+  const manifest = await SnapshotManager.loadSnapshotManifest(root, snapshotId)
+  const snapshot = new DiskSourceSnapshot({ storageDir: root, snapshotId, manifest })
+  if ((await snapshot.listFiles({ snapshotId })).length === 0) throw new Error("Snapshot is empty")
+  return snapshot
+}
+
+class ProductionSnapshotResolver implements SourceSnapshotPort {
+  constructor(private readonly storageDir: string) {}
+  async listFiles(input: { snapshotId: string; directory?: string }, signal?: AbortSignal) {
+    return (await resolveProductionSnapshot(this.storageDir, input.snapshotId)).listFiles(input, signal)
+  }
+  async readLines(input: Parameters<SourceSnapshotPort["readLines"]>[0], signal?: AbortSignal) {
+    return (await resolveProductionSnapshot(this.storageDir, input.snapshotId)).readLines(input, signal)
+  }
+}
+
+const makeJudgeConfig = (modelName: string, maxOutputTokens: number): JudgeRunConfig => {
+  const flags = {
+    enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true, enableDropEmpty: true,
+    enableLlmCompaction: true, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
+    enableNoProgressDetection: true, enableInfraRetry: true, enableParallelToolDispatch: true,
+  }
+  const policy = {
+    policyVersion: "judge-local-v1", windowLimitTokens: 100_000, outputReserveTokens: maxOutputTokens,
+    compactionThreshold: 0.8, safetyMarginFactor: 1.2, recentWindowTokens: 10_000,
+    toolOutputMaxTokens: 4_000, toolOutputMaxLines: 50, maxCompactions: 2,
+    flags: { enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true,
+      enableDropEmpty: true, enableLlmCompaction: true, enableSessionNote: false },
+  }
+  return deepFreeze({ flags, policy, retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
+    limits: { wallClockTimeoutMs: 300_000, totalTokenBudget: 200_000, maxSteps: 10, noProgressMaxRepeats: 3 },
+    maxProbeRuns: 0, enablePocExecution: false,
+    modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 }, profileId: modelName })
+}
+
+const deepFreeze = <T>(value: T): T => {
+  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const child of Object.values(value)) deepFreeze(child)
+  }
+  return value
+}
+
+const systemClock: ClockPort = { nowMs: () => Date.now() }
+const systemRandom: RandomPort = { next: () => Math.random() }
+const systemSleep: SleepPort = { sleep: (ms, signal) => new Promise<void>((resolveSleep) => {
+  if (signal?.aborted) return resolveSleep()
+  const timer = setTimeout(resolveSleep, ms)
+  signal?.addEventListener("abort", () => { clearTimeout(timer); resolveSleep() }, { once: true })
+}) }
 
 const assertSnapshotRoot = async (root: string) => {
   const stat = await lstat(root)
@@ -26,20 +90,24 @@ export const createProductionHealthHandler = (credential: string) => async (requ
     endpointId: "harness-local-runtime",
     apiVersion: ApiCompatibility.apiVersion,
     buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
-    capabilities: ["health", "api-version", "poc-execution-disabled", "bce-incomplete"],
-    judgeExecution: "unavailable",
+    capabilities: ["health", "api-version", "judge-submission", "worker", "poc-execution-disabled", "bce-incomplete"],
+    judgeExecution: "unverified-only",
     enablePocExecution: productionJudgeConfig.enablePocExecution,
   })
   return Response.json({ error: { code: "unavailable", message: "Judge execution is not production-ready" } }, { status: 503 })
 }
 
-/** Starts a readiness-checked local health/API-compatibility endpoint; judging remains deliberately unavailable. */
+/** Starts the loopback API and polling worker over real local adapters; outcomes remain unverified while BCE is incomplete. */
 export const startProductionLocalServer = async (options: {
   databaseUrl: string
   modelApiKey: string
   modelName: string
   providerName: string
   modelBaseUrl?: string
+  modelTimeoutMs?: number
+  modelMaxOutputTokens?: number
+  modelInputCostPerMTok?: number
+  modelOutputCostPerMTok?: number
   snapshotDir: string
   hostname: string
   port: number
@@ -55,18 +123,44 @@ export const startProductionLocalServer = async (options: {
   }
   const store = new PostgresRunStore({ url: options.databaseUrl })
   try {
+    const snapshotRoot = await realpath(options.snapshotDir)
     const started = await startCheckedLocalServer(options, {
       checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
-      async inspectImage() {
-        const image = await spawnDocker(["docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", FOUNDRY_IMAGE], {
-          signal: new AbortController().signal, timeout: 10_000, maxOutputBytes: 4096,
-        })
-        if (image.exitCode !== 0 || !image.stdout.trim().split("\n").includes(FOUNDRY_IMAGE))
-          throw new Error("Pinned Foundry image is unavailable or digest does not match")
-      },
       async pingDatabase() { await store.client.sql`select 1` },
       getCredential: () => createKeychainCredentialProvider().getOrCreate(),
-      listen(hostname, port, fetch) { return Bun.serve({ hostname, port, fetch }) },
+      listen(hostname, port, _fetch, credential) {
+        const config = makeJudgeConfig(options.modelName, options.modelMaxOutputTokens ?? 4096)
+        const ids = createIdGenerator(systemIdSources)
+        const runtime = createJudgeRuntime({
+          store,
+          snapshots: new ProductionSnapshotResolver(snapshotRoot),
+          ids, workerId: ids.next("worker_"), config,
+          cursorSecret: ids.next("cursor_"), credential,
+          async runnerDeps(_claim, runId) {
+            const run = await store.loadRun(runId)
+            if (!run?.snapshotId) throw new Error("admitted Judge snapshot is missing")
+            const snapshot: SourceSnapshotPort = new ProductionSnapshotResolver(snapshotRoot)
+            const gateway = new RealModelGateway({ apiKey: options.modelApiKey, model: options.modelName, baseURL: options.modelBaseUrl,
+              timeoutMs: options.modelTimeoutMs, secrets: [options.modelApiKey], inputCostPerMTok: options.modelInputCostPerMTok,
+              outputCostPerMTok: options.modelOutputCostPerMTok })
+            return { gateway, contextEngine: new ProductionContextEngine(createO200kTokenizer()), snapshot,
+              tools: new ToolRegistry({ snapshot, snapshotId: run.snapshotId, secrets: [options.modelApiKey] }),
+              security: new RegexSecurityFilter(), ingestion: new SnapshotIngestion({ source: snapshot }),
+              sanitizer: new ConservativePocPolicy({ compilerAvailable: false }),
+              sandbox: new DockerFoundrySandbox(spawnDocker, snapshot, { root: "" }, { enabled: false }),
+              cancellation: new PostgresCancellation(store.client), clock: systemClock, random: systemRandom, sleep: systemSleep, ids,
+              }
+          },
+        })
+        const health = createProductionHealthHandler(credential)
+        let stopped = false
+        let pollTask: Promise<void>
+        const poll = async () => { while (!stopped) { try { await runtime.worker.runOnce() } catch {} if (!stopped) await new Promise((done) => setTimeout(done, 250)) } }
+        const server = Bun.serve({ hostname, port, fetch: (request) =>
+          request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) })
+        pollTask = poll()
+        return { hostname: server.hostname, port: server.port, async stop() { stopped = true; await pollTask; server.stop(true) } }
+      },
     })
     return { server: started.listener, async stop() { await started.stop(); await store.close() } }
   } catch (error) {

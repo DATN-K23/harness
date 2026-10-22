@@ -206,11 +206,15 @@ export async function runCli(
         modelName: config.modelName,
         providerName: config.providerName,
         modelBaseUrl: config.modelBaseUrl,
+        modelTimeoutMs: config.modelTimeoutMs,
+        modelMaxOutputTokens: config.modelMaxOutputTokens,
+        modelInputCostPerMTok: config.modelInputCostPerMTok,
+        modelOutputCostPerMTok: config.modelOutputCostPerMTok,
         snapshotDir: config.snapshotDir,
         hostname: env.HARNESS_HOST ?? "127.0.0.1",
         port: Number(env.HARNESS_PORT ?? 4318),
       })
-      stdout(`Harness local server listening on ${server.server.hostname}:${server.server.port}; judge execution unavailable`)
+      stdout(`Harness local Judge API listening on ${server.server.hostname}:${server.server.port}; verdict capability remains UNVERIFIED`)
       await waitForServerShutdown(process, () => server.stop())
       return 0
     } catch (error) {

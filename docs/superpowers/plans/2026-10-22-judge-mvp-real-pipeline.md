@@ -142,10 +142,10 @@
 
 - [ ] Add startup tests proving missing/unsupported Keychain, database, model, snapshot, Docker or image configuration fails closed before listen; no mock/scripted fallback.
 - [ ] Add lifecycle tests for local-only binding, worker polling/recovery, error resilience, stop cleanup and health/API compatibility.
-- [ ] Run focused tests and observe failure.
-- [ ] Wire only production adapters and real infrastructure into a CLI/server process entrypoint; resolve secrets through approved Keychain boundary and never command-line args/plaintext files.
-- [ ] Make effective behavior and toolchain versions part of immutable run config/telemetry; do not expose secrets.
-- [ ] Run CLI/server typecheck and tests; verify the documented command reaches readiness with local dependencies and fails closed when one is absent.
+- [x] Run focused tests and observe failure.
+- [x] Wire only production adapters and real infrastructure into a CLI/server process entrypoint; resolve secrets through approved Keychain boundary and never command-line args/plaintext files. Runtime: real Postgres, immutable disk snapshots, provider gateway on execution, production context engine, ingestion, tools, security filter, cancellation, polling worker; deny-only sanitizer and disabled sandbox.
+- [x] Make effective behavior and toolchain versions part of immutable run config/telemetry; do not expose secrets. PoC execution is forced false and config is deeply frozen. Startup intentionally makes no provider request; a real request is made only for an actual run.
+- [x] Run CLI/server typecheck and tests; see Task 6 addendum report. Live PostgreSQL/provider/Keychain integration remains unverified in this environment.
 
 ### Task 7: End-to-end evidence, release gates and operations docs
 
@@ -158,12 +158,12 @@
 - Consumes: all production adapters and composition from Tasks 1–6.
 - Produces: verified end-to-end capability statement distinguishing static PASS, runtime PASS, invalid/FAIL, and UNVERIFIED; setup/recovery/security guidance and measured supported fixture coverage.
 
-- [x] Add an API→worker→real `JudgeRunner` scenario using real snapshot ingestion for narrative/unresolved/no-witness behavior. Full HTTP-to-Postgres and the requested additional safe-PoC/unsafe-PoC/infra-failure production adapter cases remain blocked because Task 6 does not expose production runtime and PoC policy denies all.
+- [x] Add an API→worker→real `JudgeRunner` scenario using real snapshot ingestion for narrative/unresolved/no-witness behavior. Production composition is now wired, but live HTTP-to-Postgres and safe-PoC/unsafe-PoC/infra-failure production adapter cases remain blocked because BCE is incomplete and PoC policy denies all.
 - [x] Assert provider request and API event projection contain no prohibited ground-truth/adjudication/scoring metadata in the deterministic runner E2E; its candidate/source fixture is clean. Separately, the API boundary negative test deliberately submits prohibited nested metadata and verifies rejection before submission/provider/event admission. API has no logging path for rejected requests.
 - [x] Docker Foundry test requires both `TASK5_DOCKER_INTEGRATION=1` and `TASK5_ARTIFACT_ROOT`; its prior live evidence is Linux ARM64 only. No live PostgreSQL E2E was available.
 - [x] Run `bunx turbo typecheck` and `bunx turbo test` (all six package typechecks; 878 tests pass, 0 fail), `swiftc -typecheck packages/server/native/keychain-credential.swift`, and `git diff --check`. Review follow-up verification: focused Judge API, API→runner E2E, and demo tests pass; the full suite still reports 878 passes because the API regression expanded assertions without changing file-level test count. Focused server suite from Task 7: 60 pass/1 skipped; this follow-up did not run live Docker, and PostgreSQL Judge integration is unavailable/not implemented.
 - [x] Document readiness-only `bun run cli:serve`, runtime seam payload, status meanings, bounds, tool versions, coverage limits, cleanup and recovery.
-- [x] Release remains BLOCKED: BCE incomplete for verdicts, policy deny-only, Docker macOS unverified, production API/worker composition absent, and PostgreSQL end-to-end path unverified. No full MVP/production claim.
+- [x] Release remains BLOCKED: BCE incomplete for verdicts, policy deny-only, Docker disabled/macOS unverified, and PostgreSQL/provider live end-to-end path unverified. No full MVP/production claim.
 
 ## Completion criteria
 

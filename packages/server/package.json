@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@harness/core": "workspace:*",
+    "@harness/llm": "workspace:*",
     "@harness/protocol": "workspace:*",
     "@harness/schema": "workspace:*"
   },

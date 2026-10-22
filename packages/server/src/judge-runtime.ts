@@ -19,7 +19,7 @@ export interface JudgeRuntimeOptions {
   config: JudgeRunConfig
   cursorSecret: string
   credential: string
-  runnerDeps(claim: RunClaim, runId: string): Omit<JudgeRunnerDeps, "store">
+  runnerDeps(claim: RunClaim, runId: string): Omit<JudgeRunnerDeps, "store"> | Promise<Omit<JudgeRunnerDeps, "store">>
 }
 
 export const createJudgeRuntime = (options: JudgeRuntimeOptions) => {
@@ -42,7 +42,7 @@ export const createJudgeRuntime = (options: JudgeRuntimeOptions) => {
       const input = await loadAdmittedJudgeInput(options.store, runId)
       if (!input) throw new Error("admitted Judge input is missing")
       const { JudgeRunner } = await import("@harness/core")
-      const runner = new JudgeRunner({ ...options.runnerDeps(claim, runId), store: options.store })
+      const runner = new JudgeRunner({ ...await options.runnerDeps(claim, runId), store: options.store })
       await runner.run(claim, { ...input, config: options.config } satisfies JudgeRunInput)
     },
   })

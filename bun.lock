@@ -18,6 +18,7 @@
         "@harness/llm": "workspace:*",
         "@harness/protocol": "workspace:*",
         "@harness/schema": "workspace:*",
+        "@harness/server": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -83,6 +84,7 @@
       "name": "@harness/server",
       "dependencies": {
         "@harness/core": "workspace:*",
+        "@harness/llm": "workspace:*",
         "@harness/protocol": "workspace:*",
         "@harness/schema": "workspace:*",
       },

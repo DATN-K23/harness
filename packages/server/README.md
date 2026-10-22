@@ -16,13 +16,13 @@ The server package exposes the local Judge API handler and runtime composition p
 - `api.fetch(request)` — authenticated submission, safe run projection, ordered event pages and cancellation.
 - `worker.runOnce()` — claim and execute available outbox work by stable run ID.
 
-`startJudgeServer` is a testable composition seam, not an approved production entrypoint. One local readiness-only command is `bun run cli:serve`; it validates explicit database/model config, an accessible snapshot directory, the exact pinned image digest, live PostgreSQL, and macOS Keychain, then binds only loopback and obtains its API credential from Keychain. It does **not** probe provider connectivity or expose Judge submission/worker execution.
+`startJudgeServer` is an injectable composition seam. `bun run cli:serve` binds only loopback, checks explicit database/model config, the accessible immutable snapshot root, live PostgreSQL, and macOS Keychain, and composes the real Postgres store, disk snapshot resolver, `RealModelGateway`, production context engine, tools, snapshot ingestion, cancellation, and polling worker. There is no provider call at startup; execution uses the configured gateway. The API credential comes only from Keychain.
 
-**Judge release remains BLOCKED; this is readiness-only, not a working Judge service.** Task 3's BCE is explicitly incomplete for verdict purposes, Task 5's PoC policy denies all and Docker was exercised only on Linux ARM64 (macOS unverified), and Task 6 does not expose the API/runtime. PoC execution is hardcoded false; there is no API/config switch. Health reports `judgeExecution: unavailable`, `enablePocExecution: false`, and `bce-incomplete`. Startup does not call the model endpoint; API-key presence/provider configuration are validated but connectivity is not.
+**Judge release remains BLOCKED; this is a real local submission/worker path, not an adjudication-capable service.** BCE remains explicitly incomplete, so all supported submissions must resolve UNVERIFIED; PoC policy denies all and execution is hardcoded false (no API/config switch). Docker remains disabled in composition and macOS isolation is unverified. Health reports `judgeExecution: unverified-only`, `enablePocExecution: false`, and `bce-incomplete`. Startup does not incur a provider request; provider connectivity is discovered on first actual run.
 
 ## API
 
-The injectable API/runtime seam accepts `POST /v1/judge/runs` with `Idempotency-Key` and JSON (not served by `cli:serve`):
+The local API accepts `POST /v1/judge/runs` with `Idempotency-Key` and JSON:
 
 ```json
 {
@@ -31,15 +31,15 @@ The injectable API/runtime seam accepts `POST /v1/judge/runs` with `Idempotency-
 }
 ```
 
-For narrative-only, `reportMarkdown` can contain the bounded labeled report, for example `Target: Vault.withdraw\nRoot cause: ...\nAttack scenario: ...\nImpact: ...\nState: ...`. For a submitter-PoC input, use the same labels and append a fenced `solidity` or `forge` block containing the test. Both are candidate user input; neither may include ground-truth, adjudication or scoring metadata. The present deny-only policy rejects PoC inputs, and this request example is for the injectable seam only—not a callable `cli:serve` endpoint.
+For narrative-only, `reportMarkdown` can contain the bounded labeled report, for example `Target: Vault.withdraw\nRoot cause: ...\nAttack scenario: ...\nImpact: ...\nState: ...`. PoC is rejected by the deny-only policy and never executed. Both are candidate user input; neither may include ground-truth, adjudication or scoring metadata.
 
-For either narrative-only or a report with a fenced Solidity/Foundry PoC, put the candidate report text in `reportMarkdown`; the runtime seam returns `202` only after durable admission with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. `valid/PASS` requires verified evidence and is not currently demonstrated; `invalid/FAIL` is reserved for validated refutation, not process errors; incomplete BCE, absent/unsafe PoC, and sandbox infrastructure failure must remain `unverified/UNVERIFIED`. No runtime PASS is claimed.
+The API returns `202` only after durable admission with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. With BCE incomplete, verdict capability remains `unverified/UNVERIFIED`; no `valid/PASS` or `invalid/FAIL` claim is made.
 
 ## Bounds, coverage and recovery
 
 - API JSON is capped at 256 KiB; report extraction defaults to 64,000 UTF-8 bytes. Snapshot ingestion examines at most 128 Solidity files, 120 lines per file and 512 KiB total source, and returns incomplete when limits/toolchain/import mapping prevent analysis. AST slices are retrieval context, not proof of a complete call/data-flow graph.
 - The offline demo is scripted test material, not a supported Solidity coverage claim. It now records incomplete-BCE claims as UNVERIFIED, does not run PoCs by default, and emits no generated witness. PoC policy currently rejects every input.
-- On interrupted local readiness startup, stop with Ctrl-C; `cli:serve` closes its listener and database pool. On a stuck test container, the adapter uses its bounded timeout/cancellation cleanup; inspect/remove only the uniquely named disposable test container if Docker itself is unavailable during cleanup. Do not run production/repository PoCs.
+- On interrupted local startup, stop with Ctrl-C; `cli:serve` stops polling, closes its listener and database pool. Docker is not invoked by this runtime. Do not run production/repository PoCs.
 - Toolchain evidence recorded for BCE is `solc-js 0.8.30+commit.73712a01`; sandbox evidence is Foundry Forge 1.5.1 in the pinned ARM64 image, tested on Linux only. Docker Desktop/macOS behavior is unverified. PostgreSQL production-path integration and full HTTP→Postgres→worker→production-adapter testing remain unverified.
 
 The local `/v1/health` handshake is authenticated and reports the API version (no contract digest is advertised because there is no canonical versioned contract serialization to hash). Clients must fail closed on API-version mismatch; `assertApiCompatibility` implements that check. The handshake also reports deliberately limited runtime capabilities.
@@ -55,4 +55,4 @@ swiftc -typecheck packages/server/native/keychain-credential.swift
 TASK5_DOCKER_INTEGRATION=1 TASK5_ARTIFACT_ROOT="$HOME/Library/Caches/harness-task5/artifacts" bun test packages/server/test/docker-foundry-sandbox.test.ts
 ```
 
-The Docker command is explicitly opt-in and uses disposable benign/assertion fixtures only; it does not validate macOS isolation. A live PostgreSQL Judge E2E is not currently available because the production composition is not exposed.
+The Docker command is explicitly opt-in and uses disposable benign/assertion fixtures only; it does not validate macOS isolation. The production composition uses PostgreSQL but a live HTTP→Postgres integration test remains unavailable in this environment.

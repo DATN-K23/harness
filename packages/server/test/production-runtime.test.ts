@@ -160,6 +160,14 @@ describe("production runtime safety", () => {
     expect(cleaned).toBe(true)
   })
 
+  test("worker stop resolves promptly while it is waiting for its next poll", async () => {
+    const worker = startPollingWorker(async () => {}, 10_000, 5_000)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const started = Date.now()
+    await worker.stop()
+    expect(Date.now() - started).toBeLessThan(100)
+  })
+
   test("worker stop shares its shutdown promise and clears the timeout after active work settles", async () => {
     let finish!: () => void
     let cleaned = 0

@@ -13,7 +13,7 @@ import { createJudgeRuntime } from "./judge-runtime"
 import { ConservativePocPolicy } from "./poc-policy"
 import { DockerFoundrySandbox } from "./docker-foundry-sandbox"
 import { PostgresCancellation } from "@harness/schema"
-import type { ClockPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
+import type { ClockPort, ModelGatewayPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
 import { startPollingWorker } from "./worker-lifecycle"
 
 export const assertProductionJudgeConfig = <T extends { enablePocExecution?: boolean }>(config: T): T & { enablePocExecution: false } => {
@@ -127,6 +127,8 @@ interface ProductionStartupOperations {
   createStore(databaseUrl: string): PostgresRunStore
   resolveSnapshotRoot(snapshotDir: string): Promise<string>
   startCheckedLocalServer: typeof startCheckedLocalServer
+  getCredential?(): Promise<string>
+  createGateway?(): ModelGatewayPort
 }
 
 const productionStartupOperations: ProductionStartupOperations = {
@@ -180,7 +182,7 @@ export const startProductionLocalServerWithOperations = async (options: {
     const started = await operations.startCheckedLocalServer(options, {
       checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
       async pingDatabase() { await store.client.sql`select 1` },
-      getCredential: () => createKeychainCredentialProvider().getOrCreate(),
+      getCredential: () => operations.getCredential?.() ?? createKeychainCredentialProvider().getOrCreate(),
       listen(hostname, port, _fetch, credential) {
         const config = makeProductionJudgeConfig(validatedOptions)
         const ids = createIdGenerator(systemIdSources)
@@ -193,7 +195,7 @@ export const startProductionLocalServerWithOperations = async (options: {
             const run = await store.loadRun(runId)
             if (!run?.snapshotId) throw new Error("admitted Judge snapshot is missing")
             const snapshot: SourceSnapshotPort = new ProductionSnapshotResolver(snapshotRoot)
-            const gateway = new RealModelGateway({ ...providerConfig,
+            const gateway = operations.createGateway?.() ?? new RealModelGateway({ ...providerConfig,
               timeoutMs: options.modelTimeoutMs, secrets: [options.modelApiKey], inputCostPerMTok: options.modelInputCostPerMTok,
               outputCostPerMTok: options.modelOutputCostPerMTok })
             return { gateway, contextEngine: new ProductionContextEngine(createO200kTokenizer()), snapshot,

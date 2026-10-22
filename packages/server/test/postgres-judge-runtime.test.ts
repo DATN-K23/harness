@@ -8,7 +8,7 @@ import { PostgresCancellation, PostgresRunStore, runMigrations } from "@harness/
 import { ConservativePocPolicy } from "../src/poc-policy"
 import { DockerFoundrySandbox, spawnDocker } from "../src/docker-foundry-sandbox"
 import { createJudgeRuntime } from "../src/judge-runtime"
-import { makeProductionJudgeConfig } from "../src/production-runtime"
+import { makeProductionJudgeConfig, startProductionLocalServerWithOperations } from "../src/production-runtime"
 
 // Never fall back to DATABASE_URL: this test changes schema state and requires an explicitly dedicated database.
 const testDatabaseUrl = process.env.HARNESS_POSTGRES_E2E_DATABASE_URL
@@ -51,6 +51,53 @@ if (enabled && !await checkPostgresReachable(testDatabaseUrl!)) {
 
 if (enabled) {
   describe("Judge runtime PostgreSQL composition", () => {
+    test("serves a persisted UNVERIFIED run through the production listener without provider calls", async () => {
+      await runMigrations({ url: testDatabaseUrl })
+      const sourceRoot = await mkdtemp(join(tmpdir(), "harness-listener-source-"))
+      const snapshotRoot = await mkdtemp(join(tmpdir(), "harness-listener-snapshots-"))
+      const credential = "test-only-listener-credential"
+      let providerCalls = 0
+
+      try {
+        await mkdir(join(sourceRoot, "src"))
+        await writeFile(join(sourceRoot, "src", "Vault.sol"), "pragma solidity ^0.8.20; contract Vault {}\n")
+        const ingested = await SnapshotManager.ingestRepository({ sourceDir: sourceRoot, storageDir: snapshotRoot, snapshotId: `listener-e2e-${crypto.randomUUID()}` })
+        const server = await startProductionLocalServerWithOperations({
+          databaseUrl: testDatabaseUrl!, modelApiKey: "test-only-model-secret", modelName: "test-model", providerName: "openai",
+          modelBaseUrl: "https://api.openai.com/v1", snapshotDir: snapshotRoot, hostname: "127.0.0.1", port: 0,
+        }, {
+          createStore: (url) => new PostgresRunStore({ url }),
+          resolveSnapshotRoot: async (dir) => dir,
+          startCheckedLocalServer: (await import("../src/production-startup")).startCheckedLocalServer,
+          getCredential: async () => credential,
+          createGateway: () => ({ async executeAttempt(_request: ModelAttemptRequest): Promise<ModelAttemptResponse> { providerCalls++; throw new Error("provider must not be called for an unsupported report") } }),
+        })
+        try {
+          const baseUrl = `http://${server.server.hostname}:${server.server.port}`
+          const auth = { authorization: `Bearer ${credential}` }
+          expect((await fetch(`${baseUrl}/v1/health`, { headers: auth })).status).toBe(200)
+          expect((await fetch(`${baseUrl}/v1/judge/runs`, { method: "POST" })).status).toBe(401)
+          const submit = await fetch(`${baseUrl}/v1/judge/runs`, { method: "POST", headers: { ...auth, "content-type": "application/json", "idempotency-key": `listener-e2e-${crypto.randomUUID()}` }, body: JSON.stringify({ finding: { findingId: "finding-listener-e2e", reportMarkdown: "Unsupported narrative." }, snapshotId: ingested.snapshotId }) })
+          expect(submit.status).toBe(202)
+          const { runId } = await submit.json() as { runId: string }
+          let result: Response | undefined
+          for (let attempt = 0; attempt < 40; attempt++) {
+            result = await fetch(`${baseUrl}/v1/judge/runs/${runId}`, { headers: auth })
+            if ((await result.clone().json() as { state: string }).state === "completed") break
+            await Bun.sleep(50)
+          }
+          expect(result?.status).toBe(200)
+          expect(await result?.json()).toMatchObject({ runId, state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+          expect((await fetch(`${baseUrl}/v1/judge/runs/${runId}/events`, { headers: auth })).status).toBe(200)
+          expect((await fetch(`${baseUrl}/v1/judge/runs/${runId}/cancel`, { method: "POST", headers: auth })).status).toBe(409)
+          expect(providerCalls).toBe(0)
+        } finally { await server.stop() }
+      } finally {
+        await rm(sourceRoot, { recursive: true, force: true })
+        await rm(snapshotRoot, { recursive: true, force: true })
+      }
+    })
+
     test("completes an invalid report as UNVERIFIED without a provider request", async () => {
       await runMigrations({ url: testDatabaseUrl })
       const sourceRoot = await mkdtemp(join(tmpdir(), "harness-judge-source-"))

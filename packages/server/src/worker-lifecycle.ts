@@ -8,6 +8,7 @@ export const startPollingWorker = (
   let cleanupStarted = false
   let active: Promise<unknown> | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
+  let shutdown: Promise<void> | undefined
   const done = (async () => {
     while (!stopping) {
       try { active = runOnce(); await active } catch {}
@@ -16,13 +17,21 @@ export const startPollingWorker = (
     }
   })()
   return {
-    async stop() {
-      stopping = true
-      if (timer) clearTimeout(timer)
-      const settled = await Promise.race([done.then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), shutdownTimeoutMs))])
-      const cleanup = async () => { if (cleanupStarted) return; cleanupStarted = true; await onStopped() }
-      if (settled) await cleanup()
-      else void done.then(cleanup)
+    stop() {
+      if (!shutdown) shutdown = (async () => {
+        stopping = true
+        if (timer) clearTimeout(timer)
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        const settled = await Promise.race([
+          done.then(() => true),
+          new Promise<false>((resolve) => { timeout = setTimeout(() => resolve(false), shutdownTimeoutMs) }),
+        ])
+        if (timeout) clearTimeout(timeout)
+        const cleanup = async () => { if (cleanupStarted) return; cleanupStarted = true; await onStopped() }
+        if (settled) await cleanup()
+        else void done.then(cleanup)
+      })()
+      return shutdown
     },
   }
 }

@@ -12,7 +12,7 @@ import { makeProductionJudgeConfig } from "../src/production-runtime"
 
 // Never fall back to DATABASE_URL: this test changes schema state and requires an explicitly dedicated database.
 const testDatabaseUrl = process.env.HARNESS_POSTGRES_E2E_DATABASE_URL
-const enabled = process.env.HARNESS_POSTGRES_E2E === "1" && testDatabaseUrl !== undefined
+const enabled = process.env.HARNESS_POSTGRES_E2E === "1"
 
 const checkPostgresReachable = async (url: string): Promise<boolean> => {
   try {
@@ -25,9 +25,15 @@ const checkPostgresReachable = async (url: string): Promise<boolean> => {
   }
 }
 
-const postgresAvailable = enabled && await checkPostgresReachable(testDatabaseUrl)
+if (enabled && !testDatabaseUrl) {
+  throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is required when HARNESS_POSTGRES_E2E=1; DATABASE_URL is never used")
+}
 
-if (postgresAvailable) {
+if (enabled && !await checkPostgresReachable(testDatabaseUrl!)) {
+  throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is unreachable while HARNESS_POSTGRES_E2E=1")
+}
+
+if (enabled) {
   describe("Judge runtime PostgreSQL composition", () => {
     test("completes an invalid report as UNVERIFIED without a provider request", async () => {
       await runMigrations({ url: testDatabaseUrl })
@@ -109,7 +115,7 @@ if (postgresAvailable) {
     })
   })
 } else {
-  describe.skip("Judge runtime PostgreSQL composition (explicit dedicated opt-in required)", () => {
-    test("skipped unless HARNESS_POSTGRES_E2E=1 and HARNESS_POSTGRES_E2E_DATABASE_URL is reachable", () => {})
+  describe.skip("Judge runtime PostgreSQL composition (HARNESS_POSTGRES_E2E=1 required)", () => {
+    test("skipped unless HARNESS_POSTGRES_E2E=1", () => {})
   })
 }

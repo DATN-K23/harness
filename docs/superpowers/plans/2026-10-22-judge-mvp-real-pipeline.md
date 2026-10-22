@@ -140,13 +140,14 @@
 - Consumes: PostgreSQL `PostgresRunStore`, real provider adapter, disk snapshot storage, Task 3–5 production ports, Keychain credential provider and `startJudgeServer`.
 - Produces: one documented local command/composition that validates Docker, image, PostgreSQL, snapshot root, provider configuration and Keychain before accepting requests; worker poll lifecycle stops cleanly and health handshake reports actual compatibility/capabilities.
 
-- [ ] Add startup tests proving missing/unsupported Keychain, database, model, snapshot, Docker or image configuration fails closed before listen; no mock/scripted fallback.
+- [x] Add startup tests proving Keychain, database, model, and snapshot preflight failures fail closed before listen; Docker/image checks are intentionally absent because the disabled sandbox has no image dependency. Bun listener and Keychain are not live-E2E tested.
 - [ ] Add lifecycle tests for local-only binding, worker polling/recovery, error resilience, stop cleanup and health/API compatibility.
 - [x] Run focused tests and observe failure.
 - [x] Wire only production adapters and real infrastructure into a CLI/server process entrypoint; resolve secrets through approved Keychain boundary and never command-line args/plaintext files. Runtime: real Postgres, immutable disk snapshots, provider gateway on execution, production context engine, ingestion, tools, security filter, cancellation, polling worker; deny-only sanitizer and disabled sandbox.
 - [x] Make effective behavior and toolchain versions part of immutable run config/telemetry; do not expose secrets. PoC execution is forced false and config is deeply frozen. Startup intentionally makes no provider request; a real request is made only for an actual run.
 - [x] Run CLI/server typecheck and tests; see Task 6 addendum report. Live PostgreSQL/provider/Keychain integration remains unverified in this environment.
 - [x] Add opt-in `packages/server/test/postgres-judge-runtime.test.ts`: a dedicated `HARNESS_POSTGRES_E2E_DATABASE_URL` only (never `DATABASE_URL`) runs API handler → Postgres admission/outbox → worker → real `JudgeRunner` with immutable disk snapshot and `SnapshotIngestion`. An unsupported narrative completes `UNVERIFIED` before model execution; its no-call gateway proves no provider request and the real sandbox adapter remains disabled. The test retains its uniquely identified database run/events and never clears shared tables. It does not exercise `startProductionLocalServer`'s Bun listener or Keychain boundary: that wrapper requires an actual macOS Keychain credential and is already limited to readiness/preflight tests.
+- [x] Guarded API→Postgres→worker core-runtime test skips only when `HARNESS_POSTGRES_E2E` is absent. When opted in, it requires a dedicated `HARNESS_POSTGRES_E2E_DATABASE_URL` and fails setup if that URL is missing or unreachable; it was not run in this environment. Bun listener/Keychain end-to-end coverage remains unverified.
 
 ### Task 7: End-to-end evidence, release gates and operations docs
 

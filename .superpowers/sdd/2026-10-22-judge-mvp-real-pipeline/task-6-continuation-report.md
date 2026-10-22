@@ -8,7 +8,7 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 
 - `PostgresRunStore` provides admission, outbox, state, events and cancellation; startup checks a live SQL query before listen.
 - A fixed snapshot resolver loads only the admitted opaque snapshot ID from the canonical `HARNESS_SNAPSHOT_DIR` root using `SnapshotManager` manifests and `DiskSourceSnapshot` integrity checks. It performs no arbitrary path resolution from API input.
-- The worker uses `SnapshotIngestion`, `ToolRegistry`, `ProductionContextEngine`, `RegexSecurityFilter`, `PostgresCancellation`, production clock/random/sleep and ID sources, plus `RealModelGateway` created for actual executions only.
+- The worker uses `SnapshotIngestion`, `ToolRegistry`, `ProductionContextEngine`, `ProductionSecurityFilter`, `PostgresCancellation`, production clock/random/sleep and ID sources, plus `RealModelGateway` created for actual executions only.
 - The effective run config is deeply frozen and PoC execution is hardcoded false. Sanitizer is deny-only and Docker sandbox is disabled. No test fixture or fake adapter enters the composition.
 - Startup never calls a provider endpoint, avoiding surprise spend; configured provider/model credentials are used on an admitted execution. API credential remains Keychain-only.
 - Docker/image prerequisite was removed: sandbox is disabled in this runtime and image presence would be unrelated to serving its safe capability.
@@ -24,7 +24,8 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 
 ## Limits / open risk
 
-- Live HTTP→Postgres→worker integration remains unverified in this environment. Add/execute the guarded live database test before calling it operationally verified.
+- The guarded API→Postgres→worker core-runtime graph is implemented but was not run here. It runs only with `HARNESS_POSTGRES_E2E=1` and an explicitly dedicated, reachable `HARNESS_POSTGRES_E2E_DATABASE_URL`; it never falls back to `DATABASE_URL` and fails loudly if enabled without that URL or with an unreachable database.
+- Bun's production server listener and the macOS Keychain boundary are still not exercised end-to-end; only their injected readiness/preflight behavior is covered.
 - Provider connectivity is deferred until first real run; runs can fail with normalized provider errors if key/endpoint/model are invalid.
 - BCE and PoC safety gates remain unchanged. No `PASS`, `FAIL`, or PoC runtime execution is authorized or claimed.
 

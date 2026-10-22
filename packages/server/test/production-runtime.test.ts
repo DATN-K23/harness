@@ -126,10 +126,23 @@ describe("production runtime safety", () => {
     expect(Object.isFrozen(first.runtime)).toBe(true)
   })
 
-  test("production security filter redacts keys without importing test helpers", async () => {
-    const result = await new ProductionSecurityFilter().filterSecrets("key sk-12345678901234567890")
-    expect(result.content).toBe("key [REDACTED]")
-    expect(result.redactionCount).toBe(1)
+  test("production security filter redacts established secret patterns without importing test helpers", async () => {
+    const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"
+    const result = await new ProductionSecurityFilter().filterSecrets([
+      "key sk-12345678901234567890",
+      "PRIVATE_KEY=0xdeadbeef",
+      pem,
+      "AWS AKIAABCDEFGHIJKLMNOP",
+      "GitHub ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+    ].join("\n"))
+    expect(result.content).toBe(["key [REDACTED]", "[REDACTED]", "[REDACTED]", "AWS [REDACTED]", "GitHub [REDACTED]"].join("\n"))
+    expect(result.redactionCount).toBe(5)
+  })
+
+  test("production security filter honors an already-aborted signal", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(new ProductionSecurityFilter().filterSecrets("PRIVATE_KEY=0xdeadbeef", controller.signal)).rejects.toThrow()
   })
 
   test("worker shutdown returns within its bound but defers database cleanup until active work settles", async () => {
@@ -142,6 +155,29 @@ describe("production runtime safety", () => {
     finish()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(cleaned).toBe(true)
+  })
+
+  test("worker stop shares its shutdown promise and clears the timeout after active work settles", async () => {
+    let finish!: () => void
+    let cleaned = 0
+    const originalClearTimeout = globalThis.clearTimeout
+    let clears = 0
+    globalThis.clearTimeout = (() => {
+      clears++
+    }) as typeof clearTimeout
+    try {
+      const worker = startPollingWorker(() => new Promise<void>((resolve) => { finish = resolve }), 100, 100, () => { cleaned++ })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const first = worker.stop()
+      const second = worker.stop()
+      expect(second).toBe(first)
+      finish()
+      await first
+      expect(cleaned).toBe(1)
+      expect(clears).toBeGreaterThanOrEqual(1)
+    } finally {
+      globalThis.clearTimeout = originalClearTimeout
+    }
   })
 })
 

@@ -33,7 +33,7 @@ Create `@harness/server`'s runtime with a `RunStorePort`, `SourceSnapshotPort`, 
 
 Successful durable admission returns `202` with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. A model-only conclusion remains `unverified`; execution errors are not invalid verdicts.
 
-The local `/v1/health` handshake is authenticated and reports API compatibility plus the deliberately limited runtime capabilities.
+The local `/v1/health` handshake is authenticated and reports the API version (no contract digest is advertised because there is no canonical versioned contract serialization to hash). Clients must fail closed on API-version mismatch; `assertApiCompatibility` implements that check. The handshake also reports deliberately limited runtime capabilities.
 
 ## Verification
 

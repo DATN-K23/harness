@@ -66,7 +66,6 @@ export const createJudgeApi = (deps: {
       return Response.json({
         endpointId: "harness-local-runtime",
         apiVersion: ApiCompatibility.apiVersion,
-        contractDigest: ApiCompatibility.contractDigest,
         buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
         capabilities: ["judge-submit", "run-query", "event-poll", "cancellation"],
       })

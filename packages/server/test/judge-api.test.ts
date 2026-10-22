@@ -9,7 +9,6 @@ describe("Judge submission API", () => {
     expect(await response.json()).toMatchObject({
       endpointId: "harness-local-runtime",
       apiVersion: 1,
-      contractDigest: "sha256:harness-api-v1",
       buildVersion: "1",
       capabilities: ["judge-submit", "run-query", "event-poll", "cancellation"],
     })

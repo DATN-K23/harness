@@ -17,6 +17,21 @@ const assertSnapshotRoot = async (root: string) => {
   await readdir(root)
 }
 
+export const createProductionHealthHandler = (credential: string) => async (request: Request) => {
+  if (!isAuthorizedLocalRequest(request, credential))
+    return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
+  const url = new URL(request.url)
+  if (request.method === "GET" && url.pathname === "/v1/health") return Response.json({
+    endpointId: "harness-local-runtime",
+    apiVersion: ApiCompatibility.apiVersion,
+    buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
+    capabilities: ["health", "api-version", "poc-execution-disabled", "bce-incomplete"],
+    judgeExecution: "unavailable",
+    enablePocExecution: productionJudgeConfig.enablePocExecution,
+  })
+  return Response.json({ error: { code: "unavailable", message: "Judge execution is not production-ready" } }, { status: 503 })
+}
+
 /** Starts a readiness-checked local health/API-compatibility endpoint; judging remains deliberately unavailable. */
 export const startProductionLocalServer = async (options: {
   databaseUrl: string
@@ -50,21 +65,7 @@ export const startProductionLocalServer = async (options: {
     const server = Bun.serve({
       hostname: options.hostname,
       port: options.port,
-      fetch(request) {
-        if (!isAuthorizedLocalRequest(request, credential))
-          return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
-        const url = new URL(request.url)
-        if (request.method === "GET" && url.pathname === "/v1/health") return Response.json({
-          endpointId: "harness-local-runtime",
-          apiVersion: ApiCompatibility.apiVersion,
-          contractDigest: ApiCompatibility.contractDigest,
-          buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
-          capabilities: ["health", "api-compatibility", "poc-execution-disabled", "bce-incomplete"],
-          judgeExecution: "unavailable",
-          enablePocExecution: productionJudgeConfig.enablePocExecution,
-        })
-        return Response.json({ error: { code: "unavailable", message: "Judge execution is not production-ready" } }, { status: 503 })
-      },
+      fetch: createProductionHealthHandler(credential),
     })
     return { server, async stop() { server.stop(true); await store.close() } }
   } catch (error) {

@@ -22,3 +22,12 @@ No Docker command, image pull, container, model endpoint or PostgreSQL was used.
 - Added a regression asserting production config rejects `enablePocExecution: true` and defaults to false.
 - Verification: focused test 2 pass; server tests 56 pass; CLI tests 53 pass (test runner printed its existing cancellation notice); `bun turbo typecheck` 6/6; `git diff --check` passed. No external provider, DB, Docker command, or Keychain was exercised here.
 - Remaining limitations: no integration test can establish readiness without approved live local dependencies; startup's non-network provider validation is only presence/config validation. Existing `startJudgeServer` and callback API remain untouched.
+
+## Fix round 1 — handshake, signals, and startup failures
+
+- Removed the placeholder contract digest from both health responses. No canonical versioned contract serialization exists to hash, so the handshake now carries only `apiVersion`; `assertApiCompatibility` throws on version mismatch. Docs and API tests reflect version-only compatibility.
+- Added shared idempotent SIGINT/SIGTERM shutdown handling; both remove both handlers and call server/store cleanup once.
+- Added startup prerequisite regressions for non-loopback bind, missing DB/model config, unsupported provider, credential-bearing base URL, missing snapshot root, plus authenticated health and unavailable execution behavior. These fail before listening; tests use no live services or Docker.
+- TDD evidence: compatibility tests first failed against the fake digest/version requirement; lifecycle test first failed due to missing implementation module; production runtime health/startup tests were then implemented. Fixes are verified by the focused suite below.
+- Verification: `bun test packages/server/test/runtime-security.test.ts packages/server/test/judge-api.test.ts packages/server/test/production-runtime.test.ts packages/cli/test/server-lifecycle.test.ts` — 26 pass; full server/CLI tests and typechecks follow.
+- Production remains blocked; no Judge execution or PoC is exposed.

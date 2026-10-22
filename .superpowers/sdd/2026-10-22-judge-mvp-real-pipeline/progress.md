@@ -78,3 +78,9 @@ Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compil
 - Both supported provider URL paths reject userinfo, fragment, and secret-bearing query parameter names before any value can be recorded in run metadata.
 - TDD red observed for wrong OpenAI host and credential query/fragment cases; green after policy fix. Focused tests, six-package typecheck and full test suite pass (880/0); no live services used.
 - Detailed result in `task-6-continuation-report.md`.
+
+### Task 6 fix round 3
+
+- Require HTTPS for explicit OpenAI/OpenRouter base URLs and reject all query strings/fragments, including arbitrary keys such as `x` and `auth`, before gateway config construction.
+- TDD: new HTTP/query regression tests failed before change and pass after. Focused tests/typecheck and full `bun turbo typecheck` + `bun turbo test` pass (880/0); no live services contacted.
+- Report appended at `task-6-continuation-report.md`.

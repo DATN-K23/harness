@@ -46,8 +46,8 @@ export const resolveProductionProvider = (input: { providerName: string; apiKey:
     throw new Error(`${input.providerName} requires an explicit OpenAI-compatible base URL`)
   if (input.baseURL) {
     const parsed = new URL(input.baseURL)
-    const secretQueryKey = /^(?:key|api[_-]?key|token|secret|password|authorization|credential|credentials)$/i
-    if (parsed.username || parsed.password || parsed.hash || [...parsed.searchParams.keys()].some((key) => secretQueryKey.test(key)))
+    if (parsed.protocol !== "https:") throw new Error("Model base URL must use HTTPS")
+    if (parsed.username || parsed.password || parsed.search || parsed.hash)
       throw new Error("Model base URL must not contain credentials")
     if (input.providerName === "openai" && parsed.hostname !== "api.openai.com")
       throw new Error("OpenAI base URL must use only api.openai.com")

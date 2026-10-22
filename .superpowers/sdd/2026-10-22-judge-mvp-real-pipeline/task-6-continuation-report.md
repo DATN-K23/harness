@@ -43,3 +43,10 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - For both supported provider routes, base URLs reject username/password, URL fragments, and query keys matching key/api-key/token/secret/password/authorization/credential(s), case-insensitively. Thus URL query values cannot be persisted in runtime metadata.
 - TDD: tests for OpenAI wrong-host and URL query/fragment secrets were added first and failed against the previous permissive routing. After the policy change, focused routing tests pass.
 - Verification: focused server runtime tests pass; `bun turbo typecheck` passes all six packages; `bun turbo test` passes (880 tests, 0 failures); `git diff --check` passes. No live services were contacted.
+
+## Fix round 3 — HTTPS-only provider endpoints
+
+- Both explicit supported base URLs must use HTTPS. All query strings (including unknown `x`/`auth` parameters) and fragments are rejected, along with userinfo, before a gateway config can be returned or persisted.
+- Regression coverage includes OpenAI HTTP, OpenRouter HTTP, `?x=secret`, and `?auth=...`; these are rejected by the same production provider resolver used to construct `RealModelGateway`.
+- TDD red observed: focused runtime tests failed before the policy update.
+- Verification: focused server runtime tests pass; `bun run --cwd packages/server typecheck` passes; `bun turbo typecheck` passes all six packages; `bun turbo test` passes (880 tests, 0 failures). `git diff --check` passes. No provider/Postgres/Docker/Keychain services used.

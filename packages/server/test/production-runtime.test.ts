@@ -81,6 +81,13 @@ describe("production runtime safety", () => {
       }
       expect(() => resolveProductionProvider({ providerName, apiKey: "key", baseURL: `https://${providerName === "openai" ? "api.openai.com" : "openrouter.ai"}/v1#token=leak` })).toThrow("must not contain credentials")
     }
+    expect(() => resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://api.openai.com/v1?x=secret" })).toThrow("must not contain credentials")
+    expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "key", baseURL: "https://openrouter.ai/v1?auth=secret" })).toThrow("must not contain credentials")
+  })
+
+  test("provider endpoints require HTTPS before gateway configuration is returned", () => {
+    expect(() => resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "http://api.openai.com/v1" })).toThrow("HTTPS")
+    expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "key", baseURL: "http://openrouter.ai/api/v1" })).toThrow("HTTPS")
   })
 
   test("production run config records non-secret runtime settings and changes with them", () => {

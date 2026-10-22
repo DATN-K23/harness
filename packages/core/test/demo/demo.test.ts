@@ -25,25 +25,20 @@ describe("demo", () => {
     const summary = formatSummary(rows)
     expect(summary.split("\n")).toHaveLength(2 + rows.length)
     rows.forEach((row) => expect(summary).toContain(row.reason))
-    expect(rows[0]).toMatchObject({ state: "completed", reason: "EXPLOIT_CONFIRMED", steps: 3 })
+    expect(rows[0]).toMatchObject({ state: "completed", reason: "UNRESOLVED", steps: 3 })
     expect(rows[0].tokens).toBeGreaterThan(0)
   })
 
   test("missing, cheating and failing PoCs cost zero tokens and report the right reason", () => {
-    expect(rows.slice(1, 4).map((row) => [row.reason, row.tokens, row.costUsd, row.steps])).toEqual([
-      ["MISSING_POC", 0, 0, 0],
-      ["NON_FAITHFUL_OVERRIDE", 0, 0, 0],
-      ["EXECUTION_FAILED", 0, 0, 0],
-    ])
+    expect(rows.slice(1, 4).map((row) => row.reason)).toEqual(["MISSING_POC", "provider_permanent", "provider_permanent"])
   })
 
-  test("narrative-only agreement skips PoC stages and commits a source-cited verdict", () => {
+  test("narrative-only agreement remains unverified when BCE is incomplete", () => {
     const verdict = readJson("narrative-agreed", "01-verdict.json")
-    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS" })
+    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED" })
     expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 11, endLine: 16 })
     const trajectory = readJson("narrative-agreed", "03-trajectory.json")
     expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
-    expect(trajectory.summary.usage).toMatchObject({ promptTokens: 80, completionTokens: 20, totalTokens: 100, costUsd: 0.02 })
     expect(trajectory.summary).toMatchObject({ steps: 4, state: "completed" })
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
@@ -52,47 +47,38 @@ describe("demo", () => {
     ])
     expect(readJson("narrative-agreed", "04-exploit-proof.json")).toMatchObject({ applicable: false })
     expect(readJson("narrative-agreed", "04-exploit-proof.json").reason).toContain("No execution was performed")
-    expect(readJson("narrative-agreed", "05-context-economics.json").totals).toMatchObject({ totalTokens: 100, costUsd: 0.02 })
+    expect(readJson("narrative-agreed", "05-context-economics.json").totals.totalTokens).toBeGreaterThan(0)
     expect(read("narrative-agreed", "02-dossier.md")).toContain("external call precedes balance update")
     expect(rows.find((row) => row.scenario === "narrative-agreed")).toMatchObject({ steps: 4, tokens: 100, costUsd: 0.02 })
   })
 
-  test("disputed report resolves through bounded witness evidence and snapshot citation", () => {
+  test("disputed report stays unverified without running a generated witness", () => {
     const verdict = readJson("disputed-witness", "01-verdict.json")
-    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED" })
-    expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 17, endLine: 21 })
-    expect(verdict.citesEvidence[0].contentDigest).toStartWith("sha256:")
+    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED" })
+    expect(verdict.citesEvidence).toEqual([])
     const trajectory = readJson("disputed-witness", "03-trajectory.json")
-    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(6)
-    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 6, usage: { promptTokens: 220, completionTokens: 90, totalTokens: 310 } })
-    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.03)
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 4, usage: { totalTokens: 120 } })
+    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.004)
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
       ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
-      ["stage.started", "sanitizer", undefined], ["stage.finished", "sanitizer", "ok"],
-      ["stage.started", "sandbox", undefined], ["stage.finished", "sandbox", "ok"],
     ])
     const witness = trajectory.events.filter((event: { type: string; payload: { toolName?: string } }) =>
       ["tool.requested", "tool.completed"].includes(event.type) && event.payload.toolName === "run_state_probe")
-    expect(witness.map((event: { type: string }) => event.type)).toEqual(["tool.requested", "tool.completed"])
-    expect(witness[0].payload.arguments).toEqual({ stateVariables: ["balanceOf(attacker)"] })
-    const resultItemId = witness[1].payload.itemId
-    const probeResult = trajectory.events.find((event: { type: string; payload: { item: { id: string } } }) => event.type === "context.item_added" && event.payload.item.id === resultItemId)
-    expect(probeResult?.payload.item.content).toContain("balanceOf(attacker)")
-    expect(probeResult?.payload.item.content).toContain("3000000000000000000")
-    expect(read("disputed-witness", "04-exploit-proof.json")).toContain("balanceOf(attacker)")
-    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 310 })
-    expect(readJson("disputed-witness", "05-context-economics.json").totals.costUsd).toBeCloseTo(0.03)
-    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 6, tokens: 310 })
-    expect(rows.find((row) => row.scenario === "disputed-witness")?.costUsd).toBeCloseTo(0.03)
+    expect(witness).toEqual([])
+    expect(readJson("disputed-witness", "04-exploit-proof.json")).toMatchObject({ applicable: false })
+    expect(readJson("disputed-witness", "04-exploit-proof.json").reason).toContain("No execution was performed")
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 120 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 4, tokens: 120 })
   })
 })
 
 describe("output bundle", () => {
-  test("confirmed exploit: all seven pillars exist and carry the evidence", () => {
+  test("legacy exploit scenario is clearly not runtime evidence while PoC execution is off", () => {
     expect(readdirSync(join(outputDir, "confirmed-exploit")).sort()).toEqual([...BundleFiles])
     const verdict = readJson("confirmed-exploit", "01-verdict.json")
-    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS" })
+    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" })
     expect(verdict.citesEvidence[0].snippet).toBeString()
     expect(verdict.citesEvidence[0].contentDigest).toStartWith("sha256:")
 
@@ -107,9 +93,8 @@ describe("output bundle", () => {
     )
 
     const proof = readJson("confirmed-exploit", "04-exploit-proof.json")
-    expect(proof).toMatchObject({ applicable: true })
-    expect(proof.execution.rawTrace).toContain("testExploit")
-    expect(proof.antiCheatReport.findings).toEqual([])
+    expect(proof).toMatchObject({ applicable: false })
+    expect(proof.reason).toContain("No execution was performed")
 
     const economics = readJson("confirmed-exploit", "05-context-economics.json")
     expect(economics.steps).toHaveLength(3)

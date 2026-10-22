@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createIdGenerator, digestOf } from "@harness/core"
+import { createIdGenerator, digestOf, SnapshotIngestion } from "@harness/core"
 import { InMemorySnapshot } from "@harness/core"
 import { createJudgeSubmissionService, loadAdmittedJudgeInput } from "../src/judge-submission-service"
 import { createOutboxWorker } from "../src/outbox-worker"
@@ -187,13 +187,18 @@ describe("Judge submission service", () => {
 
   test("HTTP submission is claimed, judged and retrieved as unverified end-to-end", async () => {
     const { InMemorySnapshot: CoreSnapshot } = await import("@harness/core")
-    const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom } = await import("@harness/core/testing")
+    const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom, textResponse } = await import("@harness/core/testing")
     const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedSandbox } = await import("@harness/core/testing")
-    const { baseConfig, okIngestion, okSanitizer, okSandbox, verdictText } = await import("../../core/test/helpers/runner-world")
+    const { baseConfig, verdictText } = await import("../../core/test/helpers/runner-world")
     const { files } = await import("../../core/test/runner/judge-step-harness")
     const clock = new FakeClock(Date.parse("2026-10-21T12:00:00.000Z"))
     const snapshot = new CoreSnapshot({ snapshotId: "snap-1", files })
-    const gateway = new ScriptedModelGateway([verdictText])
+    const gateway = new ScriptedModelGateway([
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      verdictText,
+    ])
     const cancellation = new FakeCancellation()
     const inMemory = new (await import("@harness/core/testing")).InMemoryRunStore({ clock })
     const outbox = new Set<string>()
@@ -221,15 +226,17 @@ describe("Judge submission service", () => {
       credential: "local-secret",
       runnerDeps: () => ({
         contextEngine: new PassThroughContextEngine(), gateway, tools: new InMemoryToolRegistry({ files }),
-        security: new RegexSecurityFilter(), snapshot, ingestion: new ScriptedIngestion([okIngestion]),
-        sanitizer: new ScriptedSanitizer([okSanitizer]), sandbox: new ScriptedSandbox({ singleShot: [okSandbox] }), cancellation, clock,
+        security: new RegexSecurityFilter(), snapshot,
+        ingestion: new SnapshotIngestion({ source: snapshot }),
+        sanitizer: new ScriptedSanitizer([{ kind: "cheat_detected", findings: [] }]),
+        sandbox: new ScriptedSandbox({}), cancellation, clock,
         random: new SeededRandom(1), sleep: new FakeSleep(clock), ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
       }),
     })
     const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
       headers: { authorization: "Bearer local-secret", "content-type": "application/json", "idempotency-key": "e2e-key" },
-      body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "A bounded report" }, snapshotId: "snap-1" }),
+      body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw\nRoot cause: external call before balance update\nAttack scenario: reenter withdraw\nImpact: fund loss\nState: balance reduced" }, snapshotId: "snap-1" }),
     }))
     expect(submit.status).toBe(202)
     const { runId } = await submit.json() as { runId: string }
@@ -238,8 +245,13 @@ describe("Judge submission service", () => {
     expect(await run.json()).toMatchObject({
       state: "completed",
       findingId: "finding-7",
-      verdict: { validity: "valid", verificationStatus: "PASS" },
+      verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" },
     })
+    expect(gateway.calls.every((call) => !JSON.stringify(call).match(/groundTruthLabel|adjudicationReport|scoringMetadata/i))).toBe(true)
+    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: "Bearer local-secret" } }))
+    const events = await eventsResponse.text()
+    expect(events).not.toMatch(/groundTruthLabel|adjudicationReport|scoringMetadata/i)
+    expect(events).not.toContain("test-only-sensitive-marker")
   })
 
 })

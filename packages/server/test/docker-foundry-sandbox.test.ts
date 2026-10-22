@@ -164,10 +164,10 @@ describe("DockerFoundrySandbox", () => {
     } finally { await fs.rm(secret) }
   })
 
-  test("actually runs offline Foundry benign and assertion fixtures when explicitly enabled", async () => {
-    if (!Bun.env.TASK5_ARTIFACT_ROOT) return
+  test.skipIf(!Bun.env.TASK5_ARTIFACT_ROOT || Bun.env.TASK5_DOCKER_INTEGRATION !== "1")("actually runs offline Foundry benign and assertion fixtures when explicitly enabled", async () => {
+    const artifactRoot = Bun.env.TASK5_ARTIFACT_ROOT!
     const sandbox = new DockerFoundrySandbox(spawnDocker, new InMemorySnapshot({ snapshotId: "integration", files: { "src/Target.sol": "pragma solidity ^0.8.0; contract Target {}" } }), {
-      root: Bun.env.TASK5_ARTIFACT_ROOT,
+      root: artifactRoot,
     }, { enabled: true })
     const pass = await sandbox.runSingleShot({ runId: "integration-pass", snapshotId: "integration", testFile: "pragma solidity ^0.8.0; contract T { function testPass() public pure { assert(true); } }" })
     if (pass.outcome !== "passed") throw new Error(`benign test result: ${JSON.stringify(pass)}`)

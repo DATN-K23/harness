@@ -38,6 +38,7 @@ export const spawnDocker: DockerProcess = async (argv, options, control = (args)
   let outputExceeded = false
   const abort = () => terminate()
   options.signal.addEventListener("abort", abort, { once: true })
+  if (options.signal.aborted) abort()
   const timer = setTimeout(() => { timedOut = true; terminate() }, options.timeout)
   const read = async (stream: ReadableStream<Uint8Array>) => {
     const reader = stream.getReader()

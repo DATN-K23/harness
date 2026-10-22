@@ -115,6 +115,21 @@ describe("DockerFoundrySandbox", () => {
     expect(cleanup).toContainEqual(["docker", "rm", "-f", "probe-cancel"])
   })
 
+  test("spawnDocker handles a signal already aborted at process entry", async () => {
+    const cleanup: string[][] = []
+    const controller = new AbortController()
+    controller.abort()
+    const result = await spawnDocker(
+      [process.execPath, "-e", "await new Promise(() => {})", "--name", "probe-pre-aborted"],
+      { signal: controller.signal, timeout: 30_000, maxOutputBytes: 1024 },
+      (argv) => { cleanup.push(argv) },
+    )
+    expect(cleanup).toContainEqual(["docker", "kill", "probe-pre-aborted"])
+    expect(cleanup).toContainEqual(["docker", "rm", "-f", "probe-pre-aborted"])
+    expect(result.timedOut).toBe(false)
+    expect(result.exitCode).not.toBe(0)
+  })
+
   test("rejects unsafe snapshot paths before Docker launch", async () => {
     const process = mock(async (_argv: string[], _options: unknown) => ({ exitCode: 0, stdout: "", stderr: "" }))
     const sandbox = new DockerFoundrySandbox(process as unknown as DockerProcess, {

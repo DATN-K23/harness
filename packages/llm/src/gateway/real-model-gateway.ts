@@ -135,9 +135,10 @@ export class RealModelGateway implements ModelGatewayPort {
       ...(request.seed !== undefined ? { seed: request.seed } : {}),
     }
 
+    let combinedSignal: AbortSignal | undefined
     try {
       const timeoutSignal = AbortSignal.timeout(this.timeoutMs)
-      const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+      combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
       const completion = await this.client.chat.completions.create(params, { signal: combinedSignal })
       const mapped = mapChatCompletion(completion, {
         model,
@@ -154,12 +155,17 @@ export class RealModelGateway implements ModelGatewayPort {
         ...(mapped.error ? { error: mapped.error } : {}),
       }
     } catch (error: unknown) {
+      const abortReason = combinedSignal?.reason
+      const effectiveError =
+        combinedSignal?.aborted && abortReason !== undefined && abortReason !== null
+          ? (abortReason instanceof Error ? abortReason : new Error(String(abortReason)))
+          : error
       return {
         attemptId,
         finishReason: "error",
         usage: errorUsage(),
         latencyMs: Math.round(performance.now() - startTime),
-        error: normalizeProviderError(error, this.secrets),
+        error: normalizeProviderError(effectiveError, this.secrets),
       }
     }
   }

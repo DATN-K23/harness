@@ -54,13 +54,22 @@ const withoutKeys = (record: Record<string, unknown>, keys: readonly string[]) =
 
 const parseObject = (text: string): Record<string, unknown> | undefined => {
   const trimmed = text.trim()
-  const body = fenced.exec(trimmed)?.[1] ?? trimmed
+  const fenceMatch = fenced.exec(trimmed)
+  const directCandidate = fenceMatch?.[1] ? fenceMatch[1].trim() : trimmed
   try {
-    const parsed: unknown = JSON.parse(body)
+    const parsed: unknown = JSON.parse(directCandidate)
     return isRecord(parsed) ? parsed : undefined
-  } catch {
-    return undefined
+  } catch {}
+
+  const firstBrace = trimmed.indexOf("{")
+  const lastBrace = trimmed.lastIndexOf("}")
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace && trimmed[0] !== "[") {
+    try {
+      const parsed: unknown = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1).trim())
+      return isRecord(parsed) ? parsed : undefined
+    } catch {}
   }
+  return undefined
 }
 
 /** Replaces the identity and every hash with the harness's values, so nothing the model wrote there is trusted. */

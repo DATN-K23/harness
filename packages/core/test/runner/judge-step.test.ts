@@ -84,6 +84,18 @@ describe("JudgeStep: seven gates", () => {
 })
 
 describe("JudgeStep: context preflight", () => {
+  test("passes a canonical model request to production context preparation", async () => {
+    let request: import("@harness/protocol").ModelAttemptRequest | undefined
+    const engine = new ScriptedContextEngine([(input) => {
+      request = input.request
+      return { status: "stop", stopReason: "context_budget" }
+    }])
+    const h = await createHarness({ script: [textResponse(json(invalidVerdict))], engine })
+    const result = await h.step.execute(h.input())
+    expect(request).toMatchObject({ attemptIndex: 1, runId: "run-1", stepIndex: 1, profileId: "profile-a", items: baseItems })
+    expect(result.outcome.type).toBe("budget_exhausted")
+  })
+
   test("engine stop: budget_exhausted with the engine's reason and zero gateway calls", async () => {
     const engine = new ScriptedContextEngine([{ status: "stop", stopReason: "context_budget" }])
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))], engine })

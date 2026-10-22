@@ -5,6 +5,14 @@ import { startPollingWorker } from "../src/worker-lifecycle"
 import { startCheckedLocalServer } from "../src/production-startup"
 
 describe("production runtime safety", () => {
+  test("keeps production defaults while allowing a bounded manual analysis config", () => {
+    const defaults = makeProductionJudgeConfig({ providerName: "9router", modelName: "test" })
+    const bounded = makeProductionJudgeConfig({ providerName: "9router", modelName: "test", maxSteps: 2, totalTokenBudget: 4096, wallClockTimeoutMs: 60_000, modelMaxOutputTokens: 512 })
+    expect(defaults.limits).toMatchObject({ maxSteps: 10, totalTokenBudget: 200_000, wallClockTimeoutMs: 300_000 })
+    expect(bounded.limits).toMatchObject({ maxSteps: 2, totalTokenBudget: 4096, wallClockTimeoutMs: 60_000 })
+    expect(bounded.enablePocExecution).toBe(false)
+  })
+
   test("rejects PoC execution regardless of caller-provided config", () => {
     expect(() => assertProductionJudgeConfig({ enablePocExecution: true })).toThrow("PoC execution is disabled")
   })

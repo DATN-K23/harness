@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test"
 import { manualProviderResultSummary } from "../scripts/manual-provider-result-summary"
 
 describe("manual provider result summary", () => {
-  test("keeps only terminal metadata and normalized provider-attempt categories", () => {
+  test("classifies terminal failures without printing their message", () => {
     expect(manualProviderResultSummary(
-      { state: "failed", terminalReason: "provider_error", errorCategory: "transport", errorMessage: "secret response" },
+      { state: "failed", terminalReason: "worker_interrupted", errorMessage: "TypeError: Cannot read properties of undefined (reading 'x'); sk-testsecret1234567890" },
       [
         { type: "provider.attempted", payload: { errorCategory: "rate_limit", response: "secret" } },
         { type: "provider.attempted", payload: { errorCategory: "transport" } },
@@ -12,8 +12,8 @@ describe("manual provider result summary", () => {
       ],
     )).toEqual({
       state: "failed",
-      terminalReason: "provider_error",
-      errorCategory: "transport",
+      terminalReason: "worker_interrupted",
+      failureKind: "TypeError:undefined_property",
       providerAttemptCount: 2,
       eventTypes: ["provider.attempted", "provider.attempted", "model.responded"],
       providerAttemptCategories: ["rate_limit", "transport"],

@@ -303,6 +303,27 @@ class RunExecution {
       policy: config.policy,
       modelLimits: config.modelLimits,
       limits: config.limits,
+      ...(history.lastAllocated === undefined ? {} : {
+        request: {
+          attemptIndex: 1,
+          runId: this.runId,
+          stepIndex: history.lastAllocated.stepIndex,
+          profileId: config.profileId,
+          items: history.lastAllocated.items,
+          tools: history.lastAllocated.items.filter((item) => item.type === "tool_description").map((item) => {
+            const schemaMarker = "\nParameters (JSON Schema): "
+            const schemaIndex = item.content.indexOf(schemaMarker)
+            const nameEnd = item.content.indexOf(": ")
+            if (schemaIndex < 0 || nameEnd < 0) throw new Error("persisted tool description is malformed")
+            return {
+              name: item.content.slice(0, nameEnd),
+              description: item.content.slice(nameEnd + 2, schemaIndex),
+              parameters: JSON.parse(item.content.slice(schemaIndex + schemaMarker.length)),
+            }
+          }),
+          maxOutputTokens: config.modelLimits.maxOutputTokens,
+        },
+      }),
     })
     if (check.kind === "mismatch")
       return this.write.commit({ state: "failed", reason: check.reason, message: check.message })

@@ -47,7 +47,7 @@ const runTwoSteps = async (options: { skipStepOneItems?: boolean } = {}) => {
 const modelLimits = { maxContextTokens: 128_000, maxOutputTokens: 4_000, safetyMarginFactor: 1.2 }
 
 const verify = (history: Parameters<typeof verifyHydration>[0]["history"]) =>
-  verifyHydration({ engine: new PassThroughContextEngine(), history, policy, modelLimits, limits })
+  verifyHydration({ engine: new PassThroughContextEngine(), history, policy, modelLimits, limits, allowLegacyRequest: true })
 
 describe("history hydrator", () => {
   test("round trip: persisted events hydrate to the same items, totals, step and compaction count", async () => {

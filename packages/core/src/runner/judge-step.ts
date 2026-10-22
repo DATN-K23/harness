@@ -172,8 +172,17 @@ export class JudgeStep {
         citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
       }) })
     // Gate 1: context preflight. The engine signals; the step decides and never calls the gateway on stop/compaction.
+    const request: import("@harness/protocol").ModelAttemptRequest = {
+      attemptIndex: 1,
+      runId,
+      stepIndex: input.stepIndex,
+      profileId: input.profileId,
+      items: input.items,
+      tools: input.tools.definitions(),
+      maxOutputTokens: input.modelLimits.maxOutputTokens,
+    }
     const preparation = await deps.contextEngine
-      .prepare({ items: input.items, policy: input.policy, modelLimits: input.modelLimits, budget: input.budget })
+      .prepare({ items: input.items, request, policy: input.policy, modelLimits: input.modelLimits, budget: input.budget })
       .catch(asFault("worker_interrupted"))
     const checked = PrepareResultSchema.safeParse(preparation)
     if (!checked.success) {
@@ -199,6 +208,10 @@ export class JudgeStep {
         { cancelledAt: afterPrepare.boundary },
       )
     const clean = checked.data
+    if (clean.status === "ready" && clean.preparedRequest !== undefined) {
+      request.items = clean.preparedRequest.items
+      request.tools = clean.preparedRequest.tools ?? request.tools
+    }
     for (const transformation of clean.transformations ?? []) await persist("context.transformed", transformation)
     await persist("context.allocated", {
       stepIndex: input.stepIndex,
@@ -233,9 +246,7 @@ export class JudgeStep {
     const retried: RetryOutcome = await deps.retryPolicy
       .run({
         request: {
-          runId,
-          stepIndex: input.stepIndex,
-          profileId: input.profileId,
+          ...request,
           items: sentItems,
           ...(forced ? { toolsDisabled: true } : {}),
         },

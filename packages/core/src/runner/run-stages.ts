@@ -1,4 +1,5 @@
 import { DefaultMaxProbeRuns, isValidDeconstructedClaim, type BceSlice, type ContextItem, type DeconstructedClaim, type ToolRegistryPort } from "@harness/protocol"
+import { loadPrompt } from "../prompts/index"
 import {
   RunStateProbeToolName,
   buildInitialContext,
@@ -222,7 +223,7 @@ export const enterStageFour = async (
       turn: 0,
       type: "system_prompt",
       isPinned: true,
-      content: "Verification direction: forward",
+      content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`,
     })
   }
   for (const item of items) await context.persist("context.item_added", { item })

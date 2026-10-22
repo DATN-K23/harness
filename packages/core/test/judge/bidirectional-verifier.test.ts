@@ -42,6 +42,14 @@ describe("bidirectional consensus", () => {
       kind: "ok",
       result: { reachability: "reachable" },
     })
+    expect(parseForwardResult('```json\n{"reachability":"reachable","explanation":"entry reaches sink"}\n```')).toMatchObject({
+      kind: "ok",
+      result: { reachability: "reachable" },
+    })
+    expect(parseForwardResult('Prefix text\n{"reachability":"reachable","explanation":"entry reaches sink"}\nSuffix text')).toMatchObject({
+      kind: "ok",
+      result: { reachability: "reachable" },
+    })
     expect(parseForwardResult('{"reachability":"maybe"}').kind).toBe("invalid")
     expect(parseForwardResult('{"reachability":"reachable","explanation":"x","extra":true}').kind).toBe("invalid")
     expect(parseBackwardResult("not json").kind).toBe("invalid")

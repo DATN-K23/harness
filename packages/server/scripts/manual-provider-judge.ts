@@ -38,11 +38,11 @@ const started = await startProductionLocalServer({
   modelName: config.modelName,
   providerName: config.providerName,
   modelBaseUrl: config.modelBaseUrl,
-  modelTimeoutMs: 20_000,
+  modelTimeoutMs: 60_000,
   modelMaxOutputTokens: 512,
-  maxSteps: 2,
-  totalTokenBudget: 4096,
-  wallClockTimeoutMs: 60_000,
+  maxSteps: 8,
+  totalTokenBudget: 64_000,
+  wallClockTimeoutMs: 360_000,
   snapshotDir: config.snapshotDir,
   hostname: "127.0.0.1",
   port: 0,
@@ -66,8 +66,8 @@ try {
   })
   assert(response.status === 202, `Submission rejected with HTTP ${response.status}`)
   runId = (await response.json() as { runId: string }).runId
-  let status: { state: string; terminalReason?: string; errorCategory?: string; verdict?: { validity?: string; verificationStatus?: string } } | undefined
-  const deadline = Date.now() + 70_000
+  let status: { state: string; terminalReason?: string; errorCategory?: string; errorMessage?: string; verdict?: { validity?: string; verificationStatus?: string } } | undefined
+  const deadline = Date.now() + 380_000
   do {
     const result = await fetch(`${api}/v1/judge/runs/${encodeURIComponent(runId)}`, { headers })
     assert(result.ok, `Status polling returned HTTP ${result.status}`)
@@ -92,6 +92,13 @@ try {
   console.log(JSON.stringify({ providerStatus: "live-success", endpoint, attempts: attempts.length, tokenUsage: usage, verdict: "UNVERIFIED" }))
 } catch (error) {
   const message = error instanceof Error ? error.message : ""
+  if (runId) {
+    try {
+      const errRes = await fetch(`${api}/v1/judge/runs/${encodeURIComponent(runId)}`, { headers })
+      const errJson = await errRes.json() as Record<string, unknown>
+      if (errJson.errorMessage) console.log("Run errorMessage:", errJson.errorMessage)
+    } catch {}
+  }
   const category = /authentication|unauthorized|401|403/i.test(message) ? "authentication"
     : /rate.?limit|429/i.test(message) ? "rate_limit"
     : /timeout|network|fetch|url|connect/i.test(message) ? "transport"

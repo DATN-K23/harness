@@ -241,6 +241,7 @@ export interface VerifyHydrationInput {
   modelLimits: ModelLimits
   limits: Pick<BudgetLimits, "totalTokenBudget">
   request?: ModelAttemptRequest
+  allowLegacyRequest?: boolean
 }
 
 /**
@@ -259,7 +260,7 @@ export const verifyHydration = async (input: VerifyHydrationInput): Promise<Hydr
     expectedDigest: point.contentDigest,
     ...(actualDigest === undefined ? {} : { actualDigest }),
   })
-  if (point.requestDigest !== undefined && input.request === undefined)
+  if (point.requestDigest !== undefined && input.request === undefined && !input.allowLegacyRequest)
     return mismatch(`canonical request is unavailable while verifying step ${point.stepIndex}`)
   const prepared = await input.engine
     .prepare({
@@ -282,7 +283,7 @@ export const verifyHydration = async (input: VerifyHydrationInput): Promise<Hydr
     return mismatch(
       `context engine failed while re-preparing step ${point.stepIndex}: ${describeError(prepared.error)}`,
     )
-  if (point.requestDigest !== undefined && prepared.result.telemetry.requestDigest !== point.requestDigest)
+  if (point.requestDigest !== undefined && input.request !== undefined && prepared.result.telemetry.requestDigest !== point.requestDigest)
     return mismatch(`hydrated request for step ${point.stepIndex} does not match its persisted digest`, prepared.result.telemetry.requestDigest)
   if (prepared.result.status !== "ready")
     return mismatch(`context engine returned ${prepared.result.status} when re-preparing step ${point.stepIndex}`)

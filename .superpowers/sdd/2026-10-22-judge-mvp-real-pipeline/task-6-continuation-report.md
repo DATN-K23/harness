@@ -57,3 +57,9 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - The single resolved provider config is reused for `RealModelGateway`; its normalized base URL is passed to `makeProductionJudgeConfig` and persisted. The OpenAI default URL is explicit. Config tests assert the runtime URL contains no query, fragment, or userinfo markers.
 - TDD: startup regression with an invalid query URL and invalid DB/snapshot prerequisites failed before implementation; it now rejects on URL credentials before opening those dependencies.
 - Verification: `bun test packages/server/test/production-runtime.test.ts` — 14 pass; `bun turbo typecheck` — all six packages pass. No live provider/Postgres/Docker/Keychain checks performed.
+
+## Fix round 5 — observable provider preflight ordering
+
+- The production startup keeps its public options fixed, while an internal-only operations seam now makes ordering observable in the focused test without caller-controlled readiness callbacks.
+- TDD: the new malformed URL test initially failed because the internal preflight seam did not exist. It covers query (`?auth=`), plain HTTP, and credential-bearing URL forms. Each rejects with PostgreSQL construction, snapshot-root resolution, Keychain/startup orchestration, and listener counters still zero.
+- Verification: `bun test packages/server/test/production-runtime.test.ts` — 15 pass; `bun run --cwd packages/server typecheck` — passed. No live services were contacted.

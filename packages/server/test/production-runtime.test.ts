@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider, startProductionLocalServer } from "../src/production-runtime"
+import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider, startProductionLocalServer, startProductionLocalServerWithOperations } from "../src/production-runtime"
 import { ProductionSecurityFilter } from "@harness/core"
 import { startPollingWorker } from "../src/worker-lifecycle"
 import { startCheckedLocalServer } from "../src/production-startup"
@@ -95,6 +95,25 @@ describe("production runtime safety", () => {
       databaseUrl: "not-a-database-url", modelApiKey: "key", modelName: "model", providerName: "openai",
       modelBaseUrl: "https://api.openai.com/v1?auth=secret", snapshotDir: "/missing", hostname: "127.0.0.1", port: 0,
     })).rejects.toThrow("must not contain credentials")
+  })
+
+  test("invalid provider URLs do not construct Postgres or start snapshot, Keychain, or listener operations", async () => {
+    const calls = { postgres: 0, snapshot: 0, keychain: 0, listen: 0 }
+    const operations = {
+      createStore: () => { calls.postgres++; return undefined as never },
+      resolveSnapshotRoot: async () => { calls.snapshot++; return "/snapshots" },
+      startCheckedLocalServer: async () => { calls.keychain++; calls.listen++; return undefined as never },
+    }
+    const base = {
+      databaseUrl: "postgres://db", modelApiKey: "key", modelName: "model", providerName: "openai",
+      snapshotDir: "/snapshots", hostname: "127.0.0.1", port: 0,
+    }
+
+    for (const modelBaseUrl of ["https://api.openai.com/v1?auth=secret", "http://api.openai.com/v1", "https://key:secret@api.openai.com/v1"]) {
+      await expect(startProductionLocalServerWithOperations({ ...base, modelBaseUrl }, operations)).rejects.toThrow()
+    }
+
+    expect(calls).toEqual({ postgres: 0, snapshot: 0, keychain: 0, listen: 0 })
   })
 
   test("production run config records non-secret runtime settings and changes with them", () => {

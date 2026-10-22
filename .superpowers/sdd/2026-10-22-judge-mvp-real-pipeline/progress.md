@@ -90,3 +90,8 @@ Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compil
 - Provider URL validation/normalization now happens before Postgres construction, snapshot checks, admission, or listener setup; the resolved config is reused for gateway and immutable runtime metadata.
 - Added startup regression proving invalid URL is rejected before other startup failures, and runtime snapshot asserts normalized credential-free URL.
 - Focused server tests (14 pass) and six-package typecheck pass. No live services used; detailed record in continuation report.
+
+### Task 6 continuation fix round 5
+
+- Added an internal production-startup operations seam solely to prove ordering, without adding caller-controlled public readiness callbacks. Query, HTTP, and userinfo provider URLs each reject before Postgres store construction, snapshot access, Keychain/startup orchestration, or listener invocation (all counters zero).
+- TDD red observed before the seam; focused production-runtime test passes 15/15 and server typecheck passes. No live services were used; detailed evidence is in `task-6-continuation-report.md`.

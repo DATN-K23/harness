@@ -123,6 +123,18 @@ export const createProductionHealthHandler = (credential: string) => async (requ
   return Response.json({ error: { code: "unavailable", message: "Judge execution is not production-ready" } }, { status: 503 })
 }
 
+interface ProductionStartupOperations {
+  createStore(databaseUrl: string): PostgresRunStore
+  resolveSnapshotRoot(snapshotDir: string): Promise<string>
+  startCheckedLocalServer: typeof startCheckedLocalServer
+}
+
+const productionStartupOperations: ProductionStartupOperations = {
+  createStore: (databaseUrl) => new PostgresRunStore({ url: databaseUrl }),
+  resolveSnapshotRoot: realpath,
+  startCheckedLocalServer,
+}
+
 /** Starts the loopback API and polling worker over real local adapters; outcomes remain unverified while BCE is incomplete. */
 export const startProductionLocalServer = async (options: {
   databaseUrl: string
@@ -137,7 +149,23 @@ export const startProductionLocalServer = async (options: {
   snapshotDir: string
   hostname: string
   port: number
-}) => {
+}) => startProductionLocalServerWithOperations(options, productionStartupOperations)
+
+/** Internal startup seam for verifying preflight ordering without infrastructure. */
+export const startProductionLocalServerWithOperations = async (options: {
+  databaseUrl: string
+  modelApiKey: string
+  modelName: string
+  providerName: string
+  modelBaseUrl?: string
+  modelTimeoutMs?: number
+  modelMaxOutputTokens?: number
+  modelInputCostPerMTok?: number
+  modelOutputCostPerMTok?: number
+  snapshotDir: string
+  hostname: string
+  port: number
+}, operations: ProductionStartupOperations) => {
   if (!isLoopbackHost(options.hostname)) throw new Error("Server must bind to loopback")
   if (!options.databaseUrl || !options.modelApiKey || !options.modelName || !options.providerName)
     throw new Error("Database and model configuration are required")
@@ -146,10 +174,10 @@ export const startProductionLocalServer = async (options: {
   const providerConfig = resolveProductionProvider({ providerName: options.providerName, apiKey: options.modelApiKey,
     model: options.modelName, baseURL: options.modelBaseUrl })
   const validatedOptions = { ...options, modelBaseUrl: providerConfig.baseURL }
-  const store = new PostgresRunStore({ url: options.databaseUrl })
+  const store = operations.createStore(options.databaseUrl)
   try {
-    const snapshotRoot = await realpath(options.snapshotDir)
-    const started = await startCheckedLocalServer(options, {
+    const snapshotRoot = await operations.resolveSnapshotRoot(options.snapshotDir)
+    const started = await operations.startCheckedLocalServer(options, {
       checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
       async pingDatabase() { await store.client.sql`select 1` },
       getCredential: () => createKeychainCredentialProvider().getOrCreate(),

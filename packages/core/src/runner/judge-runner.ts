@@ -60,6 +60,7 @@ export interface JudgeRunConfig {
   enablePocExecution?: boolean
   modelLimits: ModelLimits
   profileId: string
+  runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
 }
 
 /** Everything a run is given: the candidate finding, the snapshot it is judged against and the configuration. */
@@ -332,6 +333,7 @@ class RunExecution {
           limits: config.limits,
           maxProbeRuns: config.maxProbeRuns,
           enablePocExecution: config.enablePocExecution,
+          runtime: config.runtime,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
         }),

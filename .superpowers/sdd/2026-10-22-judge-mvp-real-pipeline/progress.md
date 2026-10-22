@@ -50,3 +50,24 @@ Task 7: fix round 1/5 (2 addressed — negative metadata API test and demo test 
 Task 7: fix round 2/5 (1 addressed — demo test renamed to exactly describe reason-row assertions; plan clarifies clean E2E fixture vs negative boundary test; commits c17fc30..73adf5d).
 Task 7: complete with release blocker (commits 1557c60..73adf5d; scoped review clean). Production API→Postgres→worker E2E and requested runtime PoC scenarios remain unavailable because Task6 composition is health-only, BCE incomplete, and policy/sandbox release gates remain open.
 Task 7 final review fix wave: protocol key scan now rejects normalized `scoringMetadata` and `groundTruthLabel` at nested depths without changing accepted event payload schemas; invalid ingestion now commits completed UNVERIFIED/UNRESOLVED rather than worker failure, with provider/sanitizer/sandbox bypass assertions. Fenced-JSON and prohibited-key ingestion adapter cases are already covered by `packages/core/test/ingestion/snapshot-ingestion.test.ts`. Production limitations are unchanged: this is not a production API→Postgres→worker E2E, complete BCE, or approved runtime PoC path.
+Final branch review (base 381f312..HEAD 3b0aa64): critical load-bearing release blockers confirmed—no production Judge API/worker composition, BCE always incomplete and therefore static verdicts remain UNVERIFIED, policy remains deny-only, macOS Docker Desktop isolation unverified. These are explicitly represented in README/plan/health and must not be presented as MVP-ready. Final review also found Rule R2 key variants and invalid report mapping; fixed in 7dab5fc, then re-reviewed in 3b0aa64 with no new issues.
+Final verification (fresh): `bunx turbo typecheck` → 6 packages success; `bunx turbo test` → 879 pass, 0 fail across 62 files; `swiftc -typecheck packages/server/native/keychain-credential.swift` passed; `git diff --check` passed. No live PostgreSQL or Docker integration was run in final verification. Opt-in Docker test had earlier Linux ARM64 benign/assertion coverage only; macOS remains unverified.
+Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compiler/image pins remain runtime-blocked until independently verified; cost if wrong: unsupported toolchain. (2) Task 3 explicit `enablePocExecution=true` is a test seam only, production execution blocked pending isolation; cost if wrong: unsafe untrusted code execution. (3) Task 5 Linux ARM64 integration is not macOS Docker Desktop evidence; cost if wrong: false isolation assurance. (4) Task 6 continuation wires API/worker but lacks live Postgres/provider E2E; cost if wrong: incomplete operational confidence. (5) Task 7 E2E remains deterministic runner-level; cost if wrong: incomplete operational confidence.
+
+## Task 6 continuation addendum
+
+- User explicitly resumed Task 6. Added real production API and polling worker composition using PostgresRunStore, exact-ID disk snapshot resolver, RealModelGateway, production context, snapshot tool registry/ingestion, RegexSecurityFilter, PostgresCancellation, and production clock/random/sleep/ID sources. No test doubles are in the production composition.
+- PoC execution is deeply frozen false with no opt-in; deny-only policy and disabled Docker sandbox are wired. BCE remains incomplete, so health explicitly reports unverified-only. No provider request at startup; real executions use the configured gateway.
+- RED evidence: snapshot resolver test first failed because the export did not exist; then passed exact snapshot, wrong ID, traversal, and missing-snapshot assertions.
+- Removed Docker image startup prerequisite because composition keeps sandbox disabled; no Docker is executed by this local service.
+- Verification: server 61 pass/1 skip; CLI 54 pass; server and CLI typechecks pass. No live Postgres/provider/Keychain was used. Production HTTP→Postgres E2E remains unverified.
+- Detailed report: `task-6-continuation-report.md`.
+
+### Task 6 fix round 1
+
+- Provider routing restricted to OpenAI native and explicit OpenAI-compatible OpenRouter URL; unsupported vendors and default OpenAI endpoint misuse fail closed.
+- Promoted canonical redaction filter into core production API and removed production's `@harness/core/testing` import.
+- Added schema-validated effective runtime metadata to immutable run config / run.started digest, excluding credentials.
+- Added bounded polling-worker shutdown that leaves DB open while active work settles (or until it settles after the timeout); no force-close of active writes.
+- Focused tests and full gates green: 880 pass, 0 fail; six package typechecks pass. External/live integrations not run per instruction.
+- Detailed fix wave evidence appended to `task-6-continuation-report.md`.

@@ -670,6 +670,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       enablePocExecution: true,
       modelLimits: true,
       profileId: true,
+      runtime: true,
     } satisfies Record<keyof JudgeRunConfig, true>
     const itemFields = {
       id: true,

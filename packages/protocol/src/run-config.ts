@@ -117,6 +117,14 @@ export const RunConfigSnapshotSchema = z
     toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
     enablePocExecution: z.boolean().default(false),
+    runtime: z.object({
+      providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
+      timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),
+      outputCostPerMTok: z.number().nonnegative().optional(), profileVersion: z.string().min(1),
+      ingestionVersion: z.string().min(1), sandboxMode: z.enum(["disabled", "enabled"]),
+      maxContextTokens: z.number().int().positive(), maxOutputTokens: z.number().int().positive(),
+      solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1),
+    }).optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
   })

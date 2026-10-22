@@ -27,3 +27,12 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - Live HTTP→Postgres→worker integration remains unverified in this environment. Add/execute the guarded live database test before calling it operationally verified.
 - Provider connectivity is deferred until first real run; runs can fail with normalized provider errors if key/endpoint/model are invalid.
 - BCE and PoC safety gates remain unchanged. No `PASS`, `FAIL`, or PoC runtime execution is authorized or claimed.
+
+## Fix round 1 — provider boundary, provenance, filter, shutdown
+
+- Provider routing now supports OpenAI directly and OpenRouter only with an explicit provider-specific OpenAI-compatible base URL; `anthropic` and `google` fail closed. The configured API key is never passed to the SDK's default OpenAI endpoint for OpenRouter. URL credentials are rejected.
+- Moved the established secret patterns into the canonical production `ProductionSecurityFilter` under `@harness/core`; test `RegexSecurityFilter` delegates to it. Production no longer imports the testing namespace.
+- Added optional, schema-validated `runtime` metadata to immutable run-config snapshots: provider/model, credential-free URL, timeout, pricing, profile/ingestion versions, sandbox mode, model bounds, Solidity compiler version, and pinned Foundry image. API keys are not represented. Runtime settings flow through `JudgeRunConfig` into the runner's `run.started` snapshot digest.
+- Added polling lifecycle with a 5-second shutdown bound. The listener stops promptly; on timeout the store stays open until active `runOnce` settles, leaving the claim lease recoverable rather than closing the DB under in-flight writes.
+- Regression coverage: provider routing/default-endpoint guard; runtime config change and secret omission; production filter redaction; active-work shutdown defers cleanup; runtime snapshot digest changes.
+- Verification: `bun turbo typecheck` passed; `bun turbo test` passed (880 tests, 0 failures); `git diff --check` passed. No provider, PostgreSQL, Docker or Keychain integration was run.

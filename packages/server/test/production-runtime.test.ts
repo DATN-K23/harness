@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { assertProductionJudgeConfig, createProductionHealthHandler, resolveProductionSnapshot } from "../src/production-runtime"
+import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider } from "../src/production-runtime"
+import { ProductionSecurityFilter } from "@harness/core"
+import { startPollingWorker } from "../src/worker-lifecycle"
 import { startCheckedLocalServer } from "../src/production-startup"
 
 describe("production runtime safety", () => {
@@ -59,6 +61,40 @@ describe("production runtime safety", () => {
     } finally {
       await import("node:fs/promises").then(({ rm }) => rm(root, { recursive: true, force: true }))
     }
+  })
+
+  test("provider routing never sends third-party keys to the default OpenAI endpoint", () => {
+    expect(() => resolveProductionProvider({ providerName: "anthropic", apiKey: "secret" })).toThrow("requires an explicit OpenAI-compatible base URL")
+    expect(resolveProductionProvider({ providerName: "openrouter", apiKey: "secret", baseURL: "https://openrouter.ai/api/v1" })).toEqual({
+      apiKey: "secret", model: "model", baseURL: "https://openrouter.ai/api/v1",
+    })
+    expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "secret", baseURL: "https://api.openai.com/v1" })).toThrow("provider-specific")
+  })
+
+  test("production run config records non-secret runtime settings and changes with them", () => {
+    const first = makeProductionJudgeConfig({ providerName: "openai", modelName: "model", modelBaseUrl: "https://api.openai.com/v1" })
+    const second = makeProductionJudgeConfig({ providerName: "openrouter", modelName: "model", modelBaseUrl: "https://router.example/v1" })
+    expect(first.runtime).not.toEqual(second.runtime)
+    expect(JSON.stringify(first)).not.toContain("ApiKey")
+    expect(Object.isFrozen(first.runtime)).toBe(true)
+  })
+
+  test("production security filter redacts keys without importing test helpers", async () => {
+    const result = await new ProductionSecurityFilter().filterSecrets("key sk-12345678901234567890")
+    expect(result.content).toBe("key [REDACTED]")
+    expect(result.redactionCount).toBe(1)
+  })
+
+  test("worker shutdown returns within its bound but defers database cleanup until active work settles", async () => {
+    let finish!: () => void
+    let cleaned = false
+    const worker = startPollingWorker(() => new Promise<void>((resolve) => { finish = resolve }), 5, 10, () => { cleaned = true })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await worker.stop()
+    expect(cleaned).toBe(false)
+    finish()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(cleaned).toBe(true)
   })
 })
 

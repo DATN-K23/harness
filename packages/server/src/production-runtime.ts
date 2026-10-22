@@ -1,6 +1,6 @@
 import { lstat, readdir } from "node:fs/promises"
 import { realpath } from "node:fs/promises"
-import { createIdGenerator, DiskSourceSnapshot, ProductionContextEngine, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
+import { createIdGenerator, DiskSourceSnapshot, ProductionContextEngine, ProductionSecurityFilter, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
 import type { JudgeRunConfig } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { RealModelGateway } from "@harness/llm/gateway"
@@ -12,9 +12,9 @@ import { startCheckedLocalServer } from "./production-startup"
 import { createJudgeRuntime } from "./judge-runtime"
 import { ConservativePocPolicy } from "./poc-policy"
 import { DockerFoundrySandbox } from "./docker-foundry-sandbox"
-import { RegexSecurityFilter } from "@harness/core/testing"
 import { PostgresCancellation } from "@harness/schema"
 import type { ClockPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
+import { startPollingWorker } from "./worker-lifecycle"
 
 export const assertProductionJudgeConfig = <T extends { enablePocExecution?: boolean }>(config: T): T & { enablePocExecution: false } => {
   if (config.enablePocExecution === true) throw new Error("PoC execution is disabled in the production runtime")
@@ -41,7 +41,21 @@ class ProductionSnapshotResolver implements SourceSnapshotPort {
   }
 }
 
-const makeJudgeConfig = (modelName: string, maxOutputTokens: number): JudgeRunConfig => {
+export const resolveProductionProvider = (input: { providerName: string; apiKey: string; model?: string; baseURL?: string }) => {
+  if (input.providerName !== "openai" && !input.baseURL)
+    throw new Error(`${input.providerName} requires an explicit OpenAI-compatible base URL`)
+  if (input.providerName !== "openai") {
+    const parsed = new URL(input.baseURL!)
+    if (parsed.hostname === "api.openai.com") throw new Error("third-party provider configuration requires a provider-specific OpenAI-compatible base URL")
+  }
+  return { apiKey: input.apiKey, model: input.model ?? "model", ...(input.providerName !== "openai" || input.baseURL ? { baseURL: input.baseURL } : {}) }
+}
+
+export const makeProductionJudgeConfig = (runtime: {
+  providerName: string; modelName: string; modelBaseUrl?: string; modelTimeoutMs?: number;
+  modelInputCostPerMTok?: number; modelOutputCostPerMTok?: number; modelMaxOutputTokens?: number
+}): JudgeRunConfig => {
+  const maxOutputTokens = runtime.modelMaxOutputTokens ?? 4096
   const flags = {
     enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true, enableDropEmpty: true,
     enableLlmCompaction: true, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
@@ -57,7 +71,12 @@ const makeJudgeConfig = (modelName: string, maxOutputTokens: number): JudgeRunCo
   return deepFreeze({ flags, policy, retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
     limits: { wallClockTimeoutMs: 300_000, totalTokenBudget: 200_000, maxSteps: 10, noProgressMaxRepeats: 3 },
     maxProbeRuns: 0, enablePocExecution: false,
-    modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 }, profileId: modelName })
+    modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 }, profileId: runtime.modelName,
+    runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
+      timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,
+      outputCostPerMTok: runtime.modelOutputCostPerMTok, profileVersion: "judge-local-v1",
+      ingestionVersion: "snapshot-ingestion-solc-0.8.30", sandboxMode: "disabled", maxContextTokens: 128_000,
+      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30", foundryImage: "ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c" } })
 }
 
 const deepFreeze = <T>(value: T): T => {
@@ -115,7 +134,7 @@ export const startProductionLocalServer = async (options: {
   if (!isLoopbackHost(options.hostname)) throw new Error("Server must bind to loopback")
   if (!options.databaseUrl || !options.modelApiKey || !options.modelName || !options.providerName)
     throw new Error("Database and model configuration are required")
-  if (!["openai", "anthropic", "google", "openrouter"].includes(options.providerName))
+  if (!["openai", "openrouter"].includes(options.providerName))
     throw new Error("Unsupported model provider")
   if (options.modelBaseUrl) {
     const baseUrl = new URL(options.modelBaseUrl)
@@ -129,7 +148,7 @@ export const startProductionLocalServer = async (options: {
       async pingDatabase() { await store.client.sql`select 1` },
       getCredential: () => createKeychainCredentialProvider().getOrCreate(),
       listen(hostname, port, _fetch, credential) {
-        const config = makeJudgeConfig(options.modelName, options.modelMaxOutputTokens ?? 4096)
+        const config = makeProductionJudgeConfig(options)
         const ids = createIdGenerator(systemIdSources)
         const runtime = createJudgeRuntime({
           store,
@@ -140,12 +159,13 @@ export const startProductionLocalServer = async (options: {
             const run = await store.loadRun(runId)
             if (!run?.snapshotId) throw new Error("admitted Judge snapshot is missing")
             const snapshot: SourceSnapshotPort = new ProductionSnapshotResolver(snapshotRoot)
-            const gateway = new RealModelGateway({ apiKey: options.modelApiKey, model: options.modelName, baseURL: options.modelBaseUrl,
+            const gateway = new RealModelGateway({ ...resolveProductionProvider({ providerName: options.providerName,
+              apiKey: options.modelApiKey, model: options.modelName, baseURL: options.modelBaseUrl }),
               timeoutMs: options.modelTimeoutMs, secrets: [options.modelApiKey], inputCostPerMTok: options.modelInputCostPerMTok,
               outputCostPerMTok: options.modelOutputCostPerMTok })
             return { gateway, contextEngine: new ProductionContextEngine(createO200kTokenizer()), snapshot,
               tools: new ToolRegistry({ snapshot, snapshotId: run.snapshotId, secrets: [options.modelApiKey] }),
-              security: new RegexSecurityFilter(), ingestion: new SnapshotIngestion({ source: snapshot }),
+              security: new ProductionSecurityFilter(), ingestion: new SnapshotIngestion({ source: snapshot }),
               sanitizer: new ConservativePocPolicy({ compilerAvailable: false }),
               sandbox: new DockerFoundrySandbox(spawnDocker, snapshot, { root: "" }, { enabled: false }),
               cancellation: new PostgresCancellation(store.client), clock: systemClock, random: systemRandom, sleep: systemSleep, ids,
@@ -153,16 +173,13 @@ export const startProductionLocalServer = async (options: {
           },
         })
         const health = createProductionHealthHandler(credential)
-        let stopped = false
-        let pollTask: Promise<void>
-        const poll = async () => { while (!stopped) { try { await runtime.worker.runOnce() } catch {} if (!stopped) await new Promise((done) => setTimeout(done, 250)) } }
         const server = Bun.serve({ hostname, port, fetch: (request) =>
           request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) })
-        pollTask = poll()
-        return { hostname: server.hostname, port: server.port, async stop() { stopped = true; await pollTask; server.stop(true) } }
+        const worker = startPollingWorker(() => runtime.worker.runOnce(), 250, 5_000, () => store.close())
+        return { hostname: server.hostname, port: server.port, async stop() { await worker.stop(); server.stop(true) } }
       },
     })
-    return { server: started.listener, async stop() { await started.stop(); await store.close() } }
+    return { server: started.listener, async stop() { await started.stop() } }
   } catch (error) {
     await store.close()
     throw error

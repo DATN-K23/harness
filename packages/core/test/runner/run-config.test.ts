@@ -56,6 +56,18 @@ describe("buildRunConfigSnapshot", () => {
     expect(snapshot.budget).toEqual(inputWith(allOn).limits)
   })
 
+  test("effective runtime routing and pricing are included in the immutable run snapshot", () => {
+    const input = inputWith(allOn)
+    input.runtime = { providerName: "openai", modelName: "gpt-test", baseURL: "https://router.example/v1", timeoutMs: 10_000,
+      inputCostPerMTok: 1, outputCostPerMTok: 2, profileVersion: "profile-v1", ingestionVersion: "solc-v1", sandboxMode: "disabled",
+      maxContextTokens: 128_000, maxOutputTokens: 4_000, solidityCompilerVersion: "solc-0.8.30", foundryImage: "foundry@sha256:abc" }
+    const baseline = buildRunConfigSnapshot(input)
+    const changed = buildRunConfigSnapshot({ ...input, runtime: { ...input.runtime, baseURL: "https://other.example/v1" } })
+    expect(baseline.snapshot.runtime).toEqual(input.runtime)
+    expect(changed.digest).not.toBe(baseline.digest)
+    expect(JSON.stringify(baseline.snapshot)).not.toMatch(/apiKey|secret/i)
+  })
+
   test("the digest is stable across calls", () => {
     expect(buildRunConfigSnapshot(inputWith(allOn)).digest).toBe(buildRunConfigSnapshot(inputWith(allOn)).digest)
   })

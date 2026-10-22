@@ -46,9 +46,12 @@ export const resolveProductionProvider = (input: { providerName: string; apiKey:
     throw new Error(`${input.providerName} requires an explicit OpenAI-compatible base URL`)
   if (input.baseURL) {
     const parsed = new URL(input.baseURL)
-    if (parsed.protocol !== "https:") throw new Error("Model base URL must use HTTPS")
+    const routerLoopback = input.providerName === "9router" && parsed.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)
+    if (parsed.protocol !== "https:" && !routerLoopback) throw new Error("Model base URL must use HTTPS except for 9router on loopback")
     if (parsed.username || parsed.password || parsed.search || parsed.hash)
       throw new Error("Model base URL must not contain credentials")
+    if (input.providerName === "9router" && parsed.protocol === "http:" && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname))
+      throw new Error("9router HTTP base URL must use loopback only")
     if (input.providerName === "openai" && parsed.hostname !== "api.openai.com")
       throw new Error("OpenAI base URL must use only api.openai.com")
     if (input.providerName !== "openai" && parsed.hostname === "api.openai.com")
@@ -171,7 +174,7 @@ export const startProductionLocalServerWithOperations = async (options: {
   if (!isLoopbackHost(options.hostname)) throw new Error("Server must bind to loopback")
   if (!options.databaseUrl || !options.modelApiKey || !options.modelName || !options.providerName)
     throw new Error("Database and model configuration are required")
-  if (!["openai", "openrouter"].includes(options.providerName))
+  if (!["openai", "openrouter", "9router"].includes(options.providerName))
     throw new Error("Unsupported model provider")
   const providerConfig = resolveProductionProvider({ providerName: options.providerName, apiKey: options.modelApiKey,
     model: options.modelName, baseURL: options.modelBaseUrl })

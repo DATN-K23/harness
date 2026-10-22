@@ -76,6 +76,13 @@ describe("production runtime safety", () => {
     expect(() => resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://attacker.example/v1" })).toThrow("only api.openai.com")
   })
 
+  test("supports the configured loopback-only 9router HTTP endpoint without sending its key off-host", () => {
+    expect(resolveProductionProvider({ providerName: "9router", apiKey: "key", baseURL: "http://localhost:20128/v1" })).toEqual({
+      apiKey: "key", model: "model", baseURL: "http://localhost:20128/v1",
+    })
+    expect(() => resolveProductionProvider({ providerName: "9router", apiKey: "key", baseURL: "http://proxy.example:20128/v1" })).toThrow("loopback")
+  })
+
   test("provider routing rejects URL query secrets and fragments for every supported provider", () => {
     for (const providerName of ["openai", "openrouter"]) {
       for (const key of ["key", "api_key", "token", "secret", "password", "authorization", "credential"]) {

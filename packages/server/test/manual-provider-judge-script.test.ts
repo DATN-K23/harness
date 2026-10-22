@@ -12,6 +12,8 @@ describe("manual provider-backed Judge test safeguards", () => {
     expect(script).toContain("totalTokenBudget: 4096")
     expect(script).toContain("modelMaxOutputTokens: 512")
     expect(script).toContain("attempts.length > 0")
+    expect(script).toContain("manualProviderResultSummary")
+    expect(script).toContain('"observed"')
     expect(script).toContain('verificationStatus === "UNVERIFIED"')
     expect(script).not.toContain("console.log(error")
   })

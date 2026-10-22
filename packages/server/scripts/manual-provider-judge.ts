@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { createKeychainCredentialProvider } from "../src/keychain-credential"
 import { startProductionLocalServer } from "../src/production-runtime"
 import { loadRuntimeConfig } from "../../cli/src/config"
+import { manualProviderResultSummary } from "./manual-provider-result-summary"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -65,7 +66,7 @@ try {
   })
   assert(response.status === 202, `Submission rejected with HTTP ${response.status}`)
   runId = (await response.json() as { runId: string }).runId
-  let status: { state: string; verdict?: { validity?: string; verificationStatus?: string } } | undefined
+  let status: { state: string; terminalReason?: string; errorCategory?: string; verdict?: { validity?: string; verificationStatus?: string } } | undefined
   const deadline = Date.now() + 70_000
   do {
     const result = await fetch(`${api}/v1/judge/runs/${encodeURIComponent(runId)}`, { headers })
@@ -74,12 +75,13 @@ try {
     if (status?.state === "completed" || status?.state === "failed") break
     await Bun.sleep(250)
   } while (Date.now() < deadline)
-  assert(status?.state === "completed", `Run did not complete (state: ${status?.state ?? "unknown"})`)
-  assert(status.verdict?.validity === "unverified" && status.verdict.verificationStatus === "UNVERIFIED", "Run did not terminate UNVERIFIED")
-
   const eventsResponse = await fetch(`${api}/v1/judge/runs/${encodeURIComponent(runId)}/events`, { headers })
   assert(eventsResponse.ok, `Event query returned HTTP ${eventsResponse.status}`)
-  const events = (await eventsResponse.json() as { events: Array<{ type: string; payload: Record<string, unknown> }> }).events
+  const events: Array<{ type: string; payload: Record<string, unknown> }> = (await eventsResponse.json() as { events: typeof events }).events
+  const summary = manualProviderResultSummary(status ?? { state: "unknown" }, events)
+  console.log(JSON.stringify({ providerStatus: "observed", runId, ...summary }))
+  assert(status?.state === "completed", `Run did not complete (state: ${status?.state ?? "unknown"})`)
+  assert(status.verdict?.validity === "unverified" && status.verdict.verificationStatus === "UNVERIFIED", "Run did not terminate UNVERIFIED")
   const attempts = events.filter((event) => event.type === "provider.attempted")
   assert(attempts.length > 0, "No provider attempts were recorded")
   const usage = attempts.reduce((sum, event) => {

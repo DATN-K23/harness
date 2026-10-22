@@ -35,9 +35,21 @@ For narrative-only, `reportMarkdown` can contain the bounded labeled report, for
 
 The API returns `202` only after durable admission with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. With BCE incomplete, verdict capability remains `unverified/UNVERIFIED`; no `valid/PASS` or `invalid/FAIL` claim is made.
 
+## Manual provider-backed Judge test (disposable local environment)
+
+This single-run test uses the actual production `Bun.serve` API, Postgres adapter, worker, snapshot ingestion, `RealModelGateway`, and macOS Keychain credential. Use only a dedicated disposable local Postgres database and an expendable provider key. The checked-in `manual-judge-live-20261022` snapshot resolves `Vault.withdraw`; its labeled narrative contains no PoC. AST incompleteness causes model analysis, but the only allowed terminal verdict is **UNVERIFIED**. PoCs remain denied and sandbox execution disabled. The test caps the run at two steps, 4096 total tokens, 512 output tokens per attempt, 20-second model timeout and a 60-second polling deadline. It prints terminal state/reason/category and provider-attempt count/types/categories before checking success; it never emits prompts, responses, headers or raw provider errors.
+
+Start a disposable Postgres container on a unique local port/name. Set `.env` model configuration, `HARNESS_SNAPSHOT_DIR` pointing at `data/snapshots`, and `HARNESS_MANUAL_JUDGE_SNAPSHOT_ID=manual-judge-live-20261022`. Set the dedicated connection URL only in `HARNESS_MANUAL_JUDGE_DATABASE_URL` (it must differ from `DATABASE_URL`), apply migrations to that disposable DB, then run:
+
+```sh
+HARNESS_MANUAL_JUDGE_DEDICATED=1 bun packages/server/scripts/manual-provider-judge.ts
+```
+
+The script refuses non-loopback databases and database names not marked `manual`, `e2e`, `test`, or `disposable`; the operator must still ensure the target container/database is disposable and remove it afterward. The API credential is obtained directly from Keychain and held in process memory. Do not enable shell tracing or use a production database/key.
+
 ## Manual local smoke test (readiness/submission path only)
 
-This is an operator-run local API/admission smoke test for Keychain/Postgres/worker persistence, using a deliberately unsupported narrative. The expected verdict is **UNVERIFIED**, not a vulnerability decision; this case intentionally makes no provider call and does not contact the provider. PoC-bearing submissions are denied and no PoC runs. It requires macOS, a dedicated local Postgres database, a sanitized Solidity source snapshot, and a configured model key because production `bun run cli:serve` startup validates the provider configuration before listening. The unsupported run itself is expected not to use the key or contact the provider; provider connectivity/routing is a separate, unrun gate. This environment lacks local manual-test configuration, so the operator flow has not been run here.
+This is an operator-run local API/admission smoke test for Keychain/Postgres/worker persistence, using a deliberately unsupported narrative. The expected verdict is **UNVERIFIED**, not a vulnerability decision; this case intentionally makes no provider call and does not contact the provider. For actual provider coverage, use the separate manual provider-backed test above.
 
 1. Set `HARNESS_SNAPSHOT_DIR` to a local storage root and ingest a small sanitized Solidity project with `bun run cli:repo -- add <path-to-project> --snapshot-id manual-judge-snapshot`. The command prints a summary including the opaque snapshot ID; use that ID below. Do not include ground-truth/adjudication/scoring data.
 2. Set the runtime values in `.env`: a dedicated local `DATABASE_URL`, `PROVIDER_NAME=openai` (or `openrouter` with an explicit HTTPS-compatible URL), `MODEL_NAME`, `MODEL_API_KEY`, `HARNESS_SNAPSHOT_DIR`, `HARNESS_HOST=127.0.0.1`, and a free `HARNESS_PORT` (default `4318`). For OpenRouter, set `MODEL_BASE_URL=https://openrouter.ai/api/v1`; URL credentials/query/fragment are rejected. Apply schema using `bun run db:migrate` (the CLI resolves `.env` upward). Never print or paste the key into logs, commands, chat, or documentation.

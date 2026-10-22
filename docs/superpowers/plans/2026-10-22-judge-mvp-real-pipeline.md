@@ -242,6 +242,12 @@ Tasks 1–7 delivered a local API/worker path but not verdict-capable Judge. Con
 
 **Current status:** Docker Desktop 4.81.0 / Engine 29.6.1 on the observed macOS ARM64 client now has disposable control evidence for the exact image/compiler artifacts: network, bind/root read-only, UID/GID, caps/no-new-privileges, CPU/RAM/PIDs, 256 MiB scratch, timeout/cancellation/output-limit cleanup, plus benign and bounded assertion fixtures. See `docs/superpowers/decisions/2026-10-22-judge-macos-docker-desktop-task10.md` and the Task 10 report. This is one observed Desktop version, not proof for every supported macOS version. Policy remains deny-only and Task 9 has no claim-bound state evidence, so production remains disabled; do not mark Task 10 complete or enable runtime until version-support and claim-binding gates are separately resolved.
 
+### Task 10 review status
+
+- [x] One-version Docker Desktop 4.81.0 control verification and bounded Foundry fixtures recorded in a tracked decision doc; opt-in test rerun passes 14/14.
+- [ ] Broadly certify every supported Docker Desktop version or define the supported-version policy.
+- [ ] Replace deny-only PoC policy and establish claim/assertion binding before any verdict-producing runtime execution. Production stays disabled until both unchecked gates are completed.
+
 ### Task 11: Finish production evidence and release gate
 
 **Files:**
@@ -254,7 +260,7 @@ Tasks 1–7 delivered a local API/worker path but not verdict-capable Judge. Con
 - Consumes: Tasks 8–10 capability gates and actual `startProductionLocalServer` composition.
 - Produces: verified local user flow and evidence-based release state; live integration gates fail, not skip, once explicitly opted in.
 
-- [x] Guard the opt-in Postgres E2E: require `HARNESS_POSTGRES_E2E_DEDICATED=1`, reject matching normalized PostgreSQL host/port/database/user identities against `DATABASE_URL`, never fall back to `DATABASE_URL`, and do not clean unrelated tables. The acknowledgement is the operator's responsibility; software cannot prove a target is disposable.
+- [x] Guard the opt-in Postgres E2E: require `HARNESS_POSTGRES_E2E_DEDICATED=1`, reject matching normalized PostgreSQL host/port/database identities against `DATABASE_URL`, never fall back to `DATABASE_URL`, and do not clean unrelated tables. The acknowledgement is the operator's responsibility; software cannot prove a target is disposable.
 - [x] Exercise actual Bun listener + test-only Keychain seam + HTTP admission + worker + persisted UNVERIFIED + query/event/cancel polling. The automated seam must not touch macOS Keychain; the real Keychain flow remains the manual smoke-test boundary.
 - [x] Cover the unsupported-input no-call assertion via a no-call gateway seam; this does not test provider routing.
 - [ ] Release gate: exercise provider routing against a controlled test endpoint and verify the configured provider/model/base URL reaches the intended endpoint without production credentials. Not run: this environment has no `MODEL_API_KEY`, `DATABASE_URL`, or snapshot directory; operator must supply a configured key locally (never in chat) and dedicated local config first.

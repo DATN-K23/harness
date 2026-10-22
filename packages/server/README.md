@@ -37,11 +37,11 @@ The API returns `202` only after durable admission with `runId`, state `accepted
 
 ## Manual local smoke test (readiness/submission path only)
 
-This is an operator-run live-provider smoke test for local Keychain/Postgres/API admission/worker persistence, using a deliberately unsupported narrative. The expected verdict is **UNVERIFIED**, not a vulnerability decision; PoC-bearing submissions are denied and no PoC runs. It requires macOS, a dedicated local Postgres database, a sanitized Solidity source snapshot, and a valid provider endpoint/key. No provider-backed adjudication can be performed until the operator supplies a configured key locally (never in chat) and the dedicated local configuration. This environment lacks `MODEL_API_KEY`, `DATABASE_URL`, and a snapshot directory, so this provider-backed flow has not been run.
+This is an operator-run local API/admission smoke test for Keychain/Postgres/worker persistence, using a deliberately unsupported narrative. The expected verdict is **UNVERIFIED**, not a vulnerability decision; this case intentionally makes no provider call. PoC-bearing submissions are denied and no PoC runs. It requires macOS, a dedicated local Postgres database and a sanitized Solidity source snapshot. Provider connectivity/routing is a separate, unrun gate; no model key is required for this unsupported input. This environment lacks local manual-test configuration, so the operator flow has not been run here.
 
 1. Set `HARNESS_SNAPSHOT_DIR` to a local storage root and ingest a small sanitized Solidity project with `bun run cli:repo -- add <path-to-project> --snapshot-id manual-judge-snapshot`. The command prints a summary including the opaque snapshot ID; use that ID below. Do not include ground-truth/adjudication/scoring data.
 2. Set the runtime values in `.env`: a dedicated local `DATABASE_URL`, `PROVIDER_NAME=openai` (or `openrouter` with an explicit HTTPS-compatible URL), `MODEL_NAME`, `MODEL_API_KEY`, `HARNESS_SNAPSHOT_DIR`, `HARNESS_HOST=127.0.0.1`, and a free `HARNESS_PORT` (default `4318`). For OpenRouter, set `MODEL_BASE_URL=https://openrouter.ai/api/v1`; URL credentials/query/fragment are rejected. Apply schema using `bun run db:migrate` (the CLI resolves `.env` upward). Never print or paste the key into logs, commands, chat, or documentation.
-3. Start `bun run cli:serve`. Startup checks loopback configuration, snapshot directory, PostgreSQL, provider configuration and Keychain before listening. For this shell smoke test, retrieve the installation credential from Keychain into a shell variable via the native helper (the secret is not passed as a process argument or written to a file):
+3. In terminal A, start `bun run cli:serve`. It runs in the foreground. Startup checks loopback configuration, snapshot directory, PostgreSQL, provider configuration and Keychain before listening. In terminal B, retrieve the installation credential from Keychain into a shell variable via the native helper (the secret is not passed as a process argument or written to a file):
 
 ```sh
 KEYCHAIN_HELPER="${TMPDIR:-/private/var/folders}/harness-keychain-credential"
@@ -49,7 +49,7 @@ swiftc packages/server/native/keychain-credential.swift -o "$KEYCHAIN_HELPER"
 HARNESS_LOCAL_API_TOKEN="$("$KEYCHAIN_HELPER" get com.harness.local-api installation)"
 ```
 
-Never enable shell tracing (`set -x`) while using this variable. 4. Send a narrative-only request (no PoC) with a unique idempotency key. The `curl` output is the run response, not a secret; avoid verbose/debug flags:
+Never enable shell tracing (`set -x`) while using this variable. From terminal B, send a narrative-only request (no PoC) with a unique idempotency key. The `curl` output is the run response, not a secret; avoid verbose/debug flags:
 
 ```sh
 curl -sS -H "Authorization: Bearer $HARNESS_LOCAL_API_TOKEN" \

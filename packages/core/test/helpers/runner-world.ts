@@ -4,6 +4,7 @@ import {
   type CandidateFinding,
   type EventType,
   type IngestionResult,
+  type IngestionPort,
   type NewTrajectoryEvent,
   type ModelGatewayPort,
   type RunStorePort,
@@ -151,6 +152,7 @@ export interface WorkerOptions {
   script?: ScriptedModelEntry[]
   engine?: PassThroughContextEngine | ScriptedContextEngine
   ingestion?: IngestionResult
+  ingestionPort?: IngestionPort
   sanitizer?: SanitizerResult
   sandbox?: SandboxResult
   stateProbe?: StateProbeResult
@@ -187,14 +189,15 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
       singleShot: [workerOptions.sandbox === undefined ? okSandbox : { ...workerOptions.sandbox, outcome: workerOptions.sandbox.outcome ?? (workerOptions.sandbox.exitCode === 0 ? "passed" : "assertion_failed") }],
       ...(workerOptions.stateProbe === undefined ? {} : { stateProbe: [workerOptions.stateProbe] }),
     })
+    const source = new InMemorySnapshot({ snapshotId: "snap-1", files })
     const runner = new JudgeRunner({
       store,
       contextEngine: engine,
       gateway: workerOptions.wrapGateway?.(gateway) ?? gateway,
       tools: registry,
       security: new RegexSecurityFilter(),
-      snapshot: new InMemorySnapshot({ snapshotId: "snap-1", files }),
-      ingestion,
+      snapshot: source,
+      ingestion: workerOptions.ingestionPort ?? ingestion,
       sanitizer: workerOptions.wrapSanitizer?.(sanitizer) ?? sanitizer,
       sandbox: workerOptions.wrapSandbox?.(sandbox) ?? sandbox,
       cancellation,

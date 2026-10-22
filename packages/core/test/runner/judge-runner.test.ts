@@ -9,6 +9,8 @@ import {
   type RunStorePort,
 } from "@harness/protocol"
 import { type JudgeRunConfig, type JudgeRunInput, type JudgeRunResult } from "../../src/runner/judge-runner"
+import { SnapshotIngestion } from "../../src/ingestion/snapshot-ingestion"
+import { InMemorySnapshot } from "../../src/source/in-memory-snapshot"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
 import { errorResponse, textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import {
@@ -103,13 +105,19 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     await expectFastReject(world, w, await w.start(), "MISSING_POC")
   })
 
-  test.each(["malformed fenced JSON", "prohibited metadata"])("%s completes unverified without provider or sandbox calls", async () => {
+  test.each([
+    ["malformed fenced JSON", "Target: Vault.withdraw\nRoot cause: missing auth\nAttack scenario: attacker calls\nImpact: funds stolen\nState: balance falls\n\n```json\n{ malformed JSON }\n```"],
+    ["prohibited metadata", "Target: Vault.withdraw\nRoot cause: missing auth\nAttack scenario: attacker calls\nImpact: funds stolen\nState: balance falls\n\n```json\n{\"nested\":{\"groundTruthLabel\":\"vulnerable\"}}\n```"],
+  ] as const)("actual %s completes unverified without provider or sandbox calls", async (_name, reportMarkdown) => {
     const world = createWorld()
-    const w = world.worker({ ingestion: { kind: "invalid_report" } })
-    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    const source = new InMemorySnapshot({ snapshotId: "snap-1", files: {} })
+    const w = world.worker({ ingestionPort: new SnapshotIngestion({ source }) })
+    const result = await w.start("worker-a", { ...runInput({ enablePocExecution: true }), finding: { findingId: "finding-7", reportMarkdown } })
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(w.gateway.callCount).toBe(0)
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(source.reads).toHaveLength(0)
   })
 
   test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, sandbox never called", async () => {

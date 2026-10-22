@@ -20,7 +20,7 @@
 
 ### A1 — Safe source and finding submission
 - Given a valid `CandidateFinding` and registered immutable snapshot ID, when submitted, then the runtime durably accepts a run and returns a stable run ID without waiting for model execution.
-- Given malformed/oversized input, unknown snapshot, raw host path, credential, ground-truth label, adjudication report or scoring field at any depth, when submitted, then reject before creating run/work or calling model.
+- Given malformed request structure (including oversized input), unknown snapshot, raw host path, credential, ground-truth label, adjudication report or scoring field at any depth, when submitted, then reject before creating run/work or calling model. Malformed or prohibited content inside an otherwise structurally valid candidate report is admitted as a run, then completes `UNVERIFIED`/`UNRESOLVED` without provider, sanitizer or sandbox evaluation.
 
 ### A2 — Durable asynchronous handoff and idempotency
 - Given a successful acceptance, when the server returns success, then run identity, immutable config, idempotency binding and recoverable work intent are committed.

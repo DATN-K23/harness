@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { StaticClaimPredicateSchema, StaticVerificationResultSchema } from "../src/ports"
 
-const predicate = { kind: "unauthorized_state_write", contractName: "Vault", functionName: "withdraw", stateVariable: "balances" } as const
+const predicate = { kind: "unauthorized_state_write", contractName: "Vault", functionName: "withdraw", stateVariable: "balances", authorizationStateVariable: "owner" } as const
 const evidence = [{ filePath: "src/Vault.sol", content: "balances[msg.sender] -= amount;", lineRange: [12, 12] }]
 
 describe("static claim verification contracts", () => {
@@ -15,6 +15,7 @@ describe("static claim verification contracts", () => {
   test("rejects extra keys and empty identities", () => {
     expect(StaticClaimPredicateSchema.safeParse({ ...predicate, extra: true }).success).toBe(false)
     expect(StaticClaimPredicateSchema.safeParse({ ...predicate, functionName: " " }).success).toBe(false)
+    expect(StaticClaimPredicateSchema.safeParse({ ...predicate, authorizationStateVariable: "" }).success).toBe(false)
   })
 
   test("rejects wrong profile, invalid evidence ranges, and unknown incomplete reasons", () => {

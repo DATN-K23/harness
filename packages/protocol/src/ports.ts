@@ -63,6 +63,7 @@ export const StaticClaimPredicateSchema = z.strictObject({
   contractName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
   functionName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
   stateVariable: z.string().regex(/^[A-Za-z_$][\w$]*$/),
+  authorizationStateVariable: z.string().regex(/^[A-Za-z_$][\w$]*$/),
 })
 export type StaticClaimPredicate = z.infer<typeof StaticClaimPredicateSchema>
 

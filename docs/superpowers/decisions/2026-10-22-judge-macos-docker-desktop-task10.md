@@ -43,7 +43,9 @@ The probe recorded uid/gid `10001:10001`, `CapEff=0000000000000000`, `NoNewPrivs
 IMAGE='ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c'
 mkdir -p probe-input && printf 'sanitized probe\n' > probe-input/input.txt
 CONTAINER_ID="harness-probe-$(uuidgen | tr '[:upper:]' '[:lower:]')"
-docker run --rm --network=none --read-only --user 10001:10001 --cap-drop=ALL \
+cleanup() { docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+docker run --network=none --read-only --user 10001:10001 --cap-drop=ALL \
   --name "$CONTAINER_ID" \
   --security-opt=no-new-privileges --memory=64m --cpus=0.5 --pids-limit=16 \
   --mount type=bind,src="$PWD/probe-input",dst=/workspace,readonly \

@@ -70,6 +70,34 @@ describe("Judge submission API", () => {
     expect(calls).toBe(0)
   })
 
+  test("rejects recursively nested prohibited metadata before submission or trajectory admission", async () => {
+    let submitCalls = 0
+    let eventReads = 0
+    const app = createJudgeApi({
+      credential: "test-credential",
+      submit: async () => { submitCalls++; return { kind: "accepted", runId: "unexpected" } },
+      store: {
+        loadEvents: async () => { eventReads++; return [] },
+      } as never,
+    })
+    const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-gt" },
+      body: JSON.stringify({
+        finding: {
+          findingId: "finding-gt",
+          reportMarkdown: "Candidate only",
+          nested: [{ adjudicationReport: { score: "test-only-sensitive-marker" } }],
+        },
+        snapshotId: "snapshot-1",
+      }),
+    }))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { code: "invalid_request" } })
+    expect(submitCalls).toBe(0)
+    expect(eventReads).toBe(0)
+  })
+
   test("returns conflict without issuing a run when idempotency digest differs", async () => {
     const app = createJudgeApi({ credential: "test-credential", submit: async () => ({ kind: "conflict" }) })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {

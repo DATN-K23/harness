@@ -6,7 +6,7 @@ export const JudgeSubmitRequestSchema = z
     finding: z.object({
       findingId: z.string().trim().min(1).max(256),
       reportMarkdown: z.string().trim().min(1).max(100_000),
-    }),
+    }).passthrough(),
     snapshotId: z.string().trim().min(1).max(256),
   })
   .strict()

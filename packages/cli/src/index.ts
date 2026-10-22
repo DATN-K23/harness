@@ -19,6 +19,7 @@ import { executeRunCommand } from "./commands/run"
 import { executeSnapshotListCommand } from "./commands/snapshot"
 import { executeViewCommand } from "./commands/view"
 import { redactSecrets } from "./redaction"
+import { startProductionLocalServer } from "../../server/src/production-runtime"
 
 export * from "./config"
 export * from "./redaction"
@@ -36,12 +37,14 @@ Usage:
   bun run cli:run -- --prompt "<text>" [--model <name>] [--timeout <ms>]
   bun run cli:run -- --snapshot <id> --prompt "<text>" [run limits]
   bun run cli:view -- --id <runId> [--json]
+  bun run cli:serve
 
 Commands:
   repo add       Ingest a repository into an immutable source snapshot
   snapshot list  List registered source snapshots
   run            Execute a single-turn or snapshot-backed multi-turn run
   view           Inspect a historical run and its trajectory
+  serve          Start the fail-closed local health/API compatibility server
 
 Options:
   --prompt <text>             Prompt text to evaluate (required for run)
@@ -191,6 +194,29 @@ export async function runCli(
 
   if (parsed.command === "view") {
     return viewCommand(parsed, deps, env, stdout, stderr, secrets)
+  }
+
+  if (parsed.command === "serve") {
+    try {
+      const config = loadCliConfig(env, deps.snapshotDir)
+      const server = await startProductionLocalServer({
+        databaseUrl: config.databaseUrl,
+        modelApiKey: config.modelApiKey,
+        modelName: config.modelName,
+        providerName: config.providerName,
+        modelBaseUrl: config.modelBaseUrl,
+        snapshotDir: config.snapshotDir,
+        hostname: env.HARNESS_HOST ?? "127.0.0.1",
+        port: Number(env.HARNESS_PORT ?? 4318),
+      })
+      stdout(`Harness local server listening on ${server.server.hostname}:${server.server.port}; judge execution unavailable`)
+      await new Promise<void>((resolve) => process.once("SIGINT", resolve))
+      await server.stop()
+      return 0
+    } catch (error) {
+      stderr(`Error: ${safeError(error, secrets)}`)
+      return 1
+    }
   }
 
   stderr(`Error: Unknown command '${parsed.command ?? ""}'. See --help.`)

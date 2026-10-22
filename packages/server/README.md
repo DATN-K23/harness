@@ -16,9 +16,9 @@ Create `@harness/server`'s runtime with a `RunStorePort`, `SourceSnapshotPort`, 
 - `api.fetch(request)` — authenticated submission, safe run projection, ordered event pages and cancellation.
 - `worker.runOnce()` — claim and execute available outbox work by stable run ID.
 
-`startJudgeServer` accepts a platform listener and a credential provider, composes the runtime, enforces loopback and auth, and returns `runWorkerOnce()` plus `stop()`. The deployment entrypoint must invoke worker polling under its supervised lifecycle and provide the real PostgreSQL/source/provider dependency graph. This package does not yet provide a turnkey production composition or continuously supervised daemon executable.
+`startJudgeServer` is a testable composition seam, not an approved production entrypoint. `bun run cli:serve` starts the fail-closed local health/API compatibility endpoint after validating explicit database/model config, an accessible snapshot directory, the exact pinned image digest, live PostgreSQL, and macOS Keychain. It binds only loopback and obtains its API credential from Keychain.
 
-Production composition is **BLOCKED**: real ingestion, sanitizer, sandbox, PostgreSQL/provider/source wiring, and approved Docker image/isolation evidence are not available. `startJudgeServer` is a composition seam, not proof of production readiness; callers must supply the actual dependency graph. Task 3 BCE outcomes are incomplete, so the current runner cannot establish static PASS/FAIL either.
+**Judge release remains BLOCKED.** The local process deliberately does not expose submission/worker execution: Task 3 BCE is always incomplete, Task 5 policy is deny-only, and Docker Desktop/macOS isolation validation is outstanding. PoC execution is hardcoded false; there is no API/config switch. Health reports `judgeExecution: unavailable`, `enablePocExecution: false`, and `bce-incomplete`. This endpoint is useful only for local dependency/readiness and compatibility checks, not as a working Judge service. Startup does not call the model endpoint; API-key presence/provider configuration are validated but connectivity is not.
 
 ## API
 
@@ -33,7 +33,7 @@ Production composition is **BLOCKED**: real ingestion, sanitizer, sandbox, Postg
 
 Successful durable admission returns `202` with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. A model-only conclusion remains `unverified`; execution errors are not invalid verdicts.
 
-API compatibility validation is available through `validateApiCompatibility`; the actual health/discovery endpoint still needs to be connected by the deployment composition.
+The local `/v1/health` handshake is authenticated and reports API compatibility plus the deliberately limited runtime capabilities.
 
 ## Verification
 

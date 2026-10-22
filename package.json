@@ -13,7 +13,8 @@
     "cli:view": "bun run --cwd packages/cli dev -- view",
     "db:migrate": "bun run --cwd packages/schema db:migrate",
     "cli:repo": "bun run --cwd packages/cli dev -- repo",
-    "cli:snapshot": "bun run --cwd packages/cli dev -- snapshot"
+    "cli:snapshot": "bun run --cwd packages/cli dev -- snapshot",
+    "cli:serve": "bun run --cwd packages/cli dev -- serve"
   },
   "workspaces": {
     "packages": [

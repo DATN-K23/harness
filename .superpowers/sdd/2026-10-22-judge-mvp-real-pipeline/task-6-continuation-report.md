@@ -36,3 +36,10 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - Added polling lifecycle with a 5-second shutdown bound. The listener stops promptly; on timeout the store stays open until active `runOnce` settles, leaving the claim lease recoverable rather than closing the DB under in-flight writes.
 - Regression coverage: provider routing/default-endpoint guard; runtime config change and secret omission; production filter redaction; active-work shutdown defers cleanup; runtime snapshot digest changes.
 - Verification: `bun turbo typecheck` passed; `bun turbo test` passed (880 tests, 0 failures); `git diff --check` passed. No provider, PostgreSQL, Docker or Keychain integration was run.
+
+## Fix round 2 — endpoint and URL credential policy
+
+- Native OpenAI configuration now permits only the default `api.openai.com` host. OpenRouter remains the sole explicit OpenAI-compatible router and may not target `api.openai.com`; no arbitrary OpenAI-key proxy endpoint is accepted.
+- For both supported provider routes, base URLs reject username/password, URL fragments, and query keys matching key/api-key/token/secret/password/authorization/credential(s), case-insensitively. Thus URL query values cannot be persisted in runtime metadata.
+- TDD: tests for OpenAI wrong-host and URL query/fragment secrets were added first and failed against the previous permissive routing. After the policy change, focused routing tests pass.
+- Verification: focused server runtime tests pass; `bun turbo typecheck` passes all six packages; `bun turbo test` passes (880 tests, 0 failures); `git diff --check` passes. No live services were contacted.

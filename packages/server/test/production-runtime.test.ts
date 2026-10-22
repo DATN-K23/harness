@@ -69,6 +69,18 @@ describe("production runtime safety", () => {
       apiKey: "secret", model: "model", baseURL: "https://openrouter.ai/api/v1",
     })
     expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "secret", baseURL: "https://api.openai.com/v1" })).toThrow("provider-specific")
+    expect(resolveProductionProvider({ providerName: "openai", apiKey: "key" })).toEqual({ apiKey: "key", model: "model" })
+    expect(resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://api.openai.com/v1" }).baseURL).toBe("https://api.openai.com/v1")
+    expect(() => resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://attacker.example/v1" })).toThrow("only api.openai.com")
+  })
+
+  test("provider routing rejects URL query secrets and fragments for every supported provider", () => {
+    for (const providerName of ["openai", "openrouter"]) {
+      for (const key of ["key", "api_key", "token", "secret", "password", "authorization", "credential"]) {
+        expect(() => resolveProductionProvider({ providerName, apiKey: "key", baseURL: `https://${providerName === "openai" ? "api.openai.com" : "openrouter.ai"}/v1?${key}=leak` })).toThrow("must not contain credentials")
+      }
+      expect(() => resolveProductionProvider({ providerName, apiKey: "key", baseURL: `https://${providerName === "openai" ? "api.openai.com" : "openrouter.ai"}/v1#token=leak` })).toThrow("must not contain credentials")
+    }
   })
 
   test("production run config records non-secret runtime settings and changes with them", () => {

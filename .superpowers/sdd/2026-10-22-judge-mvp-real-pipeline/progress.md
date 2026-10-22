@@ -71,3 +71,10 @@ Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compil
 - Added bounded polling-worker shutdown that leaves DB open while active work settles (or until it settles after the timeout); no force-close of active writes.
 - Focused tests and full gates green: 880 pass, 0 fail; six package typechecks pass. External/live integrations not run per instruction.
 - Detailed fix wave evidence appended to `task-6-continuation-report.md`.
+
+### Task 6 fix round 2
+
+- Native OpenAI endpoint host is restricted to `api.openai.com`; OpenRouter requires its explicit compatible URL and rejects OpenAI's host.
+- Both supported provider URL paths reject userinfo, fragment, and secret-bearing query parameter names before any value can be recorded in run metadata.
+- TDD red observed for wrong OpenAI host and credential query/fragment cases; green after policy fix. Focused tests, six-package typecheck and full test suite pass (880/0); no live services used.
+- Detailed result in `task-6-continuation-report.md`.

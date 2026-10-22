@@ -44,9 +44,15 @@ class ProductionSnapshotResolver implements SourceSnapshotPort {
 export const resolveProductionProvider = (input: { providerName: string; apiKey: string; model?: string; baseURL?: string }) => {
   if (input.providerName !== "openai" && !input.baseURL)
     throw new Error(`${input.providerName} requires an explicit OpenAI-compatible base URL`)
-  if (input.providerName !== "openai") {
-    const parsed = new URL(input.baseURL!)
-    if (parsed.hostname === "api.openai.com") throw new Error("third-party provider configuration requires a provider-specific OpenAI-compatible base URL")
+  if (input.baseURL) {
+    const parsed = new URL(input.baseURL)
+    const secretQueryKey = /^(?:key|api[_-]?key|token|secret|password|authorization|credential|credentials)$/i
+    if (parsed.username || parsed.password || parsed.hash || [...parsed.searchParams.keys()].some((key) => secretQueryKey.test(key)))
+      throw new Error("Model base URL must not contain credentials")
+    if (input.providerName === "openai" && parsed.hostname !== "api.openai.com")
+      throw new Error("OpenAI base URL must use only api.openai.com")
+    if (input.providerName !== "openai" && parsed.hostname === "api.openai.com")
+      throw new Error("third-party provider configuration requires a provider-specific OpenAI-compatible base URL")
   }
   return { apiKey: input.apiKey, model: input.model ?? "model", ...(input.providerName !== "openai" || input.baseURL ? { baseURL: input.baseURL } : {}) }
 }

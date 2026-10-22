@@ -114,10 +114,24 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     const w = world.worker({ ingestionPort: new SnapshotIngestion({ source }) })
     const result = await w.start("worker-a", { ...runInput({ enablePocExecution: true }), finding: { findingId: "finding-7", reportMarkdown } })
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    const committed = result.kind === "committed" ? result.verdict : undefined
+    expect(committed?.reasoning.length).toBeGreaterThanOrEqual(50)
     expect(w.gateway.callCount).toBe(0)
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
     expect(source.reads).toHaveLength(0)
+  })
+
+  test("unsupported report content commits a protocol-valid unresolved verdict", async () => {
+    const world = createWorld()
+    const source = new InMemorySnapshot({ snapshotId: "snap-1", files: {} })
+    const w = world.worker({ ingestionPort: new SnapshotIngestion({ source }) })
+    const result = await w.start("worker-a", { ...runInput(), finding: { findingId: "finding-unsupported", reportMarkdown: "Short unsupported report." } })
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    if (result.kind === "committed" && result.verdict) expect(result.verdict.reasoning.length).toBeGreaterThanOrEqual(50)
+    expect(w.gateway.callCount).toBe(0)
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
 
   test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, sandbox never called", async () => {

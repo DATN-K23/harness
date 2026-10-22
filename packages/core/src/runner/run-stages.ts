@@ -100,7 +100,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   if (ingested.kind === "narrative_only" && !isValidDeconstructedClaim(ingested.claim))
     return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report claim is incomplete and cannot be verified.", reasoning: "The deconstructed claim lacks required target or semantic fields.", citesEvidence: [] } } }
   if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
-  if (ingested.kind === "incomplete" && !ingested.claim) return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete: ${ingested.reason}.`, citesEvidence: [] } } }
+  if (ingested.kind === "incomplete" && !ingested.claim) return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete (${ingested.reason}); no structured claim or source evidence was available, so the finding remains unresolved.`, citesEvidence: [] } } }
   if (ingested.kind === "narrative_only") {
     if (ingested.pocCode !== undefined) {
       if (!input.config.enablePocExecution)

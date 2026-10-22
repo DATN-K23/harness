@@ -30,6 +30,16 @@ const checkPostgresReachable = async (
   }
 }
 
+test("PostgreSQL E2E opt-in rejects shared DATABASE_URL targets", () => {
+  const env = { HARNESS_POSTGRES_E2E: "1", HARNESS_POSTGRES_E2E_DATABASE_URL: "postgres://shared/db", DATABASE_URL: "postgres://shared/db" }
+  expect(() => assertDedicatedPostgresTarget(env)).toThrow("must not equal DATABASE_URL")
+})
+
+test("PostgreSQL E2E opt-in requires dedicated disposable database acknowledgement", () => {
+  expect(() => assertDedicatedPostgresTarget({ HARNESS_POSTGRES_E2E: "1", HARNESS_POSTGRES_E2E_DATABASE_URL: "postgres://dedicated/db" }))
+    .toThrow("HARNESS_POSTGRES_E2E_DEDICATED=1")
+})
+
 test("PostgreSQL reachability probe closes its store when the query fails", async () => {
   let closed = false
   const store = {
@@ -41,9 +51,14 @@ test("PostgreSQL reachability probe closes its store when the query fails", asyn
   expect(closed).toBe(true)
 })
 
-if (enabled && !testDatabaseUrl) {
-  throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is required when HARNESS_POSTGRES_E2E=1; DATABASE_URL is never used")
+export function assertDedicatedPostgresTarget(env: Record<string, string | undefined>) {
+  if (env.HARNESS_POSTGRES_E2E !== "1") return
+  if (!env.HARNESS_POSTGRES_E2E_DATABASE_URL) throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is required when HARNESS_POSTGRES_E2E=1; DATABASE_URL is never used")
+  if (env.HARNESS_POSTGRES_E2E_DATABASE_URL === env.DATABASE_URL) throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL must not equal DATABASE_URL")
+  if (!env.HARNESS_POSTGRES_E2E_DEDICATED || env.HARNESS_POSTGRES_E2E_DEDICATED !== "1") throw new Error("HARNESS_POSTGRES_E2E_DEDICATED=1 is required to confirm the database is disposable and dedicated")
 }
+
+assertDedicatedPostgresTarget(process.env)
 
 if (enabled && !await checkPostgresReachable(testDatabaseUrl!)) {
   throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is unreachable while HARNESS_POSTGRES_E2E=1")

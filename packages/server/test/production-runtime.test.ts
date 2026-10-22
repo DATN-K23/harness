@@ -43,7 +43,9 @@ describe("production runtime safety", () => {
     expect(denied.status).toBe(401)
     const response = await fetch(health)
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ apiVersion: 1, judgeExecution: "unverified-only", enablePocExecution: false })
+    const body = await response.json() as { capabilities: string[] }
+    expect(body).toMatchObject({ apiVersion: 1, judgeExecution: "unverified-only", enablePocExecution: false })
+    expect(body.capabilities).not.toContain("state-probe")
     expect(await fetch(new Request("http://localhost/v1/judge/runs", { method: "POST" })).then((r) => r.status)).toBe(401)
   })
 
@@ -124,6 +126,7 @@ describe("production runtime safety", () => {
     expect(first.runtime?.baseURL).toBe("https://api.openai.com/v1")
     expect(first.runtime?.baseURL).not.toMatch(/[?#@]/)
     expect(Object.isFrozen(first.runtime)).toBe(true)
+    expect(first.maxProbeRuns).toBe(0)
   })
 
   test("production security filter redacts established secret patterns without importing test helpers", async () => {

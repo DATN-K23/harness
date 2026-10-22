@@ -125,8 +125,9 @@ export class DockerFoundrySandbox implements SandboxPort {
   }
 
   async runStateProbe(input: StageInput & { probedTestFile: string }, signal?: AbortSignal): Promise<StateProbeResult> {
-    const result = await this.run(input, input.probedTestFile, "Probe.t.sol", signal)
-    return { ...result, stateDeltas: [] }
+    signal?.throwIfAborted()
+    // shortcut: no reviewed, claim-bound probe-output protocol exists; enable only after Task 9 binding review.
+    return { ...failed("setup_failed", "State probes are unavailable: no claim-bound state-delta protocol is approved"), stateDeltas: [] }
   }
 
   private async run(input: StageInput, testFile: string, testPath: string, signal?: AbortSignal): Promise<SandboxResult> {

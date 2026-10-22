@@ -220,6 +220,8 @@ Tasks 1–7 delivered a local API/worker path but not verdict-capable Judge. Con
 - [ ] Run benign and controlled hostile PoCs in disposable fixtures with no secrets/mounts/network; record output limits and cleanup.
 - [ ] Only then add a non-caller-controlled verified capability gate; never treat a caller-supplied boolean or readiness callback as proof.
 
+**Current status:** Docker Desktop 4.81.0 / Engine 29.6.1 on the observed macOS ARM64 client now has disposable control evidence for the exact image/compiler artifacts: network, bind/root read-only, UID/GID, caps/no-new-privileges, CPU/RAM/PIDs, 256 MiB scratch, timeout/cancellation/output-limit cleanup, plus benign and bounded assertion fixtures. See `docs/superpowers/decisions/2026-10-22-judge-macos-docker-desktop-task10.md` and the Task 10 report. This is one observed Desktop version, not proof for every supported macOS version. Policy remains deny-only and Task 9 has no claim-bound state evidence, so production remains disabled; do not mark Task 10 complete or enable runtime until version-support and claim-binding gates are separately resolved.
+
 ### Task 11: Finish production evidence and release gate
 
 **Files:**

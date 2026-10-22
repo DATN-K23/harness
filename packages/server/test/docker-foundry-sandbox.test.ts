@@ -23,6 +23,17 @@ describe("DockerFoundrySandbox", () => {
     expect(process).not.toHaveBeenCalled()
   })
 
+  test("refuses state probes rather than reporting an empty successful measurement", async () => {
+    const process = mock(async () => ({ exitCode: 0, stdout: "", stderr: "" }))
+    const sandbox = new DockerFoundrySandbox(process, new InMemorySnapshot({ snapshotId: "s", files: {} }), compiler, { enabled: true })
+
+    const result = await sandbox.runStateProbe({ runId: "r", snapshotId: "s", probedTestFile: "contract Probe { function testProbe() public {} }" })
+
+    expect(result).toMatchObject({ outcome: "setup_failed", stateDeltas: [] })
+    expect(result.trace).toContain("State probes are unavailable")
+    expect(process).not.toHaveBeenCalled()
+  })
+
   test("uses exact hardened Docker argv and maps assertion/setup/infra/timeout results", async () => {
     const run = async (result: { exitCode: number; stdout: string; stderr: string; timedOut?: boolean }) => {
       let calls = 0

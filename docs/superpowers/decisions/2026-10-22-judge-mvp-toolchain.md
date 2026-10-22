@@ -1,6 +1,6 @@
 # Judge MVP Solidity / Foundry Toolchain Decision
 
-**Status:** Bounded analysis profile selected; PoC runtime execution **BLOCKED** pending image/toolchain and isolation validation.
+**Status:** Bounded analysis profile selected; Linux ARM64 disposable-container execution verified for the documented offline toolchain. Production enablement remains **BLOCKED** pending macOS Docker Desktop isolation validation and reviewed PoC claim binding.
 **Date:** 2026-10-22
 
 ## Decision
@@ -18,7 +18,9 @@ Registry inspection returned the platform-specific ARM64 manifest digest:
 
 `ghcr.io/foundry-rs/foundry:stable@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c` (`linux/arm64`)
 
-The digest pins immutable content, but `stable` is only the lookup tag; the image was not pulled or inspected, so its Foundry/solc versions, image user, entrypoint, and suitability are not verified. Do not treat this as an approved executable production pin yet. Runtime remains blocked until an intentional image pull/inspection and reproducible compatibility check establish the contained versions and tool behavior.
+The digest pins immutable content. Inspected on Linux ARM64 Docker Engine 29.6.1: image user is `foundry` (UID 10001), Forge 1.5.1-stable (`b0a9dd9`), no bundled `solc` and no Node. The image is usable with separately mounted, verified offline compiler artifacts. Node v22.14.0 official Linux ARM64 archive SHA-256 is `08bfbf538bad0e8cbb0269f0173cca28d705874a67a22f60b57d99dc99e30050`; it was checked against Node's published `SHASUMS256.txt`. solc-js 0.8.30+commit.73712a01 and its lockfile-pinned dependencies were mounted read-only. A bounded wrapper reports the exact compiler version, ignores only Forge's `--allow-paths` pair (imports are staged within the immutable workspace), passes Standard JSON to solc-js and strips its non-JSON SMT notice. A benign Foundry test compiled and passed offline. This demonstrates Linux ARM64 compatibility only; assertion/setup/timeout/cancellation classification remains covered by adapter tests, while macOS daemon enforcement remains unverified.
+
+The adapter creates a per-run temporary workspace exclusively from `SourceSnapshotPort` reads plus the stitched test, then mounts source read-only and scratch writable. Docker argv uses the pinned image digest, network none, read-only root, UID 10001, cap-drop all, no-new-privileges, memory/CPU/PID limits, bounded tmpfs, and offline Forge mode. The implementation is opt-in and is not wired into production composition. Linux control behavior is not evidence for macOS Docker Desktop. The text policy remains deny-only and can never return `ok`; it is not a parser, assertion binder, or sandbox.
 
 Required controls before enabling runtime:
 

@@ -50,3 +50,10 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - Regression coverage includes OpenAI HTTP, OpenRouter HTTP, `?x=secret`, and `?auth=...`; these are rejected by the same production provider resolver used to construct `RealModelGateway`.
 - TDD red observed: focused runtime tests failed before the policy update.
 - Verification: focused server runtime tests pass; `bun run --cwd packages/server typecheck` passes; `bun turbo typecheck` passes all six packages; `bun turbo test` passes (880 tests, 0 failures). `git diff --check` passes. No provider/Postgres/Docker/Keychain services used.
+
+## Fix round 4 — validate endpoint before durable admission
+
+- `startProductionLocalServer` now resolves provider configuration before constructing `PostgresRunStore`, checking snapshots, or listening. Invalid URLs therefore cannot reach submission admission or become run configuration snapshots.
+- The single resolved provider config is reused for `RealModelGateway`; its normalized base URL is passed to `makeProductionJudgeConfig` and persisted. The OpenAI default URL is explicit. Config tests assert the runtime URL contains no query, fragment, or userinfo markers.
+- TDD: startup regression with an invalid query URL and invalid DB/snapshot prerequisites failed before implementation; it now rejects on URL credentials before opening those dependencies.
+- Verification: `bun test packages/server/test/production-runtime.test.ts` — 14 pass; `bun turbo typecheck` — all six packages pass. No live provider/Postgres/Docker/Keychain checks performed.

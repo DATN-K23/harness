@@ -84,3 +84,9 @@ Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compil
 - Require HTTPS for explicit OpenAI/OpenRouter base URLs and reject all query strings/fragments, including arbitrary keys such as `x` and `auth`, before gateway config construction.
 - TDD: new HTTP/query regression tests failed before change and pass after. Focused tests/typecheck and full `bun turbo typecheck` + `bun turbo test` pass (880/0); no live services contacted.
 - Report appended at `task-6-continuation-report.md`.
+
+### Task 6 fix round 4
+
+- Provider URL validation/normalization now happens before Postgres construction, snapshot checks, admission, or listener setup; the resolved config is reused for gateway and immutable runtime metadata.
+- Added startup regression proving invalid URL is rejected before other startup failures, and runtime snapshot asserts normalized credential-free URL.
+- Focused server tests (14 pass) and six-package typecheck pass. No live services used; detailed record in continuation report.

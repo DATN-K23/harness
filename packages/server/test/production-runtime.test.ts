@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider } from "../src/production-runtime"
+import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider, startProductionLocalServer } from "../src/production-runtime"
 import { ProductionSecurityFilter } from "@harness/core"
 import { startPollingWorker } from "../src/worker-lifecycle"
 import { startCheckedLocalServer } from "../src/production-startup"
@@ -69,7 +69,7 @@ describe("production runtime safety", () => {
       apiKey: "secret", model: "model", baseURL: "https://openrouter.ai/api/v1",
     })
     expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "secret", baseURL: "https://api.openai.com/v1" })).toThrow("provider-specific")
-    expect(resolveProductionProvider({ providerName: "openai", apiKey: "key" })).toEqual({ apiKey: "key", model: "model" })
+    expect(resolveProductionProvider({ providerName: "openai", apiKey: "key" })).toEqual({ apiKey: "key", model: "model", baseURL: "https://api.openai.com/v1" })
     expect(resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://api.openai.com/v1" }).baseURL).toBe("https://api.openai.com/v1")
     expect(() => resolveProductionProvider({ providerName: "openai", apiKey: "key", baseURL: "https://attacker.example/v1" })).toThrow("only api.openai.com")
   })
@@ -90,11 +90,20 @@ describe("production runtime safety", () => {
     expect(() => resolveProductionProvider({ providerName: "openrouter", apiKey: "key", baseURL: "http://openrouter.ai/api/v1" })).toThrow("HTTPS")
   })
 
+  test("invalid provider URL is rejected before startup can initialize dependencies", async () => {
+    await expect(startProductionLocalServer({
+      databaseUrl: "not-a-database-url", modelApiKey: "key", modelName: "model", providerName: "openai",
+      modelBaseUrl: "https://api.openai.com/v1?auth=secret", snapshotDir: "/missing", hostname: "127.0.0.1", port: 0,
+    })).rejects.toThrow("must not contain credentials")
+  })
+
   test("production run config records non-secret runtime settings and changes with them", () => {
     const first = makeProductionJudgeConfig({ providerName: "openai", modelName: "model", modelBaseUrl: "https://api.openai.com/v1" })
     const second = makeProductionJudgeConfig({ providerName: "openrouter", modelName: "model", modelBaseUrl: "https://router.example/v1" })
     expect(first.runtime).not.toEqual(second.runtime)
     expect(JSON.stringify(first)).not.toContain("ApiKey")
+    expect(first.runtime?.baseURL).toBe("https://api.openai.com/v1")
+    expect(first.runtime?.baseURL).not.toMatch(/[?#@]/)
     expect(Object.isFrozen(first.runtime)).toBe(true)
   })
 

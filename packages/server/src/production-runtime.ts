@@ -53,8 +53,9 @@ export const resolveProductionProvider = (input: { providerName: string; apiKey:
       throw new Error("OpenAI base URL must use only api.openai.com")
     if (input.providerName !== "openai" && parsed.hostname === "api.openai.com")
       throw new Error("third-party provider configuration requires a provider-specific OpenAI-compatible base URL")
+    return { apiKey: input.apiKey, model: input.model ?? "model", baseURL: parsed.toString() }
   }
-  return { apiKey: input.apiKey, model: input.model ?? "model", ...(input.providerName !== "openai" || input.baseURL ? { baseURL: input.baseURL } : {}) }
+  return { apiKey: input.apiKey, model: input.model ?? "model", baseURL: "https://api.openai.com/v1" }
 }
 
 export const makeProductionJudgeConfig = (runtime: {
@@ -142,10 +143,9 @@ export const startProductionLocalServer = async (options: {
     throw new Error("Database and model configuration are required")
   if (!["openai", "openrouter"].includes(options.providerName))
     throw new Error("Unsupported model provider")
-  if (options.modelBaseUrl) {
-    const baseUrl = new URL(options.modelBaseUrl)
-    if (baseUrl.username || baseUrl.password) throw new Error("Model base URL must not contain credentials")
-  }
+  const providerConfig = resolveProductionProvider({ providerName: options.providerName, apiKey: options.modelApiKey,
+    model: options.modelName, baseURL: options.modelBaseUrl })
+  const validatedOptions = { ...options, modelBaseUrl: providerConfig.baseURL }
   const store = new PostgresRunStore({ url: options.databaseUrl })
   try {
     const snapshotRoot = await realpath(options.snapshotDir)
@@ -154,7 +154,7 @@ export const startProductionLocalServer = async (options: {
       async pingDatabase() { await store.client.sql`select 1` },
       getCredential: () => createKeychainCredentialProvider().getOrCreate(),
       listen(hostname, port, _fetch, credential) {
-        const config = makeProductionJudgeConfig(options)
+        const config = makeProductionJudgeConfig(validatedOptions)
         const ids = createIdGenerator(systemIdSources)
         const runtime = createJudgeRuntime({
           store,
@@ -165,8 +165,7 @@ export const startProductionLocalServer = async (options: {
             const run = await store.loadRun(runId)
             if (!run?.snapshotId) throw new Error("admitted Judge snapshot is missing")
             const snapshot: SourceSnapshotPort = new ProductionSnapshotResolver(snapshotRoot)
-            const gateway = new RealModelGateway({ ...resolveProductionProvider({ providerName: options.providerName,
-              apiKey: options.modelApiKey, model: options.modelName, baseURL: options.modelBaseUrl }),
+            const gateway = new RealModelGateway({ ...providerConfig,
               timeoutMs: options.modelTimeoutMs, secrets: [options.modelApiKey], inputCostPerMTok: options.modelInputCostPerMTok,
               outputCostPerMTok: options.modelOutputCostPerMTok })
             return { gateway, contextEngine: new ProductionContextEngine(createO200kTokenizer()), snapshot,

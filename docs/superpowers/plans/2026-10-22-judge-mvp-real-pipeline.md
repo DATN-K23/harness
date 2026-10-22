@@ -254,7 +254,8 @@ Tasks 1–7 delivered a local API/worker path but not verdict-capable Judge. Con
 - Consumes: Tasks 8–10 capability gates and actual `startProductionLocalServer` composition.
 - Produces: verified local user flow and evidence-based release state; live integration gates fail, not skip, once explicitly opted in.
 
-- [x] Run the guarded Postgres E2E only against a dedicated disposable database; require `HARNESS_POSTGRES_E2E_DEDICATED=1`, reject equality with `DATABASE_URL`, never fall back to `DATABASE_URL`, and do not clean unrelated tables.
+- [x] Guard the opt-in Postgres E2E: require `HARNESS_POSTGRES_E2E_DEDICATED=1`, reject matching normalized PostgreSQL host/port/database/user identities against `DATABASE_URL`, never fall back to `DATABASE_URL`, and do not clean unrelated tables. The acknowledgement is the operator's responsibility; software cannot prove a target is disposable.
 - [x] Exercise actual Bun listener + test-only Keychain seam + HTTP admission + worker + persisted UNVERIFIED + query/event/cancel polling. The automated seam must not touch macOS Keychain; the real Keychain flow remains the manual smoke-test boundary.
-- [x] Prove unsupported input never calls the provider via a no-call gateway seam; no production secret or controlled external endpoint is needed because BCE completes UNVERIFIED before model execution.
+- [x] Cover the unsupported-input no-call assertion via a no-call gateway seam; this does not test provider routing.
+- [ ] Release gate: exercise provider routing against a controlled test endpoint and verify the configured provider/model/base URL reaches the intended endpoint without production credentials.
 - [x] Run full Bun/Turbo/Swift/diff gates and report any unrun live platform gate as release-blocking. The dedicated listener E2E passed; live provider/Keychain, all-supported-version Docker certification, and verdict-producing gates remain release blockers.

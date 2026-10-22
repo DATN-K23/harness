@@ -35,6 +35,18 @@ test("PostgreSQL E2E opt-in rejects shared DATABASE_URL targets", () => {
   expect(() => assertDedicatedPostgresTarget(env)).toThrow("must not equal DATABASE_URL")
 })
 
+test.each([
+  ["postgres://user:one@db.example.test/app", "postgresql://user:two@db.example.test:5432/app?sslmode=require"],
+  ["postgres://user:one@db.example.test/app", "postgres://user:two@DB.EXAMPLE.TEST:5432/app?application_name=other"],
+])("PostgreSQL E2E rejects equivalent target identities (%s vs %s)", (runtimeUrl, e2eUrl) => {
+  expect(() => assertDedicatedPostgresTarget({
+    HARNESS_POSTGRES_E2E: "1",
+    HARNESS_POSTGRES_E2E_DEDICATED: "1",
+    HARNESS_POSTGRES_E2E_DATABASE_URL: e2eUrl,
+    DATABASE_URL: runtimeUrl,
+  })).toThrow("must not equal DATABASE_URL")
+})
+
 test("PostgreSQL E2E opt-in requires dedicated disposable database acknowledgement", () => {
   expect(() => assertDedicatedPostgresTarget({ HARNESS_POSTGRES_E2E: "1", HARNESS_POSTGRES_E2E_DATABASE_URL: "postgres://dedicated/db" }))
     .toThrow("HARNESS_POSTGRES_E2E_DEDICATED=1")
@@ -54,8 +66,31 @@ test("PostgreSQL reachability probe closes its store when the query fails", asyn
 export function assertDedicatedPostgresTarget(env: Record<string, string | undefined>) {
   if (env.HARNESS_POSTGRES_E2E !== "1") return
   if (!env.HARNESS_POSTGRES_E2E_DATABASE_URL) throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is required when HARNESS_POSTGRES_E2E=1; DATABASE_URL is never used")
-  if (env.HARNESS_POSTGRES_E2E_DATABASE_URL === env.DATABASE_URL) throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL must not equal DATABASE_URL")
-  if (!env.HARNESS_POSTGRES_E2E_DEDICATED || env.HARNESS_POSTGRES_E2E_DEDICATED !== "1") throw new Error("HARNESS_POSTGRES_E2E_DEDICATED=1 is required to confirm the database is disposable and dedicated")
+  if (env.DATABASE_URL && samePostgresTarget(env.HARNESS_POSTGRES_E2E_DATABASE_URL, env.DATABASE_URL)) {
+    throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL must not equal DATABASE_URL target identity")
+  }
+  if (env.HARNESS_POSTGRES_E2E_DEDICATED !== "1") {
+    throw new Error("HARNESS_POSTGRES_E2E_DEDICATED=1 is required; the operator must confirm this is a dedicated disposable database (software cannot prove disposability)")
+  }
+}
+
+function samePostgresTarget(left: string, right: string): boolean {
+  const identity = (value: string) => {
+    try {
+      const url = new URL(value)
+      if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return undefined
+      return JSON.stringify([
+        url.hostname.toLowerCase(),
+        url.port || "5432",
+        decodeURIComponent(url.pathname.slice(1)),
+        decodeURIComponent(url.username),
+      ])
+    } catch {
+      return undefined
+    }
+  }
+  const leftIdentity = identity(left)
+  return leftIdentity !== undefined && leftIdentity === identity(right)
 }
 
 assertDedicatedPostgresTarget(process.env)

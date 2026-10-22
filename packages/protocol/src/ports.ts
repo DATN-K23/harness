@@ -1,5 +1,6 @@
 import type { RunState, TrajectoryEvent } from "./events"
 import type { TerminalReason } from "./stop-conditions"
+import { z } from "zod"
 
 // Every type in this file that the agent can see (findings, tool results, stage results, snapshot reads)
 // is free of labels, ground truth, adjudication reports and scores; scorer data never crosses these ports.
@@ -56,6 +57,35 @@ export interface BceSlice {
   content: string
   lineRange?: [number, number]
 }
+
+export const StaticClaimPredicateSchema = z.strictObject({
+  kind: z.literal("unauthorized_state_write"),
+  contractName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
+  functionName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
+  stateVariable: z.string().regex(/^[A-Za-z_$][\w$]*$/),
+})
+export type StaticClaimPredicate = z.infer<typeof StaticClaimPredicateSchema>
+
+const StaticBceSliceSchema = z.strictObject({
+  filePath: z.string().min(1).refine((path) => !path.startsWith("/") && !path.split("/").includes("..")),
+  content: z.string(),
+  lineRange: z.tuple([z.number().int().positive(), z.number().int().positive()]).optional(),
+})
+
+export const StaticVerificationResultSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("verified"),
+    predicate: StaticClaimPredicateSchema,
+    truth: z.enum(["true", "false"]),
+    profileId: z.literal("solidity-unauthorized-state-write-v1"),
+    evidence: z.array(StaticBceSliceSchema).min(1).max(16),
+  }),
+  z.strictObject({
+    kind: z.literal("incomplete"),
+    reason: z.enum(["unsupported_syntax", "ambiguous_target", "source_incomplete", "compiler_error", "unsupported_profile"]),
+  }),
+])
+export type StaticVerificationResult = z.infer<typeof StaticVerificationResultSchema>
 
 export interface DeconstructedClaim {
   targetContracts: string[]

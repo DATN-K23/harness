@@ -64,3 +64,10 @@ The local `cli:serve` path now composes a real authenticated Judge API and polli
 - The production startup keeps its public options fixed, while an internal-only operations seam now makes ordering observable in the focused test without caller-controlled readiness callbacks.
 - TDD: the new malformed URL test initially failed because the internal preflight seam did not exist. It covers query (`?auth=`), plain HTTP, and credential-bearing URL forms. Each rejects with PostgreSQL construction, snapshot-root resolution, Keychain/startup orchestration, and listener counters still zero.
 - Verification: `bun test packages/server/test/production-runtime.test.ts` — 15 pass; `bun run --cwd packages/server typecheck` — passed. No live services were contacted.
+
+## Fresh tracking verification — 2026-10-22
+
+- Task 6 lifecycle coverage is present for local binding/startup, worker polling and recovery/shutdown, and health compatibility. It does not start a live listener or exercise the macOS Keychain; those remain unverified end-to-end.
+- The guarded PostgreSQL integration test exists at `packages/server/test/postgres-judge-runtime.test.ts` and covers API handler → Postgres → worker → real `JudgeRunner`. It was not run because `HARNESS_POSTGRES_E2E` was absent; with both opt-in variables unset, `env -u HARNESS_POSTGRES_E2E -u HARNESS_POSTGRES_E2E_DATABASE_URL bun test packages/server/test/postgres-judge-runtime.test.ts` reports 1 skipped. It must not be described as unavailable or unimplemented.
+- Fresh verification: `bun turbo typecheck` — 6 packages successful; `bun turbo test` — 880 pass, 0 fail across 62 files; `swiftc -typecheck packages/server/native/keychain-credential.swift` — passed; `git diff --check` — passed. No live PostgreSQL, Docker, Keychain, or live-model integration was run.
+- Release remains blocked: BCE is incomplete, PoC policy is deny-only, macOS sandbox is unvalidated, and production PostgreSQL/Keychain/live-model integrations have not run.

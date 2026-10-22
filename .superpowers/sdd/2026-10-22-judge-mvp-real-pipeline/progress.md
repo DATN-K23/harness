@@ -95,3 +95,10 @@ Plan execution stopped with release criteria NOT MET. Rulings: (1) Task 1 compil
 
 - Added an internal production-startup operations seam solely to prove ordering, without adding caller-controlled public readiness callbacks. Query, HTTP, and userinfo provider URLs each reject before Postgres store construction, snapshot access, Keychain/startup orchestration, or listener invocation (all counters zero).
 - TDD red observed before the seam; focused production-runtime test passes 15/15 and server typecheck passes. No live services were used; detailed evidence is in `task-6-continuation-report.md`.
+
+### Task 6/7 continuation tracking correction — 2026-10-22
+
+- Task 6 lifecycle tests cover local binding/startup, worker polling and recovery/shutdown, and health compatibility. They do not exercise a live listener or macOS Keychain; readiness/preflight tests are not live integrations.
+- Task 7 has a guarded `packages/server/test/postgres-judge-runtime.test.ts` (API handler → Postgres → worker → real JudgeRunner). It was not run: `HARNESS_POSTGRES_E2E` was absent. Fresh check with both opt-in variables unset: `env -u HARNESS_POSTGRES_E2E -u HARNESS_POSTGRES_E2E_DATABASE_URL bun test packages/server/test/postgres-judge-runtime.test.ts` → 1 skipped. Do not describe PostgreSQL integration as unavailable or unimplemented.
+- Fresh verification: `bun turbo typecheck` → 6 packages successful; `bun turbo test` → 880 pass, 0 fail across 62 files; `swiftc -typecheck packages/server/native/keychain-credential.swift` and `git diff --check` passed. No live PostgreSQL, Docker, Keychain, or live-model integration was run.
+- Release remains blocked: BCE incomplete, policy deny-only, macOS sandbox unvalidated, and production PostgreSQL/Keychain/live-model integrations not run. No full MVP/production claim.

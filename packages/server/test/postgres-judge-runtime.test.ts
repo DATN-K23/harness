@@ -14,16 +14,32 @@ import { makeProductionJudgeConfig } from "../src/production-runtime"
 const testDatabaseUrl = process.env.HARNESS_POSTGRES_E2E_DATABASE_URL
 const enabled = process.env.HARNESS_POSTGRES_E2E === "1"
 
-const checkPostgresReachable = async (url: string): Promise<boolean> => {
+const checkPostgresReachable = async (
+  url: string,
+  createStore: (url: string) => PostgresRunStore = (url) => new PostgresRunStore({ url }),
+): Promise<boolean> => {
+  let store: PostgresRunStore | undefined
   try {
-    const store = new PostgresRunStore({ url })
+    store = createStore(url)
     await store.client.sql`SELECT 1`
-    await store.close()
     return true
   } catch {
     return false
+  } finally {
+    await store?.close().catch(() => {})
   }
 }
+
+test("PostgreSQL reachability probe closes its store when the query fails", async () => {
+  let closed = false
+  const store = {
+    client: { sql: async () => { throw new Error("query failed") } },
+    close: async () => { closed = true },
+  } as unknown as PostgresRunStore
+
+  expect(await checkPostgresReachable("postgres://unused", () => store)).toBe(false)
+  expect(closed).toBe(true)
+})
 
 if (enabled && !testDatabaseUrl) {
   throw new Error("HARNESS_POSTGRES_E2E_DATABASE_URL is required when HARNESS_POSTGRES_E2E=1; DATABASE_URL is never used")

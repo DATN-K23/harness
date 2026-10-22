@@ -365,6 +365,13 @@ describe("payload content rules", () => {
     })
   })
 
+  test("rejects normalized ground-truth label and scoring metadata variants at nested depths", () => {
+    for (const key of ["scoringMetadata", "groundTruthLabel"]) {
+      const payload = { nested: [{ deeper: { [key]: "positive" } }] }
+      expect(failure(event({ type: "run.accepted", payload }))[0].path).toEqual(["payload", "nested", 0, "deeper", key])
+    }
+  })
+
   test("rejects the credential key family in a system-authored payload", () => {
     const keys = [
       "token",

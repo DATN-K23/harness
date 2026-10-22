@@ -103,11 +103,13 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     await expectFastReject(world, w, await w.start(), "MISSING_POC")
   })
 
-  test("malformed report deconstruction is inconclusive, not an invalid verdict", async () => {
+  test.each(["malformed fenced JSON", "prohibited metadata"])("%s completes unverified without provider or sandbox calls", async () => {
     const world = createWorld()
     const w = world.worker({ ingestion: { kind: "invalid_report" } })
-    expect(await w.start()).toMatchObject({ kind: "committed", state: "failed", terminalReason: "worker_interrupted" })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(w.gateway.callCount).toBe(0)
+    expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
+    expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
 
   test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, sandbox never called", async () => {

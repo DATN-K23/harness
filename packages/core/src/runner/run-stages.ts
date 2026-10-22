@@ -129,7 +129,12 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     }
     return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
   }
-  if (ingested.kind === "invalid_report") return end({ state: "failed", reason: "worker_interrupted", message: "report deconstruction failed" })
+  if (ingested.kind === "invalid_report") return { kind: "ended", terminal: { state: "completed", verdict: {
+    runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
+    reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The submitted report could not be safely interpreted.",
+    reasoning: "Report input was malformed or contained prohibited metadata, so no provider or sandbox evaluation was attempted.",
+    citesEvidence: [],
+  } } }
   if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
   if (!input.config.enablePocExecution)
     return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }

@@ -132,7 +132,7 @@
 
 ### Task 9: End-to-end integration and release gates
 
-- [x] **9.1 RED/GREEN (deterministic integration):** Server E2E test submits through HTTP, admits through the persistent-store contract, publishes stable ID, claims worker, runs actual `JudgeRunner`, then retrieves completed run. Current test uses InMemoryRunStore to keep deterministic/offline; production Postgres tested separately.
+- [x] **9.1 RED/GREEN (deterministic integration):** Server E2E test submits through HTTP, admits through the persistent-store contract, publishes stable ID, claims worker, runs actual `JudgeRunner`, then retrieves its model-only `UNVERIFIED` conclusion. Current test uses InMemoryRunStore and scripted stage ports to keep deterministic/offline; PostgreSQL persistence is tested separately. This does not prove production ingestion, sanitization or sandbox execution.
 - [x] **9.2 RED/GREEN (Postgres integration):** `checkPostgresReachable` guarded store tests cover migrations, atomic admission/rollback, concurrent idempotency, terminal commit rollback, cancellation, claims and event ordering; tests skip gracefully without Postgres.
 - [x] **9.3 VERIFY:** `bunx turbo typecheck` and `bunx turbo test` exit 0; Swift Keychain helper `swiftc -typecheck` exits 0.
 - [x] **9.4 DOC:** Added `packages/server/README.md` with Keychain prerequisites, fail-closed behavior, API auth/payloads, runtime composition contract and remaining deployment supervision/health-handshake work. Timeline status intentionally unchanged because turnkey product startup is not yet delivered.
@@ -145,7 +145,7 @@ Use the plan-specific workspace under `.superpowers/sdd/2026-10-21-sprint-09-jud
 
 - All acceptance requirements A1–A5 map to task groups 1–8; durable handoff/recovery is explicit, not an in-process shortcut.
 - Security, persistence, API, worker, cancellation and terminal concerns are separate task groups with tests owned by their package.
-- Remaining delivery gap is ongoing worker supervision/outbox polling and production provider/source/runtime dependency configuration.
+- Remaining delivery gap is a turnkey production composition: production implementations of `IngestionPort`, `SanitizerPort`, and `SandboxPort` are absent, as are a real Judge server process composition and durable source/provider configuration. `startJudgeServer` now supports supervised polling, but deployments still must supply the dependency graph.
 - Tests cover prohibited payloads, snapshot failures, idempotency conflicts/concurrency, outbox crash windows, ambiguous paid attempt, public bind/auth failures, cursor tampering/cross-run access, cancellation races, unverified verdicts and atomic terminal commit.
 
-**Current implementation limits:** `startJudgeServer` composes Keychain credential, authenticated loopback listener and injected runtime. `createJudgeRuntime` wires API/outbox worker/actual JudgeRunner factory. A production bootstrap still must supply real PostgreSQL/source/provider dependencies and keep invoking worker `runOnce` under a supervised lifecycle; full daemon process packaging/continuous outbox polling is not supplied by this package and is not yet tested end-to-end.
+**Current implementation limits:** `startJudgeServer` composes Keychain credential, authenticated loopback listener and injected runtime, and can poll the worker until stopped. `createJudgeRuntime` wires API/outbox worker/actual JudgeRunner factory. A production bootstrap still must supply real PostgreSQL/source/provider dependencies and production ingestion, sanitizer and sandbox adapters. The E2E runner test uses scripted stage ports and demonstrates the API/runtime path, not a production-grade smart-contract adjudication.

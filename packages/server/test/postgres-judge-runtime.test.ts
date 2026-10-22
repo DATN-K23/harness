@@ -62,6 +62,11 @@ test("PostgreSQL E2E opt-in rejects the same database reached through another ro
     .toBe(true)
 })
 
+test("PostgreSQL E2E treats localhost and IPv4 loopback as the same target across roles", () => {
+  expect(samePostgresTarget("postgres://test_role:one@localhost:5432/db", "postgresql://app_role:two@127.0.0.1:5432/db"))
+    .toBe(true)
+})
+
 test("PostgreSQL reachability probe closes its store when the query fails", async () => {
   let closed = false
   const store = {
@@ -89,8 +94,10 @@ function samePostgresTarget(left: string, right: string): boolean {
     try {
       const url = new URL(value)
       if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return undefined
+      const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "")
+      const normalizedHostname = ["localhost", "127.0.0.1", "::1"].includes(hostname) ? "loopback" : hostname
       return JSON.stringify([
-        url.hostname.toLowerCase(),
+        normalizedHostname,
         url.port || "5432",
         decodeURIComponent(url.pathname.slice(1)),
       ])

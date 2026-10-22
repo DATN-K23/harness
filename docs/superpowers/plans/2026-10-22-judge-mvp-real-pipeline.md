@@ -170,3 +170,67 @@
 ## Completion criteria
 
 The MVP is complete only when all seven tasks pass, the local production composition runs with real PostgreSQL/model/snapshot/Foundry-Docker dependencies, and the E2E tests prove both input types without scripted production adapters. If the platform cannot prove sandbox isolation, runtime PoC execution is explicitly not complete; the release must be labeled static-only/inconclusive rather than a full Judge MVP.
+
+## Continuation: resolve remaining release gates
+
+Tasks 1–7 delivered a local API/worker path but not verdict-capable Judge. Continue with these follow-on tasks in order; each requires TDD and a scoped review.
+
+### Task 8: Establish a bounded static evidence profile
+
+**Files:**
+- Modify: `packages/core/src/ingestion/snapshot-ingestion.ts`, `packages/core/src/runner/run-stages.ts`, `packages/core/src/runner/judge-step.ts`.
+- Modify: `packages/protocol/src/ports.ts` only if explicit BCE completeness/evidence provenance is needed.
+- Test: `packages/core/test/ingestion/*`, `packages/core/test/runner/*`, `packages/core/test/judge/*`.
+
+**Interfaces:**
+- Consumes: solc-js 0.8.30 Standard JSON AST slices and `SourceSnapshotPort`.
+- Produces: explicit complete-for-profile or incomplete BCE status, tied to narrowly stated supported Solidity subset; no soundness/completeness claim outside that subset.
+
+- [x] Investigate whether bounded solc AST slices can support a genuinely complete-for-profile verdict without inferring claim semantics from model consensus.
+- [x] Decision: no static PASS profile is defensible with the present claim format/verifier; retain incomplete BCE and `UNVERIFIED`. See `docs/superpowers/decisions/2026-10-22-judge-static-profile-no-go.md`.
+- [x] Record exact limitation and revisit criteria; no profile was introduced, so no R1 telemetry option was added.
+- [x] Run focused ingestion tests and `git diff --check` (16 tests passed; diff check clean).
+
+### Task 9: Produce claim-bound state deltas or explicitly disable state probing
+
+**Files:**
+- Modify: `packages/server/src/docker-foundry-sandbox.ts`, production PoC policy only after review; protocol result only if current type cannot express evidence.
+- Test: `packages/server/test/docker-foundry-sandbox.test.ts`, `packages/core/test/judge/adjudication-step.test.ts`.
+
+**Interfaces:**
+- Consumes: isolated Foundry output from Task 5 and a claim state expression.
+- Produces: parsed, bounded, sanitized state deltas bound to the exact claim; otherwise the probe is unavailable and cannot contribute verdict evidence.
+
+- [ ] Add tests showing exact state before/after output is parsed, unrelated values are rejected, malformed/duplicate/missing values are inconclusive, and output size/count is bounded.
+- [ ] Prove the generated probe tests the real target implementation and cannot mock/redeploy/replace it before enabling any probe path.
+- [x] Claim binding cannot be established: `maxProbeRuns=0`, health/config do not advertise state-probe capability, and direct sandbox probes fail closed. See `docs/superpowers/decisions/2026-10-22-judge-state-probe-no-go.md`.
+
+### Task 10: Gate production PoC execution by verified platform capability
+
+**Files:**
+- Modify: `packages/server/src/production-runtime.ts`, `packages/server/src/docker-foundry-sandbox.ts`, `packages/server/test/*`, operations docs.
+- Test: opt-in disposable Docker/Foundry tests and a supported-macOS readiness test.
+
+**Interfaces:**
+- Consumes: pinned image/compiler artifacts, Task 5 sandbox adapter, Task 9 claim-bound evidence, explicit platform verification record.
+- Produces: no production enablement unless the actual target platform passes the security controls below; otherwise runtime remains hard-disabled.
+
+- [ ] Verify image/compiler compatibility and record exact digests/checksums.
+- [ ] On every supported macOS Docker Desktop version, verify `network=none`, host mount/file-sharing boundary, read-only snapshot/root, uid/gid, caps, no-new-privileges, memory/CPU/PIDs, scratch quota, timeout/cancellation/kill, and cleanup.
+- [ ] Run benign and controlled hostile PoCs in disposable fixtures with no secrets/mounts/network; record output limits and cleanup.
+- [ ] Only then add a non-caller-controlled verified capability gate; never treat a caller-supplied boolean or readiness callback as proof.
+
+### Task 11: Finish production evidence and release gate
+
+**Files:**
+- Modify: `packages/server/test/postgres-judge-runtime.test.ts`, server/API integration tests, README and plan tracking.
+- Test: dedicated `HARNESS_POSTGRES_E2E=1` plus `HARNESS_POSTGRES_E2E_DATABASE_URL`, isolated provider test endpoint if available, opt-in Docker integration.
+
+**Interfaces:**
+- Consumes: Tasks 8–10 capability gates and actual `startProductionLocalServer` composition.
+- Produces: verified local user flow and evidence-based release state; live integration gates fail, not skip, once explicitly opted in.
+
+- [ ] Run the guarded Postgres E2E only against a dedicated disposable database; never fall back to `DATABASE_URL` and do not clean unrelated tables.
+- [ ] Exercise actual Bun listener + Keychain + HTTP admission + worker + persisted UNVERIFIED or eligible verdict + query/event polling.
+- [ ] Test provider routing with a controlled test endpoint; never use production secrets in fixtures/log assertions.
+- [ ] Run full Bun/Turbo/Swift/diff gates and report any unrun live platform gate as release-blocking.

@@ -57,6 +57,11 @@ test("PostgreSQL E2E opt-in requires dedicated disposable database acknowledgeme
     .toThrow("HARNESS_POSTGRES_E2E_DEDICATED=1")
 })
 
+test("PostgreSQL E2E opt-in rejects the same database reached through another role", () => {
+  expect(samePostgresTarget("postgres://test_role:one@localhost/db?sslmode=disable", "postgresql://app_role:two@LOCALHOST:5432/db"))
+    .toBe(true)
+})
+
 test("PostgreSQL reachability probe closes its store when the query fails", async () => {
   let closed = false
   const store = {
@@ -88,7 +93,6 @@ function samePostgresTarget(left: string, right: string): boolean {
         url.hostname.toLowerCase(),
         url.port || "5432",
         decodeURIComponent(url.pathname.slice(1)),
-        decodeURIComponent(url.username),
       ])
     } catch {
       return undefined

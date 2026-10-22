@@ -52,10 +52,13 @@ HARNESS_LOCAL_API_TOKEN="$("$KEYCHAIN_HELPER" get com.harness.local-api installa
 Never enable shell tracing (`set -x`) while using this variable. From terminal B, send a narrative-only request (no PoC) with a unique idempotency key. The `curl` output is the run response, not a secret; avoid verbose/debug flags:
 
 ```sh
-curl -sS -H "Authorization: Bearer $HARNESS_LOCAL_API_TOKEN" \
-  -H 'Idempotency-Key: manual-judge-001' -H 'content-type: application/json' \
-  -d '{"finding":{"findingId":"manual-001","reportMarkdown":"Target: Vault.withdraw\nRoot cause: candidate ordering issue\nAttack scenario: an untrusted caller invokes withdraw\nImpact: claimed balance change\nState: balances[caller]"},"snapshotId":"<OPAQUE_SNAPSHOT_ID>"}' \
-  "http://127.0.0.1:${HARNESS_PORT:-4318}/v1/judge/runs"
+curl -sS --config - <<CURL_CONFIG
+header = "Authorization: Bearer $HARNESS_LOCAL_API_TOKEN"
+header = "Idempotency-Key: manual-judge-001"
+header = "content-type: application/json"
+data = "{\"finding\":{\"findingId\":\"manual-001\",\"reportMarkdown\":\"Target: Vault.withdraw\\nRoot cause: candidate ordering issue\\nAttack scenario: an untrusted caller invokes withdraw\\nImpact: claimed balance change\\nState: balances[caller]\"},\"snapshotId\":\"<OPAQUE_SNAPSHOT_ID>\"}"
+url = "http://127.0.0.1:${HARNESS_PORT:-4318}/v1/judge/runs"
+CURL_CONFIG
 ```
 
 5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and Keychain credential. The expected verdict is `UNVERIFIED` (currently `UNRESOLVED`), because semantic BCE is incomplete; the service does not confirm or refute the finding. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.

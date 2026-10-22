@@ -29,7 +29,7 @@ describe("demo", () => {
     expect(rows[0].tokens).toBeGreaterThan(0)
   })
 
-  test("missing PoC is rejected before model calls; disabled PoC cases do not reach sanitizer or sandbox", () => {
+  test("missing, cheating and failing PoC scenarios have the expected row reasons", () => {
     expect(rows.slice(1, 4).map((row) => row.reason)).toEqual(["MISSING_POC", "provider_permanent", "provider_permanent"])
   })
 

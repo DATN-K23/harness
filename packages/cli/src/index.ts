@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
@@ -18,6 +18,7 @@ import { executeRepoAddCommand } from "./commands/repo"
 import { executeRunCommand } from "./commands/run"
 import { executeSnapshotListCommand } from "./commands/snapshot"
 import { executeViewCommand } from "./commands/view"
+import { createJudgeLiveTrace } from "./judge-live-trace"
 import { redactSecrets } from "./redaction"
 import { startProductionLocalServer } from "../../server/src/production-runtime"
 import { waitForServerShutdown } from "./server-lifecycle"
@@ -66,6 +67,7 @@ Options:
   --json                      Print a multi-turn run summary as JSON
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
+  --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
   -h, --help                  Show this help message
 `
 
@@ -81,6 +83,7 @@ export interface CliParsedArgs {
   id?: string
   mock?: boolean
   noClaimExtraction?: boolean
+  noLive?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -119,6 +122,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       id: { type: "string" },
       mock: { type: "boolean" },
       "no-claim-extraction": { type: "boolean" },
+      "no-live": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -148,6 +152,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     id: asString(values.id),
     mock: Boolean(values.mock),
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
+    noLive: Boolean(values["no-live"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -504,7 +509,14 @@ async function runCommand(
           ])
         }
 
+        // Each persisted event is printed as it happens, so a person can see whether the model handles the case well.
+        const bus = new EventBus()
+        if (!parsed.noLive) {
+          const trace = createJudgeLiveTrace()
+          bus.subscribe((event) => trace(event).forEach((line) => stdout(line)), { runId })
+        }
         const runner = new JudgeRunner({
+          bus,
           store,
           gateway: judgeGateway,
           tools: registry,

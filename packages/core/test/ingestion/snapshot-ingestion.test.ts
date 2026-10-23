@@ -84,6 +84,25 @@ describe("SnapshotIngestion", () => {
     expect(result).toEqual({ kind: "invalid_report" })
   })
 
+  test.each([
+    "Ground Truth: valid",
+    "groundTruthLabel: vulnerable",
+    '"score": 9',
+    "- Adjudication: confirmed",
+    "label: true positive",
+  ])("rejects prose metadata key %p", async (line) => {
+    const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n${line}`) })
+    expect(result).toEqual({ kind: "invalid_report" })
+  })
+
+  test.each([
+    "The fix omits Admin, Guardian, and Labeled Roles from _rolesSet in AccessManager: roles stay stale.",
+    "executeRoleUpdates guards label processing with if (bytes(update.label).length > 0): empty labels are skipped.",
+  ])("keeps a report whose prose merely mentions labels: %p", async (line) => {
+    const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n${line}`) })
+    expect(result.kind).not.toBe("invalid_report")
+  })
+
   test("rejects oversized reports before reading the snapshot", async () => {
     const source = snapshot()
     const result = await new SnapshotIngestion({ source, maxReportBytes: 32 }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })

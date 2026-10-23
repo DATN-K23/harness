@@ -8,6 +8,9 @@ const MaxBceSlices = 16
 const MaxSourceFiles = 128
 const SolcVersion = "0.8.30+commit.73712a01"
 const prohibitedKey = /(?:ground.?truth|adjudication|scor(?:e|ing)|label)/i
+// A metadata key in prose: one key token (no spaces, except "ground truth") right before a colon. Prose such as
+// "Labeled Roles from _rolesSet ...: " or "guards label processing ...:" is report content, not metadata.
+const prohibitedProseKey = /(?:^|[\s"'`{,])["'`]?[\w-]*(?:ground.?truth|adjudication|scor(?:e|ing)|label)[\w-]*["'`]?\s*:/im
 const fields = ["Target", "Root cause", "Attack scenario", "Impact", "State"] as const
 
 const hasProhibitedKey = (value: unknown): boolean => {
@@ -45,7 +48,7 @@ export class SnapshotIngestion implements IngestionPort {
       const jsonBlocks = [...reportMarkdown.matchAll(/```json\s*\n([\s\S]*?)```/gi)].map((match) => match[1]!)
       if (jsonBlocks.some((block) => hasProhibitedKey(JSON.parse(block)))) return { kind: "invalid_report" }
       const prose = reportMarkdown.replace(/```(?:json|solidity|sol|forge)?[^\n]*\n[\s\S]*?```/gi, "")
-      if (/(?:["'`]?(?:ground.?truth|adjudication|scor(?:e|ing)|label)[\w -]*["'`]?)\s*:/i.test(prose)) return { kind: "invalid_report" }
+      if (prohibitedProseKey.test(prose)) return { kind: "invalid_report" }
     } catch { return { kind: "invalid_report" } }
     const pocCode = /```(?:solidity|sol|forge)?\s*\n([\s\S]*?)```/i.exec(reportMarkdown)?.[1]?.trim()
     const prose = reportMarkdown.replace(/```[^\n]*\n[\s\S]*?```/gi, "")

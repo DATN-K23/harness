@@ -1,4 +1,5 @@
-import type { TrajectoryEvent } from "@harness/protocol"
+import { createEvidenceTracker, type EvidenceNovelty } from "@harness/core"
+import type { ContextItem, TrajectoryEvent } from "@harness/protocol"
 
 /** Longest model text or tool argument shown on one line; the full text stays in the persisted events. */
 const MaxShownChars = 240
@@ -10,28 +11,19 @@ const oneLine = (text: string, max = MaxShownChars) => {
 
 const tokens = (count: number) => (count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count))
 
+const novelty = (added: EvidenceNovelty) =>
+  added.kind === "lines" ? (added.newLines > 0 ? `${added.newLines} new lines` : "nothing new") : added.isNew ? "new" : "nothing new"
+
 const harnessMarkers = /^(Verification direction: \w+|Bidirectional (forward|backward) result: .*|Bidirectional consensus: .*)$/m
 
 /**
  * Turns the events of a live Judge run into short human-readable lines, one or more per event, so a person can follow
- * each step while the run is going: the model call, the tools it asks for, what each read returns (and whether it
- * added lines not read before), the model's own words, the direction results, the consensus and the verdict.
- * Stateful: it remembers the file lines already read to mark re-reads.
+ * each step while the run is going: the model call, the tools it asks for, what each read or search returns (and
+ * whether it added lines not seen before, counted as the evidence-saturation rule counts them), the model's own words,
+ * the direction results, the consensus and the verdict. Stateful: it tracks the evidence already seen to mark repeats.
  */
 export const createJudgeLiveTrace = () => {
-  const seenLines = new Map<string, Set<number>>()
-
-  const newLines = (filePath: string, [start, end]: [number, number]) => {
-    const lines = seenLines.get(filePath) ?? new Set<number>()
-    let fresh = 0
-    for (let line = start; line <= end; line++) {
-      if (lines.has(line)) continue
-      lines.add(line)
-      fresh += 1
-    }
-    seenLines.set(filePath, lines)
-    return fresh
-  }
+  const evidence = createEvidenceTracker()
 
   return (event: TrajectoryEvent): string[] => {
     const payload = event.payload as Record<string, any>
@@ -58,15 +50,14 @@ export const createJudgeLiveTrace = () => {
       case "context.compacted":
         return [`   context compacted: ${payload.replacedItemIds?.length ?? 0} items summarized`]
       case "context.item_added": {
-        const item = payload.item as { type: string; content: string; turn: number; toolMeta?: { toolName: string; filePath?: string; lineRange?: [number, number]; isError?: boolean } }
+        const item = payload.item as ContextItem
         if (item.type === "assistant_reasoning") return [`   model says: ${oneLine(item.content)}`]
         if (item.type === "tool_result" && item.toolMeta !== undefined && item.toolMeta.isError !== true) {
           const { toolName, filePath, lineRange } = item.toolMeta
-          if (filePath !== undefined && lineRange !== undefined) {
-            const fresh = newLines(filePath, lineRange)
-            return [`   ← ${toolName} ${filePath}:${lineRange[0]}-${lineRange[1]} (${fresh > 0 ? `${fresh} new lines` : "nothing new"})`]
-          }
-          return [`   ← ${toolName}: ${item.content.split("\n").length} lines of output`]
+          const added = novelty(evidence(item))
+          if (filePath !== undefined && lineRange !== undefined)
+            return [`   ← ${toolName} ${filePath}:${lineRange[0]}-${lineRange[1]} (${added})`]
+          return [`   ← ${toolName}: ${item.content.split("\n").length} lines of output (${added})`]
         }
         if ((item.type === "system_prompt" || item.type === "harness_instruction") && item.turn > 0) {
           const marker = harnessMarkers.exec(item.content)?.[0]

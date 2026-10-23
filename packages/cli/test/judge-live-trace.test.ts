@@ -38,6 +38,17 @@ describe("judge live trace", () => {
     expect(trace(result("src/A.sol", [5, 20]))).toEqual(["   ← read_file src/A.sol:5-20 (nothing new)"])
   })
 
+  test("marks a search whose hits name no line seen before, counting lines already read", () => {
+    const trace = createJudgeLiveTrace()
+    const search = (content: string) =>
+      event("context.item_added", { item: { id: "g", turn: 3, type: "tool_result", isPinned: false, content, toolMeta: { callId: "g", toolName: "grep" } } })
+    trace(result("src/A.sol", [1, 40]))
+    expect(trace(search("src/A.sol:12: require(ok)\nsrc/B.sol:7: emit X()"))).toEqual(["   ← grep: 2 lines of output (1 new lines)"])
+    expect(trace(search("src/B.sol:7: emit X()"))).toEqual(["   ← grep: 1 lines of output (nothing new)"])
+    expect(trace(search("No matches found."))).toEqual(["   ← grep: 1 lines of output (new)"])
+    expect(trace(search("No matches found."))).toEqual(["   ← grep: 1 lines of output (nothing new)"])
+  })
+
   test("shows provider errors and silent events produce no line", () => {
     const trace = createJudgeLiveTrace()
     expect(trace(event("provider.attempted", { stepIndex: 2, purpose: "reasoning", attemptIndex: 2, usage: null, latencyMs: 35000, errorCategory: "invalid_request", retryDecision: "retry" }))).toEqual([

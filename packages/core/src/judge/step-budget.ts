@@ -62,40 +62,48 @@ export const DefaultEvidenceSaturationReads = 3
  * still turns up something (Gemini re-reads the same ranges once it has what it needs: traces of 2026-10-23).
  */
 export const isEvidenceSaturated = (items: readonly ContextItem[], phaseSince: number, reads: number) => {
-  const seenLines = new Map<string, Set<number>>()
-  const seenTexts = new Set<string>()
-  const novelty: boolean[] = []
+  const novelty = createEvidenceTracker()
+  const fresh: boolean[] = []
   for (const item of items) {
     if (item.type !== "tool_result") continue
-    let fresh = false
-    if (item.toolMeta?.isError !== true) {
-      const { filePath, lineRange } = item.toolMeta ?? {}
-      if (filePath !== undefined && lineRange !== undefined) {
-        const lines = seenLines.get(filePath) ?? new Set<number>()
-        for (let line = lineRange[0]; line <= lineRange[1]; line++) {
-          if (!lines.has(line)) fresh = true
-          lines.add(line)
-        }
-        seenLines.set(filePath, lines)
-      } else {
-        // Search output lists `path:line: text`: new only if it names a line not seen before, so repeating or
-        // rephrasing a search that finds the same code adds nothing. Other output is new when its text is.
-        const hits = [...item.content.matchAll(/^(.+?):(\d+):/gm)]
-        if (hits.length > 0) {
-          for (const [, filePath, line] of hits) {
-            const lines = seenLines.get(filePath!) ?? new Set<number>()
-            if (!lines.has(Number(line))) fresh = true
-            lines.add(Number(line))
-            seenLines.set(filePath!, lines)
-          }
-        } else {
-          fresh = !seenTexts.has(item.content)
-          seenTexts.add(item.content)
-        }
-      }
-    }
-    if (item.turn > phaseSince) novelty.push(fresh)
+    const added = novelty(item)
+    if (item.turn > phaseSince) fresh.push(added.kind === "lines" ? added.newLines > 0 : added.isNew)
   }
-  return novelty.length >= reads && novelty.slice(-reads).every((fresh) => !fresh)
+  return fresh.length >= reads && fresh.slice(-reads).every((isNew) => !isNew)
+}
+
+/** What one tool result adds: for a file read or a search, the lines it covers that no earlier result covered. */
+export type EvidenceNovelty = { kind: "lines"; newLines: number } | { kind: "text"; isNew: boolean }
+
+/**
+ * Tracks the evidence tool results add, in order; `isEvidenceSaturated` and the CLI live trace share it, so the trace
+ * shows exactly what the saturation rule counts. An error result adds nothing.
+ */
+export const createEvidenceTracker = () => {
+  const seenLines = new Map<string, Set<number>>()
+  const seenTexts = new Set<string>()
+  const cover = (filePath: string, line: number) => {
+    const lines = seenLines.get(filePath) ?? new Set<number>()
+    seenLines.set(filePath, lines)
+    if (lines.has(line)) return 0
+    lines.add(line)
+    return 1
+  }
+  return (item: ContextItem): EvidenceNovelty => {
+    if (item.toolMeta?.isError === true) return { kind: "text", isNew: false }
+    const { filePath, lineRange } = item.toolMeta ?? {}
+    if (filePath !== undefined && lineRange !== undefined) {
+      let newLines = 0
+      for (let line = lineRange[0]; line <= lineRange[1]; line++) newLines += cover(filePath, line)
+      return { kind: "lines", newLines }
+    }
+    // Search output lists `path:line: text`: new only if it names a line not seen before, so repeating or
+    // rephrasing a search that finds the same code adds nothing. Other output is new when its text is.
+    const hits = [...item.content.matchAll(/^(.+?):(\d+):/gm)]
+    if (hits.length > 0) return { kind: "lines", newLines: hits.reduce((sum, [, path, line]) => sum + cover(path!, Number(line)), 0) }
+    const isNew = !seenTexts.has(item.content)
+    seenTexts.add(item.content)
+    return { kind: "text", isNew }
+  }
 }
 

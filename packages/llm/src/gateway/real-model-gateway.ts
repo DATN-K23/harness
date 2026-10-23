@@ -136,8 +136,15 @@ export class RealModelGateway implements ModelGatewayPort {
     }
 
     let combinedSignal: AbortSignal | undefined
+    // An ordinary timer instead of AbortSignal.timeout: on Bun for Windows that timer never fires when it is the
+    // only pending work. The reason matches AbortSignal.timeout's TimeoutError.
+    const timeoutController = new AbortController()
+    const timeoutTimer = setTimeout(
+      () => timeoutController.abort(new DOMException("The operation timed out.", "TimeoutError")),
+      this.timeoutMs,
+    )
     try {
-      const timeoutSignal = AbortSignal.timeout(this.timeoutMs)
+      const timeoutSignal = timeoutController.signal
       combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
       const completion = await this.client.chat.completions.create(params, { signal: combinedSignal })
       const mapped = mapChatCompletion(completion, {
@@ -167,6 +174,8 @@ export class RealModelGateway implements ModelGatewayPort {
         latencyMs: Math.round(performance.now() - startTime),
         error: normalizeProviderError(effectiveError, this.secrets),
       }
+    } finally {
+      clearTimeout(timeoutTimer)
     }
   }
 }

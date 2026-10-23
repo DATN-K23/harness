@@ -38,6 +38,7 @@ import { hydrateHistory, interruptedToolItems, verifyHydration } from "./history
 import { sha256Hex } from "../util/digest"
 import { createIdGenerator, systemIdSources, type IdGenerator } from "../util/id"
 import { sanitizeSourceContent, sanitizeSystemText } from "../util/sanitize"
+import { createTimeoutSignal } from "../util/timeout-signal"
 
 export interface ToolApprovalPort {
   decide(call: ModelToolCall, ctx: Record<string, unknown>): Promise<"allow" | "deny">
@@ -120,6 +121,8 @@ interface ExecutionRecovery {
   stepsExecuted: number
   toolCallsExecuted: number
   observedLimits: BudgetTerminalReason[]
+  /** Clears the current attempt timer; the attempt signal also guards that step's tool dispatch. */
+  disposeAttemptTimeout?: () => void
 }
 
 const sanitizeModelValue = (value: unknown, secrets: readonly string[]): unknown => {
@@ -188,6 +191,8 @@ export class MultiTurnRunner {
           observedLimits: [],
         }
       }
+    } finally {
+      recovery?.disposeAttemptTimeout?.()
     }
   }
 
@@ -840,7 +845,10 @@ export class MultiTurnRunner {
       const attemptStartTime = clock.nowMs()
       const elapsedMs = Math.max(0, attemptStartTime - startTime)
       const remainingTime = Math.max(1, limits.wallClockTimeoutMs - elapsedMs)
-      const timeoutSignal = AbortSignal.timeout(remainingTime)
+      recovery.disposeAttemptTimeout?.()
+      const attemptTimeout = createTimeoutSignal(remainingTime)
+      recovery.disposeAttemptTimeout = attemptTimeout.dispose
+      const timeoutSignal = attemptTimeout.signal
       const attemptSignal = input.signal
         ? AbortSignal.any([input.signal, timeoutSignal])
         : timeoutSignal

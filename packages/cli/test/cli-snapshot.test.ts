@@ -153,13 +153,15 @@ describe("snapshot-backed CLI runs", () => {
         processSignals: signals,
         gatewayFactory: () => ({
           async executeAttempt(_request, signal) {
-            await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
+            const aborted = new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
+            // Interrupt only once the provider request is in flight, so the CLI listener is already installed.
+            signals.emit("SIGINT")
+            await aborted
             return { attemptId: "aborted", finishReason: "error", usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }, latencyMs: 1, error: { category: "transport", message: "aborted", isRetryable: true } }
           },
         }),
         stdout: (message) => output.push(message),
       })
-      setTimeout(() => signals.emit("SIGINT"), 0)
       const exitCode = await pending
       const runId = output.join("\n").match(/Run ID:\s+(\S+)/)?.[1]
       const events = runId ? await store.loadEvents({ runId }) : []

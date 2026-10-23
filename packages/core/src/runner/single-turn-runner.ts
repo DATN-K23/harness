@@ -3,6 +3,7 @@ import type { ClockPort, EventType, ModelGatewayPort, RunClaim, RunStorePort, Te
 import { digestOf } from "../util/digest"
 import { createIdGenerator, systemIdSources, type IdGenerator } from "../util/id"
 import { redactSecrets } from "../util/secrets"
+import { createTimeoutSignal } from "../util/timeout-signal"
 
 export interface SingleTurnRunInput {
   runId?: string
@@ -206,6 +207,7 @@ export class SingleTurnRunner {
       })
 
       // 7. Dispatch attempt to gateway with timeout
+      const attemptTimeout = createTimeoutSignal(timeoutMs)
       const response = await this.deps.gateway.executeAttempt(
         {
           runId,
@@ -222,8 +224,8 @@ export class SingleTurnRunner {
             },
           ],
         },
-        AbortSignal.timeout(timeoutMs),
-      )
+        attemptTimeout.signal,
+      ).finally(attemptTimeout.dispose)
 
       const latencyMs = clock.nowMs() - startTime
 

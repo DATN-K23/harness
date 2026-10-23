@@ -25,6 +25,7 @@ import {
   decideConsensus,
   directionLimitPrompt,
   directionPrompt,
+  verdictLimitPrompt,
   parseBackwardResult,
   parseForwardResult,
   readVerificationState,
@@ -41,7 +42,7 @@ import {
   mustAnswerNow,
   stepsStillNeeded,
 } from "../judge/step-budget"
-import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
+import { offersSubmission, submitVerdictTool, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { staticVerdictDecision } from "../judge/verdict-policy"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
@@ -320,11 +321,26 @@ export class JudgeStep {
           totalTokensUsed: input.budget.totalTokensUsed,
           totalTokenBudget: input.limits.totalTokenBudget,
         }))
-    const forced = directionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
+    // The verdict phase after an agreed consensus is forced the same way once its reading stops finding new evidence
+    // (or the tokens left only cover the verdict): left alone, the model keeps searching the same code (2026-10-23).
+    const verdictPhase =
+      pending === undefined && (verification.consensus === "agreed-valid" || verification.consensus === "agreed-invalid")
+    const verdictForced =
+      verdictPhase &&
+      (isEvidenceSaturated(input.items, verification.consensusSince ?? 0, input.evidenceSaturationReads ?? DefaultEvidenceSaturationReads) ||
+        mustAnswerNow({
+          pending: "verdict",
+          estimatedInputTokens: clean.telemetry.estimatedInputTokens,
+          maxOutputTokens: input.modelLimits.maxOutputTokens,
+          safetyMarginFactor: input.policy.safetyMarginFactor,
+          totalTokensUsed: input.budget.totalTokensUsed,
+          totalTokenBudget: input.limits.totalTokenBudget,
+        }))
+    const submissionForced = directionForced || verdictForced
+    const forced = submissionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
-    const sentItems = forced
-      ? [...preparation.preparedItems, newItem("harness_instruction", pending !== undefined ? directionLimitPrompt(pending) : this.maxStepsPrompt)]
-      : preparation.preparedItems
+    const limitPrompt = pending !== undefined ? directionLimitPrompt(pending) : verdictForced ? verdictLimitPrompt() : this.maxStepsPrompt
+    const sentItems = forced ? [...preparation.preparedItems, newItem("harness_instruction", limitPrompt)] : preparation.preparedItems
 
     // Gate 3: stop conditions before every provider attempt (retries included), then one model call with retry.
     const stopBefore = (attempts: readonly AttemptRecord[]) => {
@@ -352,8 +368,8 @@ export class JudgeStep {
           // A structured-output run answers through a submission tool, as OpenCode's json_schema format requires.
           // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
           // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
-          ...(directionForced
-            ? { tools: [submitVerificationTool(pending)], toolChoice: "required" as const }
+          ...(submissionForced
+            ? { tools: [pending !== undefined ? submitVerificationTool(pending) : submitVerdictTool()], toolChoice: "required" as const }
             : forced
               ? { toolsDisabled: true }
               : offersSubmission(request.tools ?? [])
@@ -434,7 +450,7 @@ export class JudgeStep {
     const text = submitted ?? response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
     // Tool calls in a step whose tools were disabled are not dispatched: a forced direction must answer from its evidence.
-    const calls = submitted === undefined && !directionForced ? (response.toolCalls ?? []) : []
+    const calls = submitted === undefined && !submissionForced ? (response.toolCalls ?? []) : []
     const consensus = verification.consensus
 
     if (consensus === "disputed" || consensus === "inconclusive") {
@@ -485,8 +501,8 @@ export class JudgeStep {
     }
 
     // Gemini keeps calling reading tools when only the submission is offered: refuse those calls and ask again, bounded
-    // by the repair budget, before the direction is recorded as incomplete.
-    const undeclaredCalls = directionForced && submitted === undefined ? (response.toolCalls ?? []) : []
+    // by the repair budget, before the direction is recorded as incomplete (or the verdict as unresolved).
+    const undeclaredCalls = submissionForced && submitted === undefined ? (response.toolCalls ?? []) : []
     if (undeclaredCalls.length > 0 && repairsLeft > 0) {
       const branch = await runToolBranch({ deps, input, persist, newItem, toolsDisabled: true }, undeclaredCalls)
       if (branch.kind === "cancelled")
@@ -567,6 +583,12 @@ export class JudgeStep {
         attempt: synthesis.attempt,
         issues: synthesis.issues.map((issue) => ({ reason: issue.reason, path: issue.path })),
       })
+      // A verdict phase forced to answer that still gives no valid verdict ends unresolved: no answer is not a negative.
+      if (synthesis.kind === "rejected" && verdictForced)
+        return unresolved(
+          "No valid verdict was given after the reading was complete.",
+          "Both verification directions agreed, but once the reading stopped finding new evidence the model gave no verdict that passed validation within the repair budget, so the result remains unresolved.",
+        )
       if (synthesis.kind === "rejected")
         return finish({
           type: "failed",

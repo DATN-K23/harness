@@ -14,6 +14,7 @@ export type PromptName =
   | "claim-extraction.v1"
   | "claim-extraction.v2"
   | "verification-limit.v1"
+  | "verdict-limit.v1"
 
 export interface LoadedPrompt {
   text: string

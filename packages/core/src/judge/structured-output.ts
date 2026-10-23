@@ -49,15 +49,15 @@ export const submitVerificationTool = (direction?: VerificationDirection): ToolD
   }
 }
 
+/** The verdict submission; also the only tool the verdict phase keeps once its reading stops finding new evidence. */
+export const submitVerdictTool = (): ToolDefinition => ({
+  name: SubmitVerdictToolName,
+  description: `Submit your final verdict in the verdict format from your instructions.\n\n${SubmissionRules}`,
+  parameters: verdictSubmissionJsonSchema(),
+})
+
 /** The submission tools, offered after the snapshot tools so the cached prefix of the read tools is unchanged. */
-export const submissionTools = (): ToolDefinition[] => [
-  submitVerificationTool(),
-  {
-    name: SubmitVerdictToolName,
-    description: `Submit your final verdict in the verdict format from your instructions.\n\n${SubmissionRules}`,
-    parameters: verdictSubmissionJsonSchema(),
-  },
-]
+export const submissionTools = (): ToolDefinition[] => [submitVerificationTool(), submitVerdictTool()]
 
 /** The instruction pinned after the system prompt; its digest is recorded in the run configuration (Rule R1). */
 export const structuredOutputPrompt = () => loadPrompt("structured-output.v1")

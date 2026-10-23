@@ -20,7 +20,16 @@ describe("evidence saturation", () => {
   test("three results in a row that add nothing saturate the direction (overlapping re-reads, repeated search, errors)", () => {
     const items = [read(1, "A.sol", [210, 240]), grep(2, "A.sol:220: guard"), read(3, "A.sol", [220, 235]), grep(4, "A.sol:220: guard"), grep(5, "no such file", true)]
     expect(isEvidenceSaturated(items, 0, 3)).toBe(true)
-    expect(isEvidenceSaturated(items.slice(0, 4), 0, 3)).toBe(false)
+    // The search names line 220, which the first read already covered: it adds nothing either.
+    expect(isEvidenceSaturated(items.slice(0, 4), 0, 3)).toBe(true)
+    expect(isEvidenceSaturated(items.slice(0, 3), 0, 3)).toBe(false)
+  })
+
+  test("a search is new only when it names a line not seen before, however the pattern is phrased", () => {
+    const items = [read(1, "A.sol", [1, 50]), grep(2, "A.sol:12: x\nA.sol:30: y"), grep(3, "A.sol:30: y"), grep(4, "B.sol:7: z")]
+    expect(isEvidenceSaturated(items, 0, 3)).toBe(false)
+    expect(isEvidenceSaturated([...items, grep(5, "B.sol:7: z"), grep(6, "A.sol:12: x")], 0, 3)).toBe(false)
+    expect(isEvidenceSaturated([...items, grep(5, "B.sol:7: z"), grep(6, "A.sol:12: x"), grep(7, "A.sol:30: y")], 0, 3)).toBe(true)
   })
 
   test("only results of the current direction count, but earlier ones are already seen", () => {

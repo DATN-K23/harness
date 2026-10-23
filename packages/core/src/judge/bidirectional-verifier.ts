@@ -67,13 +67,17 @@ export const directionLimitPrompt = (direction: VerificationDirection) =>
     .text.replaceAll("{direction}", direction)
     .replaceAll("{field}", direction === "forward" ? "reachability" : "reconstruction")
 
-/** Recorded in the run configuration (Rule R1): the direction prompts and their step-limit prompt shape every verdict. */
+/** Sent when the verdict phase after an agreed consensus stops finding new evidence. */
+export const verdictLimitPrompt = () => loadPrompt("verdict-limit.v1").text
+
+/** Recorded in the run configuration (Rule R1): the direction prompts and their limit prompts shape every verdict. */
 export const verificationPromptDigest = () =>
   textDigest(
     [
       loadPrompt(`forward-verification.${DirectionPromptVersion}`).digest,
       loadPrompt(`backward-verification.${DirectionPromptVersion}`).digest,
       loadPrompt("verification-limit.v1").digest,
+      loadPrompt("verdict-limit.v1").digest,
     ].join("\n"),
   )
 
@@ -93,6 +97,8 @@ export interface VerificationState {
   forward?: ForwardResult & { explanation: string }
   backward?: BackwardResult & { explanation: string }
   consensus?: ConsensusDecision
+  /** The step whose results added the consensus: the verdict phase's steps are counted from here. */
+  consensusSince?: number
   bceIncomplete: boolean
   hasBceSlices: boolean
 }
@@ -120,7 +126,10 @@ export const readVerificationState = (items: readonly ContextItem[]): Verificati
       if (parsed.kind === "ok") state.backward = parsed.result
     } else if (content.startsWith(ConsensusPrefix)) {
       const decision = content.slice(ConsensusPrefix.length)
-      if (consensusValues.includes(decision)) state.consensus = decision as ConsensusDecision
+      if (consensusValues.includes(decision)) {
+        state.consensus = decision as ConsensusDecision
+        state.consensusSince = item.turn
+      }
     }
   }
   return state

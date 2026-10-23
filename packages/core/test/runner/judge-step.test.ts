@@ -100,6 +100,31 @@ describe("JudgeStep: seven gates", () => {
     expect(onlySubmission(h.gateway.calls[0])).toBe(true)
   })
 
+  const consensusAt = (turn: number, decision: string): ContextItem => ({ id: `consensus-${turn}`, turn, type: "system_prompt", isPinned: true, content: `Bidirectional consensus: ${decision}` })
+  const rereadAt = (n: number): ContextItem[] => [
+    { id: `vreq-${n}`, turn: n, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "read_file", arguments: {} }), toolMeta: { callId: `v${n}`, toolName: "read_file" } },
+    { id: `vres-${n}`, turn: n, type: "tool_result", isPinned: false, content: "same lines", toolMeta: { callId: `v${n}`, toolName: "read_file", filePath: "src/Vault.sol", lineRange: [1, 5] } },
+  ]
+
+  test("the verdict phase after an agreed consensus keeps only submit_verdict once its reads find nothing new", async () => {
+    const h = await createHarness({ script: [textResponse(json(validVerdict))] })
+    await h.step.execute(h.input({ stepIndex: 7, items: [...baseItems, ...rereadAt(1), consensusAt(2, "agreed-valid"), ...rereadAt(3), ...rereadAt(4), ...rereadAt(5)] }))
+    const call = h.gateway.calls[0]
+    expect(call.toolChoice).toBe("required")
+    expect(call.tools?.map((tool) => tool.name)).toEqual(["submit_verdict"])
+    expect(call.items.at(-1)?.content).toContain("Your reading for the verdict is complete")
+  })
+
+  test("a forced verdict phase that still gives no valid verdict ends unresolved instead of failing the run", async () => {
+    const h = await createHarness({ script: [textResponse("I need to read more code first.")] })
+    const result = await h.step.execute(h.input({
+      stepIndex: 7,
+      repairsUsed: 2,
+      items: [...baseItems, ...rereadAt(1), consensusAt(2, "agreed-valid"), ...rereadAt(3), ...rereadAt(4), ...rereadAt(5)],
+    }))
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED", summary: "No valid verdict was given after the reading was complete." } })
+  })
+
   test("a forced direction answers through submit_verification, the other direction's field null", async () => {
     const h = await createHarness({ script: [toolCallResponse([{ id: "s", name: "submit_verification", arguments: { reachability: "blocked", reconstruction: null, explanation: "onlyOwner guards withdraw" } }])] })
     const result = await h.step.execute(h.input({ stepIndex: 6, items: [...baseItems, forwardDirection()] }))

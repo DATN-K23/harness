@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, JudgeDefaultLimits, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
@@ -431,10 +431,16 @@ async function runCommand(
               },
             },
             retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
+            // Judge-sized defaults (bidirectional verification needs more steps than a multi-turn run); an explicit flag
+            // or environment value still wins. The run's wall clock is its own limit, not the per-call model timeout.
             limits: {
-              wallClockTimeoutMs: timeoutMs,
-              totalTokenBudget: maxTotalTokens.value,
-              maxSteps: maxSteps.value,
+              wallClockTimeoutMs: JudgeDefaultLimits.wallClockTimeoutMs,
+              totalTokenBudget:
+                (parsed.maxTotalTokens ?? effectiveConfig?.runLimits.totalTokenBudget) !== undefined
+                  ? maxTotalTokens.value
+                  : JudgeDefaultLimits.totalTokenBudget,
+              maxSteps:
+                (parsed.maxSteps ?? effectiveConfig?.runLimits.maxSteps) !== undefined ? maxSteps.value : JudgeDefaultLimits.maxSteps,
               noProgressMaxRepeats: 3,
             },
             maxProbeRuns: 0,

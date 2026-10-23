@@ -29,6 +29,7 @@ import {
 } from "@harness/protocol"
 import { verificationPromptDigest } from "../judge/bidirectional-verifier"
 import { claimExtractionPrompt } from "../judge/claim-extraction"
+import { DefaultVerificationStepBudget } from "../judge/step-budget"
 import { structuredOutputPrompt } from "../judge/structured-output"
 import { loadPrompt } from "../prompts/index"
 import { textDigest } from "../util/digest"
@@ -67,6 +68,8 @@ export interface JudgeRunConfig {
   enableStructuredOutput?: boolean
   /** One provider call to locate claim fields a report's layout did not yield, before the run is unresolved. */
   enableClaimExtraction?: boolean
+  /** Steps one verification direction may take, its answer included; defaults to `DefaultVerificationStepBudget`. */
+  verificationStepBudget?: number
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
@@ -369,6 +372,9 @@ class RunExecution {
           enableBidirectionalVerification: config.enableBidirectionalVerification,
           enableStructuredOutput: config.enableStructuredOutput,
           enableClaimExtraction: config.enableClaimExtraction,
+          ...(config.enableBidirectionalVerification === false
+            ? {}
+            : { verificationStepBudget: config.verificationStepBudget ?? DefaultVerificationStepBudget }),
           runtime: config.runtime,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
@@ -501,6 +507,7 @@ class RunExecution {
         repairsUsed: this.repairsUsed,
         ...(traceDigest === undefined ? {} : { traceDigest }),
         signal: this.signal,
+        ...(config.verificationStepBudget === undefined ? {} : { verificationStepBudget: config.verificationStepBudget }),
       })
       this.usage = addUsage(this.usage, result.usage)
       this.observe(result.observedLimits)

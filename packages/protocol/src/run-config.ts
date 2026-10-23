@@ -123,6 +123,8 @@ export const RunConfigSnapshotSchema = z
     enableStructuredOutput: z.boolean().default(false),
     /** One provider call that locates claim fields a report's format did not yield, before the run is unresolved. */
     enableClaimExtraction: z.boolean().default(false),
+    /** Steps one verification direction may take, its answer included; present when bidirectional verification is on. */
+    verificationStepBudget: z.number().int().positive().optional(),
     runtime: z.object({
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),

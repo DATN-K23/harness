@@ -23,14 +23,19 @@ import {
   ConsensusVerdictInstruction,
   consensusNote,
   decideConsensus,
+  directionLimitPrompt,
   directionPrompt,
   parseBackwardResult,
   parseForwardResult,
   readVerificationState,
   resultNote,
+  type BackwardResult,
+  type ForwardResult,
+  type VerificationDirection,
   type VerificationState,
 } from "../judge/bidirectional-verifier"
-import { offersSubmission, submittedText } from "../judge/structured-output"
+import { DefaultVerificationStepBudget, stepsStillNeeded } from "../judge/step-budget"
+import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
@@ -88,6 +93,8 @@ export interface JudgeStepInput {
   repairsUsed: number
   traceDigest?: string
   signal?: AbortSignal
+  /** Steps one verification direction may take, its answer included; defaults to `DefaultVerificationStepBudget`. */
+  verificationStepBudget?: number
 }
 
 export interface JudgeStepResult {
@@ -122,6 +129,13 @@ const withObserved = (reason: StopReason, observed: readonly StopReason[]) =>
   StopPrecedence.filter((candidate) => candidate === reason || observed.includes(candidate))
 
 const ProbeDeltaMarker = "State delta, post minus pre:"
+
+const NoDirectionAnswer = "No result was given within this direction's step budget; the evidence read so far is recorded."
+
+const unanswered = (direction: VerificationDirection): (ForwardResult | BackwardResult) & { explanation: string } =>
+  direction === "forward"
+    ? { reachability: "incomplete", explanation: NoDirectionAnswer }
+    : { reconstruction: "incomplete", explanation: NoDirectionAnswer }
 
 const WitnessInstruction =
   `For disputed consensus, call ${RunStateProbeToolName} at most once for exactly one state variable explicitly named in the claim. In your final JSON verdict include targetedCondition equal to the requested expression, observedBefore and observedAfter exactly as reported by that probe, and deltaExplanation (at least 20 characters) explaining why that measured change does or does not establish the claimed condition. Snapshot citations support source behavior, not the dynamic delta; process exit alone is not proof. Do not create or modify tests.`
@@ -272,11 +286,21 @@ export class JudgeStep {
       telemetry: { ...clean.telemetry, contentDigest: digestOf(preparation.preparedItems) },
     })
 
-    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified.
-    const forced = isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
+    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. A pending
+    // verification direction is forced to answer when its own budget ends, or when the run keeps only the steps the
+    // later phases need; it is then asked for its own result, never for a verdict.
+    const pending = verification.direction !== undefined && verification[verification.direction] === undefined
+      ? verification.direction
+      : undefined
+    const directionForced =
+      pending !== undefined &&
+      // This step is step `stepIndex - directionSince` of the direction.
+      (input.stepIndex - (verification.directionSince ?? 0) >= (input.verificationStepBudget ?? DefaultVerificationStepBudget) ||
+        input.limits.maxSteps - input.stepIndex < stepsStillNeeded(pending))
+    const forced = directionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
     const sentItems = forced
-      ? [...preparation.preparedItems, newItem("system_prompt", this.maxStepsPrompt)]
+      ? [...preparation.preparedItems, newItem("system_prompt", pending !== undefined ? directionLimitPrompt(pending) : this.maxStepsPrompt)]
       : preparation.preparedItems
 
     // Gate 3: stop conditions before every provider attempt (retries included), then one model call with retry.
@@ -303,7 +327,15 @@ export class JudgeStep {
           ...request,
           items: sentItems,
           // A structured-output run answers through a submission tool, as OpenCode's json_schema format requires.
-          ...(forced ? { toolsDisabled: true } : offersSubmission(request.tools ?? []) ? { toolChoice: "required" as const } : {}),
+          // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
+          // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
+          ...(directionForced
+            ? { tools: [submitVerificationTool()], toolChoice: "required" as const }
+            : forced
+              ? { toolsDisabled: true }
+              : offersSubmission(request.tools ?? [])
+                ? { toolChoice: "required" as const }
+                : {}),
         },
         deadlineMs: input.stopState.startedAtMs + input.limits.wallClockTimeoutMs,
         signal: input.signal,
@@ -367,7 +399,8 @@ export class JudgeStep {
     const submitted = submittedText(response.toolCalls ?? [])
     const text = submitted ?? response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
-    const calls = submitted === undefined ? (response.toolCalls ?? []) : []
+    // Tool calls in a step whose tools were disabled are not dispatched: a forced direction must answer from its evidence.
+    const calls = submitted === undefined && !directionForced ? (response.toolCalls ?? []) : []
     const consensus = verification.consensus
 
     if (consensus === "disputed" || consensus === "inconclusive") {
@@ -422,7 +455,9 @@ export class JudgeStep {
     if (calls.length === 0 && direction !== undefined && verification[direction] === undefined) {
       const forward = direction === "forward" ? parseForwardResult(text) : undefined
       const backward = direction === "backward" ? parseBackwardResult(text) : undefined
-      const parsed = forward?.kind === "ok" ? forward.result : backward?.kind === "ok" ? backward.result : undefined
+      const answered = forward?.kind === "ok" ? forward.result : backward?.kind === "ok" ? backward.result : undefined
+      // A direction forced to answer that still does not is incomplete: missing evidence never becomes a negative.
+      const parsed = answered ?? (directionForced ? unanswered(direction) : undefined)
       if (parsed === undefined) {
         const attempt = input.repairsUsed + 1
         const maxRepairs = input.flags.enableSchemaRepair ? MaxSchemaRepairs : 0
@@ -439,8 +474,8 @@ export class JudgeStep {
         })
       }
       const resultItem = marker(resultNote(direction, parsed))
-      const forwardResult = forward?.kind === "ok" ? forward.result : verification.forward
-      const backwardResult = backward?.kind === "ok" ? backward.result : verification.backward
+      const forwardResult = direction === "forward" ? (parsed as ForwardResult) : verification.forward
+      const backwardResult = direction === "backward" ? (parsed as BackwardResult) : verification.backward
       if (forwardResult === undefined)
         return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("forward"))] })
       if (backwardResult === undefined)

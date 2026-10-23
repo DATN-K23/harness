@@ -30,6 +30,42 @@ describe("JudgeStep: seven gates", () => {
     expect(parseForwardResult('{"reachability":"reachable","explanation":"entry reaches sink"}').kind).toBe("ok")
   })
 
+  const forwardDirection = (turn = 0): ContextItem => ({
+    id: "direction", turn, type: "system_prompt", isPinned: true, content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`,
+  })
+
+  const onlySubmission = (call: { tools?: readonly { name: string }[]; toolChoice?: string }) =>
+    call.toolChoice === "required" && call.tools?.map((tool) => tool.name).join() === "submit_verification"
+
+  test("a direction that used its step budget keeps only the submission tool; other tool calls make it incomplete", async () => {
+    const h = await createHarness({ script: [readVault()] })
+    const result = await h.step.execute(h.input({ stepIndex: 3, verificationStepBudget: 3, items: [...baseItems, forwardDirection()] }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+    expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
+    expect(h.registry.calls).toHaveLength(0)
+    expect(result.outcome.type).toBe("continue_turn")
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"incomplete"')
+    expect(result.newItems[1]?.content).toStartWith("Verification direction: backward")
+    expect(result.repairsUsed).toBe(0)
+  })
+
+  test("a direction answers early when the run keeps only the steps the later phases need", async () => {
+    const h = await createHarness({ script: [textResponse('{"reachability":"reachable","explanation":"entry reaches sink"}')] })
+    // Step 8 of 10, direction started at step 5: within its budget of 6, but backward + verdict + repair need 3 steps.
+    const result = await h.step.execute(h.input({ stepIndex: 8, items: [...baseItems, forwardDirection(5)] }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+    expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
+    expect(h.gateway.calls[0].items.some((item) => item.content === maxStepsPrompt)).toBe(false)
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"reachable"')
+  })
+
+  test("a forced direction answers through submit_verification, the other direction's field null", async () => {
+    const h = await createHarness({ script: [toolCallResponse([{ id: "s", name: "submit_verification", arguments: { reachability: "blocked", reconstruction: null, explanation: "onlyOwner guards withdraw" } }])] })
+    const result = await h.step.execute(h.input({ stepIndex: 6, items: [...baseItems, forwardDirection()] }))
+    expect(h.registry.calls).toHaveLength(0)
+    expect(result.newItems[0]?.content).toBe('Bidirectional forward result: {"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')
+  })
+
   test("verification tool calls stay restricted to registered snapshot reads", async () => {
     const h = await createHarness({ script: [readVault()] })
     const result = await h.step.execute(h.input({ items: [

@@ -491,6 +491,28 @@ describe("JudgeRunner: compaction", () => {
   })
 })
 
+describe("JudgeRunner: step budgets", () => {
+  test("each direction is forced to answer at its budget, so a model that keeps reading still reaches a verdict", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "" }
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+      readVault("f-1", 1, 5),
+      readVault("f-2", 6, 10), // ignored: the forward budget of 2 forces this step to answer, so it is incomplete
+      readVault("b-1", 11, 15),
+      textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
+    ] })
+    const result = await w.start("worker-a", runInput({ verificationStepBudget: 2 }))
+    const forcedToSubmit = (call: (typeof w.gateway.calls)[number]) =>
+      call.toolChoice === "required" && call.tools?.map((tool) => tool.name).join() === "submit_verification"
+    expect(w.gateway.calls.map(forcedToSubmit)).toEqual([false, true, false, true])
+    // incomplete + reconstructed is disputed; without a witness it is settled before a fifth provider call.
+    expect(result).toMatchObject({ kind: "committed", state: "completed", lastStepIndex: 5, verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    expect(w.gateway.callCount).toBe(4)
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ verificationStepBudget: 2 })
+  })
+})
+
 describe("JudgeRunner: claim extraction", () => {
   const vault = "pragma solidity ^0.8.20;\ncontract Vault {\n    function withdraw() external {}\n}\n"
   const realIngestion = () =>
@@ -833,6 +855,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       enableBidirectionalVerification: true,
       enableStructuredOutput: true,
       enableClaimExtraction: true,
+      verificationStepBudget: true,
       modelLimits: true,
       profileId: true,
       runtime: true,

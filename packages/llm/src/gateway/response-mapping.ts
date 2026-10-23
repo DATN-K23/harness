@@ -47,8 +47,10 @@ const parseToolArguments = (
   try {
     const parsed: unknown = JSON.parse(raw)
     if (isObject(parsed)) {
-      // Un-nest when a model passes { name: "...", arguments: { ... } } inside tool arguments
-      if (typeof parsed.name === "string" && isObject(parsed.arguments)) {
+      // Un-nest when a model passes { name: "...", arguments: { ... } } or only { arguments: { ... } } (seen from
+      // Gemini via 9router) inside tool arguments
+      const wrapperOnly = Object.keys(parsed).every((key) => key === "name" || key === "arguments")
+      if (isObject(parsed.arguments) && wrapperOnly && (parsed.name === undefined || typeof parsed.name === "string")) {
         return { arguments: parsed.arguments as Record<string, unknown> }
       }
       return { arguments: parsed }

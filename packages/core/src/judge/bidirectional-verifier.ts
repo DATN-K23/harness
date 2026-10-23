@@ -15,7 +15,9 @@ const parseResult = <T extends Record<string, unknown>>(
   field: string,
   values: readonly string[],
 ): ParsedResult<T> => {
-  const result = parseJsonObject(text)
+  const reply = parseJsonObject(text)
+  // A submission may carry the other direction's field as null; only the stated fields count.
+  const result = reply === undefined ? undefined : Object.fromEntries(Object.entries(reply).filter(([, value]) => value !== null))
   if (
     result === undefined ||
     Object.keys(result).length !== 2 ||
@@ -53,9 +55,21 @@ export const BceIncompleteNote =
 export const directionPrompt = (direction: VerificationDirection) =>
   `${DirectionPrefix}${direction}\n${loadPrompt(`${direction}-verification.v1`).text}`
 
-/** Recorded in the run configuration (Rule R1): both direction prompts shape every bidirectional verdict. */
+/** Sent instead of the step-limit prompt when a direction's step budget ends before it answered. */
+export const directionLimitPrompt = (direction: VerificationDirection) =>
+  loadPrompt("verification-limit.v1")
+    .text.replaceAll("{direction}", direction)
+    .replaceAll("{field}", direction === "forward" ? "reachability" : "reconstruction")
+
+/** Recorded in the run configuration (Rule R1): the direction prompts and their step-limit prompt shape every verdict. */
 export const verificationPromptDigest = () =>
-  textDigest(`${loadPrompt("forward-verification.v1").digest}\n${loadPrompt("backward-verification.v1").digest}`)
+  textDigest(
+    [
+      loadPrompt("forward-verification.v1").digest,
+      loadPrompt("backward-verification.v1").digest,
+      loadPrompt("verification-limit.v1").digest,
+    ].join("\n"),
+  )
 
 export const resultNote = (direction: VerificationDirection, result: ForwardResult | BackwardResult) =>
   `${resultPrefix(direction)}${JSON.stringify(result)}`
@@ -68,6 +82,8 @@ export const ConsensusVerdictInstruction =
 export interface VerificationState {
   /** The direction the model was last asked for; `undefined` when the run does not verify bidirectionally. */
   direction?: VerificationDirection
+  /** The step whose results added the current direction (0 for the initial context): its steps are counted from here. */
+  directionSince?: number
   forward?: ForwardResult & { explanation: string }
   backward?: BackwardResult & { explanation: string }
   consensus?: ConsensusDecision
@@ -86,8 +102,10 @@ export const readVerificationState = (items: readonly ContextItem[]): Verificati
     if (item.type !== "system_prompt") continue
     const { content } = item
     if (content === BceIncompleteNote) state.bceIncomplete = true
-    else if (content.startsWith(DirectionPrefix))
+    else if (content.startsWith(DirectionPrefix)) {
       state.direction = content.startsWith(`${DirectionPrefix}forward\n`) ? "forward" : "backward"
+      state.directionSince = item.turn
+    }
     else if (content.startsWith(resultPrefix("forward"))) {
       const parsed = parseForwardResult(content.slice(resultPrefix("forward").length))
       if (parsed.kind === "ok") state.forward = parsed.result

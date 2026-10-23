@@ -19,22 +19,25 @@ const SubmissionRules = `IMPORTANT:
 - Complete all necessary reading and probing BEFORE calling this tool
 - The harness validates the submission; if it is rejected you are told why and may submit again`
 
+/** The verification result submission; also the only tool a direction keeps once its step budget is used up. */
+export const submitVerificationTool = (): ToolDefinition => ({
+  name: SubmitVerificationToolName,
+  description: `Submit the result of the current verification direction (forward: reachability; backward: reconstruction).\n\n${SubmissionRules}`,
+  parameters: {
+    type: "object",
+    properties: {
+      reachability: { type: "string", enum: ["reachable", "blocked", "incomplete"] },
+      reconstruction: { type: "string", enum: ["reconstructed", "blocked", "incomplete"] },
+      explanation: { type: "string" },
+    },
+    required: ["explanation"],
+    additionalProperties: false,
+  },
+})
+
 /** The submission tools, offered after the snapshot tools so the cached prefix of the read tools is unchanged. */
 export const submissionTools = (): ToolDefinition[] => [
-  {
-    name: SubmitVerificationToolName,
-    description: `Submit the result of the current verification direction (forward: reachability; backward: reconstruction).\n\n${SubmissionRules}`,
-    parameters: {
-      type: "object",
-      properties: {
-        reachability: { type: "string", enum: ["reachable", "blocked", "incomplete"] },
-        reconstruction: { type: "string", enum: ["reconstructed", "blocked", "incomplete"] },
-        explanation: { type: "string" },
-      },
-      required: ["explanation"],
-      additionalProperties: false,
-    },
-  },
+  submitVerificationTool(),
   {
     name: SubmitVerdictToolName,
     description: `Submit your final verdict in the verdict format from your instructions.\n\n${SubmissionRules}`,

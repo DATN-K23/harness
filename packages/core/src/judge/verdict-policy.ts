@@ -55,3 +55,64 @@ export const staticVerdictDecision = (verdict: JudgeVerdict, consensus: Consensu
         "Both directions report the path as blocked, but none of the cited snapshot lines contains a blocking check (require, revert, assert or an access modifier), so the rejection is not confirmed and the result remains unresolved.",
       )
 }
+
+const reportableSeverities = ["CRITICAL", "HIGH", "MEDIUM"] as const
+type ReportableSeverity = (typeof reportableSeverities)[number]
+
+/**
+ * The severity the report itself claims, when it states a reportable one: a `SEVERITY: high` line (Hound), a
+ * standalone `High`/`Medium` line (Sherlock's header) or a `## Severity` section. The harness never grades severity.
+ */
+export const reportSeverity = (report: string): ReportableSeverity | undefined => {
+  const stated =
+    /^\s*\**severity\**\s*[:：]\s*\**\s*(critical|high|medium)\b/im.exec(report)?.[1] ??
+    /^#{1,6}\s*severity\s*\n+\s*\**(critical|high|medium)\b/im.exec(report)?.[1] ??
+    /^\s*(critical|high|medium)\s*$/im.exec(report.split("\n").slice(0, 6).join("\n"))?.[1]
+  const upper = stated?.toUpperCase()
+  return reportableSeverities.find((severity) => severity === upper)
+}
+
+const excerpt = (text: string) => (text.length > 600 ? `${text.slice(0, 599)}…` : text)
+
+/**
+ * The verdict the harness composes from an agreed consensus when the model's own verdict step gives none (the provider
+ * blocked it, or it never passed validation). It restates the two direction results and carries no citation yet: the
+ * caller adds the source they referred to (`withReferencedEvidence`) and applies `staticVerdictDecision`, so the TV4
+ * rules decide exactly as for a model verdict. A valid one takes the severity the report claims and LOW confidence;
+ * without a claimed reportable severity no valid verdict can be composed.
+ */
+export const composeConsensusVerdict = (input: {
+  identity: { runId: string; findingId: string; traceDigest?: string }
+  consensus: "agreed-valid" | "agreed-invalid"
+  forwardExplanation: string
+  backwardExplanation: string
+  severity?: ReportableSeverity
+}): JudgeVerdict | undefined => {
+  const directions = `Forward: ${excerpt(input.forwardExplanation)} Backward: ${excerpt(input.backwardExplanation)}`
+  const base = {
+    runId: input.identity.runId,
+    findingId: input.identity.findingId,
+    confidence: "LOW" as const,
+    citesEvidence: [],
+    ...(input.identity.traceDigest === undefined ? {} : { traceDigest: input.identity.traceDigest }),
+  }
+  if (input.consensus === "agreed-invalid")
+    return {
+      ...base,
+      validity: "invalid",
+      verificationStatus: "FAIL",
+      reasonCode: "BENIGN_MECHANICS",
+      summary: "Composed by the harness: both verification directions found the described path blocked.",
+      reasoning: `The model's verdict step gave no verdict, so the harness composed it from the two agreeing direction results (source reasoning, no execution evidence). ${directions}`,
+    }
+  if (input.severity === undefined) return undefined
+  return {
+    ...base,
+    validity: "valid",
+    verificationStatus: "PASS",
+    reasonCode: "EXPLOIT_CONFIRMED",
+    severity: input.severity,
+    summary: "Composed by the harness: both verification directions established the described path and impact.",
+    reasoning: `The model's verdict step gave no verdict, so the harness composed it from the two agreeing direction results (source reasoning, no execution evidence); the severity is the one the report claims, not graded by the harness. ${directions}`,
+  }
+}

@@ -1,4 +1,5 @@
 import {
+  JudgeVerdictSchema,
   PrepareResultSchema,
   StopPrecedence,
   type BudgetLimits,
@@ -45,7 +46,7 @@ import {
 import { offersSubmission, submitVerdictTool, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { withReferencedEvidence } from "../judge/evidence-references"
-import { staticVerdictDecision } from "../judge/verdict-policy"
+import { composeConsensusVerdict, reportSeverity, staticVerdictDecision } from "../judge/verdict-policy"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
 import { digestOf } from "../util/digest"
@@ -337,6 +338,33 @@ export class JudgeStep {
           totalTokensUsed: input.budget.totalTokensUsed,
           totalTokenBudget: input.limits.totalTokenBudget,
         }))
+    // With static verdicts, an agreed consensus whose verdict step gives no verdict is concluded by the harness: the
+    // direction results become the verdict, the source they referred to is read from the snapshot, and the TV4 rules
+    // decide as for a model verdict. Undefined when that does not apply.
+    const composeFromConsensus = async (): Promise<JudgeStepResult | undefined> => {
+      const { consensus, forward, backward } = verification
+      if (input.enableStaticVerdicts !== true || forward === undefined || backward === undefined) return undefined
+      if (consensus !== "agreed-valid" && consensus !== "agreed-invalid") return undefined
+      const report = input.items.find((item) => item.type === "candidate_finding" && !item.content.startsWith("Claim decomposition\n"))
+      const composed = composeConsensusVerdict({
+        identity,
+        consensus,
+        forwardExplanation: forward.explanation,
+        backwardExplanation: backward.explanation,
+        ...(report === undefined ? {} : { severity: reportSeverity(report.content) }),
+      })
+      if (composed === undefined)
+        return unresolved(
+          "No verdict could be composed without a claimed severity.",
+          "Both verification directions support the claim, but the model gave no verdict and the report claims no critical, high or medium severity, so the harness cannot state a valid verdict and the result remains unresolved.",
+        )
+      const verdict = await withReferencedEvidence(
+        { snapshot: deps.snapshot, security: deps.security },
+        { verdict: composed, texts: [forward.explanation, backward.explanation], snapshotId: input.snapshotId, signal: input.signal },
+      ).catch(asFault("worker_interrupted"))
+      const decision = staticVerdictDecision(verdict, consensus)
+      return finish({ type: "completed", verdict: decision.kind === "accept" ? JudgeVerdictSchema.parse(verdict) : withheldVerdict(verdict, decision.wording) })
+    }
     const submissionForced = directionForced || verdictForced
     const forced = submissionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
@@ -400,6 +428,12 @@ export class JudgeStep {
         ],
         repairsUsed: input.repairsUsed + 1,
       })
+    // The provider's content filter refusing the verdict step is not an infrastructure failure: with static verdicts
+    // the harness composes the verdict from the agreed consensus instead (Gemini blocked it 6/6 times, 2026-10-24).
+    if (retried.kind === "failed" && retried.error.classification === "content_filter") {
+      const composed = await composeFromConsensus()
+      if (composed !== undefined) return composed
+    }
     if (retried.kind === "failed")
       return finish({
         type: "failed",
@@ -599,6 +633,10 @@ export class JudgeStep {
         issues: synthesis.issues.map((issue) => ({ reason: issue.reason, path: issue.path })),
       })
       // A verdict phase forced to answer that still gives no valid verdict ends unresolved: no answer is not a negative.
+      if (synthesis.kind === "rejected" && verdictForced) {
+        const composed = await composeFromConsensus()
+        if (composed !== undefined) return composed
+      }
       if (synthesis.kind === "rejected" && verdictForced)
         return unresolved(
           "No valid verdict was given after the reading was complete.",

@@ -125,6 +125,39 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED", summary: "No valid verdict was given after the reading was complete." } })
   })
 
+  const blocked = (): ModelAttemptError => ({ isRetryable: false, category: "invalid_request", classification: "content_filter", message: "The provider's safety filter blocked the prompt (blockReason OTHER)." })
+  const agreed = (decision: "agreed-valid" | "agreed-invalid"): ContextItem[] => {
+    const [forward, backward] = decision === "agreed-valid"
+      ? ['{"reachability":"reachable","explanation":"withdraw at src/Vault.sol:21-25 is external"}', '{"reconstruction":"reconstructed","explanation":"the balance update at src/Vault.sol:24 comes after the call"}']
+      : ['{"reachability":"blocked","explanation":"src/Vault.sol:1-3 stops it"}', '{"reconstruction":"blocked","explanation":"src/Vault.sol:2 stops it"}']
+    return [
+      { id: "fwd", turn: 1, type: "system_prompt", isPinned: true, content: `Bidirectional forward result: ${forward}` },
+      { id: "bwd", turn: 2, type: "system_prompt", isPinned: true, content: `Bidirectional backward result: ${backward}` },
+      consensusAt(2, decision),
+    ]
+  }
+  const reportWithSeverity: ContextItem = { id: "itm-finding", turn: 0, type: "candidate_finding", isPinned: true, content: "# Reentrancy in withdraw\n\nROOT CAUSE: call before update\nSEVERITY: high" }
+
+  test("with static verdicts, a verdict step the provider blocks after agreed-valid is composed by the harness", async () => {
+    const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
+    const result = await h.step.execute(h.input({ stepIndex: 3, enableStaticVerdicts: true, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "valid", severity: "HIGH", confidence: "LOW", summary: expect.stringContaining("Composed by the harness") } })
+    if (result.outcome.type === "completed")
+      expect(result.outcome.verdict.citesEvidence.map((evidence) => `${evidence.filePath}:${evidence.startLine}-${evidence.endLine}`)).toEqual(["src/Vault.sol:21-25", "src/Vault.sol:24-24"])
+  })
+
+  test("a composed rejection still needs a guard in the source the directions referred to", async () => {
+    const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
+    const result = await h.step.execute(h.input({ stepIndex: 3, enableStaticVerdicts: true, items: [...baseItems, ...agreed("agreed-invalid")] }))
+    expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", summary: "No blocking guard was confirmed in the cited source." } })
+  })
+
+  test("without static verdicts a blocked verdict step still fails the run", async () => {
+    const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
+    const result = await h.step.execute(h.input({ stepIndex: 3, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))
+    expect(result.outcome.type).toBe("failed")
+  })
+
   test("a forced direction answers through submit_verification, the other direction's field null", async () => {
     const h = await createHarness({ script: [toolCallResponse([{ id: "s", name: "submit_verification", arguments: { reachability: "blocked", reconstruction: null, explanation: "onlyOwner guards withdraw" } }])] })
     const result = await h.step.execute(h.input({ stepIndex: 6, items: [...baseItems, forwardDirection()] }))

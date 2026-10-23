@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { JudgeVerdict } from "@harness/protocol"
-import { citesGuard, staticVerdictDecision } from "../../src/judge/verdict-policy"
+import { citesGuard, composeConsensusVerdict, reportSeverity, staticVerdictDecision } from "../../src/judge/verdict-policy"
 
 const verdict = (validity: "valid" | "invalid", snippets: string[]): JudgeVerdict => ({
   runId: "run-1", findingId: "f-1", validity,
@@ -36,3 +36,22 @@ describe("TV4 conclusion rules for static verdicts", () => {
     expect(citesGuard(verdict("invalid", ["/* onlyOwner */ x = 1;"]))).toBe(false)
   })
 })
+
+describe("composing a verdict from an agreed consensus", () => {
+  test("reads only the severity the report itself claims", () => {
+    expect(reportSeverity("# Title\n\nROOT CAUSE: x\nSEVERITY: high\n")).toBe("HIGH")
+    expect(reportSeverity("Proud Porcelain Antelope\n\nMedium\n\n# Title")).toBe("MEDIUM")
+    expect(reportSeverity("# Title\n\n## Severity\n\nCritical\n")).toBe("CRITICAL")
+    expect(reportSeverity("SEVERITY: low")).toBeUndefined()
+    expect(reportSeverity("No severity stated here.")).toBeUndefined()
+  })
+
+  test("valid needs a claimed severity and gets LOW confidence; invalid restates the blocked directions", () => {
+    const identity = { runId: "r", findingId: "f" }
+    const valid = composeConsensusVerdict({ identity, consensus: "agreed-valid", forwardExplanation: "a", backwardExplanation: "b", severity: "HIGH" })
+    expect(valid).toMatchObject({ validity: "valid", verificationStatus: "PASS", reasonCode: "EXPLOIT_CONFIRMED", severity: "HIGH", confidence: "LOW", citesEvidence: [] })
+    expect(composeConsensusVerdict({ identity, consensus: "agreed-valid", forwardExplanation: "a", backwardExplanation: "b" })).toBeUndefined()
+    expect(composeConsensusVerdict({ identity, consensus: "agreed-invalid", forwardExplanation: "a", backwardExplanation: "b" })).toMatchObject({ validity: "invalid", verificationStatus: "FAIL", confidence: "LOW" })
+  })
+})
+

@@ -33,9 +33,10 @@ export async function executeViewCommand(
 
   const completedEvent = events.findLast((event) => event.type === "run.completed")
   const verdict = (completedEvent?.payload as { verdict?: import("@harness/protocol").JudgeVerdict } | undefined)?.verdict
-  const isJudge = Boolean(run.findingId || verdict)
+  // Stage events are Judge-only, so a Judge run that failed before a verdict is still shown as one.
+  const isJudge = Boolean(run.findingId || verdict || events.some((event) => event.type === "stage.started"))
 
-  if (isJudge && verdict) {
+  if (isJudge) {
     if (options.json) {
       return {
         exitCode: 0,
@@ -46,7 +47,7 @@ export async function executeViewCommand(
           terminalReason: run.terminalReason,
           snapshotId: run.snapshotId,
           findingId: run.findingId,
-          verdict,
+          verdict: verdict ?? null,
           events: events.map((e) => ({ sequence: e.sequence, type: e.type, occurredAt: e.occurredAt })),
         }, null, 2),
       }
@@ -62,19 +63,23 @@ export async function executeViewCommand(
       ...(run.snapshotId ? [`Snapshot ID:         ${run.snapshotId}`] : []),
       ...(run.findingId ? [`Finding ID:          ${run.findingId}`] : []),
       "----------------------------------------",
-      "Judge Verdict:",
-      `  Validity:          ${verdict.validity}`,
-      `  Status:            ${verdict.verificationStatus}`,
-      `  Confidence:        ${verdict.confidence}`,
-      `  Reason Code:       ${verdict.reasonCode}`,
-      `  Summary:           ${verdict.summary}`,
-      `  Reasoning:         ${verdict.reasoning}`,
-      "  Cites Evidence:",
-      ...(verdict.citesEvidence.length === 0
-        ? ["    (none)"]
-        : verdict.citesEvidence.map(
-            (c) => `    - ${c.filePath}:${c.startLine}-${c.endLine}${c.contentDigest ? ` (digest: ${c.contentDigest})` : ""}`,
-          )),
+      ...(verdict
+        ? [
+            "Judge Verdict:",
+            `  Validity:          ${verdict.validity}`,
+            `  Status:            ${verdict.verificationStatus}`,
+            `  Confidence:        ${verdict.confidence}`,
+            `  Reason Code:       ${verdict.reasonCode}`,
+            `  Summary:           ${verdict.summary}`,
+            `  Reasoning:         ${verdict.reasoning}`,
+            "  Cites Evidence:",
+            ...(verdict.citesEvidence.length === 0
+              ? ["    (none)"]
+              : verdict.citesEvidence.map(
+                  (c) => `    - ${c.filePath}:${c.startLine}-${c.endLine}${c.contentDigest ? ` (digest: ${c.contentDigest})` : ""}`,
+                )),
+          ]
+        : ["Judge Verdict:       (none)"]),
       "----------------------------------------",
       `Trajectory Events (${events.length} recorded):`,
     ]

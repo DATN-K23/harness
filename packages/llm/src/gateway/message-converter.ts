@@ -27,6 +27,19 @@ const lowerSimpleItem = (item: ContextItem): OpenAI.Chat.ChatCompletionMessagePa
   }
 }
 
+// The Judge stores `{name, arguments}`; replaying that envelope as arguments makes Gemini emit malformed calls.
+const requestArguments = (item: ContextItem): string => {
+  try {
+    const parsed: unknown = JSON.parse(item.content)
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const envelope = parsed as Record<string, unknown>
+      if (Object.keys(envelope).length === 2 && envelope.name === item.toolMeta?.toolName && "arguments" in envelope)
+        return JSON.stringify(envelope.arguments)
+    }
+  } catch {}
+  return item.content
+}
+
 /** Groups stored context by turn and reconstructs each assistant tool-call message faithfully. */
 export function convertToChatMessages(items: readonly ContextItem[]): OpenAI.Chat.ChatCompletionMessageParam[] {
   const turns = new Map<number, ContextItem[]>()
@@ -76,7 +89,7 @@ export function convertToChatMessages(items: readonly ContextItem[]): OpenAI.Cha
         type: "function",
         function: {
           name: item.toolMeta!.toolName,
-          arguments: item.content,
+          arguments: requestArguments(item),
         },
       })),
     }

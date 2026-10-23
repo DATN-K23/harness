@@ -1,0 +1,16 @@
+$ bun run --cwd packages/cli dev -- view --id "run-1792745184127"
+$ bun run src/index.ts view --id "run-1792745184127"
+========================================
+Multi-turn Run Inspection
+========================================
+Run ID:       run-1792745184127
+State:        failed
+Terminal:     provider_permanent
+Snapshot ID:  snap_c23510d25db6
+Prompt digest: sha256:a653b8ac6c05b55b4c1a2db0e193f6b2fb92239264d589422486b0a3d4f5c4f6
+Limits:       {"maxSteps":10,"totalTokenBudget":200000,"wallClockTimeoutMs":180000,"noProgressMaxRepeats":3}
+Tool limits:  {}
+Observed:     []
+Context telemetry: [{"stepIndex":1,"attemptIndex":1,"policyVersion":"cli-judge-v1","tokenizer":"o200k_base","estimatedInputTokens":2720,"estimatedOutputTokens":4096,"outputReserveTokens":4096,"estimatedSafetyTokens":544,"actualUsage":{"promptTokens":3361,"completionTokens":14,"totalTokens":3375},"usageDelta":655,"requestDigest":"sha256:53466ec739b785b405db080277d9ee5c6ddd325dc227a5d9ab14384d434ddde2","transformations":[]},{"stepIndex":2,"attemptIndex":1,"policyVersion":"cli-judge-v1","tokenizer":"o200k_base","estimatedInputTokens":3174,"estimatedOutputTokens":4096,"outputReserveTokens":4096,"estimatedSafetyTokens":635,"actualUsage":{"promptTokens":3859,"completionTokens":0,"totalTokens":3859},"usageDelta":685,"requestDigest":"sha256:5e9f4c11bc563130a9df475030e44a0913c1d3a417ddbb41759e8108158c5576","transformations":[]}]
+----------------------------------------
+========================================

@@ -90,6 +90,8 @@ export const ModelAttemptErrorClassifications = [
   "context_overflow",
   "content_filter",
   "invalid_provider_output",
+  /** The model tried a tool call the provider could not parse; resending the same request repeats it. */
+  "malformed_tool_call",
 ] as const
 
 export type ModelAttemptErrorClassification = (typeof ModelAttemptErrorClassifications)[number]

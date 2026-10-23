@@ -41,6 +41,8 @@ export interface EventSinkOptions {
   ids: IdGenerator
   clock: ClockPort
   bus?: EventBus
+  /** Runs after the store accepted an event and before it is published; a throw is a store fault. */
+  onAppended?: (event: TrajectoryEvent) => Promise<void>
 }
 
 export class InvalidEventError extends Error {
@@ -65,6 +67,7 @@ export class EventSink {
   private readonly ids: IdGenerator
   private readonly clock: ClockPort
   private readonly bus: EventBus | undefined
+  private readonly onAppended: EventSinkOptions["onAppended"]
   private expectedStateVersion: number
   private tail: Promise<unknown> = Promise.resolve()
 
@@ -74,6 +77,7 @@ export class EventSink {
     this.ids = options.ids
     this.clock = options.clock
     this.bus = options.bus
+    this.onAppended = options.onAppended
     this.expectedStateVersion = options.expectedStateVersion
   }
 
@@ -122,6 +126,7 @@ export class EventSink {
       signal,
     )
     if (result.kind === "stale") return { kind: "stale", reason: result.reason } satisfies EventAppendResult
+    await this.onAppended?.(result.event)
     this.bus?.publish(result.event)
     return { kind: "appended", event: result.event } satisfies EventAppendResult
   }

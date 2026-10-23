@@ -34,7 +34,7 @@ const disabledMessage = (call: ModelToolCall) =>
   [
     `Tool "${call.name}" was not run: tools are disabled because this adjudication reached its step limit.`,
     `Arguments: ${describeArguments(call.arguments)}`,
-    `${NextStepMarker} reply now with your final JSON verdict, using only the evidence already gathered.`,
+    `${NextStepMarker} reply now with the JSON your latest instruction asks for, using only the evidence already gathered.`,
   ].join("\n")
 
 /**

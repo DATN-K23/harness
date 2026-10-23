@@ -21,6 +21,7 @@ export interface RunConfigInput {
   systemPromptDigest: string
   verdictSchemaDigest: string
   runtime?: import("@harness/protocol").RunConfigSnapshot["runtime"]
+  findingNormalization?: RunConfigSnapshot["findingNormalization"]
 }
 
 export interface BuiltRunConfig {
@@ -43,6 +44,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
     enablePocExecution: input.enablePocExecution ?? false,
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
+    ...(input.findingNormalization !== undefined ? { findingNormalization: input.findingNormalization } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
   })

@@ -146,6 +146,11 @@ export class FaultyStore implements RunStorePort {
   loadEvents(...args: Parameters<RunStorePort["loadEvents"]>) {
     return this.inner.loadEvents(...args)
   }
+
+  recordModelAttempt(...args: Parameters<InMemoryRunStore["recordModelAttempt"]>) {
+    if (this.down) throw new Error("store unavailable")
+    return this.inner.recordModelAttempt(...args)
+  }
 }
 
 export interface WorkerOptions {

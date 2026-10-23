@@ -193,6 +193,16 @@ describe("Provider Error Normalization and Secret Redaction", () => {
     expect(normalized.retryAfterMs).toBe(2500)
   })
 
+  test("a router 503 wrapping an upstream 429 quota error is a rate_limit with the reset as retry-after", () => {
+    const wrapped = { status: 503, message: "503 [codex/gpt-6-luna] [429]: The usage limit has been reached (reset after 29m 25s)" }
+    const normalized = normalizeProviderError(wrapped)
+    expect(normalized.category).toBe("rate_limit")
+    expect(normalized.isRetryable).toBe(true)
+    expect(normalized.retryAfterMs).toBe((29 * 60 + 25) * 1000)
+    expect(normalizeProviderError({ status: 503, message: "x (reset after 1h 2m)" }).retryAfterMs).toBeUndefined()
+    expect(normalizeProviderError({ status: 503, message: "[429]: quota (reset after 1h 2m)" }).retryAfterMs).toBe(3_720_000)
+  })
+
   test("normalizes 400 as non-retryable invalid_request error", () => {
     const err400 = {
       status: 400,

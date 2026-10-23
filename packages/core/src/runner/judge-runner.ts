@@ -1,4 +1,5 @@
 import {
+  EventPayloadSchemas,
   StopPrecedence,
   TerminalRunStates,
   type BudgetLimits,
@@ -26,6 +27,7 @@ import {
   type StepOutcome,
   type StopReason,
   type ToolRegistryPort,
+  type TrajectoryEvent,
 } from "@harness/protocol"
 import { loadPrompt } from "../prompts/index"
 import { textDigest } from "../util/digest"
@@ -49,6 +51,31 @@ import { enterStageFour, recoverTools, runStages, type StageContext } from "./ru
 import { RunWriter, type CommittedRun, type TerminalCommit } from "./run-writer"
 import { evaluateStop, initialNoProgress, observeToolCalls, type NoProgressState } from "./stop-conditions"
 
+type AttemptRecorder = { recordModelAttempt(attempt: Record<string, unknown>): Promise<void> }
+
+/** Mirrors each `provider.attempted` event into the store's per-attempt table, when the store has one. */
+const recordAttempt = async (store: RunStorePort, ids: IdGenerator, event: TrajectoryEvent) => {
+  if (event.type !== "provider.attempted" || !("recordModelAttempt" in store)) return
+  const attempt = EventPayloadSchemas["provider.attempted"].parse(event.payload)
+  await (store as RunStorePort & AttemptRecorder).recordModelAttempt({
+    id: ids.next("att_"),
+    runId: event.runId,
+    stepIndex: attempt.stepIndex,
+    attemptPurpose: attempt.purpose,
+    attemptNumber: attempt.attemptIndex,
+    provider: attempt.profileId.split("/")[0] || "provider",
+    model: attempt.profileId,
+    promptTokens: attempt.usage?.promptTokens ?? 0,
+    completionTokens: attempt.usage?.completionTokens ?? 0,
+    totalTokens: attempt.usage?.totalTokens ?? 0,
+    costUsd: attempt.usage?.pricing === "unpriced" ? null : attempt.costUsd,
+    pricing: attempt.usage?.pricing ?? (attempt.costUsd === null ? "unpriced" : "priced"),
+    latencyMs: attempt.latencyMs,
+    requestJson: { eventSequence: event.sequence, retryDecision: attempt.retryDecision, backoffMs: attempt.backoffMs },
+    errorCategory: attempt.errorCategory ?? null,
+  })
+}
+
 /** The run configuration a run starts with; recorded (with the prompt digests) in `run.started`. */
 export interface JudgeRunConfig {
   flags: ResolvedFlags
@@ -61,6 +88,7 @@ export interface JudgeRunConfig {
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
+  findingNormalization?: import("@harness/protocol").RunConfigSnapshot["findingNormalization"]
 }
 
 /** Everything a run is given: the candidate finding, the snapshot it is judged against and the configuration. */
@@ -226,6 +254,7 @@ class RunExecution {
       ids: this.deps.ids,
       clock: this.deps.clock,
       bus: this.deps.bus,
+      onAppended: (event) => recordAttempt(store, this.deps.ids, event),
     })
     this.writer = new RunWriter(store, sink, this.claim, record)
     const committed = record.state === "running" ? await this.takeover() : await this.fresh()
@@ -355,6 +384,7 @@ class RunExecution {
           maxProbeRuns: config.maxProbeRuns,
           enablePocExecution: config.enablePocExecution,
           runtime: config.runtime,
+          findingNormalization: config.findingNormalization,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
         }),

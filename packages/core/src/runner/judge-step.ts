@@ -218,12 +218,22 @@ export class JudgeStep {
       telemetry: { ...clean.telemetry, contentDigest: digestOf(preparation.preparedItems) },
     })
 
-    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified.
-    const forced = isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
+    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. Each answer the
+    // run still owes (forward, backward, verdict) needs a text-only step, so forcing starts that many steps earlier.
+    const answered = (name: string) =>
+      input.items.some((item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${name} result:`))
+    const pendingDirection = input.items.findLast(
+      (item) => item.type === "system_prompt" && item.content.startsWith("Verification direction: "),
+    )
+    const answersOwed = 1 + (pendingDirection === undefined ? 0 : Number(!answered("forward")) + Number(!answered("backward")))
+    const forced = isForcedStep(input.stepIndex + answersOwed - 1, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
-    const sentItems = forced
-      ? [...preparation.preparedItems, newItem("system_prompt", this.maxStepsPrompt)]
-      : preparation.preparedItems
+    const directionOwed =
+      pendingDirection !== undefined && !answered(pendingDirection.content.includes("forward") ? "forward" : "backward")
+    const forcing = directionOwed
+      ? `All tools are disabled for the rest of this adjudication. Respond with text only, using the evidence already gathered.\n${pendingDirection.content}`
+      : this.maxStepsPrompt
+    const sentItems = forced ? [...preparation.preparedItems, newItem("system_prompt", forcing)] : preparation.preparedItems
 
     // Gate 3: stop conditions before every provider attempt (retries included), then one model call with retry.
     const stopBefore = (attempts: readonly AttemptRecord[]) => {
@@ -262,6 +272,17 @@ export class JudgeStep {
       .catch(asFault("worker_interrupted"))
     progress.attempts = retried.attempts
 
+    const repairsLeft = (input.flags.enableSchemaRepair ? MaxSchemaRepairs : 0) - input.repairsUsed
+    if (retried.kind === "failed" && retried.error.classification === "malformed_tool_call" && repairsLeft > 0)
+      return finish({ type: "continue_turn", toolOutcomes: [] }, {
+        newItems: [
+          newItem(
+            "system_prompt",
+            `Your previous reply was a malformed tool call and was discarded. Call exactly one declared tool (${input.tools.definitions().map((tool) => tool.name).join(", ")}) with JSON arguments that match its parameters, or reply with text only.`,
+          ),
+        ],
+        repairsUsed: input.repairsUsed + 1,
+      })
     if (retried.kind === "failed")
       return finish({
         type: "failed",

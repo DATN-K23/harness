@@ -81,6 +81,7 @@ describe("ModelGatewayPort", () => {
       "context_overflow",
       "content_filter",
       "invalid_provider_output",
+      "malformed_tool_call",
     ])
     expect(error.classification).toBe("context_overflow")
   })

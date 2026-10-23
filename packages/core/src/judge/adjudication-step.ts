@@ -176,10 +176,12 @@ export interface InitialContextInput {
   ids: IdGenerator
 }
 
-const tierLine = (tier: AdjudicationTier, maxProbeRuns: number) =>
-  tier === 1
-    ? "tier: 1 (the PoC contains assertions: judge whether they prove an unauthorized invariant violation)"
-    : `tier: 2 (the PoC has no assertions: measure the state change with ${RunStateProbeToolName}, at most ${maxProbeRuns} runs)`
+const tierLine = (tier: AdjudicationTier, maxProbeRuns: number, pocCode: string) =>
+  pocCode.trim() === ""
+    ? "tier: none (no PoC was submitted: judge from the source evidence and the forward and backward checks)"
+    : tier === 1
+      ? "tier: 1 (the PoC contains assertions: judge whether they prove an unauthorized invariant violation)"
+      : `tier: 2 (the PoC has no assertions: measure the state change with ${RunStateProbeToolName}, at most ${maxProbeRuns} runs)`
 
 /**
  * The initial context in the seven-layer cache order of design 3.4. Layer 1 (system prompt, tool descriptions,
@@ -200,7 +202,7 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
     `runId: ${input.runId}`,
     `findingId: ${input.finding.findingId}`,
     `snapshotId: ${input.snapshotId}`,
-    tierLine(input.tier, input.maxProbeRuns),
+    tierLine(input.tier, input.maxProbeRuns, input.pocCode),
   ].join("\n")
   return [
     pinned("system_prompt", input.systemPrompt),

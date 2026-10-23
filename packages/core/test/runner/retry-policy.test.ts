@@ -384,6 +384,17 @@ describe("RetryPolicy.run", () => {
     expect(outcome.attempts[1]?.retryAfterMs).toBeUndefined()
   })
 
+  test("a Retry-After past the deadline ends the call after one attempt instead of retrying", async () => {
+    const quota = { ...http(503, "[429]: The usage limit has been reached (reset after 29m 25s)"), category: "rate_limit" as const, retryAfterMs: 1_765_000 }
+    const gateway = new ScriptedGateway(() => failure(quota))
+    const { policy, sleep } = setup({ gateway })
+    const outcome = await policy.run({ request: baseRequest, deadlineMs: 180_000 })
+    expect(outcome).toMatchObject({ kind: "failed", reason: "provider_retries_exhausted" })
+    expect(gateway.requests).toHaveLength(1)
+    expect(kinds(outcome)).toEqual(["exhausted"])
+    expect(sleep.waits).toEqual([])
+  })
+
   describe("enableInfraRetry", () => {
     test("off: the first provider error is terminal with exactly one attempt", async () => {
       const gateway = new ScriptedGateway(() => failure(http(503)))

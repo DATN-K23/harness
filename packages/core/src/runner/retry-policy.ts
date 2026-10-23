@@ -190,8 +190,13 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
         return { kind: "failed", reason: "provider_transient_primary", error, attempts }
       }
 
+      // Retry-After never extends the wait, but one that outlasts the run means no retry can succeed in time.
+      const resetsAfterDeadline =
+        error.retryAfterMs !== undefined && input.deadlineMs !== undefined && deps.clock.nowMs() + error.retryAfterMs >= input.deadlineMs
       const exhausted =
-        retries >= config.maxRetries || (error.isTimeout === true && timeoutRetries >= config.maxTimeoutRetries)
+        resetsAfterDeadline ||
+        retries >= config.maxRetries ||
+        (error.isTimeout === true && timeoutRetries >= config.maxTimeoutRetries)
       if (exhausted) {
         await settle(record("exhausted", 0, error))
         return { kind: "failed", reason: "provider_retries_exhausted", error, attempts }

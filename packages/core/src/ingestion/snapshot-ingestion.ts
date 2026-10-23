@@ -16,7 +16,7 @@ const hasProhibitedKey = (value: unknown): boolean => {
   return Object.entries(value).some(([key, child]) => prohibitedKey.test(key) || hasProhibitedKey(child))
 }
 
-const parseClaim = (report: string, pocCode?: string): { claim: DeconstructedClaim; pocCode?: string } | undefined => {
+export const parseClaim = (report: string, pocCode?: string): { claim: DeconstructedClaim; pocCode?: string } | undefined => {
   const values = new Map<string, string>()
   for (const line of report.split(/\r?\n/)) {
     const match = /^(Target|Root cause|Attack scenario|Impact|State):\s*(.+)$/.exec(line.trim())
@@ -47,7 +47,10 @@ export class SnapshotIngestion implements IngestionPort {
       const prose = reportMarkdown.replace(/```(?:json|solidity|sol|forge)?[^\n]*\n[\s\S]*?```/gi, "")
       if (/(?:["'`]?(?:ground.?truth|adjudication|scor(?:e|ing)|label)[\w -]*["'`]?)\s*:/i.test(prose)) return { kind: "invalid_report" }
     } catch { return { kind: "invalid_report" } }
-    const pocCode = /```(?:solidity|sol|forge)?\s*\n([\s\S]*?)```/i.exec(reportMarkdown)?.[1]?.trim()
+    // matchAll consumes fences pairwise; a single search could open at one block's closing fence and capture prose.
+    const pocCode = [...reportMarkdown.matchAll(/```([^\n]*)\n([\s\S]*?)```/g)]
+      .find((fence) => /^(?:solidity|sol|forge)?\s*$/i.test(fence[1]!))?.[2]
+      ?.trim()
     const prose = reportMarkdown.replace(/```[^\n]*\n[\s\S]*?```/gi, "")
     const parsed = parseClaim(prose, pocCode)
     if (!parsed) return { kind: "incomplete", reason: "unsupported_report" }

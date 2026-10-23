@@ -1,0 +1,5 @@
+{
+  "verdict": "valid",
+  "severity": "High",
+  "reasoning": "In `Jackpot._calculateLpPoolCap` (contracts/Jackpot.sol:1469-1476), `lpPoolCap` is calibrated to the maximum number of tickets that fit in a `uint256` bit vector (`Combinations.choose(_normalBallMax, NORMAL_BALL_COUNT) * (MAX_BIT_VECTOR_SIZE - _normalBallMax)` with `MAX_BIT_VECTOR_SIZE = 255`). However, `lpPoolCap` is only enforced on deposits in `JackpotLPManager.lpDeposit`. During drawing settlement in `Jackpot.scaledEntropyCallback` and `JackpotLPManager.processDrawingSettlement`, earnings from ticket sales increase `newLPValue` without any cap or skimming mechanism. When `newLPValue` exceeds `lpPoolCap`, `_setNewDrawingState` (contracts/Jackpot.sol:1478-1510) sets `bonusballMax` to a value such that `bonusballMax + normalBallMax > 255`. Subsequently, when a user purchases a ticket with a high bonusball, `TicketComboTracker.insert` (contracts/lib/TicketComboTracker.sol:144) computes `_bonusball + _tracker.normalMax` using `uint8` arithmetic, causing an arithmetic overflow revert (Panic 0x11) in Solidity 0.8, leading to a denial of service on valid ticket purchases and corrupted ticket odds."
+}

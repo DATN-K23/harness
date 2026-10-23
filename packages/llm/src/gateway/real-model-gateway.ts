@@ -95,8 +95,11 @@ export class RealModelGateway implements ModelGatewayPort {
     let toolOptions: ReturnType<typeof lowerToolOptions>
     try {
       validateAttemptRequestTools(request.tools)
-      messages = convertToChatMessages(request.items)
       toolOptions = lowerToolOptions(request)
+      // The `tools` field already carries each schema; repeating the descriptions as system messages only costs tokens.
+      messages = convertToChatMessages(
+        toolOptions.tools === undefined ? request.items : request.items.filter((item) => item.type !== "tool_description"),
+      )
     } catch (error: unknown) {
       const message =
         error instanceof HistoryLoweringError

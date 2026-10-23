@@ -184,4 +184,26 @@ describe("adjudication step: initial context", () => {
       expect(header).toContain(value)
     expect(items[9].content).toContain("src/Vault.sol (lines 10-20)")
   })
+
+  test("a finding without a PoC gets a case header that names no tier and no probe budget", () => {
+    const clock = new FakeClock(1_000)
+    const random = new SeededRandom(3)
+    const { tools } = setup(false)
+    const items = buildInitialContext({
+      runId: "run-1",
+      snapshotId: "snap-1",
+      finding: { findingId: "finding-7", reportMarkdown: "# Reentrancy in Vault.withdraw" },
+      pocCode: "",
+      bceSlices: [],
+      tier: 2,
+      maxProbeRuns: 0,
+      systemPrompt: "You are the Judge.",
+      tools: tools.definitions(),
+      shapedTrace: "",
+      ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => random.bytes(size) }),
+    })
+    const header = items.find((item) => item.content.startsWith("Case header"))?.content ?? ""
+    expect(header).toContain("tier: none")
+    expect(header).not.toContain("at most 0 runs")
+  })
 })

@@ -68,6 +68,15 @@ describe("SnapshotIngestion", () => {
     expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", pocCode: "contract Exploit { function testExploit() public { require(true); } }" })
   })
 
+  test("pairs code fences in order, so prose between two fences is never taken as the PoC", async () => {
+    const ingest = (report: string) =>
+      new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })
+    const textOnly = `${narrative}\n\n\`\`\`text\nx = y + z\n\`\`\`\n\nprose between fences\n\n\`\`\`text\na = b\n\`\`\``
+    expect(await ingest(textOnly)).not.toHaveProperty("pocCode")
+    const withPoc = `${narrative}\n\n\`\`\`text\nx = y + z\n\`\`\`\n\nprose\n\n\`\`\`solidity\ncontract Exploit {}\n\`\`\``
+    expect(await ingest(withPoc)).toMatchObject({ pocCode: "contract Exploit {}" })
+  })
+
   test("does not interpret code-fenced Solidity as report metadata or JSON", async () => {
     const report = `${narrative}\n\n\`\`\`solidity\ncontract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }\n\`\`\``
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })

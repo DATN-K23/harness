@@ -145,7 +145,18 @@ export function normalizeProviderError(
   let category: ProviderErrorCategory = "transport"
   let isRetryable = false
 
-  if (statusCode !== undefined) {
+  // Routers such as 9router return a 5xx whose body carries the upstream 429 and when the quota resets.
+  const wrappedRateLimit = statusCode !== undefined && statusCode >= 500 && /\[429\]|usage limit|rate limit|quota/i.test(rawMessage)
+  if (wrappedRateLimit && retryAfterMs === undefined) {
+    const reset = /reset after\s+(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?/i.exec(rawMessage)
+    const seconds = reset ? Number(reset[1] ?? 0) * 3600 + Number(reset[2] ?? 0) * 60 + Number(reset[3] ?? 0) : 0
+    if (seconds > 0) retryAfterMs = seconds * 1000
+  }
+
+  if (wrappedRateLimit) {
+    category = "rate_limit"
+    isRetryable = true
+  } else if (statusCode !== undefined) {
     if (statusCode === 401 || statusCode === 403) {
       category = "authentication"
       isRetryable = false

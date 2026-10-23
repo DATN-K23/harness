@@ -287,6 +287,24 @@ describe("JudgeRunner: reasoning loop", () => {
     expect(w.gateway.callCount).toBe(4)
   })
 
+  test("every provider.attempted event is mirrored into model_attempts", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "incomplete", reason: "bce_unavailable", claim, bceSlices: [] }, script: [
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"BCE is incomplete.","citesEvidence":[]}'),
+    ] })
+    await w.start()
+    const attempted = (await world.events("provider.attempted")).map((event) => EventPayloadSchemas["provider.attempted"].parse(event.payload))
+    const rows = await world.store.inner.loadModelAttempts(RunId)
+    expect(attempted.length).toBeGreaterThan(0)
+    expect(rows.map((row) => [row.stepIndex, row.attemptPurpose, row.attemptNumber, row.totalTokens])).toEqual(
+      attempted.map((attempt) => [attempt.stepIndex, attempt.purpose, attempt.attemptIndex, attempt.usage?.totalTokens ?? 0]),
+    )
+  })
+
   test("Task 3 incomplete BCE cannot infer invalidity from a blocking consensus", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
@@ -685,6 +703,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       modelLimits: true,
       profileId: true,
       runtime: true,
+      findingNormalization: true,
     } satisfies Record<keyof JudgeRunConfig, true>
     const itemFields = {
       id: true,

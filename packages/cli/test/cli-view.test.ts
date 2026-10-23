@@ -211,4 +211,28 @@ describe("executeViewCommand", () => {
     expect(parsedJson.verdict.validity).toBe("unverified")
     expect(parsedJson.verdict.verificationStatus).toBe("UNVERIFIED")
   })
+
+  test("shows a Judge run that ended without a verdict, with its events and terminal payload", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const runId = "run-judge-no-verdict"
+    store.seedRun(runId, "queued")
+    const claimResult = await store.claim({ runId, workerId: "test-worker" })
+    if (claimResult.kind !== "claimed") throw new Error("claim failed")
+    const append = async (eventId: string, type: "stage.started" | "run.failed", payload: Record<string, unknown>) =>
+      store.appendEvent({
+        claim: claimResult.claim,
+        expectedStateVersion: claimResult.stateVersion,
+        event: { eventId, type, schemaVersion: 1, payload, payloadDigest: digestOf(payload), occurredAt: new Date(1000).toISOString() },
+      })
+    await append("evt-stage", "stage.started", { stage: "ingestion" })
+    await append("evt-failed", "run.failed", { reason: "provider_permanent", message: "malformed function call" })
+
+    const { exitCode, output } = await executeViewCommand({ id: runId }, { store })
+    expect(exitCode).toBe(0)
+    expect(output).toContain("Judge Run Inspection Record")
+    expect(output).toContain("Judge Verdict:       (none)")
+    expect(output).toContain("| run.failed |")
+    expect(output).toContain("malformed function call")
+    expect(JSON.parse((await executeViewCommand({ id: runId, json: true }, { store })).output).verdict).toBeNull()
+  })
 })

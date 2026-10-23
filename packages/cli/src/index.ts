@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, FindingNormalizerPrompt, MultiTurnRunner, SnapshotIngestion, claimMarkdown, loadPrompt, normalizeFinding, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
@@ -64,6 +64,7 @@ Options:
   --id <runId>                Run identifier to inspect (required for view)
   --json                      Print a multi-turn run summary as JSON
   --mock                      Use an in-memory store and scripted provider
+  --no-normalize              Judge the finding as written; skip the provider call that rewrites it into the claim template
   -h, --help                  Show this help message
 `
 
@@ -78,6 +79,7 @@ export interface CliParsedArgs {
   snapshot?: string
   id?: string
   mock?: boolean
+  noNormalize?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -113,6 +115,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       snapshot: { type: "string" },
       id: { type: "string" },
       mock: { type: "boolean" },
+      "no-normalize": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -139,6 +142,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     snapshot: asString(values.snapshot),
     id: asString(values.id),
     mock: Boolean(values.mock),
+    noNormalize: Boolean(values["no-normalize"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -387,8 +391,35 @@ async function runCommand(
         const { JudgeRunner } = await import("@harness/core")
         const findingId = `finding-${Date.now()}`
         const runId = `run-${Date.now()}`
+        // A JSON finding keeps only its claim fields either way, so adjudication metadata never reaches the run (R2).
+        let reportMarkdown = claimMarkdown(findingMarkdown)
+        let findingNormalization: NonNullable<import("@harness/core").JudgeRunConfig["findingNormalization"]> = {
+          enabled: !parsed.noNormalize && !parsed.mock,
+        }
+        if (findingNormalization.enabled) {
+          const normalized = await normalizeFinding({ gateway, profileId, maxOutputTokens }, { runId, reportMarkdown: findingMarkdown })
+          if (normalized.kind === "failed") {
+            stderr(redactSecrets(`Error: Finding normalization failed after ${normalized.attempts} attempt(s): ${normalized.message}`, secrets))
+            return 1
+          }
+          reportMarkdown = normalized.reportMarkdown
+          findingNormalization = {
+            enabled: true,
+            outcome: normalized.kind,
+            promptDigest: loadPrompt(FindingNormalizerPrompt).digest,
+            profileId,
+            ...(normalized.kind === "normalized"
+              ? {
+                  promptTokens: normalized.usage.promptTokens,
+                  completionTokens: normalized.usage.completionTokens,
+                  costUsd: normalized.usage.costUsd,
+                  latencyMs: Math.round(normalized.latencyMs),
+                }
+              : {}),
+          }
+        }
         const judgeInput: import("@harness/core").JudgeRunInput = {
-          finding: { findingId, reportMarkdown: findingMarkdown },
+          finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
             flags: {
@@ -434,6 +465,7 @@ async function runCommand(
             enablePocExecution: false,
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
+            findingNormalization,
           },
         }
 
@@ -446,21 +478,7 @@ async function runCommand(
           request: async () => ({ kind: "requested" as const }),
         }
         const security = new ProductionSecurityFilter()
-        const ingestion: import("@harness/protocol").IngestionPort = {
-          ingest: async () => ({
-            kind: "narrative_only" as const,
-            claim: {
-              targetContracts: ["Vault"],
-              targetFunctions: ["withdraw"],
-              rootCause: "Report narrative analyzed via CLI Judge runner",
-              attackScenario: "Attacker executes vulnerability scenario",
-              callerAssumptions: [],
-              claimedImpact: "Impact claimed in report",
-              claimedState: "State affected",
-            },
-            bceSlices: [],
-          }),
-        }
+        const ingestion = new SnapshotIngestion({ source: snapshot })
         const sanitizer: import("@harness/protocol").SanitizerPort = {
           sanitize: async () => ({ kind: "ok" as const, stitchedTestFile: "", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } }),
           injectStateProbes: async () => ({ probedTestFile: "" }),
@@ -512,14 +530,14 @@ async function runCommand(
           await store.admit({
             runId,
             findingId,
-            reportMarkdown: findingMarkdown,
+            reportMarkdown,
             snapshotId: parsed.snapshot,
             config: judgeInput.config as unknown as Record<string, unknown>,
             idempotencyKey: `cli-judge-${runId}`,
             requestDigest: `sha256:${runId}`,
           })
         } else if ("seedRun" in store && typeof store.seedRun === "function") {
-          await store.seedRun(runId, "queued", findingMarkdown)
+          await store.seedRun(runId, "queued", reportMarkdown)
         }
 
         const claimRes = await store.claim({ runId, workerId: "cli-judge-worker" })
@@ -539,6 +557,7 @@ async function runCommand(
           `Run ID:       ${runId}`,
           `Finding ID:   ${findingId}`,
           `Snapshot ID:  ${parsed.snapshot}`,
+          `Finding:      ${findingNormalization.outcome ?? (findingNormalization.enabled ? "-" : "not normalized")}`,
           `State:        ${judgeState}`,
           ...(judgeResult.kind === "committed" && judgeResult.terminalReason ? [`Terminal:     ${judgeResult.terminalReason}`] : []),
           ...(verdict

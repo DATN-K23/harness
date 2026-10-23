@@ -134,6 +134,25 @@ describe("JudgeStep: context preflight", () => {
   })
 })
 
+describe("JudgeStep: malformed tool calls", () => {
+  const malformed = errorResponse({ isRetryable: false, category: "invalid_request", classification: "malformed_tool_call", message: "The provider returned a malformed function call." })
+
+  test("a malformed tool call becomes a repair turn instead of failing the run", async () => {
+    const h = await createHarness({ script: [malformed] })
+    const result = await h.step.execute(h.input())
+    expect(result.outcome.type).toBe("continue_turn")
+    expect(result.repairsUsed).toBe(1)
+    expect(result.newItems.at(-1)?.content).toContain("malformed tool call")
+    expect(h.gateway.callCount).toBe(1)
+  })
+
+  test("a malformed tool call after the repair budget is spent fails the step", async () => {
+    const h = await createHarness({ script: [malformed] })
+    const result = await h.step.execute(h.input({ repairsUsed: 2 }))
+    expect(result.outcome).toMatchObject({ type: "failed", reason: "provider_permanent" })
+  })
+})
+
 describe("JudgeStep: step-limit forcing", () => {
   test("maxSteps 4: step 3 disables tools, appends the forcing instruction and a verdict there completes", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))], limits: { maxSteps: 4 } })
@@ -155,6 +174,23 @@ describe("JudgeStep: step-limit forcing", () => {
     expect(refused?.toolMeta?.isError).toBe(true)
     expect(refused?.content).toContain("tools are disabled")
     expect((await h.events("tool.failed")).length).toBe(2)
+  })
+
+  test("pending forward and backward answers move forcing earlier and the forced step asks for the pending direction", async () => {
+    const direction = `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`
+    const items: ContextItem[] = [...baseItems, { id: "direction", turn: 0, type: "system_prompt", isPinned: true, content: direction }]
+    // maxSteps 10 with forward, backward and the verdict still owed: steps 1-6 explore, step 7 is the first forced one.
+    const explore = await createHarness({ script: [readVault()], limits: { maxSteps: 10 } })
+    await explore.step.execute(explore.input({ stepIndex: 6, items }))
+    expect(explore.gateway.calls[0]?.toolsDisabled).toBeUndefined()
+
+    const forced = await createHarness({ script: [textResponse('{"reachability":"reachable","explanation":"entry reaches sink"}')], limits: { maxSteps: 10 } })
+    const result = await forced.step.execute(forced.input({ stepIndex: 7, items }))
+    const request = forced.gateway.calls[0]
+    expect(request?.toolsDisabled).toBe(true)
+    expect(request?.items.at(-1)?.content).toContain(direction)
+    expect(request?.items.at(-1)?.content).not.toBe(maxStepsPrompt)
+    expect(result.newItems.some((item) => item.content.startsWith("Bidirectional forward result:"))).toBe(true)
   })
 
   test("forcing disabled: step maxSteps - 1 does not set toolsDisabled", async () => {

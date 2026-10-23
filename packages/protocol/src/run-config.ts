@@ -125,6 +125,19 @@ export const RunConfigSnapshotSchema = z
       maxContextTokens: z.number().int().positive(), maxOutputTokens: z.number().int().positive(),
       solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1),
     }).optional(),
+    /** Whether the candidate finding was rewritten into the claim template by a provider call before the run. */
+    findingNormalization: z
+      .object({
+        enabled: z.boolean(),
+        outcome: z.enum(["template", "normalized"]).optional(),
+        promptDigest: Sha256DigestSchema.optional(),
+        profileId: z.string().min(1).optional(),
+        promptTokens: z.number().int().nonnegative().optional(),
+        completionTokens: z.number().int().nonnegative().optional(),
+        costUsd: z.number().nonnegative().optional(),
+        latencyMs: z.number().int().nonnegative().optional(),
+      })
+      .optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
   })

@@ -1,0 +1,13 @@
+$ bun run --cwd packages/cli dev -- run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+$ bun run src/index.ts run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1792745499250
+Finding ID:   finding-1792745499249
+Snapshot ID:  snap_c23510d25db6
+State:        budget_exhausted
+Terminal:     max_steps
+========================================
+error: script "dev" exited with code 1
+error: script "cli:run" exited with code 1

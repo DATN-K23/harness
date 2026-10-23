@@ -95,6 +95,36 @@ describe("gateway request options", () => {
     ])
   })
 
+  test("tool descriptions are not repeated as system messages when the tools themselves are sent", async () => {
+    const items = [
+      { id: "prompt", turn: 0, type: "candidate_finding" as const, isPinned: true, content: "Inspect." },
+      { id: "tool", turn: 0, type: "tool_description" as const, isPinned: true, content: "read_file: Read a file." },
+    ]
+    const withTools = new RecordingClient(readRecordingFixture("content-filter"))
+    await new RealModelGateway({ client: withTools.client }).executeAttempt(baseRequest({ items, tools }))
+    expect(withTools.requests[0]?.messages).toEqual([{ role: "user", content: "Inspect." }])
+
+    const disabled = new RecordingClient(readRecordingFixture("content-filter"))
+    await new RealModelGateway({ client: disabled.client }).executeAttempt(baseRequest({ items, tools, toolsDisabled: true }))
+    expect(disabled.requests[0]?.messages).toContainEqual({ role: "system", content: "read_file: Read a file." })
+  })
+
+  test("Judge-style {name, arguments} request content replays only the arguments", async () => {
+    const recording = new RecordingClient(readRecordingFixture("content-filter"))
+    const items = [
+      { id: "prompt", turn: 0, type: "candidate_finding" as const, isPinned: true, content: "Inspect." },
+      {
+        id: "request", turn: 1, type: "tool_request" as const, isPinned: false,
+        content: JSON.stringify({ name: "glob", arguments: { pattern: "**" } }),
+        toolMeta: { callId: "c1", toolName: "glob" },
+      },
+      { id: "result", turn: 1, type: "tool_result" as const, isPinned: false, content: "src/A.sol", toolMeta: { callId: "c1", toolName: "glob" } },
+    ]
+    await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest({ items }))
+    const assistant = recording.requests[0]?.messages[1] as OpenAI.Chat.ChatCompletionAssistantMessageParam
+    expect(assistant.tool_calls?.[0]).toEqual({ id: "c1", type: "function", function: { name: "glob", arguments: "{\"pattern\":\"**\"}" } })
+  })
+
   test("orphan tool results fail before calling the client", async () => {
     const recording = new RecordingClient(readRecordingFixture("parallel-tool-calls"))
     const response = await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest({
@@ -174,6 +204,24 @@ describe("gateway request options", () => {
       category: "invalid_request",
       classification: "invalid_provider_output",
     })
+  })
+
+  test("an empty provider response (no choice, no usage) is a retryable error", async () => {
+    const recording = new RecordingClient({ id: "chatcmpl-empty", object: "chat.completion", created: 0, model: "m", choices: [] } as unknown as OpenAI.Chat.ChatCompletion)
+    const response = await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest())
+    expect(response.finishReason).toBe("error")
+    expect(response.error).toMatchObject({ category: "transport", isRetryable: true, classification: "invalid_provider_output" })
+  })
+
+  test("malformed_function_call is a non-retryable malformed_tool_call error, left to the runner to repair", async () => {
+    const fixture = readRecordingFixture("content-filter") as OpenAI.Chat.ChatCompletion
+    const recording = new RecordingClient({
+      ...fixture,
+      choices: fixture.choices.map((choice) => ({ ...choice, finish_reason: "malformed_function_call" })),
+    } as unknown as OpenAI.Chat.ChatCompletion)
+    const response = await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest())
+    expect(response.finishReason).toBe("error")
+    expect(response.error).toMatchObject({ category: "invalid_request", isRetryable: false, classification: "malformed_tool_call" })
   })
 
   test("missing provider usage is unpriced and price overrides must be paired", async () => {

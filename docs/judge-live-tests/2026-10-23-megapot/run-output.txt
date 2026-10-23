@@ -1,0 +1,13 @@
+$ bun run --cwd packages/cli dev -- run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000"
+$ bun run src/index.ts run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000"
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1792745431829
+Finding ID:   finding-1792745431829
+Snapshot ID:  snap_c23510d25db6
+State:        failed
+Terminal:     provider_retries_exhausted
+========================================
+error: script "dev" exited with code 1
+error: script "cli:run" exited with code 1

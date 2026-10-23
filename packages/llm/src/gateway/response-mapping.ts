@@ -102,6 +102,32 @@ export function mapChatCompletion(
       },
     }
   }
+  // Routers sometimes return no choice and no usage at all; the same request usually succeeds when sent again.
+  if (providerUsage === undefined && rawReason == null && rawCalls.length === 0 && !base.content) {
+    return {
+      ...base,
+      finishReason: "error",
+      error: {
+        isRetryable: true,
+        category: "transport",
+        classification: "invalid_provider_output",
+        message: "The provider returned an empty response.",
+      },
+    }
+  }
+  // Gemini reports a garbled tool call this way. Resending the same request repeats it, so the runner repairs instead.
+  if ((rawReason as string | null | undefined) === "malformed_function_call") {
+    return {
+      ...base,
+      finishReason: "error",
+      error: {
+        isRetryable: false,
+        category: "invalid_request",
+        classification: "malformed_tool_call",
+        message: "The provider returned a malformed function call.",
+      },
+    }
+  }
   const claimsToolCalls = rawReason === "tool_calls" || rawReason === "function_call"
   if (rawReason === "stop" || (claimsToolCalls && rawCalls.length > 0)) {
     const toolCalls =

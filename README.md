@@ -7,8 +7,5 @@ This proposal adopts the approach described in the core paper:
 
 ## Overview
 
-Hound introduces a relation-first graph engine designed for system-level reasoning across complex smart contract codebases:
-
-- **Relation-First Knowledge Graphs:** Analyst-defined, multi-scale aspect graphs (system architecture, authentication/authorization roles, value/monetary flows, call graphs, protocol invariants) with typed annotations that ground cross-component code retrieval.
-- **Persistent Belief System:** Long-lived vulnerability hypotheses updated as evidence accrues across auditing loops.
-- **Adaptive Planning & QA Finalization:** Coverage sweep followed by intuition-driven deep dives, verified with dedicated QA before emitting findings.
+- [Context-Centric Graph Specialists](docs/context_centric_graph_specialists_proposal.md)
+- [Slither AST Parser Integration](docs/slither_ast_parser_proposal.md)

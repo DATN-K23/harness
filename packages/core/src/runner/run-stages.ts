@@ -2,9 +2,11 @@ import {
   DefaultMaxProbeRuns,
   isValidDeconstructedClaim,
   type BceSlice,
+  type ClaimField,
   type ContextItem,
   type DeconstructedClaim,
   type IngestionResult,
+  type StopReason,
   type ToolRegistryPort,
 } from "@harness/protocol"
 import {
@@ -17,14 +19,17 @@ import {
   stateProbeFor,
   type SanitizedPoc,
 } from "../judge/adjudication-step"
+import { MaxExtractionOutputTokens, claimExtractionItems, parseExtractedFields } from "../judge/claim-extraction"
 import { structuredOutputPrompt, withSubmissionTools } from "../judge/structured-output"
 import { SandboxUnverified, unverifiedVerdict, type VerdictWording } from "../judge/unverified-verdict"
+import { isDeniedSourceFile } from "../source/source-snapshot"
 import { textDigest } from "../util/digest"
 import { checkBoundary, type CancellationBoundary } from "./cancellation"
 import { fastRejectVerdict, type FastReject } from "./fast-reject"
 import type { HydratedHistory } from "./history-hydrator"
 import type { JudgeRunInput, JudgeRunnerDeps } from "./judge-runner"
-import { StepFault, asFault, type Persist } from "./judge-step-support"
+import { StaleWrite, StepFault, asFault, attemptPayload, bounded, type Persist } from "./judge-step-support"
+import type { AttemptRecord, RetryPolicy } from "./retry-policy"
 import type { TerminalCommit } from "./run-writer"
 
 /** What the stage code of one run needs from the runner. */
@@ -36,9 +41,14 @@ export interface StageContext {
   systemPrompt: string
   signal?: AbortSignal
   probeEvidence: Map<string, { before: string; after: string }>
+  /** The run's retry policy and accounting, for the one stage that calls the model (claim extraction). */
+  retryPolicy: RetryPolicy
+  charge: (attempt: AttemptRecord) => void
+  beforeRetry: () => StopReason | undefined
+  deadlineMs: number
 }
 
-type StageName = "ingestion" | "sanitizer" | "sandbox"
+type StageName = "ingestion" | "claim_extraction" | "sanitizer" | "sandbox"
 
 class SandboxCallFailed extends Error {
   constructor(readonly sandboxError: unknown) { super("sandbox call failed") }
@@ -63,9 +73,11 @@ const runStage = async <Result>(
   const durationMs = () => Math.max(0, Math.round(clock.nowMs() - startedAt))
   await context.persist("stage.started", { stage })
   const result = await call().catch(async (error: unknown) => {
+    // A refused write ends this worker's writes; a typed fault (a failed provider call) keeps its reason.
+    if (error instanceof StaleWrite) throw error
     await context.persist("stage.finished", { stage, outcome: "failed", durationMs: durationMs() })
     if (stage === "sandbox" && !context.signal?.aborted) throw new SandboxCallFailed(error)
-    throw new StepFault("worker_interrupted", error)
+    throw error instanceof StepFault ? error : new StepFault("worker_interrupted", error)
   })
   const reasonCode = rejected(result)
   await context.persist("stage.finished", {
@@ -81,7 +93,8 @@ const runStage = async <Result>(
 type Admission =
   | { kind: "judge"; claim?: DeconstructedClaim; pocCode?: string; bceSlices: BceSlice[] }
   | { kind: "fast_reject"; reject: FastReject }
-  | { kind: "unresolved"; wording: VerdictWording }
+  /** `missing` is set when the report only lacked claim fields, which claim extraction may still locate. */
+  | { kind: "unresolved"; wording: VerdictWording; missing?: ClaimField[] }
 
 const InvalidReport: VerdictWording = {
   summary: "The submitted report could not be safely interpreted.",
@@ -93,6 +106,21 @@ const InvalidClaim: VerdictWording = {
   summary: "The report claim is incomplete and cannot be verified.",
   reasoning: "The deconstructed claim lacks required target or semantic fields.",
 }
+
+const fieldLabels: Record<ClaimField, string> = {
+  target: "the target function",
+  rootCause: "the root cause",
+  attackOrImpact: "the attack scenario or impact",
+}
+
+const insufficient = (missing: readonly ClaimField[], extracted: boolean): VerdictWording => ({
+  summary: "The report does not state enough to verify the claim.",
+  reasoning: `The report does not state ${missing.map((field) => fieldLabels[field]).join(", ")}${
+    extracted
+      ? " in a form the snapshot confirms, even after the model was asked to locate them word for word in the report"
+      : " in any recognized layout, and claim extraction is disabled for this run"
+  }, so the finding remains unresolved and no reasoning step was run.`,
+})
 
 const unmapped = (reason: string): VerdictWording => ({
   summary: "The report or source context could not be mapped completely.",
@@ -118,6 +146,8 @@ const admit = (ingested: IngestionResult): Admission => {
       }
     case "incomplete":
     case "narrative_only": {
+      if (ingested.kind === "incomplete" && ingested.missingFields !== undefined && ingested.missingFields.length > 0)
+        return { kind: "unresolved", wording: insufficient(ingested.missingFields, false), missing: ingested.missingFields }
       if (ingested.claim === undefined) return { kind: "unresolved", wording: unmapped(ingested.kind === "incomplete" ? ingested.reason : ingested.kind) }
       if (!isValidDeconstructedClaim(ingested.claim)) return { kind: "unresolved", wording: InvalidClaim }
       return { kind: "judge", claim: ingested.claim, pocCode: pocOf(ingested.pocCode), bceSlices: ingested.bceSlices ?? [] }
@@ -126,13 +156,81 @@ const admit = (ingested: IngestionResult): Admission => {
 }
 
 /** The ingestion stage is `rejected` whenever the run ends there, so the trajectory says why no model was called. */
-const admissionRejection = (admission: Admission) =>
-  admission.kind === "judge" ? undefined : admission.kind === "fast_reject" ? admission.reject.reasonCode : "UNRESOLVED"
+const admissionRejection = (admission: Admission) => {
+  if (admission.kind === "judge") return undefined
+  if (admission.kind === "fast_reject") return admission.reject.reasonCode
+  return admission.missing === undefined ? "UNRESOLVED" : "CLAIM_INCOMPLETE"
+}
+
+type Extraction = { kind: "admitted"; admission: Admission } | { kind: "ended"; terminal: TerminalCommit; code: string }
+
+/** One extraction attempt is a provider call: purpose `claim_extraction`, step 1, charged to the run as it happens. */
+const ExtractionStep = 1
+
+/**
+ * Asks the model once to locate the missing claim fields in the report, then lets the ingestion port take the claim
+ * again with them. The port keeps only verbatim excerpts and a target the snapshot confirms, so the model can point
+ * at the report but never rewrite it; whatever is still missing makes the run truly unresolved.
+ */
+const extractClaim = async (context: StageContext, missing: readonly ClaimField[]): Promise<Extraction> => {
+  const { deps, runId, input, signal } = context
+  const { profileId, modelLimits } = input.config
+  const sourcePaths = (await deps.snapshot.listFiles({ snapshotId: input.snapshotId }, signal))
+    .filter((path) => path.endsWith(".sol") && !isDeniedSourceFile(path))
+    .sort()
+  const items = claimExtractionItems({
+    reportMarkdown: input.finding.reportMarkdown,
+    missing,
+    sourcePaths,
+    id: () => deps.ids.next("itm_"),
+  })
+  const outcome = await context.retryPolicy
+    .run({
+      request: {
+        runId,
+        stepIndex: ExtractionStep,
+        profileId,
+        items,
+        toolsDisabled: true,
+        maxOutputTokens: Math.min(modelLimits.maxOutputTokens, MaxExtractionOutputTokens),
+      },
+      deadlineMs: context.deadlineMs,
+      signal,
+      beforeRetry: context.beforeRetry,
+      onAttempt: async (attempt) => {
+        context.charge(attempt)
+        await context.persist("provider.attempted", attemptPayload(ExtractionStep, "claim_extraction", profileId, attempt))
+      },
+    })
+    .catch(asFault("worker_interrupted"))
+  if (outcome.kind === "failed")
+    throw new StepFault(outcome.reason, new Error(`claim extraction failed: ${bounded(outcome.error.message, 500)}`))
+  if (outcome.kind === "context_overflow" || outcome.kind === "stopped") {
+    const reason = outcome.kind === "stopped" ? outcome.reason : "context_budget_exhausted"
+    return { kind: "ended", terminal: { state: "budget_exhausted", reason, observed: [reason] }, code: "BUDGET_EXHAUSTED" }
+  }
+  if (outcome.kind === "cancelled")
+    return { kind: "ended", terminal: { state: "cancelled", boundary: "before_provider_call" }, code: "CANCELLED" }
+  const extracted = parseExtractedFields(outcome.response.content ?? "")
+  const ingested = await deps.ingestion.ingest(
+    { runId, snapshotId: input.snapshotId, finding: input.finding, ...(extracted === undefined ? {} : { extracted }) },
+    signal,
+  )
+  const admission = admit(ingested)
+  return {
+    kind: "admitted",
+    admission:
+      admission.kind === "unresolved" && admission.missing !== undefined
+        ? { ...admission, wording: insufficient(admission.missing, true) }
+        : admission,
+  }
+}
 
 /**
  * Stages 1-3 (design 4.1-4.3, D12) with cancellation boundary 1 before ingestion and before the sandbox. A reject ends
  * the run `completed` with a fast-reject verdict, an unusable report or a sandbox without a validated outcome ends it
- * `unverified`; no model call is possible from here.
+ * `unverified`. The only model call possible here is claim extraction, when the run enables it and the report's
+ * layout left claim fields missing.
  */
 export const runStages = async (context: StageContext): Promise<Staged> => {
   const { deps, runId, input, signal } = context
@@ -153,7 +251,18 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
     () => deps.ingestion.ingest({ ...stage, finding: input.finding }, signal),
     (result) => admissionRejection(admit(result)),
   )
-  const admission = admit(ingested)
+  let admission = admit(ingested)
+  if (admission.kind === "unresolved" && admission.missing !== undefined && input.config.enableClaimExtraction === true) {
+    const missing = admission.missing
+    const extraction = await runStage(
+      context,
+      "claim_extraction",
+      () => extractClaim(context, missing),
+      (result) => (result.kind === "ended" ? result.code : result.admission.kind === "judge" ? undefined : "INSUFFICIENT_REPORT"),
+    )
+    if (extraction.kind === "ended") return end(extraction.terminal)
+    admission = extraction.admission
+  }
   if (admission.kind === "fast_reject") return reject(admission.reject)
   if (admission.kind === "unresolved") return unverified(admission.wording, "UNRESOLVED")
 

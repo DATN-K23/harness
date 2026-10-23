@@ -131,7 +131,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     if (result.kind === "committed" && result.verdict) expect(result.verdict.reasoning.length).toBeGreaterThanOrEqual(50)
     expect(w.gateway.callCount).toBe(0)
     const [ingestionFinished] = (await world.events("stage.finished")).filter((event) => event.payload.stage === "ingestion")
-    expect(ingestionFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "UNRESOLVED" })
+    expect(ingestionFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "CLAIM_INCOMPLETE" })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
@@ -491,6 +491,84 @@ describe("JudgeRunner: compaction", () => {
   })
 })
 
+describe("JudgeRunner: claim extraction", () => {
+  const vault = "pragma solidity ^0.8.20;\ncontract Vault {\n    function withdraw() external {}\n}\n"
+  const realIngestion = () =>
+    new SnapshotIngestion({ source: new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/Vault.sol": vault } }) })
+  // A real-world report with no recognizable layout: no target, no labelled sections.
+  const vague = "Withdrawals are broken: the vault pays out twice when a caller re-enters during the transfer."
+  const extraction = (fields: Record<string, string | null>) => textResponse(JSON.stringify(fields), { usage: usageOf(40, 10, 0.004) })
+  const stages = async (world: World) =>
+    (await world.events()).filter((event) => event.type.startsWith("stage.finished")).map((event) => [event.payload.stage, event.payload.outcome, event.payload.reasonCode])
+
+  test("off: missing claim fields end UNRESOLVED without a model call, naming what is missing", async () => {
+    const world = createWorld()
+    const w = world.worker({ ingestionPort: realIngestion() })
+    const result = await w.start("worker-a", { ...runInput(), finding: { findingId: "finding-7", reportMarkdown: vague } })
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    if (result.kind === "committed") expect(result.verdict?.reasoning).toContain("the target function")
+    expect(w.gateway.callCount).toBe(0)
+    expect(await stages(world)).toEqual([["ingestion", "rejected", "CLAIM_INCOMPLETE"]])
+  })
+
+  test("on: the model locates verbatim fields, the snapshot confirms the target and judging continues", async () => {
+    const world = createWorld()
+    const w = world.worker({
+      ingestionPort: realIngestion(),
+      script: [
+        extraction({ target: "Vault.withdraw", rootCause: "the vault pays out twice when a caller re-enters during the transfer", attackScenario: null, impact: "Withdrawals are broken", state: null }),
+        textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+        textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      ],
+    })
+    const result = await w.start("worker-a", { ...runInput({ enableClaimExtraction: true }), finding: { findingId: "finding-7", reportMarkdown: vague } })
+
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified" } })
+    // The extraction request carries the report verbatim and offers no tools.
+    expect(w.gateway.calls[0]).toMatchObject({ toolsDisabled: true })
+    expect(w.gateway.calls[0].items.some((item) => item.type === "candidate_finding" && item.content === vague)).toBe(true)
+    // Judging continued with the confirmed claim; the report the model judges is still the original text.
+    expect(w.gateway.callCount).toBe(3)
+    expect(w.gateway.calls[1].items.some((item) => item.content.includes('"targetFunctions":["withdraw"]'))).toBe(true)
+    expect(w.gateway.calls[1].items.some((item) => item.type === "candidate_finding" && item.content === vague)).toBe(true)
+    const attempts = await world.events("provider.attempted")
+    expect(attempts[0].payload).toMatchObject({ purpose: "claim_extraction", stepIndex: 1 })
+    expect(result.usage.costUsd).toBeGreaterThanOrEqual(0.004)
+    expect(await stages(world)).toEqual([["ingestion", "rejected", "CLAIM_INCOMPLETE"], ["claim_extraction", "ok", undefined]])
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableClaimExtraction: true })
+    expect((started.payload.snapshot as { claimExtractionPromptDigest?: string }).claimExtractionPromptDigest).toStartWith("sha256:")
+  })
+
+  test.each([
+    ["the report states nothing more", { target: null, rootCause: null, attackScenario: null, impact: null, state: null }],
+    ["paraphrases and an unknown target are not accepted", { target: "Vault.drain", rootCause: "Reentrancy in withdraw", attackScenario: null, impact: "Loss of funds", state: null }],
+    ["a reply that is not JSON", null],
+  ] as const)("on: truly unresolved when %s, after exactly one model call", async (_name, fields) => {
+    const world = createWorld()
+    const w = world.worker({
+      ingestionPort: realIngestion(),
+      script: [fields === null ? textResponse("I cannot find a target.") : extraction(fields)],
+    })
+    const result = await w.start("worker-a", { ...runInput({ enableClaimExtraction: true }), finding: { findingId: "finding-7", reportMarkdown: vague } })
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    if (result.kind === "committed") expect(result.verdict?.reasoning).toContain("word for word")
+    expect(w.gateway.callCount).toBe(1)
+    expect(await stages(world)).toEqual([["ingestion", "rejected", "CLAIM_INCOMPLETE"], ["claim_extraction", "rejected", "INSUFFICIENT_REPORT"]])
+  })
+
+  test("on: a provider failure fails the run instead of judging the finding", async () => {
+    const world = createWorld()
+    const w = world.worker({
+      ingestionPort: realIngestion(),
+      script: [errorResponse({ isRetryable: false, category: "authentication", message: "invalid key", statusCode: 401 })],
+    })
+    const result = await w.start("worker-a", { ...runInput({ enableClaimExtraction: true }), finding: { findingId: "finding-7", reportMarkdown: vague } })
+    expect(result).toMatchObject({ kind: "committed", state: "failed" })
+    expect(await world.events("run.completed")).toHaveLength(0)
+  })
+})
+
 describe("JudgeRunner: recovery by hydration", () => {
   /** Worker A completes steps 1 and 2; the store becomes unreachable when step 3 records its allocation. */
   const crashAtStepThree = async () => {
@@ -754,6 +832,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       enablePocExecution: true,
       enableBidirectionalVerification: true,
       enableStructuredOutput: true,
+      enableClaimExtraction: true,
       modelLimits: true,
       profileId: true,
       runtime: true,

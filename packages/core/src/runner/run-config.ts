@@ -19,11 +19,13 @@ export interface RunConfigInput {
   enablePocExecution?: boolean
   enableBidirectionalVerification?: boolean
   enableStructuredOutput?: boolean
+  enableClaimExtraction?: boolean
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
   verificationPromptDigest?: string
   structuredOutputPromptDigest?: string
+  claimExtractionPromptDigest?: string
   runtime?: import("@harness/protocol").RunConfigSnapshot["runtime"]
 }
 
@@ -48,12 +50,16 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     enablePocExecution: input.enablePocExecution ?? false,
     enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
     enableStructuredOutput: input.enableStructuredOutput ?? false,
+    enableClaimExtraction: input.enableClaimExtraction ?? false,
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
     ...(input.verificationPromptDigest !== undefined ? { verificationPromptDigest: input.verificationPromptDigest } : {}),
     ...(input.structuredOutputPromptDigest !== undefined
       ? { structuredOutputPromptDigest: input.structuredOutputPromptDigest }
+      : {}),
+    ...(input.claimExtractionPromptDigest !== undefined
+      ? { claimExtractionPromptDigest: input.claimExtractionPromptDigest }
       : {}),
   })
   return { snapshot, digest: digestOf(snapshot) }

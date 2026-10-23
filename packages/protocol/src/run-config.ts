@@ -121,6 +121,8 @@ export const RunConfigSnapshotSchema = z
     enableBidirectionalVerification: z.boolean().default(true),
     /** Verdicts and direction results submitted through schema-typed tools instead of JSON text. */
     enableStructuredOutput: z.boolean().default(false),
+    /** One provider call that locates claim fields a report's format did not yield, before the run is unresolved. */
+    enableClaimExtraction: z.boolean().default(false),
     runtime: z.object({
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),
@@ -135,6 +137,8 @@ export const RunConfigSnapshotSchema = z
     verificationPromptDigest: Sha256DigestSchema.optional(),
     /** Digest of the structured-output instruction; present when structured output is on. */
     structuredOutputPromptDigest: Sha256DigestSchema.optional(),
+    /** Digest of the claim-extraction prompt; present when claim extraction is on. */
+    claimExtractionPromptDigest: Sha256DigestSchema.optional(),
   })
   .superRefine((snapshot, ctx) => {
     ContextFlagNames.filter((name) => snapshot.flags[name] !== snapshot.contextPolicy.flags[name]).forEach((name) =>

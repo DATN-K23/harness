@@ -28,6 +28,7 @@ import {
   type ToolRegistryPort,
 } from "@harness/protocol"
 import { verificationPromptDigest } from "../judge/bidirectional-verifier"
+import { claimExtractionPrompt } from "../judge/claim-extraction"
 import { structuredOutputPrompt } from "../judge/structured-output"
 import { loadPrompt } from "../prompts/index"
 import { textDigest } from "../util/digest"
@@ -64,6 +65,8 @@ export interface JudgeRunConfig {
   enableBidirectionalVerification?: boolean
   /** Verdicts and direction results submitted through schema-typed tools (OpenCode structured output); off by default. */
   enableStructuredOutput?: boolean
+  /** One provider call to locate claim fields a report's layout did not yield, before the run is unresolved. */
+  enableClaimExtraction?: boolean
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
@@ -289,7 +292,10 @@ class RunExecution {
         message: "the run configuration differs from the one recorded in run.started",
       })
     this.begin(started === undefined ? this.deps.clock.nowMs() : Date.parse(started.occurredAt))
-    // Without a persisted initial context nothing past the stages happened; they make no model call and run again.
+    // Attempts already made (claim extraction included) stay charged when the stages run again.
+    this.usage = history.totalsFromAttempts
+    // Without a persisted initial context nothing past the stages happened, so they run again; only claim extraction
+    // can call the model there, and its earlier attempts are already in the totals above.
     if (history.items.length === 0) return this.write.commit(await this.fromStages())
     // Before the first allocation the initial context is complete only once its last item, the trace, is persisted.
     // Re-running the stages would duplicate the items already there, so a partial one fails closed.
@@ -362,11 +368,13 @@ class RunExecution {
           enablePocExecution: config.enablePocExecution,
           enableBidirectionalVerification: config.enableBidirectionalVerification,
           enableStructuredOutput: config.enableStructuredOutput,
+          enableClaimExtraction: config.enableClaimExtraction,
           runtime: config.runtime,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
           ...(config.enableBidirectionalVerification === false ? {} : { verificationPromptDigest: verificationPromptDigest() }),
           ...(config.enableStructuredOutput === true ? { structuredOutputPromptDigest: structuredOutputPrompt().digest } : {}),
+          ...(config.enableClaimExtraction === true ? { claimExtractionPromptDigest: claimExtractionPrompt().digest } : {}),
         }),
       )
       .catch(asFault("invalid_input"))
@@ -390,6 +398,12 @@ class RunExecution {
       systemPrompt: this.systemPrompt,
       signal: this.signal,
       probeEvidence: this.probeEvidence,
+      retryPolicy: this.retryPolicy,
+      charge: (attempt) => {
+        this.usage = addUsage(this.usage, sumUsage([attempt]))
+      },
+      beforeRetry: () => this.stopReason(),
+      deadlineMs: this.startedAtMs + this.input.config.limits.wallClockTimeoutMs,
     }
   }
 

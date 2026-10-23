@@ -1,5 +1,7 @@
 import type { BceSlice, DeconstructedClaim, IngestionPort, IngestionResult, SourceSnapshotPort } from "@harness/protocol"
 import solc from "solc"
+import { draftClaim, missingFields, withExtracted, type ClaimDraft } from "./report-normalizer"
+import { MaxResolutionLines, resolveTarget, type ResolvedTarget } from "./target-resolver"
 
 const MaxReportBytes = 64_000
 const MaxSourceLines = 120
@@ -11,35 +13,33 @@ const prohibitedKey = /(?:ground.?truth|adjudication|scor(?:e|ing)|label)/i
 // A metadata key in prose: one key token (no spaces, except "ground truth") right before a colon. Prose such as
 // "Labeled Roles from _rolesSet ...: " or "guards label processing ...:" is report content, not metadata.
 const prohibitedProseKey = /(?:^|[\s"'`{,])["'`]?[\w-]*(?:ground.?truth|adjudication|scor(?:e|ing)|label)[\w-]*["'`]?\s*:/im
-const fields = ["Target", "Root cause", "Attack scenario", "Impact", "State"] as const
-
 const hasProhibitedKey = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.some(hasProhibitedKey)
   if (typeof value !== "object" || value === null) return false
   return Object.entries(value).some(([key, child]) => prohibitedKey.test(key) || hasProhibitedKey(child))
 }
 
-const parseClaim = (report: string, pocCode?: string): { claim: DeconstructedClaim; pocCode?: string } | undefined => {
-  const values = new Map<string, string>()
-  for (const line of report.split(/\r?\n/)) {
-    const match = /^(Target|Root cause|Attack scenario|Impact|State):\s*(.+)$/.exec(line.trim())
-    if (match) values.set(match[1]!, match[2]!.trim())
-  }
-  if (fields.some((field) => !values.has(field))) return undefined
-  const target = values.get("Target")!
-  const [contract, functionName] = target.split(".", 2)
-  if (!contract || !functionName || !/^[A-Za-z_$][\w$]*$/.test(contract) || !/^[A-Za-z_$][\w$]*$/.test(functionName)) return undefined
-  return {
-    claim: {
-      targetContracts: [contract], targetFunctions: [functionName], rootCause: values.get("Root cause")!,
-      attackScenario: values.get("Attack scenario")!, callerAssumptions: [], claimedImpact: values.get("Impact")!, claimedState: values.get("State")!,
-    },
-    ...(pocCode ? { pocCode } : {}),
-  }
-}
+const toClaim = (draft: ClaimDraft, target: ResolvedTarget): DeconstructedClaim => ({
+  targetContracts: [target.contract],
+  targetFunctions: [target.functionName],
+  rootCause: draft.rootCause ?? "",
+  attackScenario: draft.attackScenario ?? "",
+  callerAssumptions: draft.callerAssumptions,
+  claimedImpact: draft.impact ?? "",
+  claimedState: draft.state ?? "",
+})
 
 export class SnapshotIngestion implements IngestionPort {
   constructor(private readonly options: { source: SourceSnapshotPort; maxReportBytes?: number }) {}
+
+  /** The first `MaxResolutionLines` lines of one file the report points to, to confirm a target named in it. */
+  private async readForResolution(snapshotId: string, path: string, signal?: AbortSignal) {
+    const read = await this.options.source.readLines({ snapshotId, path, startLine: 1, endLine: MaxResolutionLines }, signal)
+    if (read.kind === "ok") return read.lines.join("\n")
+    if (read.kind !== "out_of_range" || read.lineCount === 0) return undefined
+    const whole = await this.options.source.readLines({ snapshotId, path, startLine: 1, endLine: read.lineCount }, signal)
+    return whole.kind === "ok" ? whole.lines.join("\n") : undefined
+  }
 
   async ingest(input: Parameters<IngestionPort["ingest"]>[0], signal?: AbortSignal): Promise<IngestionResult> {
     const { reportMarkdown } = input.finding
@@ -51,14 +51,20 @@ export class SnapshotIngestion implements IngestionPort {
       if (prohibitedProseKey.test(prose)) return { kind: "invalid_report" }
     } catch { return { kind: "invalid_report" } }
     const pocCode = /```(?:solidity|sol|forge)?\s*\n([\s\S]*?)```/i.exec(reportMarkdown)?.[1]?.trim()
-    const prose = reportMarkdown.replace(/```[^\n]*\n[\s\S]*?```/gi, "")
-    const parsed = parseClaim(prose, pocCode)
-    if (!parsed) return { kind: "incomplete", reason: "unsupported_report" }
+    // Any platform's layout is mapped onto the claim fields by excerpt; the report itself is never rewritten.
+    const draft = withExtracted(draftClaim(reportMarkdown), input.extracted, reportMarkdown)
 
     const paths = (await this.options.source.listFiles({ snapshotId: input.snapshotId }, signal))
       .filter((path) => !/(?:ground.?truth|adjudication|scor(?:e|ing))/i.test(path))
       .filter((path) => path.endsWith(".sol"))
       .sort()
+    const target = await resolveTarget(draft.targets, paths, (path) => this.readForResolution(input.snapshotId, path, signal))
+    const missing = missingFields(draft, target !== undefined)
+    if (target === undefined || missing.length > 0) {
+      const unresolvedTarget = target === undefined && draft.targets.length > 0 && missing.length === 1
+      return { kind: "incomplete", reason: unresolvedTarget ? "target_not_found" : "unsupported_report", missingFields: missing }
+    }
+    const parsed = { claim: toClaim(draft, target), ...(pocCode ? { pocCode } : {}) }
     if (paths.length > MaxSourceFiles) return { kind: "incomplete", reason: "bce_unavailable", ...parsed }
     let exceededSourceBound = false
     let omittedSolidityFile = false

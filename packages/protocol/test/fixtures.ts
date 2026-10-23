@@ -57,6 +57,7 @@ export const snapshot = (): RunConfigSnapshot => ({
   enablePocExecution: false,
   enableBidirectionalVerification: true,
   enableStructuredOutput: false,
+  enableClaimExtraction: false,
   systemPromptDigest: digest("a"),
   verdictSchemaDigest: digest("b"),
 })

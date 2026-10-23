@@ -8,6 +8,7 @@ export type PromptName =
   | "forward-verification.v1"
   | "backward-verification.v1"
   | "structured-output.v1"
+  | "claim-extraction.v1"
 
 export interface LoadedPrompt {
   text: string

@@ -98,20 +98,52 @@ export interface DeconstructedClaim {
   claimedState: string
 }
 
+/**
+ * A claim can be judged once it names a target, a root cause, and how the attack works or what it causes. The claimed
+ * state is optional: no report platform states it, and only the state probe reads it.
+ */
 export const isValidDeconstructedClaim = (claim: DeconstructedClaim): boolean =>
   (claim.targetContracts.length > 0 || claim.targetFunctions.length > 0) &&
-  claim.rootCause.trim() !== "" && claim.attackScenario.trim() !== "" &&
-  claim.claimedImpact.trim() !== "" && claim.claimedState.trim() !== ""
+  claim.rootCause.trim() !== "" &&
+  (claim.attackScenario.trim() !== "" || claim.claimedImpact.trim() !== "")
+
+/** The claim fields a report must yield; `attackOrImpact` is satisfied by either an attack scenario or an impact. */
+export const ClaimFields = ["target", "rootCause", "attackOrImpact"] as const
+export type ClaimField = (typeof ClaimFields)[number]
+
+/**
+ * Claim fields a model located in the report. Every text field must be a verbatim excerpt of the report and the target
+ * must exist in the snapshot; the ingestion port checks both and drops what fails, so the report is never rewritten.
+ */
+export interface ExtractedClaimFields {
+  /** `Contract.function` or `path/File.sol:function`. */
+  target?: string
+  rootCause?: string
+  attackScenario?: string
+  impact?: string
+  state?: string
+}
 
 export type IngestionResult =
   | { kind: "missing_poc" }
   | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[]; bceStatus?: "incomplete" }
-  | { kind: "incomplete"; reason: "unsupported_report" | "target_not_found" | "bce_unavailable"; claim?: DeconstructedClaim; pocCode?: string; bceSlices?: BceSlice[] }
+  | {
+      kind: "incomplete"
+      reason: "unsupported_report" | "target_not_found" | "bce_unavailable"
+      claim?: DeconstructedClaim
+      pocCode?: string
+      bceSlices?: BceSlice[]
+      /** Present when the report did not yield a judgeable claim: the fields still missing. */
+      missingFields?: ClaimField[]
+    }
   | { kind: "invalid_report" }
   | { kind: "ok"; pocCode: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
 
 export interface IngestionPort {
-  ingest(input: StageInput & { finding: CandidateFinding }, signal?: AbortSignal): Promise<IngestionResult>
+  ingest(
+    input: StageInput & { finding: CandidateFinding; extracted?: ExtractedClaimFields },
+    signal?: AbortSignal,
+  ): Promise<IngestionResult>
 }
 
 export interface AntiCheatFinding {

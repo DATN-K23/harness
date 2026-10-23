@@ -76,7 +76,11 @@ describe("SnapshotIngestion", () => {
 
   test("returns explicit incomplete for unsupported report shapes", async () => {
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding("An unstructured report") })
-    expect(result).toEqual({ kind: "incomplete", reason: "unsupported_report" })
+    expect(result).toEqual({
+      kind: "incomplete",
+      reason: "unsupported_report",
+      missingFields: ["target", "rootCause", "attackOrImpact"],
+    })
   })
 
   test("rejects malformed embedded metadata instead of treating it as a claim", async () => {
@@ -152,5 +156,122 @@ describe("SnapshotIngestion", () => {
   test("rejects prohibited metadata keys at any depth", async () => {
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(`${narrative}\n\n{\"nested\":{\"groundTruthLabel\":\"vulnerable\"}}`) })
     expect(result).toEqual({ kind: "invalid_report" })
+  })
+
+  describe("real report layouts", () => {
+    // A contract longer than the 120-line BCE bound, as in real codebases.
+    const hub = `pragma solidity ^0.8.20;\ncontract Hub {\n${"    uint256 internal pad;\n".repeat(130)}    function reportDeficit(uint256 amount) external {\n        drawn -= amount;\n    }\n    uint256 internal drawn;\n}\n`
+    const source = () => new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/hub/Hub.sol": hub } })
+    const ingest = (reportMarkdown: string, extracted?: Record<string, string>) =>
+      new SnapshotIngestion({ source: source() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(reportMarkdown), ...(extracted === undefined ? {} : { extracted }) })
+
+    const hound = [
+      "# Bad debt write-off leaves realizedFees unbacked",
+      "",
+      "VULNERABILITY TYPE: Arithmetic Underflow / DoS",
+      "ROOT CAUSE: In AssetLogic.accrue, asset.realizedFees accumulates fee claims; reportDeficit never adjusts them.",
+      "ATTACK VECTOR: A borrower defaults, reportDeficit() writes off the debt and totalAddedAssets() underflows.",
+      "AFFECTED NODES: func:Hub.reportDeficit, contract:Hub",
+      "AFFECTED CODE: src/hub/Hub.sol:reportDeficit",
+      "SEVERITY: medium",
+    ].join("\n")
+
+    test("Hound: fields map by excerpt and the target comes from AFFECTED NODES", async () => {
+      const result = await ingest(hound)
+      expect(result).toMatchObject({
+        kind: "incomplete",
+        reason: "bce_unavailable",
+        claim: {
+          targetContracts: ["Hub"],
+          targetFunctions: ["reportDeficit"],
+          rootCause: "In AssetLogic.accrue, asset.realizedFees accumulates fee claims; reportDeficit never adjusts them.",
+          attackScenario: "A borrower defaults, reportDeficit() writes off the debt and totalAddedAssets() underflows.",
+          claimedImpact: "",
+          claimedState: "",
+        },
+      })
+    })
+
+    const sherlock = [
+      "Proud Porcelain Antelope",
+      "",
+      "Medium",
+      "",
+      "# Deficit reporting underflows the hub accounting",
+      "",
+      "### Root Cause",
+      "",
+      "In `Hub.sol` the deficit is subtracted from `drawn` without a bound check.",
+      "",
+      "### Internal pre-conditions",
+      "",
+      "1. A borrower has outstanding debt.",
+      "",
+      "### Attack Path",
+      "",
+      "1. The borrower defaults.",
+      "2. The admin calls reportDeficit with the full amount.",
+      "",
+      "### Impact",
+      "",
+      "All hub operations revert for the asset.",
+      "",
+      "## Code Snippet",
+      "",
+      "https://github.com/sherlock-audit/2025-aave/blob/main/aave-v4/src/hub/Hub.sol#L134",
+    ].join("\n")
+
+    test("Sherlock: sections map verbatim and the target is the function around the linked line", async () => {
+      const result = await ingest(sherlock)
+      expect(result).toMatchObject({
+        kind: "incomplete",
+        reason: "bce_unavailable",
+        claim: {
+          targetContracts: ["Hub"],
+          targetFunctions: ["reportDeficit"],
+          rootCause: "In `Hub.sol` the deficit is subtracted from `drawn` without a bound check.",
+          attackScenario: "1. The borrower defaults.\n2. The admin calls reportDeficit with the full amount.",
+          claimedImpact: "All hub operations revert for the asset.",
+          callerAssumptions: ["1. A borrower has outstanding debt."],
+        },
+      })
+    })
+
+    test("Code4rena: Vulnerability details and Lines of code links are enough", async () => {
+      const report = [
+        "# Lines of code",
+        "",
+        "https://github.com/code-423n4/2025-aave/blob/abc/src/hub/Hub.sol#L134",
+        "",
+        "# Vulnerability details",
+        "",
+        "reportDeficit subtracts from drawn without checking the outstanding amount.",
+        "",
+        "## Impact",
+        "",
+        "The hub reverts for the asset.",
+      ].join("\n")
+      expect(await ingest(report)).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Hub"], targetFunctions: ["reportDeficit"] } })
+    })
+
+    test("a target named only in prose is accepted once the snapshot confirms it, and rejected otherwise", async () => {
+      const prose = "## Summary\n\nCalling Hub.reportDeficit( with the full debt underflows drawn.\n\n## Impact\n\nThe hub reverts."
+      expect(await ingest(prose)).toMatchObject({ claim: { targetContracts: ["Hub"], targetFunctions: ["reportDeficit"] } })
+      expect(await ingest(prose.replace("reportDeficit", "liquidate"))).toEqual({ kind: "incomplete", reason: "target_not_found", missingFields: ["target"] })
+    })
+
+    test("extracted fields fill gaps only as verbatim excerpts with a snapshot-confirmed target", async () => {
+      const vague = "Something is wrong with deficits: the accounting breaks when debt is written off."
+      expect(await ingest(vague)).toMatchObject({ kind: "incomplete", missingFields: ["target", "rootCause", "attackOrImpact"] })
+      const filled = await ingest(vague, {
+        target: "Hub.reportDeficit",
+        rootCause: "Something is wrong with deficits",
+        impact: "the accounting breaks when debt is written off",
+      })
+      expect(filled).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetFunctions: ["reportDeficit"], claimedImpact: "the accounting breaks when debt is written off" } })
+      // A paraphrase is not an excerpt, and an unknown target is not confirmed: both stay missing.
+      const rewritten = await ingest(vague, { target: "Hub.withdraw", rootCause: "Deficit accounting is broken", impact: "Loss of funds" })
+      expect(rewritten).toMatchObject({ kind: "incomplete", missingFields: ["target", "rootCause", "attackOrImpact"] })
+    })
   })
 })

@@ -91,6 +91,9 @@ export const makeProductionJudgeConfig = (runtime: {
       noProgressMaxRepeats: 3,
     },
     maxProbeRuns: 0, enablePocExecution: false,
+    // Real reports (Sherlock, Code4rena, Hound …) rarely use the harness template; one extraction call locates the
+    // claim fields before a finding is declared unresolved.
+    enableClaimExtraction: true,
     modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 }, profileId: runtime.modelName,
     runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
       timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,

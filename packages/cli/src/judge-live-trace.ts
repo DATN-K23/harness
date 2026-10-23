@@ -34,7 +34,9 @@ export const createJudgeLiveTrace = () => {
         return [`── step ${payload.stepIndex}${payload.toolsDisabled ? " (forced: must answer now)" : ""}`]
       case "provider.attempted": {
         const usage = payload.usage as { totalTokens?: number } | null
-        const error = payload.errorCategory ? ` ERROR ${payload.errorCategory} (${payload.retryDecision})` : ""
+        const kind = payload.errorClassification ? `${payload.errorCategory}/${payload.errorClassification}` : payload.errorCategory
+        const reason = payload.errorMessage ? `: ${oneLine(String(payload.errorMessage), 160)}` : ""
+        const error = payload.errorCategory ? ` ERROR ${kind} (${payload.retryDecision})${reason}` : ""
         return [
           `   model call ${payload.purpose} #${payload.attemptIndex}: ${tokens(usage?.totalTokens ?? 0)} tokens, ${(payload.latencyMs / 1000).toFixed(1)}s${error}`,
         ]

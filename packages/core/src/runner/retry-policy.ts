@@ -7,6 +7,7 @@ import type {
   CancellationPort,
   ClockPort,
   ModelAttemptError,
+  ModelAttemptErrorClassification,
   ModelAttemptRequest,
   ModelAttemptResponse,
   ModelGatewayPort,
@@ -19,6 +20,7 @@ import type {
   StopReason,
   TokenUsage,
 } from "@harness/protocol"
+import { AttemptErrorMessageMaxChars } from "@harness/protocol"
 
 const RETRYABLE_MESSAGE_PATTERNS = [
   /rate increased too quickly|rate limit|rate-limit|rate_limit|too many requests/i,
@@ -95,6 +97,9 @@ export interface AttemptRecord {
   costUsd: number
   latencyMs: number
   errorCategory?: ProviderErrorCategory
+  errorClassification?: ModelAttemptErrorClassification
+  /** The gateway's message, bounded to what a `provider.attempted` event keeps. */
+  errorMessage?: string
   retryDecision: RetryDecision
   backoffMs: number
   retryAfterMs?: number
@@ -166,7 +171,8 @@ export const createRetryPolicy = (deps: RetryPolicyDeps): RetryPolicy => {
         },
         costUsd: response.usage.costUsd,
         latencyMs: response.latencyMs,
-        ...(error ? { errorCategory: error.category } : {}),
+        ...(error ? { errorCategory: error.category, errorMessage: error.message.slice(0, AttemptErrorMessageMaxChars) } : {}),
+        ...(error?.classification === undefined ? {} : { errorClassification: error.classification }),
         retryDecision: decision,
         backoffMs,
         ...(error?.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),

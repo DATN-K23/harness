@@ -67,6 +67,8 @@ export const attemptPayload = (
   costUsd: attempt.costUsd,
   latencyMs: Math.max(0, Math.round(attempt.latencyMs)),
   ...(attempt.errorCategory === undefined ? {} : { errorCategory: attempt.errorCategory }),
+  ...(attempt.errorClassification === undefined ? {} : { errorClassification: attempt.errorClassification }),
+  ...(attempt.errorMessage === undefined ? {} : { errorMessage: attempt.errorMessage }),
   retryDecision: attempt.retryDecision,
   backoffMs: attempt.backoffMs,
 })

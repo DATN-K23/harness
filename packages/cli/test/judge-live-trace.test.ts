@@ -54,6 +54,9 @@ describe("judge live trace", () => {
     expect(trace(event("provider.attempted", { stepIndex: 2, purpose: "reasoning", attemptIndex: 2, usage: null, latencyMs: 35000, errorCategory: "invalid_request", retryDecision: "retry" }))).toEqual([
       "   model call reasoning #2: 0 tokens, 35.0s ERROR invalid_request (retry)",
     ])
+    expect(
+      trace(event("provider.attempted", { stepIndex: 3, purpose: "reasoning", attemptIndex: 1, usage: null, latencyMs: 26000, errorCategory: "invalid_request", errorClassification: "content_filter", errorMessage: "The provider filtered this response.", retryDecision: "retry" })),
+    ).toEqual(["   model call reasoning #1: 0 tokens, 26.0s ERROR invalid_request/content_filter (retry): The provider filtered this response."])
     expect(trace(event("context.allocated", { stepIndex: 2 }))).toEqual([])
   })
 })

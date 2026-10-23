@@ -77,6 +77,7 @@ const recordAttempt = async (store: RunStorePort, ids: IdGenerator, event: Traje
     latencyMs: attempt.latencyMs,
     requestJson: { eventSequence: event.sequence, retryDecision: attempt.retryDecision, backoffMs: attempt.backoffMs },
     errorCategory: attempt.errorCategory ?? null,
+    errorMessage: attempt.errorMessage ?? null,
   })
 }
 

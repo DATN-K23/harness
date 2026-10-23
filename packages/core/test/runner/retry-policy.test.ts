@@ -288,6 +288,24 @@ describe("RetryPolicy.run", () => {
     expect(sleep.waits).toEqual([2000, 4000])
   })
 
+  test("a failed attempt records why the provider refused, its message bounded", async () => {
+    const blocked: ModelAttemptError = {
+      isRetryable: true,
+      category: "invalid_request",
+      classification: "content_filter",
+      message: `The provider's safety filter blocked the prompt (blockReason OTHER).${"x".repeat(600)}`,
+    }
+    const gateway = new ScriptedGateway((call) => (call < 2 ? failure(blocked) : success()))
+    const { policy } = setup({ gateway })
+    const outcome = await policy.run({ request: baseRequest })
+    const [refused, accepted] = outcome.attempts
+    expect(refused?.errorClassification).toBe("content_filter")
+    expect(refused?.errorMessage?.startsWith("The provider's safety filter blocked the prompt (blockReason OTHER).")).toBe(true)
+    expect(refused?.errorMessage).toHaveLength(500)
+    expect(accepted?.errorClassification).toBeUndefined()
+    expect(accepted?.errorMessage).toBeUndefined()
+  })
+
   test("failed attempts that returned usage keep it on their record", async () => {
     const billed: ModelAttemptResponse = {
       ...failure(http(503)),

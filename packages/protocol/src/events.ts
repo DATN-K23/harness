@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { ContextItemSchema, PrepareTelemetrySchema, TransformationSchema } from "./context"
-import { ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, TokenUsageSchema, FinishReasons } from "./model-gateway"
+import { ModelAttemptErrorClassifications, ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, TokenUsageSchema, FinishReasons } from "./model-gateway"
 import { RunConfigSnapshotSchema, Sha256DigestSchema } from "./run-config"
 import { BudgetTerminalReasonSchema, TerminalReasonSchema } from "./stop-conditions"
 import { VerdictReasonCodes, JudgeVerdictSchema } from "./verdict"
@@ -60,6 +60,9 @@ export type EventType = (typeof EventTypes)[number]
 export const EventTypeSchema = z.enum(EventTypes)
 
 export const EventSchemaVersion = 1
+
+/** Longest provider error message a `provider.attempted` event keeps. */
+export const AttemptErrorMessageMaxChars = 500
 
 export const StageNames = ["ingestion", "claim_extraction", "sanitizer", "sandbox", "agent_loop", "verdict_synthesis"] as const
 
@@ -148,6 +151,10 @@ export const EventPayloadSchemas = {
     costUsd: z.number().nonnegative().nullable(),
     latencyMs: z.number().int().nonnegative(),
     errorCategory: ProviderErrorCategorySchema.optional(),
+    /** Why the provider refused, when the gateway could tell (a safety filter, a garbled tool call, ...). */
+    errorClassification: z.enum(ModelAttemptErrorClassifications).optional(),
+    /** The gateway's normalized error message, secrets already scrubbed; bounded. */
+    errorMessage: z.string().max(AttemptErrorMessageMaxChars).optional(),
     retryDecision: z.enum(RetryDecisions),
     backoffMs: z.number().int().nonnegative(),
   }),

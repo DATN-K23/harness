@@ -10,23 +10,21 @@ export type VerificationDirection = "forward" | "backward"
 
 export type ParsedResult<T> = { kind: "ok"; result: T } | { kind: "invalid" }
 
+/**
+ * One direction's result: its own field and a non-empty explanation. Other keys (the other direction's field, which a
+ * model may fill as well) are ignored, so a stated result is never lost to an extra field.
+ */
 const parseResult = <T extends Record<string, unknown>>(
   text: string,
   field: string,
   values: readonly string[],
 ): ParsedResult<T> => {
   const reply = parseJsonObject(text)
-  // A submission may carry the other direction's field as null; only the stated fields count.
-  const result = reply === undefined ? undefined : Object.fromEntries(Object.entries(reply).filter(([, value]) => value !== null))
-  if (
-    result === undefined ||
-    Object.keys(result).length !== 2 ||
-    !values.includes(result[field] as string) ||
-    typeof result.explanation !== "string" ||
-    result.explanation.trim() === ""
-  )
+  const value = reply?.[field]
+  const explanation = reply?.explanation
+  if (typeof value !== "string" || !values.includes(value) || typeof explanation !== "string" || explanation.trim() === "")
     return { kind: "invalid" }
-  return { kind: "ok", result: result as T }
+  return { kind: "ok", result: { [field]: value, explanation } as unknown as T }
 }
 
 export const parseForwardResult = (text: string): ParsedResult<ForwardResult & { explanation: string }> =>

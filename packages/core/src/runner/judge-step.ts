@@ -330,7 +330,7 @@ export class JudgeStep {
           // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
           // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
           ...(directionForced
-            ? { tools: [submitVerificationTool()], toolChoice: "required" as const }
+            ? { tools: [submitVerificationTool(pending)], toolChoice: "required" as const }
             : forced
               ? { toolsDisabled: true }
               : offersSubmission(request.tools ?? [])

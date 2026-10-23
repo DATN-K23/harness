@@ -60,7 +60,10 @@ describe("bidirectional consensus", () => {
       result: { reachability: "reachable" },
     })
     expect(parseForwardResult('{"reachability":"maybe"}').kind).toBe("invalid")
-    expect(parseForwardResult('{"reachability":"reachable","explanation":"x","extra":true}').kind).toBe("invalid")
+    // Extra keys (a model may fill the other direction's field too) are ignored, never the stated result.
+    expect(parseForwardResult('{"reachability":"reachable","explanation":"x","extra":true}')).toEqual({ kind: "ok", result: { reachability: "reachable", explanation: "x" } })
+    expect(parseBackwardResult('{"reachability":"incomplete","reconstruction":"blocked","explanation":"guard"}')).toEqual({ kind: "ok", result: { reconstruction: "blocked", explanation: "guard" } })
+    expect(parseBackwardResult('{"reachability":"blocked","explanation":"guard"}').kind).toBe("invalid")
     expect(parseBackwardResult("not json").kind).toBe("invalid")
   })
 

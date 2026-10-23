@@ -26,3 +26,15 @@ describe("claim extraction", () => {
     expect(parseExtractedFields("target: src/A.sol")).toBeUndefined()
   })
 })
+
+describe("submit_verification", () => {
+  test("a forced direction is offered only its own field, required with the explanation", async () => {
+    const { submitVerificationTool } = await import("../../src/judge/structured-output")
+    const backward = submitVerificationTool("backward").parameters as { properties: Record<string, unknown>; required: string[] }
+    expect(Object.keys(backward.properties).sort()).toEqual(["explanation", "reconstruction"])
+    expect(backward.required).toEqual(["reconstruction", "explanation"])
+    const both = submitVerificationTool().parameters as { properties: Record<string, unknown> }
+    expect(Object.keys(both.properties).sort()).toEqual(["explanation", "reachability", "reconstruction"])
+  })
+})
+

@@ -7,6 +7,7 @@ import {
   type ToolRegistryPort,
 } from "@harness/protocol"
 import { loadPrompt } from "../prompts/index"
+import type { VerificationDirection } from "./bidirectional-verifier"
 
 export const SubmitVerdictToolName = "submit_verdict"
 export const SubmitVerificationToolName = "submit_verification"
@@ -19,21 +20,34 @@ const SubmissionRules = `IMPORTANT:
 - Complete all necessary reading and probing BEFORE calling this tool
 - The harness validates the submission; if it is rejected you are told why and may submit again`
 
-/** The verification result submission; also the only tool a direction keeps once its step budget is used up. */
-export const submitVerificationTool = (): ToolDefinition => ({
-  name: SubmitVerificationToolName,
-  description: `Submit the result of the current verification direction (forward: reachability; backward: reconstruction).\n\n${SubmissionRules}`,
-  parameters: {
-    type: "object",
-    properties: {
-      reachability: { type: "string", enum: ["reachable", "blocked", "incomplete"] },
-      reconstruction: { type: "string", enum: ["reconstructed", "blocked", "incomplete"] },
-      explanation: { type: "string" },
+const directionFields = {
+  reachability: { type: "string", enum: ["reachable", "blocked", "incomplete"] },
+  reconstruction: { type: "string", enum: ["reconstructed", "blocked", "incomplete"] },
+} as const
+
+/**
+ * The verification result submission. Given a direction it asks for that direction's field only (both required):
+ * the only tool a direction keeps once its step budget is used up. Offered with both fields, models fill both
+ * (measured 2026-10-23), so the per-direction form is what a forced step sends.
+ */
+export const submitVerificationTool = (direction?: VerificationDirection): ToolDefinition => {
+  const field = direction === undefined ? undefined : direction === "forward" ? "reachability" : "reconstruction"
+  return {
+    name: SubmitVerificationToolName,
+    description: `Submit the result of the ${direction ?? "current"} verification direction (${
+      field ?? "forward: reachability; backward: reconstruction"
+    }, with explanation).\n\n${SubmissionRules}`,
+    parameters: {
+      type: "object",
+      properties: {
+        ...(field === undefined ? directionFields : { [field]: directionFields[field] }),
+        explanation: { type: "string" },
+      },
+      required: field === undefined ? ["explanation"] : [field, "explanation"],
+      additionalProperties: false,
     },
-    required: ["explanation"],
-    additionalProperties: false,
-  },
-})
+  }
+}
 
 /** The submission tools, offered after the snapshot tools so the cached prefix of the read tools is unchanged. */
 export const submissionTools = (): ToolDefinition[] => [

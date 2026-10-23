@@ -95,3 +95,16 @@ describe("verification state", () => {
     expect(state).toMatchObject({ direction: "backward", consensus: "disputed", forward: { reachability: "reachable" }, backward: { reconstruction: "incomplete" } })
   })
 })
+
+describe("direction prompts v2", () => {
+  test("define blocked strictly, rule out costly preconditions as blockers, and avoid attack vocabulary", () => {
+    for (const direction of ["forward", "backward"] as const) {
+      const text = directionPrompt(direction)
+      expect(text).toContain(loadPrompt(`${direction}-verification.v2`).text)
+      expect(text).toContain("Never use blocked for")
+      expect(text).toContain("hash or address collision")
+      expect(text).not.toMatch(/attack|exploit/i)
+    }
+  })
+})
+

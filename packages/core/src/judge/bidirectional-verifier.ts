@@ -50,8 +50,16 @@ const ConsensusPrefix = "Bidirectional consensus: "
 export const BceIncompleteNote =
   "BCE status: incomplete. Source slices are retrieval context only; missing edges prove nothing. Return UNVERIFIED unless independent validated evidence establishes the claim."
 
+/**
+ * v2 defines blocked strictly (a check read in the code, cited, that holds for every permitted caller) and rules out
+ * costly or rare preconditions, unenforced trust and unread code as blockers, in neutral wording. With v1, both
+ * directions answered blocked on a create2 address-collision finding that the contest judged a valid Medium
+ * (Gemini 3.8 Flash, 2026-10-23); the incomplete-BCE rule kept that from becoming an invalid verdict.
+ */
+const DirectionPromptVersion = "v2"
+
 export const directionPrompt = (direction: VerificationDirection) =>
-  `${DirectionPrefix}${direction}\n${loadPrompt(`${direction}-verification.v1`).text}`
+  `${DirectionPrefix}${direction}\n${loadPrompt(`${direction}-verification.${DirectionPromptVersion}`).text}`
 
 /** Sent instead of the step-limit prompt when a direction's step budget ends before it answered. */
 export const directionLimitPrompt = (direction: VerificationDirection) =>
@@ -63,8 +71,8 @@ export const directionLimitPrompt = (direction: VerificationDirection) =>
 export const verificationPromptDigest = () =>
   textDigest(
     [
-      loadPrompt("forward-verification.v1").digest,
-      loadPrompt("backward-verification.v1").digest,
+      loadPrompt(`forward-verification.${DirectionPromptVersion}`).digest,
+      loadPrompt(`backward-verification.${DirectionPromptVersion}`).digest,
       loadPrompt("verification-limit.v1").digest,
     ].join("\n"),
   )

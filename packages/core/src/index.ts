@@ -97,7 +97,7 @@ export { fastRejectVerdict } from "./runner/fast-reject"
 export type { FastReject, FastRejectReason } from "./runner/fast-reject"
 export type { CommittedRun, TerminalCommit } from "./runner/run-writer"
 export { JudgeRunner } from "./runner/judge-runner"
-export { DefaultVerificationStepBudget, JudgeDefaultLimits } from "./judge/step-budget"
+export { DefaultVerificationStepBudget, JudgeDefaultLimits, UnlimitedSteps } from "./judge/step-budget"
 export type { JudgeRunConfig, JudgeRunInput, JudgeRunResult, JudgeRunnerDeps } from "./runner/judge-runner"
 export { SingleTurnRunner, validateSingleTurnInput } from "./runner/single-turn-runner"
 export type {

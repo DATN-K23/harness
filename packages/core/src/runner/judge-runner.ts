@@ -29,7 +29,7 @@ import {
 } from "@harness/protocol"
 import { verificationPromptDigest } from "../judge/bidirectional-verifier"
 import { claimExtractionPrompt } from "../judge/claim-extraction"
-import { DefaultVerificationStepBudget } from "../judge/step-budget"
+import { DefaultEvidenceSaturationReads, DefaultVerificationStepBudget } from "../judge/step-budget"
 import { structuredOutputPrompt } from "../judge/structured-output"
 import { loadPrompt } from "../prompts/index"
 import { textDigest } from "../util/digest"
@@ -70,6 +70,8 @@ export interface JudgeRunConfig {
   enableClaimExtraction?: boolean
   /** Steps one verification direction may take, its answer included; defaults to `DefaultVerificationStepBudget`. */
   verificationStepBudget?: number
+  /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
+  evidenceSaturationReads?: number
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
@@ -374,7 +376,10 @@ class RunExecution {
           enableClaimExtraction: config.enableClaimExtraction,
           ...(config.enableBidirectionalVerification === false
             ? {}
-            : { verificationStepBudget: config.verificationStepBudget ?? DefaultVerificationStepBudget }),
+            : {
+                verificationStepBudget: config.verificationStepBudget ?? DefaultVerificationStepBudget,
+                evidenceSaturationReads: config.evidenceSaturationReads ?? DefaultEvidenceSaturationReads,
+              }),
           runtime: config.runtime,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
@@ -508,6 +513,7 @@ class RunExecution {
         ...(traceDigest === undefined ? {} : { traceDigest }),
         signal: this.signal,
         ...(config.verificationStepBudget === undefined ? {} : { verificationStepBudget: config.verificationStepBudget }),
+        ...(config.evidenceSaturationReads === undefined ? {} : { evidenceSaturationReads: config.evidenceSaturationReads }),
       })
       this.usage = addUsage(this.usage, result.usage)
       this.observe(result.observedLimits)

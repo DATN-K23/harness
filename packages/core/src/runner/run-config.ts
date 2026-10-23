@@ -21,6 +21,7 @@ export interface RunConfigInput {
   enableStructuredOutput?: boolean
   enableClaimExtraction?: boolean
   verificationStepBudget?: number
+  evidenceSaturationReads?: number
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
@@ -53,6 +54,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     enableStructuredOutput: input.enableStructuredOutput ?? false,
     enableClaimExtraction: input.enableClaimExtraction ?? false,
     ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
+    ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,

@@ -34,7 +34,13 @@ import {
   type VerificationDirection,
   type VerificationState,
 } from "../judge/bidirectional-verifier"
-import { DefaultVerificationStepBudget, mustAnswerNow, stepsStillNeeded } from "../judge/step-budget"
+import {
+  DefaultEvidenceSaturationReads,
+  DefaultVerificationStepBudget,
+  isEvidenceSaturated,
+  mustAnswerNow,
+  stepsStillNeeded,
+} from "../judge/step-budget"
 import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
@@ -95,6 +101,8 @@ export interface JudgeStepInput {
   signal?: AbortSignal
   /** Steps one verification direction may take, its answer included; defaults to `DefaultVerificationStepBudget`. */
   verificationStepBudget?: number
+  /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
+  evidenceSaturationReads?: number
 }
 
 export interface JudgeStepResult {
@@ -287,8 +295,9 @@ export class JudgeStep {
     })
 
     // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. A pending
-    // verification direction is forced to answer when its own step budget ends (if one is set), or when the steps or
-    // tokens left only cover finishing the run; it is then asked for its own result, never for a verdict.
+    // verification direction is forced to answer when its reading stops turning up new evidence, when its own step
+    // budget ends (if one is set), or when the steps or tokens left only cover finishing the run; it is then asked for
+    // its own result, never for a verdict.
     const pending = verification.direction !== undefined && verification[verification.direction] === undefined
       ? verification.direction
       : undefined
@@ -297,6 +306,7 @@ export class JudgeStep {
       // This step is step `stepIndex - directionSince` of the direction.
       (input.stepIndex - (verification.directionSince ?? 0) >= (input.verificationStepBudget ?? DefaultVerificationStepBudget) ||
         input.limits.maxSteps - input.stepIndex < stepsStillNeeded(pending) ||
+        isEvidenceSaturated(input.items, verification.directionSince ?? 0, input.evidenceSaturationReads ?? DefaultEvidenceSaturationReads) ||
         mustAnswerNow({
           pending,
           estimatedInputTokens: clean.telemetry.estimatedInputTokens,

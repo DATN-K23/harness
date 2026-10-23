@@ -1,4 +1,4 @@
-import type { BudgetLimits } from "@harness/protocol"
+import type { BudgetLimits, ContextItem } from "@harness/protocol"
 import type { VerificationDirection } from "./bidirectional-verifier"
 
 /**
@@ -8,15 +8,15 @@ import type { VerificationDirection } from "./bidirectional-verifier"
 export const UnlimitedSteps = 10_000
 
 /**
- * Judge run limits. Steps are not limited (`UnlimitedSteps`), per run or per direction; a direction is forced to answer
- * once the tokens left only cover finishing the run (`mustAnswerNow`), so a run still reaches its verdict. What bounds a run is its tokens and wall clock: a step re-sends the
- * growing context (3-10k tokens per step, about 600 more each step in the 2026-10-23 traces) and Gemini answers in
- * 2-25 s per step.
+ * Judge run limits, chosen for quality over cost: neither steps nor tokens constrain a run in practice. A direction ends
+ * its reading once it stops finding new evidence (`isEvidenceSaturated`); the token and wall-clock limits are a safety
+ * net only, and even at the token limit a direction is forced to answer (`mustAnswerNow`), so a run reaches its verdict.
+ * Traces of 2026-10-23: 3-10k tokens per step, about 600 more each step; Gemini answers in 2-25 s per step.
  */
 export const JudgeDefaultLimits: BudgetLimits = {
   maxSteps: UnlimitedSteps,
-  totalTokenBudget: 400_000,
-  wallClockTimeoutMs: 900_000,
+  totalTokenBudget: 5_000_000,
+  wallClockTimeoutMs: 3_600_000,
   noProgressMaxRepeats: 3,
 }
 
@@ -46,5 +46,40 @@ export const mustAnswerNow = (input: {
 }) => {
   const perStep = Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) * input.safetyMarginFactor)
   return input.totalTokenBudget - input.totalTokensUsed < perStep * (1 + stepsStillNeeded(input.pending))
+}
+
+/** Consecutive tool results without new evidence after which a direction must answer. */
+export const DefaultEvidenceSaturationReads = 3
+
+/**
+ * Whether the pending direction stopped finding evidence: its last `reads` tool results all added nothing. A file read
+ * is new when it covers a line of that file no earlier result covered; any other result (grep, glob, list) is new when
+ * its text differs from every earlier result; an error is never new. The model is free to read as long as reading
+ * still turns up something (Gemini re-reads the same ranges once it has what it needs: traces of 2026-10-23).
+ */
+export const isEvidenceSaturated = (items: readonly ContextItem[], directionSince: number, reads: number) => {
+  const seenLines = new Map<string, Set<number>>()
+  const seenTexts = new Set<string>()
+  const novelty: boolean[] = []
+  for (const item of items) {
+    if (item.type !== "tool_result") continue
+    let fresh = false
+    if (item.toolMeta?.isError !== true) {
+      const { filePath, lineRange } = item.toolMeta ?? {}
+      if (filePath !== undefined && lineRange !== undefined) {
+        const lines = seenLines.get(filePath) ?? new Set<number>()
+        for (let line = lineRange[0]; line <= lineRange[1]; line++) {
+          if (!lines.has(line)) fresh = true
+          lines.add(line)
+        }
+        seenLines.set(filePath, lines)
+      } else {
+        fresh = !seenTexts.has(item.content)
+        seenTexts.add(item.content)
+      }
+    }
+    if (item.turn > directionSince) novelty.push(fresh)
+  }
+  return novelty.length >= reads && novelty.slice(-reads).every((fresh) => !fresh)
 }
 

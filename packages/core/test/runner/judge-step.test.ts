@@ -77,6 +77,19 @@ describe("JudgeStep: seven gates", () => {
     expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"blocked"')
   })
 
+  test("a direction whose last three reads found nothing new is forced to answer", async () => {
+    const reread = (n: number, startLine: number): ContextItem[] => [
+      { id: `req-${n}`, turn: n, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "read_file", arguments: {} }), toolMeta: { callId: `c${n}`, toolName: "read_file" } },
+      { id: `res-${n}`, turn: n, type: "tool_result", isPinned: false, content: "same lines", toolMeta: { callId: `c${n}`, toolName: "read_file", filePath: "src/Vault.sol", lineRange: [startLine, startLine + 5] } },
+    ]
+    const h = await createHarness({ script: [textResponse('{"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')] })
+    await h.step.execute(h.input({
+      stepIndex: 5,
+      items: [...baseItems, forwardDirection(), ...reread(1, 1), ...reread(2, 1), ...reread(3, 1), ...reread(4, 1)],
+    }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+  })
+
   test("a forced direction answers through submit_verification, the other direction's field null", async () => {
     const h = await createHarness({ script: [toolCallResponse([{ id: "s", name: "submit_verification", arguments: { reachability: "blocked", reconstruction: null, explanation: "onlyOwner guards withdraw" } }])] })
     const result = await h.step.execute(h.input({ stepIndex: 6, items: [...baseItems, forwardDirection()] }))

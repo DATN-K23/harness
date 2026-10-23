@@ -58,7 +58,7 @@ export function lowerTools(tools: readonly ToolDefinition[]): OpenAI.Chat.ChatCo
   }))
 }
 
-const lowerToolChoice = (choice: "auto" | "none"): OpenAI.Chat.ChatCompletionToolChoiceOption => choice
+const lowerToolChoice = (choice: "auto" | "none" | "required"): OpenAI.Chat.ChatCompletionToolChoiceOption => choice
 
 /** Lowers the request's tool policy without inferring options from provider or model names. */
 export function lowerToolOptions(request: ModelAttemptRequest): OpenAIToolOptions {
@@ -67,7 +67,7 @@ export function lowerToolOptions(request: ModelAttemptRequest): OpenAIToolOption
 
   if (toolsAvailable) {
     options.tools = lowerTools(request.tools ?? [])
-    options.tool_choice = lowerToolChoice("auto")
+    options.tool_choice = lowerToolChoice(request.toolChoice ?? "auto")
   } else if (request.toolsDisabled && request.items.some((item) => item.type === "tool_result")) {
     options.tool_choice = lowerToolChoice("none")
   }

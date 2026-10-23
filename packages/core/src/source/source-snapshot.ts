@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/source/source-snapshot.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { SnapshotReadResult, SourceSnapshotPort } from "@harness/protocol"
 
 export type SnapshotPathCheck =

@@ -16,6 +16,7 @@ import type {
 import { NextStepMarker, describeArguments } from "../step/parallel-tool-dispatcher"
 import type { IdGenerator } from "../util/id"
 import { bounded } from "../runner/judge-step-support"
+import { BceIncompleteNote, directionPrompt, type VerificationDirection } from "./bidirectional-verifier"
 
 const MaxStateDeltaChars = 1_000
 const MaxStateDeltas = 32
@@ -163,7 +164,8 @@ export interface InitialContextInput {
   claim?: DeconstructedClaim
   bceSlices: readonly BceSlice[]
   bceIncomplete?: boolean
-  tier: AdjudicationTier
+  /** `undefined` when no sanitized PoC was executed, so there is no oracle tier. */
+  tier?: AdjudicationTier
   maxProbeRuns: number
   /** The Judge system prompt, which also states the verdict format. */
   systemPrompt: string
@@ -171,17 +173,36 @@ export interface InitialContextInput {
   tools: readonly ToolDefinition[]
   /** Verdict schema text the model sees after the tool descriptions, when it is not part of the system prompt. */
   verdictSchema?: string
+  /** The structured-output instruction, when replies are submitted through tools. */
+  structuredOutputInstruction?: string
+  /** The direction bidirectional verification starts with; omitted when the run does not verify bidirectionally. */
+  verificationDirection?: VerificationDirection
   /** The execution trace after the security filter and `shapeToolResult`. */
   shapedTrace: string
   ids: IdGenerator
 }
 
-const tierLine = (tier: AdjudicationTier, maxProbeRuns: number, pocCode: string) =>
-  pocCode.trim() === ""
-    ? "tier: none (no PoC was submitted: judge from the source evidence and the forward and backward checks)"
-    : tier === 1
-      ? "tier: 1 (the PoC contains assertions: judge whether they prove an unauthorized invariant violation)"
-      : `tier: 2 (the PoC has no assertions: measure the state change with ${RunStateProbeToolName}, at most ${maxProbeRuns} runs)`
+/** The header names the probe only when the composed registry offers it, so the model never asks for a missing tool. */
+const tierLine = (tier: AdjudicationTier | undefined, maxProbeRuns: number, probeOffered: boolean) => {
+  if (tier === undefined) return "tier: none (no PoC was executed: judge from the claim and the source only)"
+  if (tier === 1) return "tier: 1 (the PoC contains assertions: judge whether they prove an unauthorized invariant violation)"
+  return probeOffered
+    ? `tier: 2 (the PoC has no assertions: measure the state change with ${RunStateProbeToolName}, at most ${maxProbeRuns} runs)`
+    : "tier: 2 (the PoC has no assertions and no state probe is available: judge from the evidence already given)"
+}
+
+const ClaimDecompositionHeader = "Claim decomposition\n"
+
+/** The deconstructed claim the initial context carries, or `undefined` when there is none or it does not parse. */
+export const claimFromItems = (items: readonly ContextItem[]): DeconstructedClaim | undefined => {
+  const item = items.find((entry) => entry.type === "candidate_finding" && entry.content.startsWith(ClaimDecompositionHeader))
+  if (item === undefined) return undefined
+  try {
+    return JSON.parse(item.content.slice(ClaimDecompositionHeader.length)) as DeconstructedClaim
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * The initial context in the seven-layer cache order of design 3.4. Layer 1 (system prompt, tool descriptions,
@@ -202,7 +223,7 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
     `runId: ${input.runId}`,
     `findingId: ${input.finding.findingId}`,
     `snapshotId: ${input.snapshotId}`,
-    tierLine(input.tier, input.maxProbeRuns, input.pocCode),
+    tierLine(input.tier, input.maxProbeRuns, input.tools.some((tool) => tool.name === RunStateProbeToolName)),
   ].join("\n")
   return [
     pinned("system_prompt", input.systemPrompt),
@@ -213,17 +234,20 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
       ),
     ),
     ...(input.verdictSchema === undefined ? [] : [pinned("system_prompt", input.verdictSchema)]),
+    ...(input.structuredOutputInstruction === undefined ? [] : [pinned("system_prompt", input.structuredOutputInstruction)]),
     pinned("system_prompt", header),
     pinned("candidate_finding", input.finding.reportMarkdown),
     ...(input.pocCode === "" ? [] : [pinned("submitter_poc", input.pocCode)]),
-    ...(input.claim === undefined ? [] : [pinned("candidate_finding", `Claim decomposition\n${JSON.stringify(input.claim)}`)]),
+    ...(input.claim === undefined ? [] : [pinned("candidate_finding", `${ClaimDecompositionHeader}${JSON.stringify(input.claim)}`)]),
     ...input.bceSlices.map((slice) =>
       pinned(
         "bce_sliced_ast",
         `${slice.filePath}${slice.lineRange === undefined ? "" : ` (lines ${slice.lineRange[0]}-${slice.lineRange[1]})`}\n${slice.content}`,
       ),
     ),
-    ...(input.bceIncomplete ? [pinned("system_prompt", "BCE status: incomplete. Source slices are retrieval context only; missing edges prove nothing. Return UNVERIFIED unless independent validated evidence establishes the claim.")] : []),
+    ...(input.bceIncomplete ? [pinned("system_prompt", BceIncompleteNote)] : []),
+    ...(input.verificationDirection === undefined ? [] : [pinned("system_prompt", directionPrompt(input.verificationDirection))]),
+    // The trace stays last: a takeover reads a persisted trace as "the initial context is complete".
     pinned("execution_trace", input.shapedTrace),
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { JudgeVerdictSchema, validateVerdict } from "../src/verdict"
+import { JudgeVerdictSchema, validateVerdict, verdictSubmissionJsonSchema } from "../src/verdict"
 
 const evidence = {
   filePath: "src/Vault.sol",
@@ -159,5 +159,29 @@ describe("validateVerdict", () => {
     expect(validateVerdict(null).ok).toBe(false)
     expect(validateVerdict("verdict").ok).toBe(false)
     expect(validateVerdict(undefined).ok).toBe(false)
+  })
+})
+
+describe("verdictSubmissionJsonSchema", () => {
+  const schema = verdictSubmissionJsonSchema() as {
+    $schema?: string
+    required: string[]
+    properties: Record<string, { items?: { properties: Record<string, unknown> } }>
+  }
+
+  test("leaves the identity, trace digest and evidence digests to the harness", () => {
+    expect(schema.$schema).toBeUndefined()
+    for (const field of ["runId", "findingId", "traceDigest"]) expect(schema.properties).not.toHaveProperty(field)
+    expect(Object.keys(schema.properties.citesEvidence.items?.properties ?? {}).sort()).toEqual(
+      ["endLine", "explanation", "filePath", "startLine"],
+    )
+    expect(schema.required).not.toContain("citesEvidence")
+  })
+
+  test("carries the optional typed-witness fields of a disputed consensus", () => {
+    for (const field of ["targetedCondition", "observedBefore", "observedAfter", "deltaExplanation"]) {
+      expect(schema.properties).toHaveProperty(field)
+      expect(schema.required).not.toContain(field)
+    }
   })
 })

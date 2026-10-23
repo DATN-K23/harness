@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/tool/handlers/grep.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { Worker } from "worker_threads"
 import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
 import { checkSnapshotPath, isDeniedSourceFile, comparePaths, splitLines } from "../../source/source-snapshot"

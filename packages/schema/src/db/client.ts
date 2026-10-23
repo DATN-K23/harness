@@ -1,5 +1,3 @@
-// Adapted from OpenCode packages/schema/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
-
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import postgres, { type Options, type Sql } from "postgres"
 import * as schema from "./schema"

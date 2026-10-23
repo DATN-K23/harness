@@ -14,6 +14,17 @@ describe("RegexSecurityFilter", () => {
     expect(result).toEqual({ content: `token=${Redacted} trailing`, redactionCount: 1 })
   })
 
+  test.each([
+    ["bearer token", "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig=="],
+    ["Google API key", "key=AIzaSyA1b2C3d4E5f6G7h8I9j0KlMnOpQrStUv"],
+    ["AWS temporary key", "id ASIAABCDEFGHIJKLMNOP"],
+    ["GitHub OAuth token", "token gho_abcdefghijklmnopqrstuvwxyz0123"],
+  ])("redacts a %s (OpenCode secret formats)", async (_name, text) => {
+    const result = await new RegexSecurityFilter().filterSecrets(text)
+    expect(result.redactionCount).toBe(1)
+    expect(result.content).toContain(Redacted)
+  })
+
   test("redacts a hyphenated sk- key as one match", async () => {
     const result = await new RegexSecurityFilter().filterSecrets("key sk-ant-api03-AbCdEfGhIjKlMnOpQrSt end")
     expect(result).toEqual({ content: `key ${Redacted} end`, redactionCount: 1 })

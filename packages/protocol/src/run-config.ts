@@ -117,6 +117,16 @@ export const RunConfigSnapshotSchema = z
     toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
     enablePocExecution: z.boolean().default(false),
+    /** Forward/backward verification of a deconstructed claim; legacy snapshots predate the flag and ran it always. */
+    enableBidirectionalVerification: z.boolean().default(true),
+    /** Verdicts and direction results submitted through schema-typed tools instead of JSON text. */
+    enableStructuredOutput: z.boolean().default(false),
+    /** One provider call that locates claim fields a report's format did not yield, before the run is unresolved. */
+    enableClaimExtraction: z.boolean().default(false),
+    /** Steps one verification direction may take, its answer included; present when bidirectional verification is on. */
+    verificationStepBudget: z.number().int().positive().optional(),
+    /** Tool results without new evidence after which a direction answers; present when bidirectional verification is on. */
+    evidenceSaturationReads: z.number().int().positive().optional(),
     runtime: z.object({
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),
@@ -125,21 +135,14 @@ export const RunConfigSnapshotSchema = z
       maxContextTokens: z.number().int().positive(), maxOutputTokens: z.number().int().positive(),
       solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1),
     }).optional(),
-    /** Whether the candidate finding was rewritten into the claim template by a provider call before the run. */
-    findingNormalization: z
-      .object({
-        enabled: z.boolean(),
-        outcome: z.enum(["template", "normalized"]).optional(),
-        promptDigest: Sha256DigestSchema.optional(),
-        profileId: z.string().min(1).optional(),
-        promptTokens: z.number().int().nonnegative().optional(),
-        completionTokens: z.number().int().nonnegative().optional(),
-        costUsd: z.number().nonnegative().optional(),
-        latencyMs: z.number().int().nonnegative().optional(),
-      })
-      .optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
+    /** Digest of the forward and backward verification prompts; present when bidirectional verification is on. */
+    verificationPromptDigest: Sha256DigestSchema.optional(),
+    /** Digest of the structured-output instruction; present when structured output is on. */
+    structuredOutputPromptDigest: Sha256DigestSchema.optional(),
+    /** Digest of the claim-extraction prompt; present when claim extraction is on. */
+    claimExtractionPromptDigest: Sha256DigestSchema.optional(),
   })
   .superRefine((snapshot, ctx) => {
     ContextFlagNames.filter((name) => snapshot.flags[name] !== snapshot.contextPolicy.flags[name]).forEach((name) =>

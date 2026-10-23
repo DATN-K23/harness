@@ -1,5 +1,12 @@
 # Báo cáo test Judge Pipeline — Megapot (2026-10-23)
 
+## Merge `judge-pipeline-hardening` (2026-10-23)
+
+- Bộ chuyển đổi viết lại report (`normalizeFinding`, `finding-normalizer.v1`, `--no-normalize`, `findingNormalization`) được thay bằng ingestion nhiều định dạng + claim extraction nguyên văn của nhánh hardening. CLI bật `enableClaimExtraction` (tắt với `--mock` hoặc `--no-claim-extraction`).
+- Giữ `claimMarkdown` (`ingestion/json-finding.ts`): finding JSON chỉ giữ trường claim (R2); JSON là mảng, collection `hypotheses.json` hoặc không có trường claim bị từ chối.
+- Giữ sửa ghép fence PoC trong `SnapshotIngestion`, ghi `model_attempts`, phân loại quota/empty/malformed ở gateway, repair `malformed_tool_call`, `cli:view`. Store nhận đủ `AttemptPurposes` (gồm `claim_extraction`), nếu không run có claim extraction sẽ fail khi ghi `model_attempts`.
+- Forcing theo số câu trả lời còn nợ và header `tier: none` của nhánh này được thay bằng step budget theo pha và header của nhánh hardening.
+
 ## Cập nhật sau đợt sửa 2 (A1 do thành viên khác sửa, không đụng tới)
 
 | Lỗi | Sửa | Test |

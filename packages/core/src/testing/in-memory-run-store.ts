@@ -1,5 +1,7 @@
 import {
+  AttemptPurposes,
   TerminalRunStates,
+  type AttemptPurpose,
   type AppendResult,
   type ClaimResult,
   type AdmissionResult,
@@ -55,7 +57,7 @@ export class InMemoryRunStore implements RunStorePort {
     id: string
     runId: string
     stepIndex: number
-    attemptPurpose: "reasoning" | "compaction"
+    attemptPurpose: AttemptPurpose
     attemptNumber: number
     provider: string
     model: string
@@ -155,7 +157,7 @@ export class InMemoryRunStore implements RunStorePort {
     id: string
     runId: string
     stepIndex?: number
-    attemptPurpose?: "reasoning" | "compaction"
+    attemptPurpose?: AttemptPurpose
     attemptNumber: number
     provider: string
     model: string
@@ -172,8 +174,8 @@ export class InMemoryRunStore implements RunStorePort {
     errorCategory?: string | null
   }): Promise<void> {
     const purpose = attempt.attemptPurpose ?? "reasoning"
-    if (purpose !== "reasoning" && purpose !== "compaction") {
-      throw new Error(`Invalid attemptPurpose "${purpose}": must be one of "reasoning" | "compaction"`)
+    if (!AttemptPurposes.includes(purpose)) {
+      throw new Error(`Invalid attemptPurpose "${purpose}": must be one of ${AttemptPurposes.join(" | ")}`)
     }
     const stepIndex = attempt.stepIndex ?? 1
     const exists = this.attempts.some(

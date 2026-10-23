@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/tool/definitions.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { ToolDefinition } from "@harness/protocol"
 
 export const ReadFileDefinition: ToolDefinition = {

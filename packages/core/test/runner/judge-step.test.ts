@@ -5,7 +5,7 @@ import { parseForwardResult } from "../../src/judge/bidirectional-verifier"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
 import { errorResponse, textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import { digestOf, textDigest } from "../../src/util/digest"
-import { baseItems, createHarness, invalidVerdict, validVerdict, vaultLines } from "./judge-step-harness"
+import { baseItems, createHarness, invalidVerdict, limits, validVerdict, vaultLines } from "./judge-step-harness"
 
 const json = (value: unknown) => JSON.stringify(value)
 const readVault = (id = "call-1") =>
@@ -30,6 +30,73 @@ describe("JudgeStep: seven gates", () => {
     expect(parseForwardResult('{"reachability":"reachable","explanation":"entry reaches sink"}').kind).toBe("ok")
   })
 
+  const forwardDirection = (turn = 0): ContextItem => ({
+    id: "direction", turn, type: "system_prompt", isPinned: true, content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`,
+  })
+
+  const onlySubmission = (call: { tools?: readonly { name: string }[]; toolChoice?: string }) =>
+    call.toolChoice === "required" && call.tools?.map((tool) => tool.name).join() === "submit_verification"
+
+  test("a direction that used its step budget keeps only the submission tool; other tool calls make it incomplete", async () => {
+    const h = await createHarness({ script: [readVault()] })
+    const result = await h.step.execute(h.input({ stepIndex: 3, verificationStepBudget: 3, items: [...baseItems, forwardDirection()] }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+    expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
+    expect(h.registry.calls).toHaveLength(0)
+    expect(result.outcome.type).toBe("continue_turn")
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"incomplete"')
+    expect(result.newItems[1]?.content).toStartWith("Verification direction: backward")
+    expect(result.repairsUsed).toBe(0)
+  })
+
+  test("a direction answers early when the run keeps only the steps the later phases need", async () => {
+    const h = await createHarness({ script: [textResponse('{"reachability":"reachable","explanation":"entry reaches sink"}')] })
+    // Step 8 of 10, direction started at step 5: within its budget of 6, but backward + verdict + repair need 3 steps.
+    const result = await h.step.execute(h.input({ stepIndex: 8, items: [...baseItems, forwardDirection(5)] }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+    expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
+    expect(h.gateway.calls[0].items.some((item) => item.content === maxStepsPrompt)).toBe(false)
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"reachable"')
+  })
+
+  test("with no step limit, a direction reads freely and answers once the tokens left only cover finishing the run", async () => {
+    const free = await createHarness({ script: [readVault()] })
+    await free.step.execute(free.input({ stepIndex: 40, limits: { ...limits, maxSteps: 10_000 }, items: [...baseItems, forwardDirection()] }))
+    expect(onlySubmission(free.gateway.calls[0])).toBe(false)
+    expect(free.registry.calls).toHaveLength(1)
+
+    const short = await createHarness({ script: [textResponse('{"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')] })
+    // 4 steps (this one + backward + verdict + repair) of about 4.8k tokens each (4k output x 1.2 margin) need ~19k; 15k are left.
+    const result = await short.step.execute(short.input({
+      stepIndex: 40,
+      limits: { ...limits, maxSteps: 10_000, totalTokenBudget: 100_000 },
+      budget: { totalTokensUsed: 85_000, totalTokenLimit: 100_000, compactionsCount: 0, costUsd: 0 },
+      items: [...baseItems, forwardDirection()],
+    }))
+    expect(onlySubmission(short.gateway.calls[0])).toBe(true)
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"blocked"')
+  })
+
+  test("a direction whose last three reads found nothing new is forced to answer", async () => {
+    const reread = (n: number, startLine: number): ContextItem[] => [
+      { id: `req-${n}`, turn: n, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "read_file", arguments: {} }), toolMeta: { callId: `c${n}`, toolName: "read_file" } },
+      { id: `res-${n}`, turn: n, type: "tool_result", isPinned: false, content: "same lines", toolMeta: { callId: `c${n}`, toolName: "read_file", filePath: "src/Vault.sol", lineRange: [startLine, startLine + 5] } },
+    ]
+    const h = await createHarness({ script: [textResponse('{"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')] })
+    await h.step.execute(h.input({
+      stepIndex: 5,
+      items: [...baseItems, forwardDirection(), ...reread(1, 1), ...reread(2, 1), ...reread(3, 1), ...reread(4, 1)],
+    }))
+    expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+  })
+
+  test("a forced direction answers through submit_verification, the other direction's field null", async () => {
+    const h = await createHarness({ script: [toolCallResponse([{ id: "s", name: "submit_verification", arguments: { reachability: "blocked", reconstruction: null, explanation: "onlyOwner guards withdraw" } }])] })
+    const result = await h.step.execute(h.input({ stepIndex: 6, items: [...baseItems, forwardDirection()] }))
+    expect(h.registry.calls).toHaveLength(0)
+    expect(result.newItems[0]?.content).toBe('Bidirectional forward result: {"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')
+  })
+
   test("verification tool calls stay restricted to registered snapshot reads", async () => {
     const h = await createHarness({ script: [readVault()] })
     const result = await h.step.execute(h.input({ items: [
@@ -44,21 +111,21 @@ describe("JudgeStep: seven gates", () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: agreed-invalid" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(h.gateway.callCount).toBe(0)
     expect(await h.events("verdict.validation_failed")).toHaveLength(0)
   })
 
-  test("disputed consensus commits UNVERIFIED instead of claiming invalidity", async () => {
+  test("disputed consensus without a witness commits UNVERIFIED before any provider call", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" } })
-    expect(h.gateway.callCount).toBeGreaterThan(0)
+    expect(h.gateway.callCount).toBe(0)
   })
 
   test("gate order: prepare, gateway, record, then the tool runs and is filtered before it is shaped", async () => {
@@ -174,23 +241,6 @@ describe("JudgeStep: step-limit forcing", () => {
     expect(refused?.toolMeta?.isError).toBe(true)
     expect(refused?.content).toContain("tools are disabled")
     expect((await h.events("tool.failed")).length).toBe(2)
-  })
-
-  test("pending forward and backward answers move forcing earlier and the forced step asks for the pending direction", async () => {
-    const direction = `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`
-    const items: ContextItem[] = [...baseItems, { id: "direction", turn: 0, type: "system_prompt", isPinned: true, content: direction }]
-    // maxSteps 10 with forward, backward and the verdict still owed: steps 1-6 explore, step 7 is the first forced one.
-    const explore = await createHarness({ script: [readVault()], limits: { maxSteps: 10 } })
-    await explore.step.execute(explore.input({ stepIndex: 6, items }))
-    expect(explore.gateway.calls[0]?.toolsDisabled).toBeUndefined()
-
-    const forced = await createHarness({ script: [textResponse('{"reachability":"reachable","explanation":"entry reaches sink"}')], limits: { maxSteps: 10 } })
-    const result = await forced.step.execute(forced.input({ stepIndex: 7, items }))
-    const request = forced.gateway.calls[0]
-    expect(request?.toolsDisabled).toBe(true)
-    expect(request?.items.at(-1)?.content).toContain(direction)
-    expect(request?.items.at(-1)?.content).not.toBe(maxStepsPrompt)
-    expect(result.newItems.some((item) => item.content.startsWith("Bidirectional forward result:"))).toBe(true)
   })
 
   test("forcing disabled: step maxSteps - 1 does not set toolsDisabled", async () => {

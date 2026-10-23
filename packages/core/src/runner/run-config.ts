@@ -17,11 +17,18 @@ export interface RunConfigInput {
   limits: BudgetLimits
   maxProbeRuns?: number
   enablePocExecution?: boolean
+  enableBidirectionalVerification?: boolean
+  enableStructuredOutput?: boolean
+  enableClaimExtraction?: boolean
+  verificationStepBudget?: number
+  evidenceSaturationReads?: number
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
+  verificationPromptDigest?: string
+  structuredOutputPromptDigest?: string
+  claimExtractionPromptDigest?: string
   runtime?: import("@harness/protocol").RunConfigSnapshot["runtime"]
-  findingNormalization?: RunConfigSnapshot["findingNormalization"]
 }
 
 export interface BuiltRunConfig {
@@ -43,10 +50,21 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     ...(input.toolLimits !== undefined ? { toolLimits: input.toolLimits } : {}),
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
     enablePocExecution: input.enablePocExecution ?? false,
+    enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
+    enableStructuredOutput: input.enableStructuredOutput ?? false,
+    enableClaimExtraction: input.enableClaimExtraction ?? false,
+    ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
+    ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
-    ...(input.findingNormalization !== undefined ? { findingNormalization: input.findingNormalization } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
+    ...(input.verificationPromptDigest !== undefined ? { verificationPromptDigest: input.verificationPromptDigest } : {}),
+    ...(input.structuredOutputPromptDigest !== undefined
+      ? { structuredOutputPromptDigest: input.structuredOutputPromptDigest }
+      : {}),
+    ...(input.claimExtractionPromptDigest !== undefined
+      ? { claimExtractionPromptDigest: input.claimExtractionPromptDigest }
+      : {}),
   })
   return { snapshot, digest: digestOf(snapshot) }
 }

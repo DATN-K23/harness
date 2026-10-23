@@ -1,5 +1,3 @@
-// Adapted from OpenCode packages/schema/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
-
 export const SCHEMA_VERSION = 1
 
 export * from "./db/schema"

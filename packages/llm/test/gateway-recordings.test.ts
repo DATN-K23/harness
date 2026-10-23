@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ModelAttemptRequest, ToolDefinition } from "@harness/protocol"
-import { RealModelGateway } from "../src"
+import { RealModelGateway, mapChatCompletion } from "../src"
 import { readRecordingFixture, RecordingClient } from "./support/recording-client"
 
 const request = (overrides: Partial<ModelAttemptRequest> = {}): ModelAttemptRequest => ({
@@ -104,6 +104,15 @@ describe("recorded provider outcomes", () => {
     expect(response.error).toMatchObject({ category: "invalid_request", classification: "content_filter" })
   })
 
+  test("a Gemini prompt block passed through by a router is a content-filter error, not invalid output", async () => {
+    const recording = new RecordingClient(readRecordingFixture("gemini-prompt-block"))
+    const response = await new RealModelGateway({ client: recording.client }).executeAttempt(request())
+    expect(response.finishReason).toBe("error")
+    expect(response.error).toMatchObject({ category: "invalid_request", classification: "content_filter", isRetryable: false })
+    expect(response.error?.message).toContain("blockReason OTHER")
+    expect(response.usage).toMatchObject({ promptTokens: 949, completionTokens: 0, totalTokens: 949 })
+  })
+
   test("401 is sanitized and non-retryable", async () => {
     const recording = new RecordingClient(readRecordingFixture("auth-401"))
     const response = await new RealModelGateway({ client: recording.client }).executeAttempt(request())
@@ -147,5 +156,19 @@ describe("recorded provider outcomes", () => {
     expectCapturedRequest(recording)
     expect(response.finishReason).toBe("error")
     expect(response.error).toMatchObject({ category: "transport", isRetryable: true, isTimeout: true })
+  })
+})
+
+describe("tool argument wrappers", () => {
+  test("a bare { arguments: {...} } wrapper (Gemini via 9router) is unwrapped like { name, arguments }", () => {
+    const completion = (args: string) => ({
+      id: "c", object: "chat.completion", created: 0, model: "m",
+      choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null, tool_calls: [{ id: "t", type: "function", function: { name: "read_file", arguments: args } }] } }],
+    }) as unknown as Parameters<typeof mapChatCompletion>[0]
+    const read = { path: "core/contracts/EndpointTx.sol", startLine: 600, endLine: 650 }
+    for (const args of [JSON.stringify({ arguments: read }), JSON.stringify({ name: "read_file", arguments: read }), JSON.stringify(read)])
+      expect(mapChatCompletion(completion(args), { model: "m" }).toolCalls?.[0]?.arguments).toEqual(read)
+    // A real argument that happens to be called `arguments` next to others is left alone.
+    expect(mapChatCompletion(completion(JSON.stringify({ arguments: read, path: "x" })), { model: "m" }).toolCalls?.[0]?.arguments).toEqual({ arguments: read, path: "x" })
   })
 })

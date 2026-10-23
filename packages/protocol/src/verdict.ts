@@ -90,6 +90,34 @@ export const JudgeVerdictSchema = JudgeVerdictShapeSchema.superRefine((verdict, 
 
 export type JudgeVerdict = z.infer<typeof JudgeVerdictSchema>
 
+/**
+ * What the model submits through the structured-output verdict tool: the verdict without the fields only the harness
+ * sets (identity, trace digest, evidence snippets and digests), plus the optional typed-witness fields of a disputed
+ * consensus. It shapes the tool's JSON Schema only; the submission is still validated by `validateVerdict`.
+ */
+export const VerdictSubmissionSchema = JudgeVerdictShapeSchema.omit({ runId: true, findingId: true, traceDigest: true }).extend({
+  citesEvidence: z
+    .array(
+      z.object({
+        filePath: z.string(),
+        startLine: z.number().int().positive(),
+        endLine: z.number().int().positive(),
+        explanation: z.string(),
+      }),
+    )
+    .default([]),
+  targetedCondition: z.string().optional(),
+  observedBefore: z.string().optional(),
+  observedAfter: z.string().optional(),
+  deltaExplanation: z.string().optional(),
+})
+
+/** JSON Schema of `VerdictSubmissionSchema`, as tool parameters. */
+export const verdictSubmissionJsonSchema = (): Record<string, unknown> => {
+  const { $schema: _, ...schema } = z.toJSONSchema(VerdictSubmissionSchema, { io: "input" }) as Record<string, unknown>
+  return schema
+}
+
 export interface VerdictIssue {
   reason: VerdictReasonCode
   path: Array<string | number>

@@ -61,7 +61,7 @@ export const EventTypeSchema = z.enum(EventTypes)
 
 export const EventSchemaVersion = 1
 
-export const StageNames = ["ingestion", "sanitizer", "sandbox", "agent_loop", "verdict_synthesis"] as const
+export const StageNames = ["ingestion", "claim_extraction", "sanitizer", "sandbox", "agent_loop", "verdict_synthesis"] as const
 
 export const CancellationBoundaries = [
   "before_ingestion",
@@ -77,7 +77,7 @@ export const RetryDecisions = ["none", "retry", "permanent", "exhausted", "conte
  * Why a provider attempt was made. A step's reasoning attempts and the compaction attempts made before it share the
  * step index and each count from 1, so an attempt is identified by `(stepIndex, purpose, attemptIndex)`.
  */
-export const AttemptPurposes = ["reasoning", "compaction"] as const
+export const AttemptPurposes = ["reasoning", "compaction", "claim_extraction"] as const
 
 export type AttemptPurpose = (typeof AttemptPurposes)[number]
 

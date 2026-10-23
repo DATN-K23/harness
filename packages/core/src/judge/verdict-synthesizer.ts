@@ -7,6 +7,7 @@ import {
 } from "@harness/protocol"
 import { isAbsoluteLooking } from "../runner/event-sink"
 import { textDigest } from "../util/digest"
+import { parseJsonObject } from "../util/json-object"
 
 /** A verdict that fails validation may be repaired at most this many times before the run fails. */
 export const MaxSchemaRepairs = 2
@@ -44,33 +45,11 @@ const HarnessVerdictFields = ["runId", "findingId", "traceDigest"]
 const HarnessEvidenceFields = ["snippet", "contentDigest"]
 const MaxListedIssues = 20
 
-const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n?```$/i
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value)
 
 const withoutKeys = (record: Record<string, unknown>, keys: readonly string[]) =>
   Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)))
-
-const parseObject = (text: string): Record<string, unknown> | undefined => {
-  const trimmed = text.trim()
-  const fenceMatch = fenced.exec(trimmed)
-  const directCandidate = fenceMatch?.[1] ? fenceMatch[1].trim() : trimmed
-  try {
-    const parsed: unknown = JSON.parse(directCandidate)
-    return isRecord(parsed) ? parsed : undefined
-  } catch {}
-
-  const firstBrace = trimmed.indexOf("{")
-  const lastBrace = trimmed.lastIndexOf("}")
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace && trimmed[0] !== "[") {
-    try {
-      const parsed: unknown = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1).trim())
-      return isRecord(parsed) ? parsed : undefined
-    } catch {}
-  }
-  return undefined
-}
 
 /** Replaces the identity and every hash with the harness's values, so nothing the model wrote there is trusted. */
 const withHarnessFields = (parsed: Record<string, unknown>, input: VerdictSynthesisInput) => ({
@@ -173,7 +152,7 @@ export const synthesizeVerdict = async (
     return { kind: "repair", attempt, issues, feedback: repairFeedback(issues, attempt, maxRepairs - attempt) }
   }
 
-  const parsed = parseObject(input.text)
+  const parsed = parseJsonObject(input.text)
   if (parsed === undefined)
     return fail([
       {

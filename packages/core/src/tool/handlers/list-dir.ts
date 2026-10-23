@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/tool/handlers/list-dir.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
 import { checkSnapshotPath, isDeniedSourceFile, comparePaths } from "../../source/source-snapshot"
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider, startProductionLocalServer, startProductionLocalServerWithOperations } from "../src/production-runtime"
-import { ProductionSecurityFilter } from "@harness/core"
+import { JudgeDefaultLimits, ProductionSecurityFilter } from "@harness/core"
 import { startPollingWorker } from "../src/worker-lifecycle"
 import { startCheckedLocalServer } from "../src/production-startup"
 
@@ -8,7 +8,9 @@ describe("production runtime safety", () => {
   test("keeps production defaults while allowing a bounded manual analysis config", () => {
     const defaults = makeProductionJudgeConfig({ providerName: "9router", modelName: "test" })
     const bounded = makeProductionJudgeConfig({ providerName: "9router", modelName: "test", maxSteps: 2, totalTokenBudget: 4096, wallClockTimeoutMs: 60_000, modelMaxOutputTokens: 512 })
-    expect(defaults.limits).toMatchObject({ maxSteps: 10, totalTokenBudget: 200_000, wallClockTimeoutMs: 300_000 })
+    // Quality over cost (see JudgeDefaultLimits): steps and tokens do not constrain a run; 1 hour is the safety net.
+    expect(defaults.limits).toMatchObject({ maxSteps: 10_000, totalTokenBudget: 5_000_000, wallClockTimeoutMs: 3_600_000 })
+    expect(defaults.limits).toEqual(JudgeDefaultLimits)
     expect(bounded.limits).toMatchObject({ maxSteps: 2, totalTokenBudget: 4096, wallClockTimeoutMs: 60_000 })
     expect(bounded.enablePocExecution).toBe(false)
   })

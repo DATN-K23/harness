@@ -7,7 +7,12 @@ export type PromptName =
   | "max-steps.v1"
   | "forward-verification.v1"
   | "backward-verification.v1"
-  | "finding-normalizer.v1"
+  | "forward-verification.v2"
+  | "backward-verification.v2"
+  | "structured-output.v1"
+  | "claim-extraction.v1"
+  | "claim-extraction.v2"
+  | "verification-limit.v1"
 
 export interface LoadedPrompt {
   text: string

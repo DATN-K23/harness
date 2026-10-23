@@ -57,9 +57,10 @@ describe("demo", () => {
     expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED" })
     expect(verdict.citesEvidence).toEqual([])
     const trajectory = readJson("disputed-witness", "03-trajectory.json")
-    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)
-    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 4, usage: { totalTokens: 120 } })
-    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.004)
+    // Without a runnable witness the disputed consensus is settled at step 4 before its provider call.
+    expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(3)
+    expect(trajectory.summary).toMatchObject({ state: "completed", steps: 4, modelCalls: 3, usage: { totalTokens: 90 } })
+    expect(trajectory.summary.usage.costUsd).toBeCloseTo(0.003)
     const stages = trajectory.events.filter((event: { type: string }) => event.type.startsWith("stage."))
     expect(stages.map((event: { type: string; payload: { stage: string; outcome?: string } }) => [event.type, event.payload.stage, event.payload.outcome])).toEqual([
       ["stage.started", "ingestion", undefined], ["stage.finished", "ingestion", "ok"],
@@ -69,8 +70,8 @@ describe("demo", () => {
     expect(witness).toEqual([])
     expect(readJson("disputed-witness", "04-exploit-proof.json")).toMatchObject({ applicable: false })
     expect(readJson("disputed-witness", "04-exploit-proof.json").reason).toContain("No execution was performed")
-    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 120 })
-    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 4, tokens: 120 })
+    expect(readJson("disputed-witness", "05-context-economics.json").totals).toMatchObject({ totalTokens: 90 })
+    expect(rows.find((row) => row.scenario === "disputed-witness")).toMatchObject({ steps: 4, tokens: 90 })
   })
 })
 

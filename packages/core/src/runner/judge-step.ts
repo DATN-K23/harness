@@ -1,6 +1,5 @@
 import {
   PrepareResultSchema,
-  JudgeVerdictSchema,
   StopPrecedence,
   type BudgetLimits,
   type CancellationPort,
@@ -19,15 +18,35 @@ import {
   type StopReason,
   type ToolRegistryPort,
 } from "@harness/protocol"
-import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
+import { RunStateProbeToolName, claimFromItems } from "../judge/adjudication-step"
 import {
+  ConsensusVerdictInstruction,
+  consensusNote,
   decideConsensus,
+  directionLimitPrompt,
+  directionPrompt,
   parseBackwardResult,
   parseForwardResult,
+  readVerificationState,
+  resultNote,
+  type BackwardResult,
+  type ForwardResult,
+  type VerificationDirection,
+  type VerificationState,
 } from "../judge/bidirectional-verifier"
+import {
+  DefaultEvidenceSaturationReads,
+  DefaultVerificationStepBudget,
+  isEvidenceSaturated,
+  mustAnswerNow,
+  stepsStillNeeded,
+} from "../judge/step-budget"
+import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
+import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
+import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
-import type { PromptName } from "../prompts/index"
-import { digestOf, textDigest } from "../util/digest"
+import { digestOf } from "../util/digest"
+import { parseJsonObject } from "../util/json-object"
 import type { IdGenerator } from "../util/id"
 import { checkBoundary, type CancellationBoundary } from "./cancellation"
 import type { EventSink } from "./event-sink"
@@ -80,6 +99,10 @@ export interface JudgeStepInput {
   repairsUsed: number
   traceDigest?: string
   signal?: AbortSignal
+  /** Steps one verification direction may take, its answer included; defaults to `DefaultVerificationStepBudget`. */
+  verificationStepBudget?: number
+  /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
+  evidenceSaturationReads?: number
 }
 
 export interface JudgeStepResult {
@@ -112,6 +135,32 @@ const engineStopReasons = {
 
 const withObserved = (reason: StopReason, observed: readonly StopReason[]) =>
   StopPrecedence.filter((candidate) => candidate === reason || observed.includes(candidate))
+
+const ProbeDeltaMarker = "State delta, post minus pre:"
+
+const NoDirectionAnswer = "No result was given within this direction's step budget; the evidence read so far is recorded."
+
+const unanswered = (direction: VerificationDirection): (ForwardResult | BackwardResult) & { explanation: string } =>
+  direction === "forward"
+    ? { reachability: "incomplete", explanation: NoDirectionAnswer }
+    : { reconstruction: "incomplete", explanation: NoDirectionAnswer }
+
+const WitnessInstruction =
+  `For disputed consensus, call ${RunStateProbeToolName} at most once for exactly one state variable explicitly named in the claim. In your final JSON verdict include targetedCondition equal to the requested expression, observedBefore and observedAfter exactly as reported by that probe, and deltaExplanation (at least 20 characters) explaining why that measured change does or does not establish the claimed condition. Snapshot citations support source behavior, not the dynamic delta; process exit alone is not proof. Do not create or modify tests.`
+
+/** The bounded witness of a disputed or inconclusive consensus, as far as the context shows it. */
+const witnessOf = (input: JudgeStepInput) => ({
+  offered: input.tools.definitions().some((tool) => tool.name === RunStateProbeToolName),
+  request: input.items.findLast((item) => item.type === "tool_request" && item.toolMeta?.toolName === RunStateProbeToolName),
+  result: input.items.findLast((item) => item.type === "tool_result" && item.toolMeta?.toolName === RunStateProbeToolName),
+})
+
+/** The single state expression the witness was asked to measure, or `undefined` when the request is unusable. */
+const probedTarget = (request: ContextItem | undefined) => {
+  const requested = request === undefined ? undefined : parseJsonObject(request.content)
+  const targets = (requested?.arguments as { stateVariables?: unknown } | undefined)?.stateVariables
+  return Array.isArray(targets) && targets.length === 1 ? String(targets[0]) : undefined
+}
 
 /**
  * One atomic reasoning step through the seven gates of design 5.6: context preflight, step-limit forcing, one model
@@ -152,25 +201,52 @@ export class JudgeStep {
     })
   }
 
+  /**
+   * Outcomes the context already settles, decided before any provider attempt so no tokens are spent on them: a
+   * blocking consensus without complete source evidence, and a disputed one whose bounded witness failed or cannot run.
+   */
+  private decideWithoutModel(
+    verification: VerificationState,
+    witness: ReturnType<typeof witnessOf>,
+  ): { summary: string; reasoning: string } | undefined {
+    const { consensus } = verification
+    if (consensus === "agreed-invalid" && (verification.bceIncomplete || !verification.hasBceSlices))
+      return {
+        summary: "The blocking consensus has no source evidence.",
+        reasoning:
+          "No BCE source citation is available to verify the blocker against the immutable snapshot, so the result remains unresolved.",
+      }
+    if (consensus !== "disputed" && consensus !== "inconclusive") return undefined
+    const failed = witness.result !== undefined && (witness.result.toolMeta?.isError === true || !witness.result.content.includes(ProbeDeltaMarker))
+    if (failed || (witness.result === undefined && !witness.offered))
+      return {
+        summary: "The disputed claim remains unresolved by bounded evidence.",
+        reasoning: failed
+          ? "The targeted witness did not measure a state delta; execution status alone is not proof."
+          : "No bounded witness is available for this run, and the two verification directions do not agree.",
+      }
+    return undefined
+  }
+
   private async run(input: JudgeStepInput, progress: Progress): Promise<JudgeStepResult> {
     const { deps } = this
     const runId = deps.sink.runId
     const finish = this.finisher(input, progress)
     const persist = persistTo(deps.sink)
-    const consensus = input.items.findLast((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional consensus: "))
-    const consensusStatus = consensus?.content.slice("Bidirectional consensus: ".length)
     const newItem: ToolBranchContext["newItem"] = (type, content, toolMeta) => ({
       id: deps.ids.next("itm_"), turn: input.stepIndex, type, isPinned: false, content,
       ...(toolMeta === undefined ? {} : { toolMeta }),
     })
-    const bceIncomplete = input.items.some((item) => item.type === "system_prompt" && item.content.startsWith("BCE status: incomplete."))
-    if (consensusStatus === "agreed-invalid" && (bceIncomplete || !input.items.some((item) => item.type === "bce_sliced_ast")))
-      return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
-        summary: "The blocking consensus has no source evidence.",
-        reasoning: "No BCE source citation is available to verify the blocker against the immutable snapshot, so the result remains unresolved.",
-        citesEvidence: [], ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-      }) })
+    // Verification state is harness-authored and pinned, so neither the model nor compaction can change it.
+    const marker = (content: string): ContextItem => ({ ...newItem("system_prompt", content), isPinned: true })
+    const identity = { runId, findingId: input.findingId, ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }) }
+    const unresolved = (summary: string, reasoning: string) =>
+      finish({ type: "completed", verdict: unverifiedVerdict(identity, "UNRESOLVED", { summary, reasoning }) })
+    const verification = readVerificationState(input.items)
+    const witness = witnessOf(input)
+    const decided = this.decideWithoutModel(verification, witness)
+    if (decided !== undefined) return unresolved(decided.summary, decided.reasoning)
+
     // Gate 1: context preflight. The engine signals; the step decides and never calls the gateway on stop/compaction.
     const request: import("@harness/protocol").ModelAttemptRequest = {
       attemptIndex: 1,
@@ -218,22 +294,32 @@ export class JudgeStep {
       telemetry: { ...clean.telemetry, contentDigest: digestOf(preparation.preparedItems) },
     })
 
-    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. Each answer the
-    // run still owes (forward, backward, verdict) needs a text-only step, so forcing starts that many steps earlier.
-    const answered = (name: string) =>
-      input.items.some((item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${name} result:`))
-    const pendingDirection = input.items.findLast(
-      (item) => item.type === "system_prompt" && item.content.startsWith("Verification direction: "),
-    )
-    const answersOwed = 1 + (pendingDirection === undefined ? 0 : Number(!answered("forward")) + Number(!answered("backward")))
-    const forced = isForcedStep(input.stepIndex + answersOwed - 1, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
+    // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. A pending
+    // verification direction is forced to answer when its reading stops turning up new evidence, when its own step
+    // budget ends (if one is set), or when the steps or tokens left only cover finishing the run; it is then asked for
+    // its own result, never for a verdict.
+    const pending = verification.direction !== undefined && verification[verification.direction] === undefined
+      ? verification.direction
+      : undefined
+    const directionForced =
+      pending !== undefined &&
+      // This step is step `stepIndex - directionSince` of the direction.
+      (input.stepIndex - (verification.directionSince ?? 0) >= (input.verificationStepBudget ?? DefaultVerificationStepBudget) ||
+        input.limits.maxSteps - input.stepIndex < stepsStillNeeded(pending) ||
+        isEvidenceSaturated(input.items, verification.directionSince ?? 0, input.evidenceSaturationReads ?? DefaultEvidenceSaturationReads) ||
+        mustAnswerNow({
+          pending,
+          estimatedInputTokens: clean.telemetry.estimatedInputTokens,
+          maxOutputTokens: input.modelLimits.maxOutputTokens,
+          safetyMarginFactor: input.policy.safetyMarginFactor,
+          totalTokensUsed: input.budget.totalTokensUsed,
+          totalTokenBudget: input.limits.totalTokenBudget,
+        }))
+    const forced = directionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
-    const directionOwed =
-      pendingDirection !== undefined && !answered(pendingDirection.content.includes("forward") ? "forward" : "backward")
-    const forcing = directionOwed
-      ? `All tools are disabled for the rest of this adjudication. Respond with text only, using the evidence already gathered.\n${pendingDirection.content}`
-      : this.maxStepsPrompt
-    const sentItems = forced ? [...preparation.preparedItems, newItem("system_prompt", forcing)] : preparation.preparedItems
+    const sentItems = forced
+      ? [...preparation.preparedItems, newItem("system_prompt", pending !== undefined ? directionLimitPrompt(pending) : this.maxStepsPrompt)]
+      : preparation.preparedItems
 
     // Gate 3: stop conditions before every provider attempt (retries included), then one model call with retry.
     const stopBefore = (attempts: readonly AttemptRecord[]) => {
@@ -258,7 +344,16 @@ export class JudgeStep {
         request: {
           ...request,
           items: sentItems,
-          ...(forced ? { toolsDisabled: true } : {}),
+          // A structured-output run answers through a submission tool, as OpenCode's json_schema format requires.
+          // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
+          // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
+          ...(directionForced
+            ? { tools: [submitVerificationTool(pending)], toolChoice: "required" as const }
+            : forced
+              ? { toolsDisabled: true }
+              : offersSubmission(request.tools ?? [])
+                ? { toolChoice: "required" as const }
+                : {}),
         },
         deadlineMs: input.stopState.startedAtMs + input.limits.wallClockTimeoutMs,
         signal: input.signal,
@@ -329,126 +424,95 @@ export class JudgeStep {
       })
       .catch(asFault("worker_interrupted"))
 
-    const text = response.content ?? ""
+    // A submission stands for the JSON reply and ends the turn: it is validated like text and never dispatched.
+    const submitted = submittedText(response.toolCalls ?? [])
+    const text = submitted ?? response.content ?? ""
     const reasoning = text.trim() === "" ? [] : [newItem("assistant_reasoning", text)]
-    let calls = response.toolCalls ?? []
-    const currentConsensus = /^Bidirectional consensus: (disputed|inconclusive)$/.exec(text.trim())?.[1]
-    const activeConsensusStatus = consensusStatus ?? currentConsensus
+    // Tool calls in a step whose tools were disabled are not dispatched: a forced direction must answer from its evidence.
+    const calls = submitted === undefined && !directionForced ? (response.toolCalls ?? []) : []
+    const consensus = verification.consensus
 
-    if (activeConsensusStatus === "disputed" || activeConsensusStatus === "inconclusive") {
-      const alreadyAttemptedProbe = input.items.some((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))
-      const priorProbe = input.items.findLast((item) => item.type === "tool_result" && item.toolMeta?.toolName === "run_state_probe")
-      const probeRequest = input.items.findLast((item) => item.type === "tool_request" && item.content.includes("run_state_probe"))
-      const unresolved = () => finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-        runId, findingId: input.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
-        summary: "The disputed claim remains unresolved by bounded evidence.",
-        reasoning: "No semantic resolution was established by the targeted witness; execution status alone is not proof.", citesEvidence: [],
-        ...(input.traceDigest === undefined ? {} : { traceDigest: input.traceDigest }),
-      }) })
-      if (
-        priorProbe?.toolMeta?.isError ||
-        (priorProbe !== undefined && !priorProbe.content.includes("State delta, post minus pre:"))
-      ) return unresolved()
-      if (priorProbe !== undefined) {
-        const requested = probeRequest === undefined ? undefined : JSON.parse(probeRequest.content) as { arguments?: { stateVariables?: unknown } }
-        const targets = requested?.arguments?.stateVariables
-        if (!Array.isArray(targets) || targets.length !== 1) return unresolved()
-        const target = String(targets[0])
-        const claimItem = input.items.find((item) => item.type === "candidate_finding" && item.content.startsWith("Claim decomposition\n"))
-        const claim = claimItem === undefined ? undefined : (() => {
-          try { return JSON.parse(claimItem.content.slice(claimItem.content.indexOf("\n") + 1)) as { claimedState?: string; claimedImpact?: string } } catch { return undefined }
-        })()
-        if (!claim?.claimedState?.includes(target) && !claim?.claimedImpact?.includes(target)) return unresolved()
-        const verdictInput = (() => {
-          try { return JSON.parse(text) as Record<string, unknown> } catch { return undefined }
-        })()
+    if (consensus === "disputed" || consensus === "inconclusive") {
+      const noWitness = () =>
+        unresolved(
+          "The disputed claim remains unresolved by bounded evidence.",
+          "No semantic resolution was established by the targeted witness; execution status alone is not proof.",
+        )
+      if (witness.result !== undefined) {
+        // A measured witness: the verdict must name the probed expression and repeat the measured values exactly.
+        const target = probedTarget(witness.request)
+        const claim = claimFromItems(input.items)
+        if (target === undefined || (!claim?.claimedState.includes(target) && !claim?.claimedImpact.includes(target)))
+          return noWitness()
+        const verdictInput = parseJsonObject(text)
         const measured = input.probeEvidence?.get(target)
-        const before = measured?.before
-        const after = measured?.after
         if (
-          verdictInput?.targetedCondition !== target ||
           measured === undefined ||
-          verdictInput.observedBefore !== before ||
-          verdictInput.observedAfter !== after ||
-          typeof verdictInput.deltaExplanation !== "string" || verdictInput.deltaExplanation.trim().length < 20
-        ) return unresolved()
-        const semanticVerdict = await synthesizeVerdict(
+          verdictInput?.targetedCondition !== target ||
+          verdictInput.observedBefore !== measured.before ||
+          verdictInput.observedAfter !== measured.after ||
+          typeof verdictInput.deltaExplanation !== "string" ||
+          verdictInput.deltaExplanation.trim().length < 20
+        )
+          return noWitness()
+        const witnessed = await synthesizeVerdict(
           { snapshot: deps.snapshot, security: deps.security },
           { text, runId, findingId: input.findingId, snapshotId: input.snapshotId, traceDigest: input.traceDigest,
             enableSchemaRepair: input.flags.enableSchemaRepair, repairsUsed: input.repairsUsed, signal: input.signal },
         ).catch(asFault("worker_interrupted"))
-        if (semanticVerdict.kind === "accepted") return finish({ type: "completed", verdict: semanticVerdict.verdict })
-        if (semanticVerdict.kind === "repair") return finish({ type: "continue_turn", toolOutcomes: [] }, {
-          newItems: [...reasoning, newItem("system_prompt", semanticVerdict.feedback)], repairsUsed: input.repairsUsed + 1,
-        })
-        return unresolved()
+        if (witnessed.kind === "accepted") return finish({ type: "completed", verdict: witnessed.verdict })
+        if (witnessed.kind === "repair")
+          return finish({ type: "continue_turn", toolOutcomes: [] }, {
+            newItems: [...reasoning, newItem("system_prompt", witnessed.feedback)], repairsUsed: input.repairsUsed + 1,
+          })
+        return noWitness()
       }
-      const probeCall = calls.find((call) => call.name === "run_state_probe")
-      const probeAvailable = input.tools.definitions().some((tool) => tool.name === "run_state_probe")
-      if (priorProbe === undefined && probeRequest === undefined && probeAvailable && probeCall !== undefined && !forced) {
+      const probeCall = calls.find((call) => call.name === RunStateProbeToolName)
+      if (witness.request === undefined && probeCall !== undefined && !forced) {
         const branch = await runToolBranch({ deps, input, persist, newItem, toolsDisabled: false }, [probeCall])
         if (branch.kind === "cancelled")
           return finish({ type: "failed", error: "cancelled before witness dispatch", reason: "cancelled_by_user" }, { cancelledAt: branch.boundary })
         return finish({ type: "continue_turn", toolOutcomes: branch.outcomes }, { newItems: [...reasoning, ...branch.items] })
       }
-      if (priorProbe === undefined && probeRequest === undefined && probeAvailable && !forced && !alreadyAttemptedProbe)
-        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", "For disputed consensus, call run_state_probe at most once for exactly one state variable explicitly named in the claim. In your final JSON verdict include targetedCondition equal to the requested expression, observedBefore and observedAfter exactly as reported by that probe, and deltaExplanation (at least 20 characters) explaining why that measured change does or does not establish the claimed condition. Snapshot citations support source behavior, not the dynamic delta; process exit alone is not proof. Do not create or modify tests.")] })
-      if (priorProbe === undefined) return unresolved()
+      if (witness.request === undefined && !forced)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", WitnessInstruction)] })
+      return noWitness()
     }
 
-    const direction = input.items.findLast((item) => item.type === "system_prompt" && item.content.startsWith("Verification direction: "))
-    const directionName = direction?.content.includes("forward") ? "forward" : "backward"
-    const directionAlreadyComplete = input.items.some(
-      (item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${directionName} result:`),
-    )
-    if (calls.length === 0 && direction !== undefined && !directionAlreadyComplete) {
-      const isForward = direction.content.includes("forward")
-      if (!direction.content.includes(loadPrompt(isForward ? "forward-verification.v1" : "backward-verification.v1").text))
-        return finish({ type: "continue_turn", toolOutcomes: [] }, {
-          newItems: [newItem("system_prompt", `${direction.content}\n${loadPrompt(isForward ? "forward-verification.v1" : "backward-verification.v1").text}`)],
-        })
-      const parsed = isForward ? parseForwardResult(text) : parseBackwardResult(text)
-      if (parsed.kind === "invalid") {
+    // Bidirectional verification: the pending direction's reply must be its JSON result, never a verdict yet.
+    const direction = verification.direction
+    if (calls.length === 0 && direction !== undefined && verification[direction] === undefined) {
+      const forward = direction === "forward" ? parseForwardResult(text) : undefined
+      const backward = direction === "backward" ? parseBackwardResult(text) : undefined
+      const answered = forward?.kind === "ok" ? forward.result : backward?.kind === "ok" ? backward.result : undefined
+      // A direction forced to answer that still does not is incomplete: missing evidence never becomes a negative.
+      const parsed = answered ?? (directionForced ? unanswered(direction) : undefined)
+      if (parsed === undefined) {
         const attempt = input.repairsUsed + 1
         const maxRepairs = input.flags.enableSchemaRepair ? MaxSchemaRepairs : 0
         await persist("verdict.validation_failed", { attempt, issues: [{ reason: "SCHEMA_VIOLATION", path: [] }] })
         if (input.repairsUsed >= maxRepairs)
           return finish({ type: "failed", error: "bidirectional output validation failed", reason: "schema_repair_exhausted" })
+        const field = direction === "forward" ? "reachability" : "reconstruction"
         return finish({ type: "continue_turn", toolOutcomes: [] }, {
           newItems: [
             ...reasoning,
-            newItem(
-              "system_prompt",
-              `${direction.content}\nReturn only JSON with the required ${isForward ? "reachability" : "reconstruction"} and explanation fields. Validation attempt ${attempt}.`,
-            ),
+            newItem("system_prompt", `Return only JSON with the required ${field} and explanation fields for the ${direction} direction. Validation attempt ${attempt}.`),
           ],
           repairsUsed: input.repairsUsed + 1,
         })
       }
-      const resultItem = newItem("assistant_reasoning", `Bidirectional ${isForward ? "forward" : "backward"} result: ${JSON.stringify(parsed.result)}`)
-      const opposite = isForward ? "backward" : "forward"
-      if (input.items.some((item) => item.type === "assistant_reasoning" && item.content.startsWith(`Bidirectional ${opposite} result:`))) {
-        const forwardText = isForward
-          ? JSON.stringify(parsed.result)
-          : input.items.find((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional forward result:"))!.content.split(": ").slice(1).join(": ")
-        const backwardText = isForward
-          ? input.items.find((item) => item.type === "assistant_reasoning" && item.content.startsWith("Bidirectional backward result:"))!.content.split(": ").slice(1).join(": ")
-          : JSON.stringify(parsed.result)
-        const forward = parseForwardResult(forwardText)
-        const backward = parseBackwardResult(backwardText)
-        const consensus = forward.kind === "ok" && backward.kind === "ok"
-          ? decideConsensus(forward.result, backward.result)
-          : "inconclusive"
-        if (consensus === "agreed-valid" || consensus === "agreed-invalid")
-          return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [
-            resultItem,
-            newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`),
-            newItem("system_prompt", "Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite exact snapshot lines; otherwise return validity unverified with reasonCode UNRESOLVED. Consensus by itself does not establish validity."),
-          ] })
-        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, newItem("assistant_reasoning", `Bidirectional consensus: ${consensus}`)] })
-      }
+      const resultItem = marker(resultNote(direction, parsed))
+      const forwardResult = direction === "forward" ? (parsed as ForwardResult) : verification.forward
+      const backwardResult = direction === "backward" ? (parsed as BackwardResult) : verification.backward
+      if (forwardResult === undefined)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("forward"))] })
+      if (backwardResult === undefined)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("backward"))] })
+      const decision = decideConsensus(forwardResult, backwardResult)
+      const agreed = decision === "agreed-valid" || decision === "agreed-invalid"
       return finish({ type: "continue_turn", toolOutcomes: [] }, {
-        newItems: [resultItem, ...(isForward ? [newItem("system_prompt", `Verification direction: ${opposite}\n${loadPrompt("backward-verification.v1").text}`)] : [])],
+        newItems: [resultItem, marker(consensusNote(decision)), ...(agreed ? [newItem("system_prompt", ConsensusVerdictInstruction)] : [])],
       })
     }
 
@@ -468,13 +532,8 @@ export class JudgeStep {
         },
       ).catch(asFault("worker_interrupted"))
       if (synthesis.kind === "accepted") {
-        if (bceIncomplete && synthesis.verdict.validity !== "unverified")
-          return finish({ type: "completed", verdict: JudgeVerdictSchema.parse({
-            ...synthesis.verdict,
-            validity: "unverified",
-            verificationStatus: "UNVERIFIED",
-            reasonCode: "UNRESOLVED",
-            confidence: "LOW",
+        if (verification.bceIncomplete && synthesis.verdict.validity !== "unverified")
+          return finish({ type: "completed", verdict: withheldVerdict(synthesis.verdict, {
             summary: "The claim remains unresolved because BCE is incomplete.",
             reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
           }) })

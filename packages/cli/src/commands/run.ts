@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/cli/src/commands/run.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
 import { SingleTurnRunner } from "@harness/core"
 import { RealModelGateway } from "@harness/llm"

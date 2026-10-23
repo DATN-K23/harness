@@ -47,8 +47,10 @@ const parseToolArguments = (
   try {
     const parsed: unknown = JSON.parse(raw)
     if (isObject(parsed)) {
-      // Un-nest when a model passes { name: "...", arguments: { ... } } inside tool arguments
-      if (typeof parsed.name === "string" && isObject(parsed.arguments)) {
+      // Un-nest when a model passes { name: "...", arguments: { ... } } or only { arguments: { ... } } (seen from
+      // Gemini via 9router) inside tool arguments
+      const wrapperOnly = Object.keys(parsed).every((key) => key === "name" || key === "arguments")
+      if (isObject(parsed.arguments) && wrapperOnly && (parsed.name === undefined || typeof parsed.name === "string")) {
         return { arguments: parsed.arguments as Record<string, unknown> }
       }
       return { arguments: parsed }
@@ -67,10 +69,36 @@ const parseToolArguments = (
   }
 }
 
+/**
+ * A Gemini prompt block that an OpenAI-compatible router (e.g. 9router) passes through unchanged with HTTP 200: no
+ * `choices`, only `response.promptFeedback.blockReason`. The prompt itself was refused before any output.
+ */
+const geminiPromptBlock = (completion: unknown) => {
+  const response = (completion as { response?: { promptFeedback?: { blockReason?: unknown }; usageMetadata?: { promptTokenCount?: unknown } } }).response
+  const reason = response?.promptFeedback?.blockReason
+  if (typeof reason !== "string") return undefined
+  const promptTokens = response?.usageMetadata?.promptTokenCount
+  return { reason, promptTokens: typeof promptTokens === "number" && promptTokens >= 0 ? promptTokens : 0 }
+}
+
 export function mapChatCompletion(
   completion: OpenAI.Chat.ChatCompletion,
   options: MapChatCompletionOptions,
 ): MappedChatCompletion {
+  const blocked = geminiPromptBlock(completion)
+  if (blocked !== undefined) {
+    const tokenUsage: TokenUsage = { promptTokens: blocked.promptTokens, completionTokens: 0, totalTokens: blocked.promptTokens }
+    return {
+      usage: { ...tokenUsage, ...priceUsage(options.model, tokenUsage, options.pricing) },
+      finishReason: "error",
+      error: {
+        isRetryable: false,
+        category: "invalid_request",
+        classification: "content_filter",
+        message: `The provider's safety filter blocked the prompt (blockReason ${blocked.reason.slice(0, 40)}).`,
+      },
+    }
+  }
   const choice = completion.choices?.[0]
   const rawCalls = choice?.message?.tool_calls ?? []
   const rawReason = choice?.finish_reason

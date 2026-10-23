@@ -1,6 +1,6 @@
 import { lstat, readdir } from "node:fs/promises"
 import { realpath } from "node:fs/promises"
-import { createIdGenerator, DiskSourceSnapshot, ProductionContextEngine, ProductionSecurityFilter, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
+import { createIdGenerator, DiskSourceSnapshot, JudgeDefaultLimits, ProductionContextEngine, ProductionSecurityFilter, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
 import type { JudgeRunConfig } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { RealModelGateway } from "@harness/llm/gateway"
@@ -85,12 +85,15 @@ export const makeProductionJudgeConfig = (runtime: {
   }
   return deepFreeze({ flags, policy, retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
     limits: {
-      wallClockTimeoutMs: runtime.wallClockTimeoutMs ?? 300_000,
-      totalTokenBudget: runtime.totalTokenBudget ?? 200_000,
-      maxSteps: runtime.maxSteps ?? 10,
+      wallClockTimeoutMs: runtime.wallClockTimeoutMs ?? JudgeDefaultLimits.wallClockTimeoutMs,
+      totalTokenBudget: runtime.totalTokenBudget ?? JudgeDefaultLimits.totalTokenBudget,
+      maxSteps: runtime.maxSteps ?? JudgeDefaultLimits.maxSteps,
       noProgressMaxRepeats: 3,
     },
     maxProbeRuns: 0, enablePocExecution: false,
+    // Real reports (Sherlock, Code4rena, Hound …) rarely use the harness template; one extraction call locates the
+    // claim fields before a finding is declared unresolved.
+    enableClaimExtraction: true,
     modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 }, profileId: runtime.modelName,
     runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
       timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,

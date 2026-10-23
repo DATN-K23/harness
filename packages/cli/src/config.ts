@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/config.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { z } from "zod"

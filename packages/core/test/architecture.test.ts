@@ -244,6 +244,62 @@ describe("no dependency on the OpenCode checkout", () => {
   })
 })
 
+/** The local OpenCode reference checkout (gitignored), when it is present and at the attributed commit. */
+const openCodeReference = (() => {
+  const dir = join(root, ".opencode_reference")
+  const head = join(dir, ".git", "HEAD")
+  return existsSync(head) && readFileSync(head, "utf8").trim().startsWith(openCodeCommit) ? dir : undefined
+})()
+
+/** The OpenCode paths a file's attribution header names (first five lines). */
+const attributedSources = (content: string) => {
+  const header = content.split("\n").slice(0, 5).join(" ").replaceAll(/\s*(?:\/\/|#)\s*/g, " ")
+  const named = /adapted from OpenCode (.+?) @ /i.exec(header)?.[1] ?? ""
+  return named
+    .replaceAll(/\([^)]*\)/g, " ")
+    .split(/\s+(?:and|&)\s+|,\s*/)
+    .map((part) => part.trim().split(/\s+/)[0] ?? "")
+    .filter((path) => path.startsWith("packages/") || /^[\w.-]+\.(?:toml|json)$|^\.\w+$/.test(path))
+}
+
+const attributedFiles = () =>
+  readdirSync(packagesDir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(?:ts|txt)$/.test(entry.name) && !entry.parentPath.includes("node_modules"))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((path) => /^\s*(?:\/\/|#).*adapted from OpenCode/im.test(readFileSync(path, "utf8").split("\n").slice(0, 5).join("\n")))
+    .map((path) => slash(path.slice(root.length + 1)))
+
+describe("OpenCode attribution provenance", () => {
+  test("attributedSources reads every path a header names", () => {
+    expect(attributedSources("// Adapted from OpenCode packages/a/x.ts and packages/b/y.ts @ 3f393d78bf\n")).toEqual([
+      "packages/a/x.ts",
+      "packages/b/y.ts",
+    ])
+    expect(attributedSources("// Adapted from OpenCode packages/a/x.ts (MAX)\n// @ 3f393d78bf (MIT License).\n")).toEqual([
+      "packages/a/x.ts",
+    ])
+  })
+
+  test("every attributed file is in NOTICE and names sources that exist at the attributed commit", () => {
+    const notice = readFileSync(join(root, "NOTICE"), "utf8")
+    const listed = new Set(parseNotice(notice).map(({ file }) => file))
+    const reference = openCodeReference
+    const violations = attributedFiles().flatMap((file) => {
+      const sources = attributedSources(readFileSync(join(root, file), "utf8"))
+      return [
+        ...(listed.has(file) ? [] : [`${file}: not listed in NOTICE`]),
+        ...(sources.length === 0 ? [`${file}: header names no OpenCode path`] : []),
+        ...(reference === undefined
+          ? []
+          : sources
+              .filter((source) => !existsSync(join(reference, source)))
+              .map((source) => `${file}: ${source} is not in OpenCode at ${openCodeCommit}`)),
+      ]
+    })
+    expect(violations).toEqual([])
+  })
+})
+
 describe("NOTICE attribution", () => {
   const header = `# Adapted from OpenCode packages/x/y.toml @ ${openCodeCommit} (MIT License, Copyright (c) 2025)\n`
   const entry = (file: string, attribution: string) =>

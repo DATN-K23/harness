@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/audit/audit-runner.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type {
   BudgetLimits,
   CancellationPort,

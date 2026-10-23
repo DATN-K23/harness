@@ -45,6 +45,12 @@ describe("gateway request options", () => {
     expect(withHistory.requests[0]?.tool_choice).toBe("none")
   })
 
+  test("a required tool choice is lowered for structured output", async () => {
+    const recording = new RecordingClient(readRecordingFixture("content-filter"))
+    await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest({ tools, toolChoice: "required" }))
+    expect(recording.requests[0]?.tool_choice).toBe("required")
+  })
+
   test("one allowed call disables provider parallel calls", async () => {
     const recording = new RecordingClient(readRecordingFixture("content-filter"))
     await new RealModelGateway({ client: recording.client }).executeAttempt(

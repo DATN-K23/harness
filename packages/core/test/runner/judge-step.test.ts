@@ -44,21 +44,21 @@ describe("JudgeStep: seven gates", () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: agreed-invalid" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(h.gateway.callCount).toBe(0)
     expect(await h.events("verdict.validation_failed")).toHaveLength(0)
   })
 
-  test("disputed consensus commits UNVERIFIED instead of claiming invalidity", async () => {
+  test("disputed consensus without a witness commits UNVERIFIED before any provider call", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" } })
-    expect(h.gateway.callCount).toBeGreaterThan(0)
+    expect(h.gateway.callCount).toBe(0)
   })
 
   test("gate order: prepare, gateway, record, then the tool runs and is filtered before it is shaped", async () => {

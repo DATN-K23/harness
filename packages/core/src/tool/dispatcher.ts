@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/tool/dispatcher.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { ToolFailureKinds as ProtocolToolFailureKinds } from "@harness/protocol"
 import type {
   ClockPort,

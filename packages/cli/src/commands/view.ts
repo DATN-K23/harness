@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/cli/src/commands/view.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { RunStorePort, TrajectoryEvent } from "@harness/protocol"
 import { digestOf, getMultiTurnExecutionSummary, getRun, getRunHistory } from "@harness/core"
 import { redactSecrets } from "../redaction"

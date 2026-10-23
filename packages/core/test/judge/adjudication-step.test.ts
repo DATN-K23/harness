@@ -3,6 +3,7 @@ import type { SanitizerResult, StateProbeResult } from "@harness/protocol"
 import {
   RunStateProbeToolName,
   buildInitialContext,
+  claimFromItems,
   composeTools,
   createProbeCounter,
   stateProbeFor,
@@ -183,5 +184,42 @@ describe("adjudication step: initial context", () => {
     for (const value of ["runId: run-1", "findingId: finding-7", "snapshotId: snap-1", "tier: 2"])
       expect(header).toContain(value)
     expect(items[9].content).toContain("src/Vault.sol (lines 10-20)")
+  })
+
+  const minimal = (overrides: Partial<Parameters<typeof buildInitialContext>[0]> = {}) => {
+    const clock = new FakeClock(1_000)
+    const random = new SeededRandom(3)
+    return buildInitialContext({
+      runId: "run-1",
+      snapshotId: "snap-1",
+      finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw" },
+      pocCode: "",
+      bceSlices: [],
+      maxProbeRuns: 2,
+      systemPrompt: "You are the Judge.",
+      tools: [],
+      shapedTrace: "",
+      ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => random.bytes(size) }),
+      ...overrides,
+    })
+  }
+
+  test("the header never offers a state probe the registry does not have", () => {
+    const header = (items: ReturnType<typeof buildInitialContext>) => items.find((item) => item.content.startsWith("Case header"))!.content
+    expect(header(minimal())).toContain("tier: none")
+    expect(header(minimal({ tier: 2 }))).not.toContain(RunStateProbeToolName)
+  })
+
+  test("the verification direction is pinned before the trace, which stays the last initial item", () => {
+    const items = minimal({ bceIncomplete: true, verificationDirection: "forward" })
+    expect(items.at(-1)?.type).toBe("execution_trace")
+    expect(items.at(-2)).toMatchObject({ type: "system_prompt", isPinned: true })
+    expect(items.at(-2)?.content).toStartWith("Verification direction: forward\n")
+  })
+
+  test("claimFromItems reads the claim decomposition, not the report that shares its item type", () => {
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "r", attackScenario: "a", callerAssumptions: [], claimedImpact: "i", claimedState: "totalSupply" }
+    expect(claimFromItems(minimal({ claim }))).toEqual(claim)
+    expect(claimFromItems(minimal())).toBeUndefined()
   })
 })

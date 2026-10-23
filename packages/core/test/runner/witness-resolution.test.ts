@@ -15,7 +15,7 @@ describe("JudgeStep bounded witness resolution", () => {
       },
     }
     const result = await h.step.execute(h.input({
-      items: [...baseItems, { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" }],
+      items: [...baseItems, { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" }],
       tools,
     }))
     expect(result.outcome.type).toBe("continue_turn")
@@ -33,7 +33,7 @@ describe("JudgeStep bounded witness resolution", () => {
     const result = await h.step.execute(h.input({
       items: [
         ...baseItems,
-        { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+        { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
         { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
         { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0): totalSupply | 1 | 1", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
       ],
@@ -53,7 +53,7 @@ describe("JudgeStep bounded witness resolution", () => {
     const result = await h.step.execute(h.input({
       items: [
         ...baseItems,
-        { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+        { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
       ],
       tools,
     }))
@@ -61,7 +61,7 @@ describe("JudgeStep bounded witness resolution", () => {
     expect(probeCalls).toBe(1)
     const terminal = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
       ...result.newItems,
     ], tools }))
     expect(terminal.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
@@ -75,13 +75,13 @@ describe("JudgeStep bounded witness resolution", () => {
       execute: async () => ({ content: "compile failed", isError: true }),
     }
     const result = await h.step.execute(h.input({
-      items: [...baseItems, { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" }],
+      items: [...baseItems, { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" }],
       tools,
     }))
     expect(result.outcome.type).toBe("continue_turn")
     const persistedProbe = result.newItems.find((item) => item.type === "tool_result")
     expect(persistedProbe?.toolMeta?.isError).toBe(true)
-    const next = await h.step.execute(h.input({ items: [...baseItems, ...result.newItems, { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" }] }))
+    const next = await h.step.execute(h.input({ items: [...baseItems, ...result.newItems, { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" }] }))
     expect(next.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
   })
 
@@ -94,7 +94,7 @@ describe("JudgeStep bounded witness resolution", () => {
     const result = await h.step.execute(h.input({
       items: [
         ...baseItems,
-        { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+        { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
         { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
         { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0): totalSupply | 100 | 100", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
       ],
@@ -113,7 +113,7 @@ describe("JudgeStep bounded witness resolution", () => {
     }))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
       { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
       { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0). State delta, post minus pre:\n| variable | before | after |\n| --- | --- | --- |\n| totalSupply | 1 | 2 |", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
     ], probeEvidence: new Map([["totalSupply", { before: "1", after: "3" }]]) }))
@@ -133,7 +133,7 @@ describe("JudgeStep bounded witness resolution", () => {
       ...baseItems.map((item) => item.id === "itm-finding"
         ? { ...item, content: `Claim decomposition\n${JSON.stringify({ claimedState: "totalSupply changes", claimedImpact: "attacker balance increases" })}` }
         : item),
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: disputed" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: disputed" },
       { id: "probe-request", turn: 2, type: "tool_request", isPinned: false, content: JSON.stringify({ name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }), toolMeta: { callId: "prior", toolName: "run_state_probe" } },
       { id: "probe-result", turn: 2, type: "tool_result", isPinned: false, content: "State probe run 1 of 1 (exit code 0). State delta, post minus pre:\n| variable | before | after |\n| --- | --- | --- |\n| totalSupply | 1 | 2 |", toolMeta: { callId: "prior", toolName: "run_state_probe", isError: false } },
     ], probeEvidence: new Map([["totalSupply", { before: "1", after: "2" }]]) }))
@@ -151,7 +151,7 @@ describe("JudgeStep bounded witness resolution", () => {
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
       unrelated,
-      { id: "consensus", turn: 2, type: "assistant_reasoning", isPinned: false, content: "Bidirectional consensus: agreed-invalid" },
+      { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
   })

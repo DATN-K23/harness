@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/cli/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
@@ -59,6 +58,8 @@ Options:
   --max-tool-calls <count>    Maximum tool calls for a snapshot run
   --max-output-tokens <count> Maximum output tokens per provider attempt
   --max-total-tokens <count>  Maximum total tokens for the run
+  --structured-output         Judge: submit verdicts through schema-typed tools (recorded in the run config)
+  --no-bidirectional          Judge: skip forward/backward verification of the claim (recorded in the run config)
   --include-root <dir>        Include only this repository-relative path (repeatable)
   --snapshot-id <id>          Set an explicit ID when registering a repository
   --id <runId>                Run identifier to inspect (required for view)
@@ -86,6 +87,8 @@ export interface CliParsedArgs {
   maxToolCalls?: string
   maxOutputTokens?: string
   maxTotalTokens?: string
+  structuredOutput?: boolean
+  noBidirectional?: boolean
 }
 
 export type CliWriter = (text: string) => void
@@ -121,6 +124,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       "max-tool-calls": { type: "string" },
       "max-output-tokens": { type: "string" },
       "max-total-tokens": { type: "string" },
+      "structured-output": { type: "boolean" },
+      "no-bidirectional": { type: "boolean" },
     },
     allowPositionals: true,
     strict: false,
@@ -151,6 +156,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     maxToolCalls: asString(values["max-tool-calls"]),
     maxOutputTokens: asString(values["max-output-tokens"]),
     maxTotalTokens: asString(values["max-total-tokens"]),
+    structuredOutput: Boolean(values["structured-output"]),
+    noBidirectional: Boolean(values["no-bidirectional"]),
   }
 }
 
@@ -432,6 +439,8 @@ async function runCommand(
             },
             maxProbeRuns: 0,
             enablePocExecution: false,
+            enableBidirectionalVerification: !parsed.noBidirectional,
+            enableStructuredOutput: Boolean(parsed.structuredOutput),
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
           },

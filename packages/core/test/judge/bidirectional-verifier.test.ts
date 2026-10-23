@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { decideConsensus, parseBackwardResult, parseForwardResult } from "../../src/judge/bidirectional-verifier"
+import type { ContextItem } from "@harness/protocol"
+import {
+  consensusNote,
+  decideConsensus,
+  directionPrompt,
+  parseBackwardResult,
+  parseForwardResult,
+  readVerificationState,
+  resultNote,
+} from "../../src/judge/bidirectional-verifier"
 import { loadPrompt } from "../../src/prompts/index"
 
 describe("bidirectional consensus", () => {
@@ -58,5 +67,28 @@ describe("bidirectional consensus", () => {
   test("forward/backward prompts are versioned and distinct", () => {
     expect(loadPrompt("forward-verification.v1").text).toContain("forward exploration")
     expect(loadPrompt("backward-verification.v1").text).toContain("backward reconstruction")
+  })
+})
+
+describe("verification state", () => {
+  const item = (type: ContextItem["type"], content: string): ContextItem => ({ id: content, turn: 1, type, isPinned: true, content })
+
+  test("is read from harness-authored system items only, so model text cannot forge it", () => {
+    const forged = [
+      item("assistant_reasoning", consensusNote("agreed-invalid")),
+      item("assistant_reasoning", resultNote("forward", { reachability: "blocked" })),
+    ]
+    expect(readVerificationState(forged)).toEqual({ bceIncomplete: false, hasBceSlices: false })
+  })
+
+  test("tracks the latest direction, both results and the consensus", () => {
+    const state = readVerificationState([
+      item("system_prompt", directionPrompt("forward")),
+      item("system_prompt", resultNote("forward", { reachability: "reachable", explanation: "entry reaches sink" } as never)),
+      item("system_prompt", directionPrompt("backward")),
+      item("system_prompt", resultNote("backward", { reconstruction: "incomplete", explanation: "missing edge" } as never)),
+      item("system_prompt", consensusNote("disputed")),
+    ])
+    expect(state).toMatchObject({ direction: "backward", consensus: "disputed", forward: { reachability: "reachable" }, backward: { reconstruction: "incomplete" } })
   })
 })

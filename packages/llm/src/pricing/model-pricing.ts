@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/llm/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { TokenUsage } from "@harness/protocol"
 
 export interface ModelPricing {

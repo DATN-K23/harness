@@ -27,6 +27,8 @@ import {
   type StopReason,
   type ToolRegistryPort,
 } from "@harness/protocol"
+import { verificationPromptDigest } from "../judge/bidirectional-verifier"
+import { structuredOutputPrompt } from "../judge/structured-output"
 import { loadPrompt } from "../prompts/index"
 import { textDigest } from "../util/digest"
 import type { IdGenerator } from "../util/id"
@@ -58,6 +60,10 @@ export interface JudgeRunConfig {
   maxProbeRuns?: number
   /** Runtime PoC execution remains disabled until the selected sandbox is validated. */
   enablePocExecution?: boolean
+  /** Forward then backward verification of a deconstructed claim before the verdict; on unless set to `false`. */
+  enableBidirectionalVerification?: boolean
+  /** Verdicts and direction results submitted through schema-typed tools (OpenCode structured output); off by default. */
+  enableStructuredOutput?: boolean
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
@@ -354,9 +360,13 @@ class RunExecution {
           limits: config.limits,
           maxProbeRuns: config.maxProbeRuns,
           enablePocExecution: config.enablePocExecution,
+          enableBidirectionalVerification: config.enableBidirectionalVerification,
+          enableStructuredOutput: config.enableStructuredOutput,
           runtime: config.runtime,
           systemPromptDigest: textDigest(this.systemPrompt),
           verdictSchemaDigest: textDigest(verdictText),
+          ...(config.enableBidirectionalVerification === false ? {} : { verificationPromptDigest: verificationPromptDigest() }),
+          ...(config.enableStructuredOutput === true ? { structuredOutputPromptDigest: structuredOutputPrompt().digest } : {}),
         }),
       )
       .catch(asFault("invalid_input"))

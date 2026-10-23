@@ -1,16 +1,27 @@
-import { DefaultMaxProbeRuns, isValidDeconstructedClaim, type BceSlice, type ContextItem, type DeconstructedClaim, type ToolRegistryPort } from "@harness/protocol"
-import { loadPrompt } from "../prompts/index"
+import {
+  DefaultMaxProbeRuns,
+  isValidDeconstructedClaim,
+  type BceSlice,
+  type ContextItem,
+  type DeconstructedClaim,
+  type IngestionResult,
+  type ToolRegistryPort,
+} from "@harness/protocol"
 import {
   RunStateProbeToolName,
   buildInitialContext,
+  claimFromItems,
   composeTools,
   createProbeCounter,
+  selectTier,
   stateProbeFor,
   type SanitizedPoc,
 } from "../judge/adjudication-step"
+import { structuredOutputPrompt, withSubmissionTools } from "../judge/structured-output"
+import { SandboxUnverified, unverifiedVerdict, type VerdictWording } from "../judge/unverified-verdict"
 import { textDigest } from "../util/digest"
 import { checkBoundary, type CancellationBoundary } from "./cancellation"
-import { fastRejectVerdict, type FastReject, type FastRejectReason } from "./fast-reject"
+import { fastRejectVerdict, type FastReject } from "./fast-reject"
 import type { HydratedHistory } from "./history-hydrator"
 import type { JudgeRunInput, JudgeRunnerDeps } from "./judge-runner"
 import { StepFault, asFault, type Persist } from "./judge-step-support"
@@ -66,80 +77,93 @@ const runStage = async <Result>(
   return result
 }
 
+/** What an ingestion result means for the run: a claim to judge, a zero-token fast-reject, or an unresolved end. */
+type Admission =
+  | { kind: "judge"; claim?: DeconstructedClaim; pocCode?: string; bceSlices: BceSlice[] }
+  | { kind: "fast_reject"; reject: FastReject }
+  | { kind: "unresolved"; wording: VerdictWording }
+
+const InvalidReport: VerdictWording = {
+  summary: "The submitted report could not be safely interpreted.",
+  reasoning:
+    "Report input was malformed or contained prohibited metadata, so no provider or sandbox evaluation was attempted.",
+}
+
+const InvalidClaim: VerdictWording = {
+  summary: "The report claim is incomplete and cannot be verified.",
+  reasoning: "The deconstructed claim lacks required target or semantic fields.",
+}
+
+const unmapped = (reason: string): VerdictWording => ({
+  summary: "The report or source context could not be mapped completely.",
+  reasoning: `Ingestion was incomplete (${reason}); no structured claim or source evidence was available, so the finding remains unresolved.`,
+})
+
+/** An empty PoC is no PoC. */
+const pocOf = (pocCode: string | undefined) => (pocCode === undefined || pocCode.trim() === "" ? undefined : pocCode)
+
+const admit = (ingested: IngestionResult): Admission => {
+  switch (ingested.kind) {
+    case "missing_poc":
+      return { kind: "fast_reject", reject: { reasonCode: "MISSING_POC" } }
+    case "invalid_report":
+      return { kind: "unresolved", wording: InvalidReport }
+    case "ok":
+      // A malformed claim next to a PoC is dropped: the PoC is still judged, without claim-driven verification.
+      return {
+        kind: "judge",
+        pocCode: pocOf(ingested.pocCode),
+        bceSlices: ingested.bceSlices,
+        ...(ingested.claim !== undefined && isValidDeconstructedClaim(ingested.claim) ? { claim: ingested.claim } : {}),
+      }
+    case "incomplete":
+    case "narrative_only": {
+      if (ingested.claim === undefined) return { kind: "unresolved", wording: unmapped(ingested.kind === "incomplete" ? ingested.reason : ingested.kind) }
+      if (!isValidDeconstructedClaim(ingested.claim)) return { kind: "unresolved", wording: InvalidClaim }
+      return { kind: "judge", claim: ingested.claim, pocCode: pocOf(ingested.pocCode), bceSlices: ingested.bceSlices ?? [] }
+    }
+  }
+}
+
+/** The ingestion stage is `rejected` whenever the run ends there, so the trajectory says why no model was called. */
+const admissionRejection = (admission: Admission) =>
+  admission.kind === "judge" ? undefined : admission.kind === "fast_reject" ? admission.reject.reasonCode : "UNRESOLVED"
+
 /**
- * Stages 1-3 (design 4.1-4.3, D12) with cancellation boundary 1 before ingestion and before the sandbox. Any reject
- * ends the run `completed` with a fast-reject verdict; no model call is possible from here.
+ * Stages 1-3 (design 4.1-4.3, D12) with cancellation boundary 1 before ingestion and before the sandbox. A reject ends
+ * the run `completed` with a fast-reject verdict, an unusable report or a sandbox without a validated outcome ends it
+ * `unverified`; no model call is possible from here.
  */
 export const runStages = async (context: StageContext): Promise<Staged> => {
   const { deps, runId, input, signal } = context
   const stage = { runId, snapshotId: input.snapshotId }
+  const identity = { runId, findingId: input.finding.findingId }
   const end = (terminal: TerminalCommit): Staged => ({ kind: "ended", terminal })
   const reject = (fastReject: FastReject) =>
-    end({
-      state: "completed",
-      verdict: fastRejectVerdict({ runId, findingId: input.finding.findingId }, fastReject),
-    })
+    end({ state: "completed", verdict: fastRejectVerdict(identity, fastReject) })
+  const unverified = (wording: VerdictWording, reasonCode: "UNRESOLVED" | "EXECUTION_FAILED", traceDigest?: string) =>
+    end({ state: "completed", verdict: unverifiedVerdict({ ...identity, ...(traceDigest === undefined ? {} : { traceDigest }) }, reasonCode, wording) })
   const cancelled = (boundary: CancellationBoundary) => end({ state: "cancelled", boundary })
-  const sandboxFailure = (): Staged => ({ kind: "ended", terminal: { state: "completed", verdict: {
-    runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
-    reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
-    reasoning: "The sandbox failed before reporting a validated test outcome.", citesEvidence: [],
-  } } })
 
   const beforeIngestion = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "ingestion", signal })
   if (beforeIngestion.kind === "cancel") return cancelled(beforeIngestion.boundary)
-  let ingested = await runStage(
+  const ingested = await runStage(
     context,
     "ingestion",
     () => deps.ingestion.ingest({ ...stage, finding: input.finding }, signal),
-    () => undefined,
+    (result) => admissionRejection(admit(result)),
   )
-  if (ingested.kind === "incomplete" && ingested.claim) {
-    const incomplete = ingested
-    ingested = { kind: "narrative_only", claim: incomplete.claim!, ...(incomplete.pocCode ? { pocCode: incomplete.pocCode } : {}), bceSlices: incomplete.bceSlices ?? [], bceStatus: "incomplete" }
-  }
-  if (ingested.kind === "narrative_only" && !isValidDeconstructedClaim(ingested.claim))
-    return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report claim is incomplete and cannot be verified.", reasoning: "The deconstructed claim lacks required target or semantic fields.", citesEvidence: [] } } }
-  if (ingested.kind === "missing_poc") return reject({ reasonCode: "MISSING_POC" })
-  if (ingested.kind === "incomplete" && !ingested.claim) return { kind: "ended", terminal: { state: "completed", verdict: { runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The report or source context could not be mapped completely.", reasoning: `Ingestion was incomplete (${ingested.reason}); no structured claim or source evidence was available, so the finding remains unresolved.`, citesEvidence: [] } } }
-  if (ingested.kind === "narrative_only") {
-    if (ingested.pocCode !== undefined) {
-      if (!input.config.enablePocExecution)
-        return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
-      const sanitized = await runStage(
-        context,
-        "sanitizer",
-        () => deps.sanitizer.sanitize({ ...stage, pocCode: ingested.pocCode! }, signal),
-        (result) => (result.kind === "cheat_detected" ? "NON_FAITHFUL_OVERRIDE" : undefined),
-      )
-      if (sanitized.kind === "cheat_detected")
-        return reject({ reasonCode: "NON_FAITHFUL_OVERRIDE", findings: sanitized.findings })
-      const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
-      if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
-      let executed: Awaited<ReturnType<typeof deps.sandbox.runSingleShot>>
-      try { executed = await runStage(context, "sandbox", () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal), (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED")) }
-      catch (error) { if (error instanceof SandboxCallFailed) return sandboxFailure(); throw error }
-      if (executed.outcome !== "passed")
-        return { kind: "ended", terminal: { state: "completed", verdict: {
-          runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
-          reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
-          reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
-          citesEvidence: [], traceDigest: textDigest(executed.trace),
-        } } }
-      return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, sanitized, trace: executed.trace }
-    }
-    return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
-  }
-  if (ingested.kind === "invalid_report") return { kind: "ended", terminal: { state: "completed", verdict: {
-    runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
-    reasonCode: "UNRESOLVED", confidence: "LOW", summary: "The submitted report could not be safely interpreted.",
-    reasoning: "Report input was malformed or contained prohibited metadata, so no provider or sandbox evaluation was attempted.",
-    citesEvidence: [],
-  } } }
-  if (ingested.pocCode === undefined) return { kind: "passed", claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
-  if (!input.config.enablePocExecution)
-    return { kind: "passed", pocCode: ingested.pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, trace: "" }
-  const pocCode = ingested.pocCode
+  const admission = admit(ingested)
+  if (admission.kind === "fast_reject") return reject(admission.reject)
+  if (admission.kind === "unresolved") return unverified(admission.wording, "UNRESOLVED")
+
+  // No ingestion port certifies a complete BCE yet (`IngestionResult` has no such status), so every judged claim is
+  // marked incomplete: a missing call-graph edge must never turn into a negative, and no model verdict leaves
+  // UNVERIFIED before verification (proposal 4, timeline sprint 9-10).
+  const judged = { claim: admission.claim, bceSlices: admission.bceSlices, bceIncomplete: true }
+  const { pocCode } = admission
+  if (pocCode === undefined) return { kind: "passed", ...judged, trace: "" }
+  if (!input.config.enablePocExecution) return { kind: "passed", ...judged, pocCode, trace: "" }
 
   const sanitized = await runStage(
     context,
@@ -152,23 +176,39 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
 
   const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
   if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
-  let executed: Awaited<ReturnType<typeof deps.sandbox.runSingleShot>>
-  try { executed = await runStage(context, "sandbox", () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal), (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED")) }
-  catch (error) { if (error instanceof SandboxCallFailed) return sandboxFailure(); throw error }
-  if (executed.outcome !== "passed")
-    return { kind: "ended", terminal: { state: "completed", verdict: {
-      runId, findingId: input.finding.findingId, validity: "unverified", verificationStatus: "UNVERIFIED",
-      reasonCode: "EXECUTION_FAILED", confidence: "LOW", summary: "Sandbox execution did not establish a result.",
-      reasoning: "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
-      citesEvidence: [], traceDigest: textDigest(executed.trace),
-    } } }
-  return { kind: "passed", pocCode, claim: ingested.claim, bceSlices: ingested.bceSlices ?? [], bceIncomplete: true, sanitized, trace: executed.trace }
+  const executed = await runStage(
+    context,
+    "sandbox",
+    () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
+    (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
+  ).catch((error: unknown) => {
+    if (error instanceof SandboxCallFailed) return undefined
+    throw error
+  })
+  // An infrastructure failure or a failing exit code never becomes an invalid finding.
+  if (executed === undefined)
+    return unverified(
+      { summary: SandboxUnverified.summary, reasoning: "The sandbox failed before reporting a validated test outcome." },
+      "EXECUTION_FAILED",
+    )
+  if (executed.outcome !== "passed") return unverified(SandboxUnverified, "EXECUTION_FAILED", textDigest(executed.trace))
+  return { kind: "passed", ...judged, pocCode, sanitized, trace: executed.trace }
 }
 
 const maxProbeRunsOf = (input: JudgeRunInput) => input.config.maxProbeRuns ?? DefaultMaxProbeRuns
 
-/** The run's registry: the snapshot tools, plus `run_state_probe` only for a sanitized assertion-free PoC. */
-const toolsFor = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number, claim?: DeconstructedClaim) => {
+const structured = (input: JudgeRunInput) => input.config.enableStructuredOutput === true
+
+/**
+ * The run's registry in a fixed order, so a takeover rebuilds the definitions it persisted: the snapshot tools,
+ * `run_state_probe` only for a sanitized assertion-free PoC, then the submission tools when output is structured.
+ */
+const runTools = (context: StageContext, probe?: { sanitized: SanitizedPoc; probeRunsUsed: number; claim?: DeconstructedClaim }) => {
+  const base = probe === undefined ? context.deps.tools : probeTools(context, probe.sanitized, probe.probeRunsUsed, probe.claim)
+  return structured(context.input) ? withSubmissionTools(base) : base
+}
+
+const probeTools = (context: StageContext, sanitized: SanitizedPoc, probeRunsUsed: number, claim?: DeconstructedClaim) => {
   const probe = stateProbeFor({
     sanitized,
     ...(claim === undefined ? {} : { claim }),
@@ -192,7 +232,11 @@ export const enterStageFour = async (
   staged: Extract<Staged, { kind: "passed" }>,
 ): Promise<{ items: ContextItem[]; tools: ToolRegistryPort; traceDigest: string }> => {
   const { deps, input, signal } = context
-  const tools = staged.sanitized === undefined ? deps.tools : toolsFor(context, staged.sanitized, 0, staged.claim)
+  const tools = runTools(
+    context,
+    staged.sanitized === undefined ? undefined : { sanitized: staged.sanitized, probeRunsUsed: 0, claim: staged.claim },
+  )
+  const verifiesClaim = staged.claim !== undefined && input.config.enableBidirectionalVerification !== false
   const filtered = await deps.security.filterSecrets(staged.trace, signal).catch(asFault("worker_interrupted"))
   const shaped = await deps.contextEngine
     .shapeToolResult({ content: filtered.content, toolName: "execution_trace", policy: input.config.policy })
@@ -200,7 +244,6 @@ export const enterStageFour = async (
   const note = shaped.isTruncated ? shaped.continuationNote : undefined
   const shapedTrace =
     note !== undefined && !shaped.content.includes(note) ? `${shaped.content}\n${note}` : shaped.content
-  const noPoc = staged.sanitized === undefined
   const items = buildInitialContext({
     runId: context.runId,
     snapshotId: input.snapshotId,
@@ -208,24 +251,17 @@ export const enterStageFour = async (
     pocCode: staged.pocCode ?? "",
     bceSlices: staged.bceSlices,
     bceIncomplete: staged.bceIncomplete,
-    tier: staged.sanitized?.hasSubmitterAssertions ? 1 : 2,
+    ...(staged.sanitized === undefined ? {} : { tier: selectTier(staged.sanitized) }),
     ...(staged.claim === undefined ? {} : { claim: staged.claim }),
+    ...(verifiesClaim ? { verificationDirection: "forward" as const } : {}),
     maxProbeRuns: maxProbeRunsOf(input),
     systemPrompt: context.systemPrompt,
     tools: tools.definitions(),
     ...(deps.verdictSchema === undefined ? {} : { verdictSchema: deps.verdictSchema }),
+    ...(structured(input) ? { structuredOutputInstruction: structuredOutputPrompt().text } : {}),
     shapedTrace,
     ids: deps.ids,
   })
-  if (staged.claim !== undefined && staged.claim.targetFunctions.length + staged.claim.targetContracts.length > 0) {
-    items.push({
-      id: deps.ids.next("itm_"),
-      turn: 0,
-      type: "system_prompt",
-      isPinned: true,
-      content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}`,
-    })
-  }
   for (const item of items) await context.persist("context.item_added", { item })
   const traceItem = items.find((item) => item.type === "execution_trace")
   if (shaped.isTruncated && traceItem !== undefined)
@@ -251,7 +287,7 @@ export const recoverTools = async (context: StageContext, history: HydratedHisto
   const probeOffered = history.items.some(
     (item) => item.type === "tool_description" && item.content.startsWith(`${RunStateProbeToolName}:`),
   )
-  if (!probeOffered || !input.config.enablePocExecution) return { kind: "ready", tools: deps.tools, traceDigest }
+  if (!probeOffered || !input.config.enablePocExecution) return { kind: "ready", tools: runTools(context), traceDigest }
   const pocCode = history.items.find((item) => item.type === "submitter_poc")?.content ?? ""
   const sanitized = await deps.sanitizer
     .sanitize({ runId, snapshotId: input.snapshotId, pocCode }, signal)
@@ -265,7 +301,7 @@ export const recoverTools = async (context: StageContext, history: HydratedHisto
         message: "the sanitizer no longer accepts the persisted PoC, so the state probe cannot be restored",
       },
     }
-  const claimItem = history.items.find((item) => item.type === "candidate_finding")
-  const claim = claimItem === undefined ? undefined : (() => { try { return JSON.parse(claimItem.content.slice(claimItem.content.indexOf("\n") + 1)) as DeconstructedClaim } catch { return undefined } })()
-  return { kind: "ready", tools: toolsFor(context, sanitized, history.probeRunsUsed, claim), traceDigest }
+  // The claim item, not the report (both are `candidate_finding`): without it the probe would silently disappear.
+  const probe = { sanitized, probeRunsUsed: history.probeRunsUsed, claim: claimFromItems(history.items) }
+  return { kind: "ready", tools: runTools(context, probe), traceDigest }
 }

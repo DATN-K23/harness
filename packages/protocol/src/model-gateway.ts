@@ -72,6 +72,8 @@ export interface ModelAttemptRequest {
   items: ContextItem[]
   toolsDisabled?: boolean
   tools?: readonly ToolDefinition[]
+  /** `required` makes the model answer with a tool call (structured output); absent means `auto`. */
+  toolChoice?: "auto" | "required"
   maxToolCalls?: number
   maxOutputTokens?: number
   temperature?: number

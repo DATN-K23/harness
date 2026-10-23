@@ -1,15 +1,9 @@
-// Adapted from OpenCode packages/core/src/redaction.ts @ 3f393d78bf (MIT License). See NOTICE.
+import { globalSecretPatterns } from "@harness/core"
 
 export const RedactedPlaceholder = "***"
 export const RedactedSecretPlaceholder = "[REDACTED]"
 
-const DEFAULT_SECRET_PATTERNS: readonly RegExp[] = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\b[A-Z0-9_]*PRIVATE_KEY[A-Z0-9_]*\s*[=:]\s*["']?[^\s"']+["']?/gi,
-  /sk-[A-Za-z0-9_-]{16,}/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bghp_[A-Za-z0-9]{36}\b/g,
-]
+const DEFAULT_SECRET_PATTERNS = globalSecretPatterns()
 
 // Regex to capture user:password in URI/database connection URLs
 // e.g. postgresql://user:password@host:5432/db or mongodb://user:pass@host

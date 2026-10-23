@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { textDigest } from "../util/digest"
 
-export type PromptName = "judge-system.v1" | "max-steps.v1" | "forward-verification.v1" | "backward-verification.v1"
+export type PromptName =
+  | "judge-system.v1"
+  | "max-steps.v1"
+  | "forward-verification.v1"
+  | "backward-verification.v1"
+  | "structured-output.v1"
 
 export interface LoadedPrompt {
   text: string

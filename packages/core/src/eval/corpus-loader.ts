@@ -1,5 +1,3 @@
-// Adapted from OpenCode packages/core/src/eval/corpus-loader.ts @ 3f393d78bf (MIT License). See NOTICE.
-
 /** Dataset split assignment for contest-level partitioning (Rule R3). */
 export type DatasetSplit = "train" | "validation" | "test"
 

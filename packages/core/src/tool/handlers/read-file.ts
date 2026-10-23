@@ -1,4 +1,5 @@
-// Adapted from OpenCode packages/core/src/tool/handlers/read-file.ts @ 3f393d78bf (MIT License). See NOTICE.
+// Line window and per-line byte budget adapted from OpenCode packages/opencode/src/tool/read.ts @ 3f393d78bf
+// (MIT License, Copyright (c) 2025 opencode). See NOTICE.
 import type { SourceSnapshotPort, ToolExecutionResult } from "@harness/protocol"
 import { checkSnapshotPath, isDeniedSourceFile, splitLines } from "../../source/source-snapshot"
 

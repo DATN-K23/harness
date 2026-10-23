@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/tool/handlers/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 export {
   DEFAULT_MAX_READ_BYTES,
   DEFAULT_MAX_READ_LINES,

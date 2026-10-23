@@ -26,7 +26,7 @@ import {
   type World,
   type Worker,
 } from "../helpers/runner-world"
-import { flags, limits, policy } from "./judge-step-harness"
+import { flags, limits, policy, validVerdict } from "./judge-step-harness"
 
 const expectFastReject = async (world: World, worker: Worker, result: JudgeRunResult, reasonCode: string) => {
   expect(result).toMatchObject({
@@ -130,6 +130,8 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     if (result.kind === "committed" && result.verdict) expect(result.verdict.reasoning.length).toBeGreaterThanOrEqual(50)
     expect(w.gateway.callCount).toBe(0)
+    const [ingestionFinished] = (await world.events("stage.finished")).filter((event) => event.payload.stage === "ingestion")
+    expect(ingestionFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "UNRESOLVED" })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
     expect(w.sandbox.singleShotCalls).toHaveLength(0)
   })
@@ -284,7 +286,8 @@ describe("JudgeRunner: reasoning loop", () => {
     ] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
-    expect(w.gateway.callCount).toBe(4)
+    // An inconclusive consensus with no witness available is decided without a fourth, wasted provider call.
+    expect(w.gateway.callCount).toBe(3)
   })
 
   test("Task 3 incomplete BCE cannot infer invalidity from a blocking consensus", async () => {
@@ -329,6 +332,53 @@ describe("JudgeRunner: reasoning loop", () => {
     ] })
     const result = await w.start("worker-a", runInput())
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    // The withheld verdict keeps the resolved citations but grades no vulnerability.
+    if (result.kind === "committed") expect(result.verdict?.severity).toBeUndefined()
+  })
+
+  test("structured output: directions and verdict arrive through submission tools that are never dispatched", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const submit = (id: string, name: string, args: Record<string, unknown>) => toolCallResponse([{ id, name, arguments: args }])
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+      submit("s-1", "submit_verification", { reachability: "reachable", explanation: "entry reaches target" }),
+      submit("s-2", "submit_verification", { reconstruction: "reconstructed", explanation: "impact follows" }),
+      submit("s-3", "submit_verdict", validVerdict),
+    ] })
+    const result = await w.start("worker-a", runInput({ enableStructuredOutput: true }))
+
+    // BCE is incomplete, so the accepted verdict is withheld as before.
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    expect(w.gateway.callCount).toBe(3)
+    expect(w.gateway.calls.every((call) => call.toolChoice === "required")).toBe(true)
+    expect(w.gateway.calls[0].tools?.map((tool) => tool.name)).toEqual(expect.arrayContaining(["submit_verdict", "submit_verification"]))
+    expect(await world.events("tool.requested")).toHaveLength(0)
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableStructuredOutput: true })
+    expect((started.payload.snapshot as { structuredOutputPromptDigest?: string }).structuredOutputPromptDigest).toStartWith("sha256:")
+  })
+
+  test("structured output off by default: no submission tools and the snapshot records false", async () => {
+    const world = createWorld()
+    const w = world.worker({ script: [verdictText] })
+    await w.start()
+    expect(w.gateway.calls[0].tools?.some((tool) => tool.name.startsWith("submit_"))).toBe(false)
+    expect(w.gateway.calls[0].toolChoice).toBeUndefined()
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableStructuredOutput: false })
+  })
+
+  test("bidirectional verification off: the claim goes straight to the verdict and the snapshot records the flag", async () => {
+    const world = createWorld()
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
+    const result = await w.start("worker-a", runInput({ enableBidirectionalVerification: false }))
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified" } })
+    expect(w.gateway.callCount).toBe(1)
+    expect(w.gateway.calls[0].items.some((item) => item.content.startsWith("Verification direction:"))).toBe(false)
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableBidirectionalVerification: false })
+    expect(started.payload.snapshot).not.toHaveProperty("verificationPromptDigest")
   })
 
   test("narrative-only report reaches semantic verification without PoC sanitation", async () => {
@@ -469,6 +519,26 @@ describe("JudgeRunner: recovery by hydration", () => {
     expect((await world.events("step.started")).map((event) => event.payload.stepIndex)).toEqual([1, 2, 3])
     expect(b.ingestion.calls).toHaveLength(0)
     await expectContiguous(world)
+  })
+
+  test("Tier 2 takeover restores run_state_probe from the persisted claim decomposition", async () => {
+    const world = createWorld({ leaseMs: 1_000 })
+    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply changes", claimedState: "totalSupply" }
+    const stages = {
+      ingestion: { kind: "ok" as const, pocCode: "contract Test {}", claim, bceSlices: [] },
+      sanitizerResult: { kind: "ok" as const, stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
+      stateProbe: { outcome: "passed" as const, exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
+    }
+    const input = runInput({ enablePocExecution: true, enableBidirectionalVerification: false, maxProbeRuns: 1 })
+    const a = world.worker({ ...stages, script: [readVault("call-1", 1, 5), verdictText] })
+    world.store.failWhen((event) => event.type === "context.allocated" && event.payload.stepIndex === 2, { sticky: true })
+    expect((await a.start("worker-a", input)).kind).toBe("error")
+    world.store.heal()
+    world.clock.advance(2_000)
+
+    const b = world.worker({ ...stages, script: [toolCallResponse([{ id: "probe-1", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), verdictText] })
+    expect(await b.start("worker-b", input)).toMatchObject({ kind: "committed", state: "completed" })
+    expect(b.sandbox.stateProbeCalls).toHaveLength(1)
   })
 
   test("partial initial context (no trace, no allocation): failed with persistence_failure and no model call", async () => {
@@ -682,6 +752,8 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       limits: true,
       maxProbeRuns: true,
       enablePocExecution: true,
+      enableBidirectionalVerification: true,
+      enableStructuredOutput: true,
       modelLimits: true,
       profileId: true,
       runtime: true,

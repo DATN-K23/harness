@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/server/src/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { JudgeSubmitRequestSchema, type JudgeSubmitRequest } from "@harness/protocol"
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { isAuthorizedLocalRequest } from "./runtime-security"

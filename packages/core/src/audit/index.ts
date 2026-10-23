@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/audit/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 export {
   createAuditReport,
 } from "./audit-report"

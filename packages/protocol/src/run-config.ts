@@ -117,6 +117,10 @@ export const RunConfigSnapshotSchema = z
     toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
     enablePocExecution: z.boolean().default(false),
+    /** Forward/backward verification of a deconstructed claim; legacy snapshots predate the flag and ran it always. */
+    enableBidirectionalVerification: z.boolean().default(true),
+    /** Verdicts and direction results submitted through schema-typed tools instead of JSON text. */
+    enableStructuredOutput: z.boolean().default(false),
     runtime: z.object({
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),
@@ -127,6 +131,10 @@ export const RunConfigSnapshotSchema = z
     }).optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
+    /** Digest of the forward and backward verification prompts; present when bidirectional verification is on. */
+    verificationPromptDigest: Sha256DigestSchema.optional(),
+    /** Digest of the structured-output instruction; present when structured output is on. */
+    structuredOutputPromptDigest: Sha256DigestSchema.optional(),
   })
   .superRefine((snapshot, ctx) => {
     ContextFlagNames.filter((name) => snapshot.flags[name] !== snapshot.contextPolicy.flags[name]).forEach((name) =>

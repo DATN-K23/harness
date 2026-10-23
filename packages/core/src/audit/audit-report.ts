@@ -1,5 +1,3 @@
-// Adapted from OpenCode packages/core/src/audit/audit-report.ts @ 3f393d78bf (MIT License). See NOTICE.
-
 /** Severity classifications for identified vulnerabilities and audit issues. */
 export type AuditSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO" | "GAS"
 

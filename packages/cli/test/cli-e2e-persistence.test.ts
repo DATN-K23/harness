@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/cli/test/cli-e2e-persistence.test.ts @ 3f393d78bf (MIT License). See NOTICE.
 import { describe, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"

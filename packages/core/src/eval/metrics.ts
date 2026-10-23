@@ -1,5 +1,3 @@
-// Adapted from OpenCode packages/core/src/eval/metrics.ts @ 3f393d78bf (MIT License). See NOTICE.
-
 /** Binary confusion matrix counts for classification outcomes. */
 export interface ConfusionMatrix {
   readonly truePositives: number

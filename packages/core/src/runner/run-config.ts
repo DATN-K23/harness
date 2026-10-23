@@ -17,9 +17,13 @@ export interface RunConfigInput {
   limits: BudgetLimits
   maxProbeRuns?: number
   enablePocExecution?: boolean
+  enableBidirectionalVerification?: boolean
+  enableStructuredOutput?: boolean
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
+  verificationPromptDigest?: string
+  structuredOutputPromptDigest?: string
   runtime?: import("@harness/protocol").RunConfigSnapshot["runtime"]
 }
 
@@ -42,9 +46,15 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     ...(input.toolLimits !== undefined ? { toolLimits: input.toolLimits } : {}),
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
     enablePocExecution: input.enablePocExecution ?? false,
+    enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
+    enableStructuredOutput: input.enableStructuredOutput ?? false,
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
+    ...(input.verificationPromptDigest !== undefined ? { verificationPromptDigest: input.verificationPromptDigest } : {}),
+    ...(input.structuredOutputPromptDigest !== undefined
+      ? { structuredOutputPromptDigest: input.structuredOutputPromptDigest }
+      : {}),
   })
   return { snapshot, digest: digestOf(snapshot) }
 }

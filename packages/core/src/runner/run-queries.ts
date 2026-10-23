@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/cli/src/commands/view.ts @ 3f393d78bf (MIT License, Copyright (c) 2025 opencode). See NOTICE.
 import type {
   BudgetLimits,
   BudgetTerminalReason,

@@ -1,4 +1,3 @@
-// Adapted from OpenCode packages/core/src/sandbox/index.ts @ 3f393d78bf (MIT License). See NOTICE.
 export {
   DEFAULT_SANDBOX_CONSTRAINTS,
   validateSandboxConstraints,

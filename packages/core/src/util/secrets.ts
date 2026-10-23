@@ -1,12 +1,8 @@
+import { globalSecretPatterns } from "../security-filter"
+
 const RedactedPlaceholder = "<redacted>"
 
-const defaultSecretPatterns: readonly RegExp[] = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\b[A-Z0-9_]*PRIVATE_KEY[A-Z0-9_]*\s*[=:]\s*["']?[^\s"']+["']?/gi,
-  /sk-[A-Za-z0-9_-]{16,}/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bghp_[A-Za-z0-9]{36}\b/g,
-]
+const defaultSecretPatterns = globalSecretPatterns()
 
 const connectionUrlCredentials = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^:@\s]+):([^@\s]+)@/g
 

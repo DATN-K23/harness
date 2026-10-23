@@ -13,6 +13,8 @@ export const ContextItemTypes = [
   "execution_trace",
   "compaction_summary",
   "session_note",
+  /** An instruction the harness adds mid-run; sent with the user role, since Gemini filters mid-run system messages. */
+  "harness_instruction",
 ] as const
 
 export type ContextItemType = (typeof ContextItemTypes)[number]

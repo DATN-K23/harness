@@ -1,0 +1,13 @@
+$ bun run --cwd packages/cli dev -- run --snapshot "snap_b1b7a6f8ee78" --finding "../harness-verification-data/2026-03-chainlink/finding/valid/M01.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+$ bun run src/index.ts run --snapshot "snap_b1b7a6f8ee78" --finding "../harness-verification-data/2026-03-chainlink/finding/valid/M01.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1792758569596
+Finding ID:   finding-1792758569596
+Snapshot ID:  snap_b1b7a6f8ee78
+State:        failed
+Terminal:     provider_retries_exhausted
+========================================
+error: script "dev" exited with code 1
+error: script "cli:run" exited with code 1

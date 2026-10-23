@@ -318,7 +318,7 @@ export class JudgeStep {
     const forced = directionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
     const sentItems = forced
-      ? [...preparation.preparedItems, newItem("system_prompt", pending !== undefined ? directionLimitPrompt(pending) : this.maxStepsPrompt)]
+      ? [...preparation.preparedItems, newItem("harness_instruction", pending !== undefined ? directionLimitPrompt(pending) : this.maxStepsPrompt)]
       : preparation.preparedItems
 
     // Gate 3: stop conditions before every provider attempt (retries included), then one model call with retry.
@@ -477,6 +477,19 @@ export class JudgeStep {
       if (witness.request === undefined && !forced)
         return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [newItem("system_prompt", WitnessInstruction)] })
       return noWitness()
+    }
+
+    // Gemini keeps calling reading tools when only the submission is offered: refuse those calls and ask again, bounded
+    // by the repair budget, before the direction is recorded as incomplete.
+    const undeclaredCalls = directionForced && submitted === undefined ? (response.toolCalls ?? []) : []
+    if (undeclaredCalls.length > 0 && repairsLeft > 0) {
+      const branch = await runToolBranch({ deps, input, persist, newItem, toolsDisabled: true }, undeclaredCalls)
+      if (branch.kind === "cancelled")
+        return finish({ type: "failed", error: "cancelled while refusing tool calls", reason: "cancelled_by_user" }, { cancelledAt: branch.boundary })
+      return finish({ type: "continue_turn", toolOutcomes: branch.outcomes }, {
+        newItems: [...reasoning, ...branch.items],
+        repairsUsed: input.repairsUsed + 1,
+      })
     }
 
     // Bidirectional verification: the pending direction's reply must be its JSON result, never a verdict yet.

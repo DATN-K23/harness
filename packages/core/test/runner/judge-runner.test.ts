@@ -515,17 +515,22 @@ describe("JudgeRunner: step budgets", () => {
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "" }
     const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
       readVault("f-1", 1, 5),
-      readVault("f-2", 6, 10), // ignored: the forward budget of 2 forces this step to answer, so it is incomplete
+      // The forward budget of 2 forces step 2 on; reads there are refused and asked again until the two repairs are
+      // spent, then the direction is incomplete.
+      readVault("f-2", 6, 10),
+      readVault("f-3", 6, 10),
+      readVault("f-4", 6, 10),
       readVault("b-1", 11, 15),
       textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
     ] })
     const result = await w.start("worker-a", runInput({ verificationStepBudget: 2 }))
     const forcedToSubmit = (call: (typeof w.gateway.calls)[number]) =>
       call.toolChoice === "required" && call.tools?.map((tool) => tool.name).join() === "submit_verification"
-    expect(w.gateway.calls.map(forcedToSubmit)).toEqual([false, true, false, true])
-    // incomplete + reconstructed is disputed; without a witness it is settled before a fifth provider call.
-    expect(result).toMatchObject({ kind: "committed", state: "completed", lastStepIndex: 5, verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
-    expect(w.gateway.callCount).toBe(4)
+    expect(w.gateway.calls.map(forcedToSubmit)).toEqual([false, true, true, true, false, true])
+    expect((await world.events("tool.failed")).length).toBe(2)
+    // incomplete + reconstructed is disputed; without a witness it is settled before a seventh provider call.
+    expect(result).toMatchObject({ kind: "committed", state: "completed", lastStepIndex: 7, verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    expect(w.gateway.callCount).toBe(6)
     const [started] = await world.events("run.started")
     expect(started.payload.snapshot).toMatchObject({ verificationStepBudget: 2 })
   })

@@ -92,7 +92,7 @@ export function mapChatCompletion(
       usage: { ...tokenUsage, ...priceUsage(options.model, tokenUsage, options.pricing) },
       finishReason: "error",
       error: {
-        isRetryable: false,
+        isRetryable: true,
         category: "invalid_request",
         classification: "content_filter",
         message: `The provider's safety filter blocked the prompt (blockReason ${blocked.reason.slice(0, 40)}).`,
@@ -123,7 +123,7 @@ export function mapChatCompletion(
       ...base,
       finishReason: "error",
       error: {
-        isRetryable: false,
+        isRetryable: true,
         category: "invalid_request",
         classification: "content_filter",
         message: "The provider filtered this response.",

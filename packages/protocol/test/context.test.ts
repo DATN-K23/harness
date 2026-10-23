@@ -169,7 +169,7 @@ describe("ContextItemSchema", () => {
   })
 
   test("accepts every documented item type and rejects others", () => {
-    expect(ContextItemTypes).toHaveLength(11)
+    expect(ContextItemTypes).toHaveLength(12)
     ContextItemTypes.forEach((type) => expect(ContextItemSchema.safeParse(item({ type })).success).toBe(true))
     expect(ContextItemSchema.safeParse({ ...item(), type: "ground_truth" }).success).toBe(false)
   })

@@ -101,6 +101,17 @@ describe("gateway request options", () => {
     ])
   })
 
+  test("a harness instruction added mid-run is sent with the user role", async () => {
+    const recording = new RecordingClient(readRecordingFixture("content-filter"))
+    const items = [
+      { id: "system", turn: 0, type: "system_prompt" as const, isPinned: true, content: "You are the Judge." },
+      { id: "prompt", turn: 0, type: "candidate_finding" as const, isPinned: true, content: "Inspect." },
+      { id: "forcing", turn: 5, type: "harness_instruction" as const, isPinned: false, content: "Answer now." },
+    ]
+    await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest({ items }))
+    expect(recording.requests[0]?.messages.at(-1)).toEqual({ role: "user", content: "Answer now." })
+  })
+
   test("tool descriptions are not repeated as system messages when the tools themselves are sent", async () => {
     const items = [
       { id: "prompt", turn: 0, type: "candidate_finding" as const, isPinned: true, content: "Inspect." },

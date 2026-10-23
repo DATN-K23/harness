@@ -37,16 +37,26 @@ describe("JudgeStep: seven gates", () => {
   const onlySubmission = (call: { tools?: readonly { name: string }[]; toolChoice?: string }) =>
     call.toolChoice === "required" && call.tools?.map((tool) => tool.name).join() === "submit_verification"
 
-  test("a direction that used its step budget keeps only the submission tool; other tool calls make it incomplete", async () => {
+  test("a direction that used its step budget keeps only the submission tool; another tool call is refused and asked again", async () => {
     const h = await createHarness({ script: [readVault()] })
     const result = await h.step.execute(h.input({ stepIndex: 3, verificationStepBudget: 3, items: [...baseItems, forwardDirection()] }))
     expect(onlySubmission(h.gateway.calls[0])).toBe(true)
+    // The forcing instruction is a harness instruction, which the gateway sends with the user role.
+    expect(h.gateway.calls[0].items.at(-1)).toMatchObject({ type: "harness_instruction" })
     expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
     expect(h.registry.calls).toHaveLength(0)
     expect(result.outcome.type).toBe("continue_turn")
+    expect(result.newItems.some((item) => item.content.startsWith("Bidirectional forward result:"))).toBe(false)
+    expect(result.newItems.find((item) => item.type === "tool_result")).toMatchObject({ toolMeta: { isError: true } })
+    expect(result.repairsUsed).toBe(1)
+  })
+
+  test("a forced direction that keeps calling other tools after the repairs are spent is incomplete", async () => {
+    const h = await createHarness({ script: [readVault()] })
+    const result = await h.step.execute(h.input({ stepIndex: 3, verificationStepBudget: 3, repairsUsed: 2, items: [...baseItems, forwardDirection()] }))
     expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"incomplete"')
     expect(result.newItems[1]?.content).toStartWith("Verification direction: backward")
-    expect(result.repairsUsed).toBe(0)
+    expect(result.repairsUsed).toBe(2)
   })
 
   test("a direction answers early when the run keeps only the steps the later phases need", async () => {

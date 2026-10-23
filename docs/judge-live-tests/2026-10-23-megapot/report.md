@@ -1,5 +1,24 @@
 # Báo cáo test Judge Pipeline — Megapot (2026-10-23)
 
+## Sau merge: sửa hướng bị ép + chạy lại (2026-10-23)
+
+Sửa: (1) hướng bị ép mà model gọi tool không được khai báo → trả kết quả từ chối, cho thêm lượt (chung budget repair = 2), hết lượt mới `incomplete`; (2) `content_filter` (cả Gemini `promptFeedback.blockReason`) được retry; (3) chỉ dẫn ép dùng item `harness_instruction`, gateway gửi role `user`.
+
+| Run | Kết quả |
+|---|---|
+| `run-1792756278300` (merge, trước sửa) | forward/backward `incomplete` (Gemini gọi `read_file` thay vì `submit_verification`) → `UNRESOLVED`; 49 attempt, 856k token, ~$0,13 |
+| `run-1792757074389` (sau sửa) | forward đọc 56 step (không bão hoà); step 57 bị ép → bộ lọc Gemini chặn 6/6 retry (35–55 s/lần) → `provider_retries_exhausted`; 62 attempt, 1,2M token, ~$0,18 |
+
+Replay step 57 (2 lần/biến thể): như run → chặn 2/2; bỏ chỉ dẫn ép → không chặn nhưng model tiếp tục đọc; tắt tools, trả lời text → 1/2 `reachable`; chỉ 10 turn gần nhất → 1/2 nộp. Bộ lọc chặn khi model phải *kết luận* về khả năng khai thác trên context dài; không phụ thuộc role của chỉ dẫn. Mỗi lần bị chặn vẫn tính ~31k prompt token.
+
+## So sánh contest: Chainlink M01 (`run-1792758569596`)
+
+- Ingestion: `CLAIM_INCOMPLETE` → claim extraction 1 lần (30k token, 170 s) → target `BaseAuction.performUpkeep` (đúng).
+- Forward đọc 14 step, bị ép ở step 15 (context ~11k token) → bộ lọc Gemini chặn 6/6 retry → `provider_retries_exhausted`. 21 attempt, 218k token, ~$0,03.
+- Replay step 15: forcing sau merge qua tool 0/2, text 1/2; forcing trước merge 0/2; chuyển system message sau finding sang `user`: tool 1/3, text 1/3. Khi qua được, model trả `reachable` (khớp ground truth M01 valid).
+
+Kết luận: việc chặn **không riêng Megapot** và **không do context dài** — xảy ra ở bước kết luận khả năng khai thác, khoảng 65–100% số lần, ở cả hai contest; các chỉnh sửa phía harness chỉ đổi tỉ lệ chút ít.
+
 ## Merge `judge-pipeline-hardening` (2026-10-23)
 
 - Bộ chuyển đổi viết lại report (`normalizeFinding`, `finding-normalizer.v1`, `--no-normalize`, `findingNormalization`) được thay bằng ingestion nhiều định dạng + claim extraction nguyên văn của nhánh hardening. CLI bật `enableClaimExtraction` (tắt với `--mock` hoặc `--no-claim-extraction`).

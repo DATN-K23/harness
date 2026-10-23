@@ -1,0 +1,20 @@
+$ bun run --cwd packages/cli dev -- run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+$ bun run src/index.ts run --snapshot "snap_c23510d25db6" --finding "docs/judge-live-tests/2026-10-23-megapot/finding-lp-pool-cap.md" --timeout "180000" --model "ag/gemini-3.8-flash-high"
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1792756278300
+Finding ID:   finding-1792756278299
+Snapshot ID:  snap_c23510d25db6
+State:        completed
+----------------------------------------
+Judge Verdict:
+  Validity:          unverified
+  Status:            UNVERIFIED
+  Confidence:        LOW
+  Reason Code:       UNRESOLVED
+  Summary:           The disputed claim remains unresolved by bounded evidence.
+  Reasoning:         No bounded witness is available for this run, and the two verification directions do not agree.
+  Cites Evidence:
+    (none)
+========================================

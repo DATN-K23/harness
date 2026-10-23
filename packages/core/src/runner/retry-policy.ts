@@ -72,6 +72,8 @@ export type RetryDecision = (typeof RetryDecisions)[number]
 
 export const classifyError = (error: ModelAttemptError, config: RetryConfig): ErrorClassification => {
   if (isContextOverflow(error.message)) return "context_overflow"
+  // Gemini's safety filter blocks the same request only some of the time, so a block is worth sending again.
+  if (error.classification === "content_filter") return "retryable"
   if (error.category === "authentication" || error.category === "invalid_request") return "permanent"
   if (error.isTimeout) return "retryable"
   if (error.statusCode === undefined && error.category === "rate_limit") return "retryable"

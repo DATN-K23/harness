@@ -123,6 +123,11 @@ const setup = (options: Setup) => {
 const kinds = (outcome: RetryOutcome) => outcome.attempts.map((attempt) => attempt.retryDecision)
 
 describe("classifyError", () => {
+  test("a safety-filter block is retryable: Gemini blocks the same request only some of the time", () => {
+    const blocked = { isRetryable: true, category: "invalid_request" as const, classification: "content_filter" as const, message: "blocked (blockReason OTHER)" }
+    expect(classifyError(blocked, DefaultRetryConfig)).toBe("retryable")
+  })
+
   test("HTTP 429 is retryable", () => {
     expect(classifyError(http(429), DefaultRetryConfig)).toBe("retryable")
   })

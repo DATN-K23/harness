@@ -152,6 +152,15 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", summary: "No blocking guard was confirmed in the cited source." } })
   })
 
+  test("a forced direction answer the content filter refuses is recorded incomplete and the run goes on", async () => {
+    const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
+    // Step 8 of 10: the forward direction must answer now to leave room for backward, verdict and a repair.
+    const result = await h.step.execute(h.input({ stepIndex: 8, items: [...baseItems, forwardDirection()] }))
+    expect(result.outcome.type).toBe("continue_turn")
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"incomplete","explanation":"The provider\'s content filter refused')
+    expect(result.newItems[1]?.content).toStartWith("Verification direction: backward")
+  })
+
   test("without static verdicts a blocked verdict step still fails the run", async () => {
     const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
     const result = await h.step.execute(h.input({ stepIndex: 3, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))

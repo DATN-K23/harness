@@ -146,10 +146,13 @@ const ProbeDeltaMarker = "State delta, post minus pre:"
 
 const NoDirectionAnswer = "No result was given within this direction's step budget; the evidence read so far is recorded."
 
-const unanswered = (direction: VerificationDirection): (ForwardResult | BackwardResult) & { explanation: string } =>
-  direction === "forward"
-    ? { reachability: "incomplete", explanation: NoDirectionAnswer }
-    : { reconstruction: "incomplete", explanation: NoDirectionAnswer }
+const BlockedDirectionAnswer = "The provider's content filter refused this direction's answer; no result was given."
+
+const unanswered = (
+  direction: VerificationDirection,
+  explanation = NoDirectionAnswer,
+): (ForwardResult | BackwardResult) & { explanation: string } =>
+  direction === "forward" ? { reachability: "incomplete", explanation } : { reconstruction: "incomplete", explanation }
 
 const WitnessInstruction =
   `For disputed consensus, call ${RunStateProbeToolName} at most once for exactly one state variable explicitly named in the claim. In your final JSON verdict include targetedCondition equal to the requested expression, observedBefore and observedAfter exactly as reported by that probe, and deltaExplanation (at least 20 characters) explaining why that measured change does or does not establish the claimed condition. Snapshot citations support source behavior, not the dynamic delta; process exit alone is not proof. Do not create or modify tests.`
@@ -365,6 +368,21 @@ export class JudgeStep {
       const decision = staticVerdictDecision(verdict, consensus)
       return finish({ type: "completed", verdict: decision.kind === "accept" ? JudgeVerdictSchema.parse(verdict) : withheldVerdict(verdict, decision.wording) })
     }
+    // Records a direction's result, then asks for the other direction or records the consensus.
+    const concludeDirection = (direction: VerificationDirection, parsed: (ForwardResult | BackwardResult) & { explanation: string }) => {
+      const resultItem = marker(resultNote(direction, parsed))
+      const forwardResult = direction === "forward" ? (parsed as ForwardResult) : verification.forward
+      const backwardResult = direction === "backward" ? (parsed as BackwardResult) : verification.backward
+      if (forwardResult === undefined)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("forward"))] })
+      if (backwardResult === undefined)
+        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("backward"))] })
+      const decision = decideConsensus(forwardResult, backwardResult)
+      const agreed = decision === "agreed-valid" || decision === "agreed-invalid"
+      return finish({ type: "continue_turn", toolOutcomes: [] }, {
+        newItems: [resultItem, marker(consensusNote(decision)), ...(agreed ? [newItem("system_prompt", ConsensusVerdictInstruction)] : [])],
+      })
+    }
     const submissionForced = directionForced || verdictForced
     const forced = submissionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
@@ -431,6 +449,9 @@ export class JudgeStep {
     // The provider's content filter refusing the verdict step is not an infrastructure failure: with static verdicts
     // the harness composes the verdict from the agreed consensus instead (Gemini blocked it 6/6 times, 2026-10-24).
     if (retried.kind === "failed" && retried.error.classification === "content_filter") {
+      // A forced direction's answer refused by the filter is a missing answer: incomplete, never a negative, and the
+      // run goes on (Gemini refused 5 of 6 attempts at a backward answer, 2026-10-24).
+      if (directionForced && pending !== undefined) return concludeDirection(pending, unanswered(pending, BlockedDirectionAnswer))
       const composed = await composeFromConsensus()
       if (composed !== undefined) return composed
     }
@@ -571,18 +592,7 @@ export class JudgeStep {
           repairsUsed: input.repairsUsed + 1,
         })
       }
-      const resultItem = marker(resultNote(direction, parsed))
-      const forwardResult = direction === "forward" ? (parsed as ForwardResult) : verification.forward
-      const backwardResult = direction === "backward" ? (parsed as BackwardResult) : verification.backward
-      if (forwardResult === undefined)
-        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("forward"))] })
-      if (backwardResult === undefined)
-        return finish({ type: "continue_turn", toolOutcomes: [] }, { newItems: [resultItem, marker(directionPrompt("backward"))] })
-      const decision = decideConsensus(forwardResult, backwardResult)
-      const agreed = decision === "agreed-valid" || decision === "agreed-invalid"
-      return finish({ type: "continue_turn", toolOutcomes: [] }, {
-        newItems: [resultItem, marker(consensusNote(decision)), ...(agreed ? [newItem("system_prompt", ConsensusVerdictInstruction)] : [])],
-      })
+      return concludeDirection(direction, parsed)
     }
 
     // Gate 5: text without tool calls is the verdict.

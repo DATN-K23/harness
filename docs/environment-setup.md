@@ -137,9 +137,16 @@ bun run cli:run -- --snapshot snap_a17543c5d14e --prompt "Report any reentrancy 
   --max-steps 6 --max-tool-calls 6 --max-output-tokens 1024 --max-total-tokens 50000 --timeout 120000
 ```
 
+Judge run evaluating a candidate finding markdown file against an immutable snapshot:
+
+```bash
+bun run cli:run -- --snapshot snap_a17543c5d14e --finding ./findings/reentrancy.md
+bun run cli:run -- --snapshot snap_a17543c5d14e --finding ./findings/reentrancy.md --mock
+```
+
 - **Precedence:** a flag overrides the matching `HARNESS_*` or `MODEL_*` variable, which overrides the runner default.
 - **Unknown snapshot:** the CLI exits with code 1 before any model call.
-- **Output:** run ID, state, terminal reason, steps, tool calls, tokens, cost (or `unknown`), observed limits, `outputTruncated` when the final answer was cut, and the model output.
+- **Output:** run ID, state, terminal reason, steps, tool calls, tokens, cost (or `unknown`), observed limits, `outputTruncated` when the final answer was cut, and the model output (or Judge Verdict with line citations).
 
 ### 5.4 Inspect a run (`cli:view`)
 
@@ -152,6 +159,13 @@ For a multi-turn run, the view shows:
 - the snapshot ID, prompt digest, effective limits, tool limits and observed limits;
 - for each model step: its model, finish reason, tokens, cost (or `unknown`) and latency;
 - for each tool call: its arguments, status, duration, truncation flag and a result preview.
+
+For a Judge run, the view displays the structured **Judge Verdict**:
+- validity (`valid`, `invalid`, `unverified`);
+- verification status (`PASS`, `FAIL`, `UNVERIFIED`);
+- confidence and reason code;
+- summary and reasoning;
+- cited source evidence items (`file:line-range` and snapshot digests).
 
 The view reads only from the store, so it works from a new process after a restart.
 

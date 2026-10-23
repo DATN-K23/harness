@@ -42,6 +42,7 @@ The CLI SHALL provide a `view` command that accepts a `runId`, queries persisten
 - **GIVEN** a run ID from a previously completed run executed in a separate process instance and persisted to PostgreSQL
 - **WHEN** a user executes `bun run cli:view -- --id <runId>`
 - **THEN** the CLI connects to PostgreSQL, displays the original prompt, terminal state, model response or error, token usage, cost, and latency, followed by all recorded trajectory events in chronological sequence order
+
 ### Requirement: Environment setup and onboarding documentation
 The repository SHALL provide documentation in `docs/environment-setup.md` guiding developers through local PostgreSQL initialization, database migration execution, `.env` file configuration, and running initial verification commands.
 
@@ -130,3 +131,21 @@ Offline integration cases on recorded provider responses SHALL cover:
 #### Scenario: Integration cases run without network
 - **WHEN** the CLI and gateway test suites run with no network access
 - **THEN** each listed case passes using recorded responses only
+
+### Requirement: Judge Finding Execution via CLI
+The CLI `run` command SHALL support executing or submitting a candidate finding markdown file against an immutable snapshot using `--finding <path> --snapshot <id>`. When run with `--mock`, it SHALL use deterministic mock doubles without contacting real providers or live databases.
+
+#### Scenario: Running Judge via CLI
+- **WHEN** user executes `bun run cli:run --finding ./finding.md --snapshot snap-123`
+- **THEN** the CLI validates the finding file and snapshot existence, dispatches through the Judge pipeline, and prints the resulting verdict and run ID
+
+#### Scenario: Missing snapshot when finding specified
+- **WHEN** user executes `bun run cli:run --finding ./finding.md` without `--snapshot`
+- **THEN** the CLI exits with code 1 and error `--snapshot <id> is required when --finding is provided`
+
+### Requirement: Structured Judge Verdict View
+The CLI `view` command SHALL recognize Judge runs and format the structured verdict details, including validity, verification status, severity/confidence, summary, reasoning, and cited evidence spans.
+
+#### Scenario: Viewing completed Judge run
+- **WHEN** user executes `bun run cli:view --id <judgeRunId>`
+- **THEN** the output includes a dedicated `Judge Verdict` block displaying `validity`, `verificationStatus`, `confidence`, `reasonCode`, `reasoning`, and each `citesEvidence` item with file path and line span

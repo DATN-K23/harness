@@ -145,4 +145,70 @@ describe("executeViewCommand", () => {
     expect(output).not.toContain(secretToken)
     expect(output).toContain("[REDACTED]")
   })
+
+  test("displays structured Judge verdict and evidence citations", async () => {
+    const store = new InMemoryRunStore({ clock: { nowMs: () => 1000 } })
+    const runId = "run-judge-view-404"
+    const findingId = "finding-view-test"
+
+    store.seedRun(runId, "queued")
+    const claimResult = await store.claim({ runId, workerId: "test-worker" })
+    if (claimResult.kind !== "claimed") throw new Error("claim failed")
+
+    const verdict = {
+      runId,
+      findingId,
+      validity: "unverified" as const,
+      verificationStatus: "UNVERIFIED" as const,
+      confidence: "MEDIUM" as const,
+      reasonCode: "UNRESOLVED" as const,
+      summary: "Claimed reentrancy could not be verified by dynamic PoC execution.",
+      reasoning: "Static analysis identified balance check pattern but runtime exploit witness was not executed.",
+      citesEvidence: [
+        {
+          filePath: "src/Vault.sol",
+          startLine: 15,
+          endLine: 25,
+          explanation: "Function withdraw state modification before external call",
+          contentDigest: "sha256:abc123def456",
+        },
+      ],
+    }
+
+    await store.appendEvent({
+      claim: claimResult.claim,
+      expectedStateVersion: claimResult.stateVersion,
+      event: {
+        eventId: "evt-completed",
+        type: "run.completed",
+        schemaVersion: 1,
+        payload: { verdict },
+        payloadDigest: digestOf({ verdict }),
+        occurredAt: new Date().toISOString(),
+      },
+    })
+
+    await store.transition({
+      claim: claimResult.claim,
+      expectedState: "queued",
+      expectedStateVersion: claimResult.stateVersion,
+      nextState: "completed",
+    })
+
+    const { exitCode, output } = await executeViewCommand({ id: runId }, { store })
+    expect(exitCode).toBe(0)
+    expect(output).toContain("Judge Run Inspection Record")
+    expect(output).toContain("Judge Verdict:")
+    expect(output).toContain("Validity:          unverified")
+    expect(output).toContain("Status:            UNVERIFIED")
+    expect(output).toContain("Reason Code:       UNRESOLVED")
+    expect(output).toContain("src/Vault.sol:15-25 (digest: sha256:abc123def456)")
+
+    const jsonView = await executeViewCommand({ id: runId, json: true }, { store })
+    expect(jsonView.exitCode).toBe(0)
+    const parsedJson = JSON.parse(jsonView.output)
+    expect(parsedJson.runId).toBe(runId)
+    expect(parsedJson.verdict.validity).toBe("unverified")
+    expect(parsedJson.verdict.verificationStatus).toBe("UNVERIFIED")
+  })
 })

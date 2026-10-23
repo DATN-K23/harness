@@ -3,8 +3,26 @@ import { eq, getTableColumns } from "drizzle-orm"
 import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import postgres from "postgres"
+import { DEFAULT_DATABASE_URL } from "../src/db/client"
 
-describe("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
+const testDatabaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL
+
+const checkPostgresReachable = async (url: string): Promise<boolean> => {
+  try {
+    const sql = postgres(url, { max: 1, connect_timeout: 2, onnotice: () => {} })
+    await sql`SELECT 1`
+    await sql.end({ timeout: 2 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const postgresAvailable = await checkPostgresReachable(testDatabaseUrl)
+const runWithDb = postgresAvailable ? describe : describe.skip
+
+runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   test("terminal event and run state/usage commit atomically", async () => {
     const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")

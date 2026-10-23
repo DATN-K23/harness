@@ -31,6 +31,59 @@ export async function executeViewCommand(
     (event) => event.type === "context.item_added" || event.type.startsWith("tool."),
   )
 
+  const completedEvent = events.findLast((event) => event.type === "run.completed")
+  const verdict = (completedEvent?.payload as { verdict?: import("@harness/protocol").JudgeVerdict } | undefined)?.verdict
+  const isJudge = Boolean(run.findingId || verdict)
+
+  if (isJudge && verdict) {
+    if (options.json) {
+      return {
+        exitCode: 0,
+        output: JSON.stringify({
+          runId: run.runId,
+          state: run.state,
+          stateVersion: run.stateVersion,
+          terminalReason: run.terminalReason,
+          snapshotId: run.snapshotId,
+          findingId: run.findingId,
+          verdict,
+          events: events.map((e) => ({ sequence: e.sequence, type: e.type, occurredAt: e.occurredAt })),
+        }, null, 2),
+      }
+    }
+    const lines = [
+      "========================================",
+      "Judge Run Inspection Record",
+      "========================================",
+      `Run ID:              ${run.runId}`,
+      `State:               ${run.state}`,
+      `Version:             ${run.stateVersion}`,
+      ...(run.terminalReason ? [`Terminal:            ${run.terminalReason}`] : []),
+      ...(run.snapshotId ? [`Snapshot ID:         ${run.snapshotId}`] : []),
+      ...(run.findingId ? [`Finding ID:          ${run.findingId}`] : []),
+      "----------------------------------------",
+      "Judge Verdict:",
+      `  Validity:          ${verdict.validity}`,
+      `  Status:            ${verdict.verificationStatus}`,
+      `  Confidence:        ${verdict.confidence}`,
+      `  Reason Code:       ${verdict.reasonCode}`,
+      `  Summary:           ${verdict.summary}`,
+      `  Reasoning:         ${verdict.reasoning}`,
+      "  Cites Evidence:",
+      ...(verdict.citesEvidence.length === 0
+        ? ["    (none)"]
+        : verdict.citesEvidence.map(
+            (c) => `    - ${c.filePath}:${c.startLine}-${c.endLine}${c.contentDigest ? ` (digest: ${c.contentDigest})` : ""}`,
+          )),
+      "----------------------------------------",
+      `Trajectory Events (${events.length} recorded):`,
+    ]
+    if (events.length === 0) lines.push("  (no events recorded)")
+    else for (const event of events) lines.push(formatEvent(event, secrets))
+    lines.push("========================================")
+    return { exitCode: 0, output: lines.join("\n") }
+  }
+
   if (isMultiTurn) {
     const summary = await getMultiTurnExecutionSummary(runId, deps.store)
     if (!summary) return { exitCode: 1, output: `Error: Run '${runId}' not found in persistent store.` }

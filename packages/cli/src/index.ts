@@ -2,8 +2,9 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, MultiTurnRunner, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
+import { DefaultRetryConfig } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
 import { PostgresRunStore } from "@harness/schema"
 import { priceUsage, RealModelGateway } from "@harness/llm"
@@ -37,6 +38,7 @@ Usage:
   bun run cli:snapshot -- list
   bun run cli:run -- --prompt "<text>" [--model <name>] [--timeout <ms>]
   bun run cli:run -- --snapshot <id> --prompt "<text>" [run limits]
+  bun run cli:run -- --snapshot <id> --finding <path> [run limits]
   bun run cli:view -- --id <runId> [--json]
   bun run cli:serve
 
@@ -48,7 +50,8 @@ Commands:
   serve          Start the fail-closed local health/API compatibility server
 
 Options:
-  --prompt <text>             Prompt text to evaluate (required for run)
+  --prompt <text>             Prompt text to evaluate (required for run unless --finding is used)
+  --finding <path>            Candidate finding markdown file to judge (requires --snapshot)
   --snapshot <id>             Use a registered source snapshot for tool calling
   --model <name>              Model name to invoke (optional, defaults to config)
   --timeout <ms>              Execution timeout in milliseconds
@@ -69,6 +72,7 @@ export interface CliParsedArgs {
   subcommand?: string
   positionals: string[]
   prompt?: string
+  finding?: string
   model?: string
   timeout?: string
   snapshot?: string
@@ -103,6 +107,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     args,
     options: {
       prompt: { type: "string" },
+      finding: { type: "string" },
       model: { type: "string" },
       timeout: { type: "string" },
       snapshot: { type: "string" },
@@ -122,10 +127,13 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
   })
   const includeRoot = values["include-root"]
   return {
-    command: positionals[0],
+    command: positionals[0] === "run" || positionals[0] === "view" || positionals[0] === "repo" || positionals[0] === "snapshot" || positionals[0] === "serve"
+      ? positionals[0]
+      : (values.prompt !== undefined || values.finding !== undefined ? "run" : positionals[0]),
     subcommand: positionals[1],
-    positionals: positionals.slice(2),
+    positionals: positionals.slice(positionals[0] === "run" || positionals[0] === "view" || positionals[0] === "repo" || positionals[0] === "snapshot" || positionals[0] === "serve" ? 2 : 1),
     prompt: asString(values.prompt),
+    finding: asString(values.finding),
     model: asString(values.model),
     timeout: asString(values.timeout),
     snapshot: asString(values.snapshot),
@@ -257,8 +265,33 @@ async function runCommand(
 
     if (!parsed.mock && parsed.snapshot !== undefined) config = loadCliConfig(env, deps.snapshotDir)
 
+    if (parsed.finding !== undefined && parsed.snapshot === undefined) {
+      stderr("Error: --snapshot <id> is required when --finding is provided.")
+      return 1
+    }
+
+    let findingMarkdown = ""
+    if (parsed.finding !== undefined) {
+      try {
+        const filePath = resolve(findRepositoryRoot() ?? process.cwd(), parsed.finding)
+        const file = Bun.file(filePath)
+        if (!(await file.exists())) {
+          stderr(redactSecrets(`Error: Finding file '${parsed.finding}' could not be read.`, secrets))
+          return 1
+        }
+        findingMarkdown = await file.text()
+        if (!findingMarkdown.trim()) {
+          stderr(`Error: Finding file '${parsed.finding}' is empty.`)
+          return 1
+        }
+      } catch {
+        stderr(redactSecrets(`Error: Finding file '${parsed.finding}' could not be read.`, secrets))
+        return 1
+      }
+    }
+
     const prompt = parsed.prompt?.trim()
-    if (!prompt) {
+    if (!prompt && parsed.finding === undefined) {
       stderr("Error: --prompt is required and cannot be empty.")
       return 1
     }
@@ -350,6 +383,187 @@ async function runCommand(
         throw new ConfigValidationError("Invalid runtime configuration:\n  MODEL_API_KEY: required", ["MODEL_API_KEY"])
       }
 
+      if (parsed.finding !== undefined) {
+        const { JudgeRunner } = await import("@harness/core")
+        const findingId = `finding-${Date.now()}`
+        const runId = `run-${Date.now()}`
+        const judgeInput: import("@harness/core").JudgeRunInput = {
+          finding: { findingId, reportMarkdown: findingMarkdown },
+          snapshotId: parsed.snapshot,
+          config: {
+            flags: {
+              enableToolTruncation: true,
+              enableObsMasking: true,
+              enableSupersedeReads: true,
+              enableDropEmpty: true,
+              enableLlmCompaction: true,
+              enableSessionNote: false,
+              enableSchemaRepair: true,
+              enableMaxStepsForcing: true,
+              enableNoProgressDetection: true,
+              enableInfraRetry: true,
+              enableParallelToolDispatch: true,
+            },
+            policy: {
+              policyVersion: "cli-judge-v1",
+              windowLimitTokens: 100_000,
+              outputReserveTokens: maxOutputTokens,
+              compactionThreshold: 0.8,
+              safetyMarginFactor: 1.2,
+              recentWindowTokens: 10_000,
+              toolOutputMaxTokens: 4_000,
+              toolOutputMaxLines: 50,
+              maxCompactions: 2,
+              flags: {
+                enableToolTruncation: true,
+                enableObsMasking: true,
+                enableSupersedeReads: true,
+                enableDropEmpty: true,
+                enableLlmCompaction: true,
+                enableSessionNote: false,
+              },
+            },
+            retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
+            limits: {
+              wallClockTimeoutMs: timeoutMs,
+              totalTokenBudget: maxTotalTokens.value,
+              maxSteps: maxSteps.value,
+              noProgressMaxRepeats: 3,
+            },
+            maxProbeRuns: 0,
+            enablePocExecution: false,
+            modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
+            profileId,
+          },
+        }
+
+        const clock = { nowMs: () => Date.now() }
+        const random = { next: () => Math.random() }
+        const sleep = { sleep: (ms: number) => Bun.sleep(ms) }
+        const ids = createIdGenerator(systemIdSources)
+        const cancellation: import("@harness/protocol").CancellationPort = {
+          isRequested: async () => false,
+          request: async () => ({ kind: "requested" as const }),
+        }
+        const security = new ProductionSecurityFilter()
+        const ingestion: import("@harness/protocol").IngestionPort = {
+          ingest: async () => ({
+            kind: "narrative_only" as const,
+            claim: {
+              targetContracts: ["Vault"],
+              targetFunctions: ["withdraw"],
+              rootCause: "Report narrative analyzed via CLI Judge runner",
+              attackScenario: "Attacker executes vulnerability scenario",
+              callerAssumptions: [],
+              claimedImpact: "Impact claimed in report",
+              claimedState: "State affected",
+            },
+            bceSlices: [],
+          }),
+        }
+        const sanitizer: import("@harness/protocol").SanitizerPort = {
+          sanitize: async () => ({ kind: "ok" as const, stitchedTestFile: "", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } }),
+          injectStateProbes: async () => ({ probedTestFile: "" }),
+        }
+        const sandbox: import("@harness/protocol").SandboxPort = {
+          runSingleShot: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0 }),
+          runStateProbe: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0, observedBefore: null, observedAfter: null, stateDeltas: [] }),
+        }
+
+        let judgeGateway = gateway
+        if (parsed.mock) {
+          const validVerdictJson = JSON.stringify({
+            runId,
+            findingId,
+            validity: "unverified",
+            verificationStatus: "UNVERIFIED",
+            confidence: "MEDIUM",
+            reasonCode: "UNRESOLVED",
+            summary: "Evaluated finding via mock Judge runner.",
+            reasoning: "The finding narrative was parsed and evaluated; BCE status is incomplete so status remains UNVERIFIED.",
+            citesEvidence: [{ filePath: snapshotFiles[0] ?? "README.md", startLine: 1, endLine: 5, explanation: "Cited reference" }],
+          })
+          judgeGateway = new ScriptedModelGateway([
+            textResponse("acknowledged"),
+            textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+            textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+            textResponse(validVerdictJson, { usage: { promptTokens: 30, completionTokens: 40, totalTokens: 70, costUsd: 0.0002 } }),
+          ])
+        }
+
+        const runner = new JudgeRunner({
+          store,
+          gateway: judgeGateway,
+          tools: registry,
+          snapshot,
+          contextEngine: new PassThroughContextEngine(),
+          security,
+          ingestion,
+          sanitizer,
+          sandbox,
+          cancellation,
+          clock,
+          random,
+          sleep,
+          ids,
+        })
+
+        if ("admit" in store && typeof store.admit === "function") {
+          await store.admit({
+            runId,
+            findingId,
+            reportMarkdown: findingMarkdown,
+            snapshotId: parsed.snapshot,
+            config: judgeInput.config as unknown as Record<string, unknown>,
+            idempotencyKey: `cli-judge-${runId}`,
+            requestDigest: `sha256:${runId}`,
+          })
+        } else if ("seedRun" in store && typeof store.seedRun === "function") {
+          await store.seedRun(runId, "queued", findingMarkdown)
+        }
+
+        const claimRes = await store.claim({ runId, workerId: "cli-judge-worker" })
+        if (claimRes.kind !== "claimed") {
+          stderr(`Error: Failed to claim Judge run (${claimRes.kind}).`)
+          return 1
+        }
+
+        const judgeResult = await runner.run(claimRes.claim, judgeInput)
+        const verdict = judgeResult.kind === "committed" && judgeResult.state === "completed" ? judgeResult.verdict : undefined
+        const judgeState = judgeResult.kind === "committed" ? judgeResult.state : "failed"
+
+        const output = [
+          "========================================",
+          "Judge Run Summary",
+          "========================================",
+          `Run ID:       ${runId}`,
+          `Finding ID:   ${findingId}`,
+          `Snapshot ID:  ${parsed.snapshot}`,
+          `State:        ${judgeState}`,
+          ...(judgeResult.kind === "committed" && judgeResult.terminalReason ? [`Terminal:     ${judgeResult.terminalReason}`] : []),
+          ...(verdict
+            ? [
+                "----------------------------------------",
+                "Judge Verdict:",
+                `  Validity:          ${verdict.validity}`,
+                `  Status:            ${verdict.verificationStatus}`,
+                `  Confidence:        ${verdict.confidence}`,
+                `  Reason Code:       ${verdict.reasonCode}`,
+                `  Summary:           ${verdict.summary}`,
+                `  Reasoning:         ${verdict.reasoning}`,
+                "  Cites Evidence:",
+                ...(verdict.citesEvidence.length === 0
+                  ? ["    (none)"]
+                  : verdict.citesEvidence.map((c) => `    - ${c.filePath}:${c.startLine}-${c.endLine}${c.contentDigest ? ` (digest: ${c.contentDigest})` : ""}`)),
+              ]
+            : []),
+          "========================================",
+        ].join("\n")
+        stdout(redactSecrets(output, secrets))
+        return judgeState === "completed" ? 0 : 1
+      }
+
+      const promptText = prompt ?? ""
       const controller = new AbortController()
       const signals = deps.processSignals ?? process
       const onSigint = () => controller.abort("SIGINT")
@@ -367,7 +581,7 @@ async function runCommand(
             : new ProductionContextEngine(createO200kTokenizer()),
           secrets,
         }).execute({
-          prompt,
+          prompt: promptText,
           snapshotId: parsed.snapshot,
           profileId,
           pricing: profilePricing,

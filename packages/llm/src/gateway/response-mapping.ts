@@ -46,7 +46,13 @@ const parseToolArguments = (
 ): Pick<ModelToolCall, "arguments" | "argumentsError" | "rawArguments"> => {
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (isObject(parsed)) return { arguments: parsed }
+    if (isObject(parsed)) {
+      // Un-nest when a model passes { name: "...", arguments: { ... } } inside tool arguments
+      if (typeof parsed.name === "string" && isObject(parsed.arguments)) {
+        return { arguments: parsed.arguments as Record<string, unknown> }
+      }
+      return { arguments: parsed }
+    }
     return {
       arguments: {},
       argumentsError: "Tool arguments must be a JSON object",

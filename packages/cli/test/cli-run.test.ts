@@ -204,4 +204,74 @@ describe("executeRunCommand", () => {
       process.env = prevEnv
     }
   })
+
+  test("runCli requires --snapshot when --finding is supplied", async () => {
+    const errLogs: string[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      errLogs.push(args.map(String).join(" "))
+    }
+
+    try {
+      const exitCode = await runCli(["run", "--finding", "finding.md", "--mock"])
+      expect(exitCode).toBe(1)
+      expect(errLogs.join("\n")).toContain("Error: --snapshot <id> is required when --finding is provided.")
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  test("runCli executes Judge finding in mock mode", async () => {
+    const { mkdtemp, rm, writeFile, mkdir } = await import("node:fs/promises")
+    const { tmpdir } = await import("node:os")
+    const { join } = await import("node:path")
+    const { SnapshotManager } = await import("@harness/core")
+
+    const tmpSource = await mkdtemp(join(tmpdir(), "cli-judge-src-"))
+    const tmpSnapshots = await mkdtemp(join(tmpdir(), "cli-judge-snaps-"))
+    const findingPath = join(tmpSource, "finding.md")
+
+    try {
+      await mkdir(join(tmpSource, "src"), { recursive: true })
+      await writeFile(join(tmpSource, "src", "Vault.sol"), "contract Vault {}")
+      await writeFile(findingPath, "Finding report markdown content.")
+      const ingested = await SnapshotManager.ingestRepository({
+        sourceDir: tmpSource,
+        storageDir: tmpSnapshots,
+        snapshotId: "cli-judge-snap-1",
+      })
+
+      const outLogs: string[] = []
+      const originalLog = console.log
+      console.log = (...args: unknown[]) => {
+        outLogs.push(args.map(String).join(" "))
+      }
+
+      const errLogs: string[] = []
+      try {
+        const exitCode = await runCli(
+          ["run", "--finding", findingPath, "--snapshot", ingested.snapshotId, "--mock"],
+          {
+            snapshotDir: tmpSnapshots,
+            stderr: (msg) => errLogs.push(msg),
+            stdout: (msg) => outLogs.push(msg),
+          },
+        )
+        if (exitCode !== 0) {
+          throw new Error(`CLI run exited ${exitCode}: ${errLogs.join("\n")}`)
+        }
+        expect(exitCode).toBe(0)
+        const combined = outLogs.join("\n")
+        expect(combined).toContain("Judge Run Summary")
+        expect(combined).toContain("Judge Verdict:")
+        expect(combined).toContain("Validity:          unverified")
+        expect(combined).toContain("Status:            UNVERIFIED")
+      } finally {
+        console.log = originalLog
+      }
+    } finally {
+      await rm(tmpSource, { recursive: true, force: true })
+      await rm(tmpSnapshots, { recursive: true, force: true })
+    }
+  })
 })

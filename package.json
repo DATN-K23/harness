@@ -12,6 +12,7 @@
     "cli:run": "bun run --cwd packages/cli dev -- run",
     "cli:view": "bun run --cwd packages/cli dev -- view",
     "db:migrate": "bun run --cwd packages/schema db:migrate",
+    "demo:judge": "bun run packages/server/scripts/demo-e2e-judge.ts",
     "cli:repo": "bun run --cwd packages/cli dev -- repo",
     "cli:snapshot": "bun run --cwd packages/cli dev -- snapshot",
     "cli:serve": "bun run --cwd packages/cli dev -- serve"

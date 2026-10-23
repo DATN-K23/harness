@@ -104,6 +104,15 @@ describe("recorded provider outcomes", () => {
     expect(response.error).toMatchObject({ category: "invalid_request", classification: "content_filter" })
   })
 
+  test("a Gemini prompt block passed through by a router is a content-filter error, not invalid output", async () => {
+    const recording = new RecordingClient(readRecordingFixture("gemini-prompt-block"))
+    const response = await new RealModelGateway({ client: recording.client }).executeAttempt(request())
+    expect(response.finishReason).toBe("error")
+    expect(response.error).toMatchObject({ category: "invalid_request", classification: "content_filter", isRetryable: false })
+    expect(response.error?.message).toContain("blockReason OTHER")
+    expect(response.usage).toMatchObject({ promptTokens: 949, completionTokens: 0, totalTokens: 949 })
+  })
+
   test("401 is sanitized and non-retryable", async () => {
     const recording = new RecordingClient(readRecordingFixture("auth-401"))
     const response = await new RealModelGateway({ client: recording.client }).executeAttempt(request())

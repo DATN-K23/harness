@@ -1,0 +1,1 @@
+{"response":{"promptFeedback":{"blockReason":"OTHER","blockReasonMessage":"This request was blocked by Gemini's filters. They can occasionally trigger by mistake on safe coding, security, or biology-related queries."},"usageMetadata":{"promptTokenCount":949,"totalTokenCount":949},"modelVersion":"gemini-3.8-flash-n"}}

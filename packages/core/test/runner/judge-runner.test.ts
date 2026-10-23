@@ -524,9 +524,9 @@ describe("JudgeRunner: claim extraction", () => {
     const result = await w.start("worker-a", { ...runInput({ enableClaimExtraction: true }), finding: { findingId: "finding-7", reportMarkdown: vague } })
 
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified" } })
-    // The extraction request carries the report verbatim and offers no tools.
+    // The extraction request quotes the report verbatim in <report> tags and offers no tools.
     expect(w.gateway.calls[0]).toMatchObject({ toolsDisabled: true })
-    expect(w.gateway.calls[0].items.some((item) => item.type === "candidate_finding" && item.content === vague)).toBe(true)
+    expect(w.gateway.calls[0].items.some((item) => item.content.includes(`<report>\n${vague}\n</report>`))).toBe(true)
     // Judging continued with the confirmed claim; the report the model judges is still the original text.
     expect(w.gateway.callCount).toBe(3)
     expect(w.gateway.calls[1].items.some((item) => item.content.includes('"targetFunctions":["withdraw"]'))).toBe(true)

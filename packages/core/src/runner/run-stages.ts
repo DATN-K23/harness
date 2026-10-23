@@ -172,7 +172,7 @@ const ExtractionStep = 1
  * again with them. The port keeps only verbatim excerpts and a target the snapshot confirms, so the model can point
  * at the report but never rewrite it; whatever is still missing makes the run truly unresolved.
  */
-const extractClaim = async (context: StageContext, missing: readonly ClaimField[]): Promise<Extraction> => {
+const extractClaim = async (context: StageContext): Promise<Extraction> => {
   const { deps, runId, input, signal } = context
   const { profileId, modelLimits } = input.config
   const sourcePaths = (await deps.snapshot.listFiles({ snapshotId: input.snapshotId }, signal))
@@ -180,7 +180,6 @@ const extractClaim = async (context: StageContext, missing: readonly ClaimField[
     .sort()
   const items = claimExtractionItems({
     reportMarkdown: input.finding.reportMarkdown,
-    missing,
     sourcePaths,
     id: () => deps.ids.next("itm_"),
   })
@@ -253,11 +252,10 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   )
   let admission = admit(ingested)
   if (admission.kind === "unresolved" && admission.missing !== undefined && input.config.enableClaimExtraction === true) {
-    const missing = admission.missing
     const extraction = await runStage(
       context,
       "claim_extraction",
-      () => extractClaim(context, missing),
+      () => extractClaim(context),
       (result) => (result.kind === "ended" ? result.code : result.admission.kind === "judge" ? undefined : "INSUFFICIENT_REPORT"),
     )
     if (extraction.kind === "ended") return end(extraction.terminal)

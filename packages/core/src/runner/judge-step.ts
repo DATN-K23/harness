@@ -34,7 +34,7 @@ import {
   type VerificationDirection,
   type VerificationState,
 } from "../judge/bidirectional-verifier"
-import { DefaultVerificationStepBudget, stepsStillNeeded } from "../judge/step-budget"
+import { DefaultVerificationStepBudget, mustAnswerNow, stepsStillNeeded } from "../judge/step-budget"
 import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
@@ -287,8 +287,8 @@ export class JudgeStep {
     })
 
     // Gate 2: step-limit forcing works on a derived list; the engine's preparedItems are never modified. A pending
-    // verification direction is forced to answer when its own budget ends, or when the run keeps only the steps the
-    // later phases need; it is then asked for its own result, never for a verdict.
+    // verification direction is forced to answer when its own step budget ends (if one is set), or when the steps or
+    // tokens left only cover finishing the run; it is then asked for its own result, never for a verdict.
     const pending = verification.direction !== undefined && verification[verification.direction] === undefined
       ? verification.direction
       : undefined
@@ -296,7 +296,15 @@ export class JudgeStep {
       pending !== undefined &&
       // This step is step `stepIndex - directionSince` of the direction.
       (input.stepIndex - (verification.directionSince ?? 0) >= (input.verificationStepBudget ?? DefaultVerificationStepBudget) ||
-        input.limits.maxSteps - input.stepIndex < stepsStillNeeded(pending))
+        input.limits.maxSteps - input.stepIndex < stepsStillNeeded(pending) ||
+        mustAnswerNow({
+          pending,
+          estimatedInputTokens: clean.telemetry.estimatedInputTokens,
+          maxOutputTokens: input.modelLimits.maxOutputTokens,
+          safetyMarginFactor: input.policy.safetyMarginFactor,
+          totalTokensUsed: input.budget.totalTokensUsed,
+          totalTokenBudget: input.limits.totalTokenBudget,
+        }))
     const forced = directionForced || isForcedStep(input.stepIndex, input.limits.maxSteps, input.flags.enableMaxStepsForcing)
     progress.toolsDisabled = forced
     const sentItems = forced

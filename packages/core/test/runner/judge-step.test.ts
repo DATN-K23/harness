@@ -5,7 +5,7 @@ import { parseForwardResult } from "../../src/judge/bidirectional-verifier"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
 import { errorResponse, textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import { digestOf, textDigest } from "../../src/util/digest"
-import { baseItems, createHarness, invalidVerdict, validVerdict, vaultLines } from "./judge-step-harness"
+import { baseItems, createHarness, invalidVerdict, limits, validVerdict, vaultLines } from "./judge-step-harness"
 
 const json = (value: unknown) => JSON.stringify(value)
 const readVault = (id = "call-1") =>
@@ -57,6 +57,24 @@ describe("JudgeStep: seven gates", () => {
     expect(h.gateway.calls[0].items.at(-1)?.content).toContain("reading budget for the forward direction")
     expect(h.gateway.calls[0].items.some((item) => item.content === maxStepsPrompt)).toBe(false)
     expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"reachable"')
+  })
+
+  test("with no step limit, a direction reads freely and answers once the tokens left only cover finishing the run", async () => {
+    const free = await createHarness({ script: [readVault()] })
+    await free.step.execute(free.input({ stepIndex: 40, limits: { ...limits, maxSteps: 10_000 }, items: [...baseItems, forwardDirection()] }))
+    expect(onlySubmission(free.gateway.calls[0])).toBe(false)
+    expect(free.registry.calls).toHaveLength(1)
+
+    const short = await createHarness({ script: [textResponse('{"reachability":"blocked","explanation":"onlyOwner guards withdraw"}')] })
+    // 4 steps (this one + backward + verdict + repair) of about 4.8k tokens each (4k output x 1.2 margin) need ~19k; 15k are left.
+    const result = await short.step.execute(short.input({
+      stepIndex: 40,
+      limits: { ...limits, maxSteps: 10_000, totalTokenBudget: 100_000 },
+      budget: { totalTokensUsed: 85_000, totalTokenLimit: 100_000, compactionsCount: 0, costUsd: 0 },
+      items: [...baseItems, forwardDirection()],
+    }))
+    expect(onlySubmission(short.gateway.calls[0])).toBe(true)
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"blocked"')
   })
 
   test("a forced direction answers through submit_verification, the other direction's field null", async () => {

@@ -43,6 +43,7 @@ import {
 } from "../judge/step-budget"
 import { offersSubmission, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
+import { staticVerdictDecision } from "../judge/verdict-policy"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
 import { digestOf } from "../util/digest"
@@ -103,6 +104,8 @@ export interface JudgeStepInput {
   verificationStepBudget?: number
   /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
   evidenceSaturationReads?: number
+  /** Conclude valid/invalid without execution evidence under the TV4 conclusion rules (`staticVerdictDecision`). */
+  enableStaticVerdicts?: boolean
 }
 
 export interface JudgeStepResult {
@@ -208,9 +211,11 @@ export class JudgeStep {
   private decideWithoutModel(
     verification: VerificationState,
     witness: ReturnType<typeof witnessOf>,
+    staticVerdicts: boolean,
   ): { summary: string; reasoning: string } | undefined {
     const { consensus } = verification
-    if (consensus === "agreed-invalid" && (verification.bceIncomplete || !verification.hasBceSlices))
+    // With static verdicts the model is asked for the rejection and its cited guard, which the verdict policy checks.
+    if (!staticVerdicts && consensus === "agreed-invalid" && (verification.bceIncomplete || !verification.hasBceSlices))
       return {
         summary: "The blocking consensus has no source evidence.",
         reasoning:
@@ -244,7 +249,7 @@ export class JudgeStep {
       finish({ type: "completed", verdict: unverifiedVerdict(identity, "UNRESOLVED", { summary, reasoning }) })
     const verification = readVerificationState(input.items)
     const witness = witnessOf(input)
-    const decided = this.decideWithoutModel(verification, witness)
+    const decided = this.decideWithoutModel(verification, witness, input.enableStaticVerdicts === true)
     if (decided !== undefined) return unresolved(decided.summary, decided.reasoning)
 
     // Gate 1: context preflight. The engine signals; the step decides and never calls the gateway on stop/compaction.
@@ -545,11 +550,17 @@ export class JudgeStep {
         },
       ).catch(asFault("worker_interrupted"))
       if (synthesis.kind === "accepted") {
-        if (verification.bceIncomplete && synthesis.verdict.validity !== "unverified")
-          return finish({ type: "completed", verdict: withheldVerdict(synthesis.verdict, {
-            summary: "The claim remains unresolved because BCE is incomplete.",
-            reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
-          }) })
+        if (verification.bceIncomplete && synthesis.verdict.validity !== "unverified") {
+          // Static verdicts follow the TV4 conclusion rules; without them, incomplete BCE withholds every conclusion.
+          const decision = input.enableStaticVerdicts === true
+            ? staticVerdictDecision(synthesis.verdict, verification.consensus)
+            : { kind: "withhold" as const, wording: {
+                summary: "The claim remains unresolved because BCE is incomplete.",
+                reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
+              } }
+          if (decision.kind === "withhold")
+            return finish({ type: "completed", verdict: withheldVerdict(synthesis.verdict, decision.wording) })
+        }
         return finish({ type: "completed", verdict: synthesis.verdict })
       }
       await persist("verdict.validation_failed", {

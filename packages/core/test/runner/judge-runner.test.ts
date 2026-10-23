@@ -26,7 +26,7 @@ import {
   type World,
   type Worker,
 } from "../helpers/runner-world"
-import { flags, limits, policy, validVerdict } from "./judge-step-harness"
+import { flags, invalidVerdict, limits, policy, validVerdict } from "./judge-step-harness"
 
 const expectFastReject = async (world: World, worker: Worker, result: JudgeRunResult, reasonCode: string) => {
   expect(result).toMatchObject({
@@ -536,6 +536,45 @@ describe("JudgeRunner: step budgets", () => {
   })
 })
 
+describe("JudgeRunner: static verdicts (TV4 conclusion rules)", () => {
+  const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "" }
+  const agreedValid = [
+    textResponse('{"reachability":"reachable","explanation":"withdraw is external and unguarded"}'),
+    textResponse('{"reconstruction":"reconstructed","explanation":"balance written after the call"}'),
+    verdictText,
+  ]
+
+  test("on: an agreed-valid claim with resolved citations is concluded valid", async () => {
+    const world = createWorld()
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: agreedValid })
+    const result = await w.start("worker-a", runInput({ enableStaticVerdicts: true }))
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS" } })
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableStaticVerdicts: true })
+  })
+
+  test("off (default): the same run is withheld as unverified while BCE is incomplete", async () => {
+    const world = createWorld()
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: agreedValid })
+    const result = await w.start("worker-a", runInput())
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    const [started] = await world.events("run.started")
+    expect(started.payload.snapshot).toMatchObject({ enableStaticVerdicts: false })
+  })
+
+  test("on: an agreed-invalid claim asks the model for the guard, and a rejection citing no guard is withheld", async () => {
+    const world = createWorld()
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+      textResponse('{"reachability":"blocked","explanation":"guarded"}'),
+      textResponse('{"reconstruction":"blocked","explanation":"guarded"}'),
+      textResponse(JSON.stringify({ ...invalidVerdict, citesEvidence: [{ filePath: "src/Vault.sol", startLine: 3, endLine: 3, explanation: "the guard" }] })),
+    ] })
+    const result = await w.start("worker-a", runInput({ enableStaticVerdicts: true }))
+    expect(w.gateway.callCount).toBe(3)
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", summary: "No blocking guard was confirmed in the cited source." } })
+  })
+})
+
 describe("JudgeRunner: claim extraction", () => {
   const vault = "pragma solidity ^0.8.20;\ncontract Vault {\n    function withdraw() external {}\n}\n"
   const realIngestion = () =>
@@ -880,6 +919,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       enableClaimExtraction: true,
       verificationStepBudget: true,
       evidenceSaturationReads: true,
+      enableStaticVerdicts: true,
       modelLimits: true,
       profileId: true,
       runtime: true,

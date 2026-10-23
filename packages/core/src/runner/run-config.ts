@@ -20,6 +20,7 @@ export interface RunConfigInput {
   enableBidirectionalVerification?: boolean
   enableStructuredOutput?: boolean
   enableClaimExtraction?: boolean
+  enableStaticVerdicts?: boolean
   verificationStepBudget?: number
   evidenceSaturationReads?: number
   toolLimits?: ToolLimits
@@ -53,6 +54,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
     enableStructuredOutput: input.enableStructuredOutput ?? false,
     enableClaimExtraction: input.enableClaimExtraction ?? false,
+    enableStaticVerdicts: input.enableStaticVerdicts ?? false,
     ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
     ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),

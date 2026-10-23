@@ -123,6 +123,8 @@ export const RunConfigSnapshotSchema = z
     enableStructuredOutput: z.boolean().default(false),
     /** One provider call that locates claim fields a report's format did not yield, before the run is unresolved. */
     enableClaimExtraction: z.boolean().default(false),
+    /** valid/invalid without execution evidence under the TV4 conclusion rules; off withholds every conclusion. */
+    enableStaticVerdicts: z.boolean().default(false),
     /** Steps one verification direction may take, its answer included; present when bidirectional verification is on. */
     verificationStepBudget: z.number().int().positive().optional(),
     /** Tool results without new evidence after which a direction answers; present when bidirectional verification is on. */

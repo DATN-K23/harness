@@ -68,6 +68,7 @@ Options:
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
+  --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
 
@@ -84,6 +85,7 @@ export interface CliParsedArgs {
   mock?: boolean
   noClaimExtraction?: boolean
   noLive?: boolean
+  staticVerdicts?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -123,6 +125,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       mock: { type: "boolean" },
       "no-claim-extraction": { type: "boolean" },
       "no-live": { type: "boolean" },
+      "static-verdicts": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -153,6 +156,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     mock: Boolean(values.mock),
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
     noLive: Boolean(values["no-live"]),
+    staticVerdicts: Boolean(values["static-verdicts"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -464,6 +468,7 @@ async function runCommand(
             enableStructuredOutput: Boolean(parsed.structuredOutput),
             // The scripted --mock provider has no answer for an extraction call.
             enableClaimExtraction: !parsed.mock && !parsed.noClaimExtraction,
+            enableStaticVerdicts: Boolean(parsed.staticVerdicts),
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
           },

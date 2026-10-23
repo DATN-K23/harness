@@ -83,7 +83,7 @@ export const resultNote = (direction: VerificationDirection, result: ForwardResu
 export const consensusNote = (decision: ConsensusDecision) => `${ConsensusPrefix}${decision}`
 
 export const ConsensusVerdictInstruction =
-  "Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite exact snapshot lines; otherwise return validity unverified with reasonCode UNRESOLVED. Consensus by itself does not establish validity."
+  "Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite exact snapshot lines: for a valid verdict the lines of the reachable path and of the state change; for an invalid verdict the lines of the check that blocks it (require, revert, assert or access modifier). Otherwise return validity unverified with reasonCode UNRESOLVED. Consensus by itself does not establish validity."
 
 export interface VerificationState {
   /** The direction the model was last asked for; `undefined` when the run does not verify bidirectionally. */

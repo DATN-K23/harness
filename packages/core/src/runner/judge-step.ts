@@ -44,6 +44,7 @@ import {
 } from "../judge/step-budget"
 import { offersSubmission, submitVerdictTool, submitVerificationTool, submittedText } from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
+import { withReferencedEvidence } from "../judge/evidence-references"
 import { staticVerdictDecision } from "../judge/verdict-policy"
 import { MaxSchemaRepairs, synthesizeVerdict } from "../judge/verdict-synthesizer"
 import { loadPrompt } from "../prompts/index"
@@ -568,14 +569,28 @@ export class JudgeStep {
       if (synthesis.kind === "accepted") {
         if (verification.bceIncomplete && synthesis.verdict.validity !== "unverified") {
           // Static verdicts follow the TV4 conclusion rules; without them, incomplete BCE withholds every conclusion.
+          // The source the model referred to in its own words (the reasoning, the direction results) is read from the
+          // snapshot and added as evidence, so a guard it named but did not cite can still be confirmed in the code.
+          const verdict = input.enableStaticVerdicts === true
+            ? await withReferencedEvidence(
+                { snapshot: deps.snapshot, security: deps.security },
+                {
+                  verdict: synthesis.verdict,
+                  texts: [synthesis.verdict.summary, synthesis.verdict.reasoning, verification.forward?.explanation ?? "", verification.backward?.explanation ?? ""],
+                  snapshotId: input.snapshotId,
+                  signal: input.signal,
+                },
+              ).catch(asFault("worker_interrupted"))
+            : synthesis.verdict
           const decision = input.enableStaticVerdicts === true
-            ? staticVerdictDecision(synthesis.verdict, verification.consensus)
+            ? staticVerdictDecision(verdict, verification.consensus)
             : { kind: "withhold" as const, wording: {
                 summary: "The claim remains unresolved because BCE is incomplete.",
                 reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
               } }
           if (decision.kind === "withhold")
-            return finish({ type: "completed", verdict: withheldVerdict(synthesis.verdict, decision.wording) })
+            return finish({ type: "completed", verdict: withheldVerdict(verdict, decision.wording) })
+          return finish({ type: "completed", verdict })
         }
         return finish({ type: "completed", verdict: synthesis.verdict })
       }

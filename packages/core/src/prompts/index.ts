@@ -4,6 +4,7 @@ import { textDigest } from "../util/digest"
 
 export type PromptName =
   | "judge-system.v1"
+  | "judge-system.v2"
   | "max-steps.v1"
   | "forward-verification.v1"
   | "backward-verification.v1"

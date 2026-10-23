@@ -135,7 +135,12 @@ export interface JudgeRunnerDeps {
   bus?: EventBus
   /** Timer behind the best-effort wall-clock abort signal; tests inject a fake. */
   setTimer?: SetTimer
-  /** Defaults to the versioned `judge-system.v1` prompt, which also states the verdict format. */
+  /**
+   * Defaults to the versioned `judge-system.v2` prompt, which also states the verdict format. v2 follows the TV4
+   * proposal: a claim the evidence does not settle is unverified (v1: "doubt resolves to invalid"), a missing PoC is not
+   * a reason to reject a source-only finding, a failed execution does not show the claim false, and source reasoning is
+   * kept apart from execution evidence.
+   */
   systemPrompt?: string
   /** A separate verdict schema text placed after the tool descriptions, when the system prompt does not state it. */
   verdictSchema?: string
@@ -225,7 +230,7 @@ class RunExecution {
     private readonly input: JudgeRunInput,
   ) {
     this.runId = claim.runId
-    this.systemPrompt = deps.systemPrompt ?? loadPrompt("judge-system.v1").text
+    this.systemPrompt = deps.systemPrompt ?? loadPrompt("judge-system.v2").text
     this.retryPolicy = createRetryPolicy({
       gateway: deps.gateway,
       cancellation: deps.cancellation,

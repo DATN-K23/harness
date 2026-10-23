@@ -133,3 +133,27 @@ describe("max-steps.v1", () => {
     expect(text).not.toMatch(/\bwrites?\b/i)
   })
 })
+
+describe("judge-system.v2 (TV4 proposal)", () => {
+  const { text } = loadPrompt("judge-system.v2")
+
+  test("keeps the structure v1 is checked for", () => {
+    expect(text).toMatch(/Zero Repair Loops/)
+    expect(text).toMatch(/never (write|fix|repair)/i)
+    for (const marker of ["Tier 1", "Tier 2", "run_state_probe", "startLine", "endLine"]) expect(text).toContain(marker)
+    for (const field of ["runId", "findingId", "validity", "verificationStatus", "reasonCode", "confidence", "summary", "reasoning", "citesEvidence"])
+      expect(text).toContain(field)
+    for (const code of ["EXPLOIT_CONFIRMED", "MISSING_POC", "NON_FAITHFUL_OVERRIDE", "EXECUTION_FAILED", "BENIGN_MECHANICS", "NO_STATE_DELTA", "OUT_OF_SCOPE", "UNRESOLVED"])
+      expect(text).toContain(code)
+  })
+
+  test("follows the TV4 proposal: unsettled is unverified, no PoC is no reason to reject, failed runs prove nothing", () => {
+    expect(text).toContain('"validity": "valid" | "invalid" | "unverified"')
+    expect(text).not.toMatch(/doubt resolves to invalid/i)
+    expect(text).toMatch(/not settle[^.]*unverified, never invalid/i)
+    expect(text).toMatch(/missing PoC is not a reason to reject/i)
+    expect(text).toMatch(/EXECUTION_FAILED \(unverified\)/)
+    expect(text).toMatch(/source reasoning and execution evidence apart/i)
+  })
+})
+

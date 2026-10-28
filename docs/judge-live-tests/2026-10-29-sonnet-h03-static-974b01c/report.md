@@ -89,18 +89,59 @@ Chuỗi lập luận của model:
 
 Trích dẫn (harness đọc từ snapshot và tính digest): JackpotLPManager.sol 183-186, 185, 371-392, 388-391; Jackpot.sol 717-748, 738-748, 1469-1476, 1478-1507, 1494-1497, 1496; TicketComboTracker.sol 142.
 
-## 6. Giới hạn của kết quả
+## 6. Đối chứng: cùng cấu hình với Gemini
+
+Run `run-1793210739148`: code `7c16a3e` (gồm bản sửa mục 4), cùng finding, snapshot, cờ `--static-verdicts --structured-output` và giới hạn. Chỉ đổi model sang `ag/gemini-3.8-flash-high`.
+
+**Kết quả:** `completed`, verdict **UNVERIFIED / UNRESOLVED / LOW**. Verdict này **do harness tự ghép, không phải do Gemini nộp**.
+
+| Pha | Bước | Bị bộ lọc chặn | Kết quả |
+|---|---|---|---|
+| Chiều xuôi | 35 | 3 lần, lần thứ 4 qua | `reachable`, lời giải thích do Gemini viết |
+| Chiều ngược | 46 | 1 lần, lần thứ 2 qua | `reconstructed`, do Gemini viết |
+| Consensus | — | — | `agreed-valid` |
+| Verdict | 55 (bị ép nộp) | **6/6, hết lượt thử** | Gemini không nộp được verdict |
+
+Bị chặn đều là `content_filter` / `blockReason: OTHER`. Ở `974b01c`, lỗi này được thử lại (`retry-policy.ts`).
+
+**Vì sao vẫn có verdict:** khi bước verdict bị chặn hết lượt, `974b01c` có cơ chế `composeFromConsensus` (chỉ chạy khi bật static): harness tự ghép verdict từ hai chiều. Muốn ghép ra VALID, harness cần mức độ nghiêm trọng lấy từ báo cáo. Finding H03 đã chuẩn hoá không có trường này, nên kết quả bị hạ xuống UNVERIFIED với lý do *"the model gave no verdict and the report claims no critical, high or medium severity"*. Đây là **lỗi bị che đi**, không phải Gemini kết luận "chưa xác minh được": thực tế cả hai chiều của Gemini đều ủng hộ claim.
+
+Trong log còn có một lỗi timeout kết nối PostgreSQL lúc chờ Gemini ở bước 55. Lỗi này không làm hỏng run, mọi sự kiện vẫn được ghi đủ.
+
+### So sánh Sonnet và Gemini
+
+| | Sonnet 4.6 (`run-1793209079926`) | Gemini 3.8 flash high (`run-1793210739148`) |
+|---|---|---|
+| Trạng thái | completed | completed |
+| Verdict | **VALID / PASS / HIGH**, do model nộp | **UNVERIFIED / UNRESOLVED / LOW**, do harness ghép |
+| Chiều xuôi / ngược | reachable / reconstructed | reachable / reconstructed |
+| Consensus | agreed-valid | agreed-valid |
+| Bị bộ lọc chặn | 0 | **10** (3 xuôi, 1 ngược, 6 verdict) |
+| Lượt gọi AI | 13 | **64** |
+| Token | 221.623 | **1.204.325** |
+| Lần đọc code | 18 | 52 |
+| Số bước | 13 | 55 |
+
+**Nhận xét:**
+- Hai model **hiểu lỗi giống nhau**: cùng consensus `agreed-valid`.
+- Gemini **không qua được bộ lọc ở bước verdict**: bước này yêu cầu khẳng định khai thác được xác nhận, và bị chặn 6/6 lần. Sonnet không bị chặn lần nào.
+- Gemini tốn khoảng **5,4 lần token**: đọc nhiều hơn, và mỗi lần thử lại sau khi bị chặn đều tính đủ token đầu vào.
+- Với code hiện tại, kết quả UNVERIFIED của Gemini **trông như một kết luận nhưng thực ra là lỗi bị che**. Khi chấm điểm, phải kiểm tra `reasoning` của verdict: nếu có *"the model gave no verdict"* hoặc *"No result was given"* thì phải coi là lỗi.
+
+## 7. Giới hạn của kết quả
 
 - **Kết luận tĩnh:** luật TV4 chấp nhận VALID khi hai chiều đồng thuận `agreed-valid` và trích dẫn khớp snapshot. Chưa có PoC, Halmos hay bằng chứng thực thi.
 - **BCE vẫn incomplete:** không có `--static-verdicts` thì verdict này sẽ bị hạ thành UNVERIFIED.
+- **BCE thực tế không tạo slice nào trên Megapot:** `snapshot-ingestion.ts` dừng ngay khi có bất kỳ file `.sol` nào dài hơn 120 dòng (25/61 file của snapshot vượt ngưỡng). Mọi đoạn code trong các run đều do model tự đọc bằng công cụ. `bceIncomplete` được gán cứng `true` ở `run-stages.ts`.
 - **Mới chạy 1 lần:** chưa đo được độ ổn định giữa các lần chạy, và chưa so với baseline X.
 - **Bản sửa mới chỉ áp dụng cho structured output.** Ở chế độ mặc định (run 1) vẫn có thể nộp sai pha.
 - Không có ground truth nào được đưa vào context. Finding là bản chuẩn hoá, không chứa phần mitigation hay nhãn chấm.
 
-## 7. File đi kèm
+## 8. File đi kèm
 
 | File                                                          | Nội dung                                          |
 | ------------------------------------------------------------- | -------------------------------------------------- |
-| `run1-output.txt`, `run2-output.txt`, `run3-output.txt` | Output CLI từng run (trace từng bước)          |
+| `run1-output.txt`, `run2-output.txt`, `run3-output.txt` | Output CLI từng run Sonnet (trace từng bước)          |
+| `run-gemini-output.txt` | Output CLI run Gemini |
 | `run-*-view.json`                                           | `cli view --json` từ process mới cho từng run |
 | `fix.diff`                                                  | Diff bản sửa `judge-step.ts`                   |

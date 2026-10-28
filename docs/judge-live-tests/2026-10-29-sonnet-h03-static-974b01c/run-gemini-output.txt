@@ -1,0 +1,309 @@
+[stage] ingestion ok
+── step 1
+   model call reasoning #1: 4.7k tokens, 11.7s
+   model → 1 tool call(s)
+   → glob {"pattern":"**/*"}
+   ← glob: 51 lines of output (new)
+── step 2
+   model call reasoning #1: 5.5k tokens, 5.6s
+   model → 1 tool call(s)
+   → grep {"pattern":"processDrawingSettlement"}
+   ← grep: 6 lines of output (6 new lines)
+── step 3
+   model call reasoning #1: 5.5k tokens, 2.8s
+   model → 1 tool call(s)
+   → read_file {"endLine":410,"startLine":365,"path":"contracts/JackpotLPManager.sol"}
+   ← read_file contracts/JackpotLPManager.sol:365-410 (45 new lines)
+── step 4
+   model call reasoning #1: 6.2k tokens, 3.1s
+   model → 1 tool call(s)
+   → grep {"pattern":"_calculateLpPoolCap"}
+   ← grep: 7 lines of output (7 new lines)
+── step 5
+   model call reasoning #1: 6.5k tokens, 3.2s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","startLine":700,"endLine":800}
+   ← read_file contracts/Jackpot.sol:700-800 (100 new lines)
+── step 6
+   model call reasoning #1: 7.1k tokens, 2.5s
+   model → 1 tool call(s)
+   → read_file {"startLine":790,"path":"contracts/Jackpot.sol","endLine":850}
+   ← read_file contracts/Jackpot.sol:790-850 (49 new lines)
+── step 7
+   model call reasoning #1: 7.8k tokens, 2.9s
+   model → 1 tool call(s)
+   → read_file {"startLine":845,"path":"contracts/Jackpot.sol","endLine":900}
+   ← read_file contracts/Jackpot.sol:845-900 (48 new lines)
+── step 8
+   model call reasoning #1: 8.5k tokens, 2.5s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","startLine":1440,"endLine":1500}
+   ← read_file contracts/Jackpot.sol:1440-1500 (60 new lines)
+── step 9
+   model call reasoning #1: 9.3k tokens, 3.9s
+   model → 1 tool call(s)
+   → read_file {"endLine":1540,"startLine":1490,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:1490-1540 (40 new lines)
+── step 10
+   model call reasoning #1: 10.0k tokens, 4.1s
+   model → 1 tool call(s)
+   → read_file {"startLine":150,"path":"contracts/JackpotLPManager.sol","endLine":200}
+   ← read_file contracts/JackpotLPManager.sol:150-200 (51 new lines)
+── step 11
+   model call reasoning #1: 10.6k tokens, 2.8s
+   model → 1 tool call(s)
+   → grep {"pattern":"setLPPoolCap"}
+   ← grep: 10 lines of output (4 new lines)
+── step 12
+   model call reasoning #1: 11.0k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/JackpotLPManager.sol","endLine":450,"startLine":420}
+   ← read_file contracts/JackpotLPManager.sol:420-450 (30 new lines)
+── step 13
+   model call reasoning #1: 11.3k tokens, 4.8s
+   model → 1 tool call(s)
+   → grep {"pattern":"TicketComboTracker\\.init"}
+   ← grep: 1 lines of output (nothing new)
+── step 14
+   model call reasoning #1: 11.4k tokens, 3.3s
+   model → 1 tool call(s)
+   → read_file {"startLine":100,"endLine":150,"path":"contracts/lib/TicketComboTracker.sol"}
+   ← read_file contracts/lib/TicketComboTracker.sol:100-150 (51 new lines)
+── step 15
+   model call reasoning #1: 12.0k tokens, 3.3s
+   model → 1 tool call(s)
+   → read_file {"endLine":60,"path":"contracts/lib/TicketComboTracker.sol","startLine":1}
+   ← read_file contracts/lib/TicketComboTracker.sol:1-60 (60 new lines)
+── step 16
+   model call reasoning #1: 12.6k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"endLine":100,"startLine":55,"path":"contracts/lib/TicketComboTracker.sol"}
+   ← read_file contracts/lib/TicketComboTracker.sol:55-100 (39 new lines)
+── step 17
+   model call reasoning #1: 13.1k tokens, 3.2s
+   model → 1 tool call(s)
+   → grep {"pattern":"MAX_BIT_VECTOR_SIZE"}
+   ← grep: 3 lines of output (1 new lines)
+── step 18
+   model call reasoning #1: 13.3k tokens, 2.8s
+   model → 1 tool call(s)
+   → read_file {"endLine":210,"startLine":180,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:180-210 (30 new lines)
+── step 19
+   model call reasoning #1: 13.7k tokens, 3.7s
+   model → 1 tool call(s)
+   → grep {"pattern":"governancePoolCap"}
+   ← grep: 13 lines of output (8 new lines)
+── step 20
+   model call reasoning #1: 14.1k tokens, 2.3s
+   model → 1 tool call(s)
+   → grep {"pattern":"lpPoolCap"}
+   ← grep: 17 lines of output (5 new lines)
+── step 21
+   model call reasoning #1: 14.6k tokens, 2.8s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","startLine":730,"endLine":760}
+   ← read_file contracts/Jackpot.sol:730-760 (nothing new)
+── step 22
+   model call reasoning #1: 15.0k tokens, 2.8s
+   model → 1 tool call(s)
+   → read_file {"startLine":430,"endLine":500,"path":"contracts/JackpotLPManager.sol"}
+   ← read_file contracts/JackpotLPManager.sol:430-500 (50 new lines)
+── step 23
+   model call reasoning #1: 15.7k tokens, 2.9s
+   model → 1 tool call(s)
+   → grep {"pattern":"initializeDrawingLP"}
+   ← grep: 5 lines of output (3 new lines)
+── step 24
+   model call reasoning #1: 15.9k tokens, 2.2s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/JackpotLPManager.sol","endLine":425,"startLine":400}
+   ← read_file contracts/JackpotLPManager.sol:400-425 (9 new lines)
+── step 25
+   model call reasoning #1: 16.3k tokens, 2.2s
+   model → 1 tool call(s)
+   → read_file {"endLine":1515,"path":"contracts/Jackpot.sol","startLine":1475}
+   ← read_file contracts/Jackpot.sol:1475-1515 (nothing new)
+── step 26
+   model call reasoning #1: 17.8k tokens, 11.0s
+   model → 1 tool call(s)
+   → grep {"pattern":"setLPPoolCap"}
+   ← grep: 10 lines of output (nothing new)
+── step 27
+   model call reasoning #1: 17.3k tokens, 2.0s
+   model → 1 tool call(s)
+   → read_file {"startLine":1000,"endLine":1150,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:1000-1150 (147 new lines)
+── step 28
+   model call reasoning #1: 17.9k tokens, 3.7s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","endLine":1140,"startLine":1110}
+   ← read_file contracts/Jackpot.sol:1110-1140 (nothing new)
+── step 29
+   model call reasoning #1: 18.3k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"endLine":960,"startLine":930,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:930-960 (21 new lines)
+── step 30
+   model call reasoning #1: 18.7k tokens, 2.8s
+   model → 1 tool call(s)
+   → grep {"pattern":"setLPPoolCap"}
+   ← grep: 10 lines of output (nothing new)
+── step 31
+   model call reasoning #1: 19.1k tokens, 3.5s
+   model → 1 tool call(s)
+   → read_file {"endLine":210,"path":"contracts/JackpotLPManager.sol","startLine":180}
+   ← read_file contracts/JackpotLPManager.sol:180-210 (10 new lines)
+── step 32
+   model call reasoning #1: 19.5k tokens, 2.4s
+   model → 1 tool call(s)
+   → grep {"path":"contracts/Jackpot.sol","pattern":"setLPPoolCap"}
+   ← grep: 10 lines of output (nothing new)
+── step 33
+   model call reasoning #1: 19.9k tokens, 5.2s
+   model → 1 tool call(s)
+   → read_file {"startLine":850,"path":"contracts/Jackpot.sol","endLine":900}
+   ← read_file contracts/Jackpot.sol:850-900 (nothing new)
+── step 34
+   model call reasoning #1: 20.6k tokens, 6.3s
+   model → 1 tool call(s)
+   → read_file {"startLine":700,"path":"contracts/Jackpot.sol","endLine":760}
+   ← read_file contracts/Jackpot.sol:700-760 (nothing new)
+── step 35 (forced: must answer now)
+   model call reasoning #1: 19.1k tokens, 23.3s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #2: 19.1k tokens, 31.0s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #3: 19.1k tokens, 37.1s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #4: 23.0k tokens, 24.4s
+   model → 1 tool call(s)
+   ★ Bidirectional forward result: {"reachability":"reachable","explanation":"The described code path and state change are reachable. The entropy provider calls `Jackpot.scaledEntropyCallback` (contracts/Jackpot.sol:718-748) upon drawing settle…
+   ★ Verification direction: backward
+── step 36
+   model call reasoning #1: 21.3k tokens, 3.3s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","startLine":1465,"endLine":1515}
+   ← read_file contracts/Jackpot.sol:1465-1515 (nothing new)
+── step 37
+   model call reasoning #1: 22.0k tokens, 5.1s
+   model → 1 tool call(s)
+   → read_file {"startLine":310,"path":"contracts/Jackpot.sol","endLine":360}
+   ← read_file contracts/Jackpot.sol:310-360 (51 new lines)
+── step 38
+   model call reasoning #1: 22.8k tokens, 3.5s
+   model → 1 tool call(s)
+   → read_file {"startLine":360,"path":"contracts/Jackpot.sol","endLine":410}
+   ← read_file contracts/Jackpot.sol:360-410 (50 new lines)
+── step 39
+   model call reasoning #1: 23.4k tokens, 3.8s
+   model → 1 tool call(s)
+   → read_file {"startLine":1540,"path":"contracts/Jackpot.sol","endLine":1590}
+   ← read_file contracts/Jackpot.sol:1540-1590 (50 new lines)
+── step 40
+   model call reasoning #1: 24.2k tokens, 3.9s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/Jackpot.sol","startLine":1585,"endLine":1620}
+   ← read_file contracts/Jackpot.sol:1585-1620 (30 new lines)
+── step 41
+   model call reasoning #1: 24.6k tokens, 3.5s
+   model → 1 tool call(s)
+   → read_file {"startLine":135,"endLine":145,"path":"contracts/lib/TicketComboTracker.sol"}
+   ← read_file contracts/lib/TicketComboTracker.sol:135-145 (nothing new)
+── step 42
+   model call reasoning #1: 28.0k tokens, 28.7s
+   model → 1 tool call(s)
+   → grep {"pattern":"toUint8"}
+   ← grep: 11 lines of output (10 new lines)
+── step 43
+   model call reasoning #1: 25.2k tokens, 3.5s
+   model → 1 tool call(s)
+   → read_file {"startLine":1480,"endLine":1510,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:1480-1510 (nothing new)
+── step 44
+   model call reasoning #1: 32.3k tokens, 51.4s
+   model → 1 tool call(s)
+   → grep {"path":"contracts/Jackpot.sol","pattern":"maxAllowableTickets"}
+   ← grep: 2 lines of output (nothing new)
+── step 45
+   model call reasoning #1: 25.8k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"endLine":1480,"startLine":1465,"path":"contracts/Jackpot.sol"}
+   ← read_file contracts/Jackpot.sol:1465-1480 (nothing new)
+── step 46 (forced: must answer now)
+   model call reasoning #1: 23.9k tokens, 46.7s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #2: 30.4k tokens, 44.2s
+   model → 1 tool call(s)
+   ★ Bidirectional backward result: {"reconstruction":"reconstructed","explanation":"The outcome is reconstructed. When LP pool deposits approach the pool cap and tickets are purchased during a drawing, settlement via `scaledEntropyCallback` (J…
+   ★ Bidirectional consensus: agreed-valid
+   harness: Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite ex…
+── step 47
+   model call reasoning #1: 26.4k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/lib/Combinations.sol","endLine":50,"startLine":1}
+   ← read_file contracts/lib/Combinations.sol:1-50 (50 new lines)
+── step 48
+   model call reasoning #1: 27.0k tokens, 4.8s
+   model → 1 tool call(s)
+   → read_file {"path":"contracts/lib/UintCasts.sol","startLine":20,"endLine":50}
+   ← read_file contracts/lib/UintCasts.sol:20-48 (26 new lines)
+── step 49
+   model call reasoning #1: 27.3k tokens, 2.9s
+   model → 1 tool call(s)
+   → glob {"pattern":"**/*doc*"}
+   ← glob: 1 lines of output (new)
+── step 50
+   model call reasoning #1: 27.4k tokens, 3.5s
+   model → 1 tool call(s)
+   → glob {"pattern":"**/*.md"}
+   ← glob: 1 lines of output (new)
+── step 51
+   model call reasoning #1: 27.4k tokens, 2.3s
+   model → 1 tool call(s)
+   → list_dir {}
+   ← list_dir: 4 lines of output (new)
+── step 52
+   model call reasoning #1: 27.4k tokens, 3.8s
+   model → 1 tool call(s)
+   → grep {"pattern":"pool cap"}
+   ← grep: 26 lines of output (nothing new)
+── step 53
+   model call reasoning #1: 30.0k tokens, 19.6s
+   model → 1 tool call(s)
+   → read_file {"endLine":146,"startLine":138,"path":"contracts/lib/TicketComboTracker.sol"}
+   ← read_file contracts/lib/TicketComboTracker.sol:138-146 (nothing new)
+── step 54
+   model call reasoning #1: 28.3k tokens, 3.0s
+   model → 1 tool call(s)
+   → read_file {"endLine":1515,"path":"contracts/Jackpot.sol","startLine":1490}
+   ← read_file contracts/Jackpot.sol:1490-1515 (nothing new)
+── step 55 (forced: must answer now)
+   model call reasoning #1: 26.3k tokens, 161.0s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+TimeoutNegativeWarning: -609247.9503026918 is a negative number.
+Timeout duration was set to 1.
+      at reconnect (/home/zinn/zinn/DATN/harness/node_modules/.bun/postgres@3.4.5/node_modules/postgres/src/connection.js:353:5)
+      at connect (/home/zinn/zinn/DATN/harness/node_modules/.bun/postgres@3.4.5/node_modules/postgres/src/connection.js:113:7)
+      at connect (/home/zinn/zinn/DATN/harness/node_modules/.bun/postgres@3.4.5/node_modules/postgres/src/index.js:392:7)
+      at handle (/home/zinn/zinn/DATN/harness/node_modules/.bun/postgres@3.4.5/node_modules/postgres/src/query.js:140:65)
+
+   model call reasoning #2: 26.3k tokens, 87.2s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #3: 26.3k tokens, 80.1s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #4: 26.3k tokens, 172.3s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #5: 26.3k tokens, 42.2s ERROR invalid_request/content_filter (retry): The provider's safety filter blocked the prompt (blockReason OTHER).
+   model call reasoning #6: 26.3k tokens, 148.9s ERROR invalid_request/content_filter (exhausted): The provider's safety filter blocked the prompt (blockReason OTHER).
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1793210739148
+Finding ID:   finding-1793210739148
+Snapshot ID:  snap_e6948cc616b6
+State:        completed
+----------------------------------------
+Judge Verdict:
+  Validity:          unverified
+  Status:            UNVERIFIED
+  Confidence:        LOW
+  Reason Code:       UNRESOLVED
+  Summary:           No verdict could be composed without a claimed severity.
+  Reasoning:         Both verification directions support the claim, but the model gave no verdict and the report claims no critical, high or medium severity, so the harness cannot state a valid verdict and the result remains unresolved.
+  Cites Evidence:
+    (none)
+========================================
+exit=0

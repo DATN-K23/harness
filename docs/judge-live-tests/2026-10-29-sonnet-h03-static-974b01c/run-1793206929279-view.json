@@ -1,0 +1,866 @@
+{
+  "runId": "run-1793206929279",
+  "state": "failed",
+  "stateVersion": 3,
+  "terminalReason": "schema_repair_exhausted",
+  "snapshotId": "snap_e6948cc616b6",
+  "findingId": "finding-1793206929279",
+  "verdict": null,
+  "events": [
+    {
+      "sequence": 1,
+      "type": "run.started",
+      "occurredAt": "2026-10-28T17:02:09.329Z"
+    },
+    {
+      "sequence": 2,
+      "type": "stage.started",
+      "occurredAt": "2026-10-28T17:02:09.341Z"
+    },
+    {
+      "sequence": 3,
+      "type": "stage.finished",
+      "occurredAt": "2026-10-28T17:02:09.358Z"
+    },
+    {
+      "sequence": 4,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.365Z"
+    },
+    {
+      "sequence": 5,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.374Z"
+    },
+    {
+      "sequence": 6,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.379Z"
+    },
+    {
+      "sequence": 7,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.385Z"
+    },
+    {
+      "sequence": 8,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.390Z"
+    },
+    {
+      "sequence": 9,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.395Z"
+    },
+    {
+      "sequence": 10,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.401Z"
+    },
+    {
+      "sequence": 11,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.407Z"
+    },
+    {
+      "sequence": 12,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.411Z"
+    },
+    {
+      "sequence": 13,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.416Z"
+    },
+    {
+      "sequence": 14,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.422Z"
+    },
+    {
+      "sequence": 15,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:09.426Z"
+    },
+    {
+      "sequence": 16,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:09.437Z"
+    },
+    {
+      "sequence": 17,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:09.445Z"
+    },
+    {
+      "sequence": 18,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:35.162Z"
+    },
+    {
+      "sequence": 19,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:35.183Z"
+    },
+    {
+      "sequence": 20,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:35.190Z"
+    },
+    {
+      "sequence": 21,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:35.198Z"
+    },
+    {
+      "sequence": 22,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:35.207Z"
+    },
+    {
+      "sequence": 23,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:35.215Z"
+    },
+    {
+      "sequence": 24,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:35.220Z"
+    },
+    {
+      "sequence": 25,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:35.226Z"
+    },
+    {
+      "sequence": 26,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:35.230Z"
+    },
+    {
+      "sequence": 27,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:35.235Z"
+    },
+    {
+      "sequence": 28,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:35.240Z"
+    },
+    {
+      "sequence": 29,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:35.247Z"
+    },
+    {
+      "sequence": 30,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:35.252Z"
+    },
+    {
+      "sequence": 31,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:38.785Z"
+    },
+    {
+      "sequence": 32,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:38.794Z"
+    },
+    {
+      "sequence": 33,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:38.799Z"
+    },
+    {
+      "sequence": 34,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:38.805Z"
+    },
+    {
+      "sequence": 35,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:38.811Z"
+    },
+    {
+      "sequence": 36,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:38.815Z"
+    },
+    {
+      "sequence": 37,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:38.820Z"
+    },
+    {
+      "sequence": 38,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:38.824Z"
+    },
+    {
+      "sequence": 39,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:38.828Z"
+    },
+    {
+      "sequence": 40,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:38.832Z"
+    },
+    {
+      "sequence": 41,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:38.840Z"
+    },
+    {
+      "sequence": 42,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:38.845Z"
+    },
+    {
+      "sequence": 43,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:43.029Z"
+    },
+    {
+      "sequence": 44,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:43.040Z"
+    },
+    {
+      "sequence": 45,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:43.046Z"
+    },
+    {
+      "sequence": 46,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:43.050Z"
+    },
+    {
+      "sequence": 47,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:43.083Z"
+    },
+    {
+      "sequence": 48,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:43.088Z"
+    },
+    {
+      "sequence": 49,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:43.092Z"
+    },
+    {
+      "sequence": 50,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:43.098Z"
+    },
+    {
+      "sequence": 51,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:43.101Z"
+    },
+    {
+      "sequence": 52,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:43.105Z"
+    },
+    {
+      "sequence": 53,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:43.112Z"
+    },
+    {
+      "sequence": 54,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:43.116Z"
+    },
+    {
+      "sequence": 55,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:46.936Z"
+    },
+    {
+      "sequence": 56,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:46.946Z"
+    },
+    {
+      "sequence": 57,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:46.953Z"
+    },
+    {
+      "sequence": 58,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:46.958Z"
+    },
+    {
+      "sequence": 59,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:46.964Z"
+    },
+    {
+      "sequence": 60,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:46.969Z"
+    },
+    {
+      "sequence": 61,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:46.973Z"
+    },
+    {
+      "sequence": 62,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:46.976Z"
+    },
+    {
+      "sequence": 63,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:46.980Z"
+    },
+    {
+      "sequence": 64,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:46.985Z"
+    },
+    {
+      "sequence": 65,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:46.992Z"
+    },
+    {
+      "sequence": 66,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:46.997Z"
+    },
+    {
+      "sequence": 67,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:50.355Z"
+    },
+    {
+      "sequence": 68,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:50.363Z"
+    },
+    {
+      "sequence": 69,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:50.367Z"
+    },
+    {
+      "sequence": 70,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:50.371Z"
+    },
+    {
+      "sequence": 71,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:50.394Z"
+    },
+    {
+      "sequence": 72,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:50.399Z"
+    },
+    {
+      "sequence": 73,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:50.405Z"
+    },
+    {
+      "sequence": 74,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:50.408Z"
+    },
+    {
+      "sequence": 75,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:50.412Z"
+    },
+    {
+      "sequence": 76,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:50.415Z"
+    },
+    {
+      "sequence": 77,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:50.423Z"
+    },
+    {
+      "sequence": 78,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:50.427Z"
+    },
+    {
+      "sequence": 79,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:53.606Z"
+    },
+    {
+      "sequence": 80,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:53.616Z"
+    },
+    {
+      "sequence": 81,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:53.620Z"
+    },
+    {
+      "sequence": 82,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:53.627Z"
+    },
+    {
+      "sequence": 83,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:53.632Z"
+    },
+    {
+      "sequence": 84,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:53.637Z"
+    },
+    {
+      "sequence": 85,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:53.645Z"
+    },
+    {
+      "sequence": 86,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:53.650Z"
+    },
+    {
+      "sequence": 87,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:56.514Z"
+    },
+    {
+      "sequence": 88,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:56.522Z"
+    },
+    {
+      "sequence": 89,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:56.526Z"
+    },
+    {
+      "sequence": 90,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:56.532Z"
+    },
+    {
+      "sequence": 91,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:56.536Z"
+    },
+    {
+      "sequence": 92,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:56.541Z"
+    },
+    {
+      "sequence": 93,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:56.547Z"
+    },
+    {
+      "sequence": 94,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:56.553Z"
+    },
+    {
+      "sequence": 95,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:02:59.098Z"
+    },
+    {
+      "sequence": 96,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:02:59.111Z"
+    },
+    {
+      "sequence": 97,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:02:59.118Z"
+    },
+    {
+      "sequence": 98,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:02:59.123Z"
+    },
+    {
+      "sequence": 99,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:59.127Z"
+    },
+    {
+      "sequence": 100,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:02:59.132Z"
+    },
+    {
+      "sequence": 101,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:02:59.139Z"
+    },
+    {
+      "sequence": 102,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:02:59.144Z"
+    },
+    {
+      "sequence": 103,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:03:01.877Z"
+    },
+    {
+      "sequence": 104,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:03:01.894Z"
+    },
+    {
+      "sequence": 105,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:03:01.898Z"
+    },
+    {
+      "sequence": 106,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:03:01.903Z"
+    },
+    {
+      "sequence": 107,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:01.906Z"
+    },
+    {
+      "sequence": 108,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:01.911Z"
+    },
+    {
+      "sequence": 109,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:03:01.918Z"
+    },
+    {
+      "sequence": 110,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:03:01.922Z"
+    },
+    {
+      "sequence": 111,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:03:04.977Z"
+    },
+    {
+      "sequence": 112,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:03:04.986Z"
+    },
+    {
+      "sequence": 113,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:03:04.990Z"
+    },
+    {
+      "sequence": 114,
+      "type": "tool.failed",
+      "occurredAt": "2026-10-28T17:03:04.994Z"
+    },
+    {
+      "sequence": 115,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:04.999Z"
+    },
+    {
+      "sequence": 116,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:05.004Z"
+    },
+    {
+      "sequence": 117,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:05.007Z"
+    },
+    {
+      "sequence": 118,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:03:05.015Z"
+    },
+    {
+      "sequence": 119,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:03:05.020Z"
+    },
+    {
+      "sequence": 120,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:03:07.657Z"
+    },
+    {
+      "sequence": 121,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:03:07.670Z"
+    },
+    {
+      "sequence": 122,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:03:07.675Z"
+    },
+    {
+      "sequence": 123,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:03:07.679Z"
+    },
+    {
+      "sequence": 124,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:07.683Z"
+    },
+    {
+      "sequence": 125,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:07.687Z"
+    },
+    {
+      "sequence": 126,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:03:07.693Z"
+    },
+    {
+      "sequence": 127,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:03:07.697Z"
+    },
+    {
+      "sequence": 128,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:03:46.087Z"
+    },
+    {
+      "sequence": 129,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:03:46.106Z"
+    },
+    {
+      "sequence": 130,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:03:46.111Z"
+    },
+    {
+      "sequence": 131,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:46.116Z"
+    },
+    {
+      "sequence": 132,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:46.121Z"
+    },
+    {
+      "sequence": 133,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:03:46.128Z"
+    },
+    {
+      "sequence": 134,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:03:46.132Z"
+    },
+    {
+      "sequence": 135,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:03:51.360Z"
+    },
+    {
+      "sequence": 136,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:03:51.368Z"
+    },
+    {
+      "sequence": 137,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:03:51.372Z"
+    },
+    {
+      "sequence": 138,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:03:51.377Z"
+    },
+    {
+      "sequence": 139,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:03:51.382Z"
+    },
+    {
+      "sequence": 140,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:03:51.385Z"
+    },
+    {
+      "sequence": 141,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:51.390Z"
+    },
+    {
+      "sequence": 142,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:51.396Z"
+    },
+    {
+      "sequence": 143,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:51.399Z"
+    },
+    {
+      "sequence": 144,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:51.403Z"
+    },
+    {
+      "sequence": 145,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:03:51.406Z"
+    },
+    {
+      "sequence": 146,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:03:51.412Z"
+    },
+    {
+      "sequence": 147,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:03:51.417Z"
+    },
+    {
+      "sequence": 148,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:04:32.757Z"
+    },
+    {
+      "sequence": 149,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:04:32.789Z"
+    },
+    {
+      "sequence": 150,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:04:32.792Z"
+    },
+    {
+      "sequence": 151,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:32.797Z"
+    },
+    {
+      "sequence": 152,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:32.801Z"
+    },
+    {
+      "sequence": 153,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:04:32.809Z"
+    },
+    {
+      "sequence": 154,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:04:32.813Z"
+    },
+    {
+      "sequence": 155,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:04:37.718Z"
+    },
+    {
+      "sequence": 156,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:04:37.728Z"
+    },
+    {
+      "sequence": 157,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:04:37.732Z"
+    },
+    {
+      "sequence": 158,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:04:37.735Z"
+    },
+    {
+      "sequence": 159,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:04:37.755Z"
+    },
+    {
+      "sequence": 160,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:04:37.761Z"
+    },
+    {
+      "sequence": 161,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:37.765Z"
+    },
+    {
+      "sequence": 162,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:37.769Z"
+    },
+    {
+      "sequence": 163,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:37.773Z"
+    },
+    {
+      "sequence": 164,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:37.776Z"
+    },
+    {
+      "sequence": 165,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:04:37.780Z"
+    },
+    {
+      "sequence": 166,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:04:37.788Z"
+    },
+    {
+      "sequence": 167,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:04:37.792Z"
+    },
+    {
+      "sequence": 168,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:05:17.871Z"
+    },
+    {
+      "sequence": 169,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:05:17.890Z"
+    },
+    {
+      "sequence": 170,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:05:17.894Z"
+    },
+    {
+      "sequence": 171,
+      "type": "run.failed",
+      "occurredAt": "2026-10-28T17:05:17.898Z"
+    }
+  ]
+}

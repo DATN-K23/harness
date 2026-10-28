@@ -1,0 +1,872 @@
+{
+  "runId": "run-1793209079926",
+  "state": "completed",
+  "stateVersion": 3,
+  "snapshotId": "snap_e6948cc616b6",
+  "findingId": "finding-1793209079926",
+  "verdict": {
+    "runId": "run-1793209079926",
+    "report": {
+      "impact": "DOS or silent state corruption in ticket combo tracking for subsequent drawings. Payout calculations become incorrect or impossible. Users purchasing tickets at the maximum bonusball value experience failures. This violates the documented invariant that lpPoolTotal + pendingDeposits <= governancePoolCap and the bit-vector constraint bonusBallMax + normalBallMax <= 255.",
+      "rootCause": "processDrawingSettlement (JackpotLPManager.sol:388-391) returns newLPValue without capping it to _calculateLpPoolCap's safe limit. The cap is enforced only for new deposits (JackpotLPManager.sol:185) but not for LP earnings accumulated during a drawing. Admin functions call _calculateLpPoolCap and update lpPoolCap, but settlement does not.",
+      "attackPath": "1. LP pool is just below the cap computed by _calculateLpPoolCap. 2. A drawing settles without a jackpot winner; LP earns up to 30% edge. 3. processDrawingSettlement returns newLPValue exceeding the safe limit. 4. _setNewDrawingState uses this value to compute newBonusball, which exceeds 255-normalBallMax. 5. On the next ticket purchase, TicketComboTracker.insert computes 1 << (_bonusball + normalMax) with _bonusball + normalMax >= 256, returning 0 and silently corrupting the combo tracking bit vector.",
+      "remediation": "In _setNewDrawingState (or in processDrawingSettlement before returning newLPValue), cap newLPValue to _calculateLpPoolCap(normalBallMax). Alternatively, after computing newBonusball, add an assertion/check that newBonusball + normalBallMax <= MAX_BIT_VECTOR_SIZE (255) and revert or cap newLPValue if exceeded. Additionally, update lpPoolCap after each settlement to reflect the actual post-settlement LP value so it remains consistent.",
+      "executiveSummary": "The LP pool cap enforced for deposits is not applied during drawing settlement. LP earnings (up to 30% per draw) can push the pool value above the safety threshold computed by _calculateLpPoolCap, causing bonusballMax to exceed 255-normalBallMax. This violates the bit-vector packing constraint in TicketComboTracker, corrupting ticket tracking for subsequent drawings."
+    },
+    "summary": "LP pool cap is not enforced in processDrawingSettlement, allowing LP earnings to push newLPValue above the safety limit computed by _calculateLpPoolCap, causing bonusballMax to exceed 255-normalBallMax, which causes overflow/DOS in TicketComboTracker.insert during ticket purchases",
+    "severity": "HIGH",
+    "validity": "valid",
+    "findingId": "finding-1793209079926",
+    "reasoning": "The finding is confirmed by source reading through the following chain:\n\n1. `processDrawingSettlement` (JackpotLPManager.sol:388-391) computes `newLPValue = postDrawLpValue + currentLP.pendingDeposits - withdrawalsInUSDC` with no cap check. LP earnings can grow the pool by up to 30% (lpEdgeTarget) per draw.\n\n2. The deposit cap check at JackpotLPManager.sol:185 (`if (_amount + totalPoolValue > lpPoolCap) revert`) only applies to new deposits, not to settlement earnings.\n\n3. This uncapped `newLPValue` is passed to `_setNewDrawingState` (Jackpot.sol:1478-1507). At lines 1494-1497, `newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball)))`. If `newLPValue` exceeds the value `_calculateLpPoolCap` would return for the current normalBallMax, `newBonusball` will exceed `255 - normalBallMax` (since `MAX_BIT_VECTOR_SIZE = 255`).\n\n4. `_calculateLpPoolCap` (Jackpot.sol:1469-1476) computes the safe limit: `maxAllowableTickets = Combinations.choose(_normalBallMax, NORMAL_BALL_COUNT) * (MAX_BIT_VECTOR_SIZE - _normalBallMax)`. This function is called by admin governance functions (setNormalBallMax, setGovernancePoolCap, etc.) but NOT during drawing settlement.\n\n5. Once `newBonusball + normalBallMax >= 256`, subsequent ticket purchases will call `TicketComboTracker.insert` which executes `ticketNumbers = set |= 1 << (_bonusball + _tracker.normalMax)` (TicketComboTracker.sol:142). In Solidity 0.8+, a shift by >= 256 bits on a uint256 returns 0 (no revert), causing silent corruption of the bit vector tracking logic, leading to incorrect payout calculations or DOS scenarios.\n\nThe path is fully reachable: entropy callback → processDrawingSettlement → _setNewDrawingState → bonusballMax overflow. No blocking checks exist between LP earnings accumulation and the bonusball computation.",
+    "confidence": "HIGH",
+    "reasonCode": "EXPLOIT_CONFIRMED",
+    "traceDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "citesEvidence": [
+      {
+        "endLine": 391,
+        "snippet": "        \n        // Convert pending withdrawals to usdc to calculate the new lp value\n        uint256 withdrawalsInUSDC = currentLP.pendingWithdrawals * newAccumulator / PRECISE_UNIT;\n        newLPValue = postDrawLpValue + currentLP.pendingDeposits - withdrawalsInUSDC;",
+        "filePath": "contracts/JackpotLPManager.sol",
+        "startLine": 388,
+        "explanation": "processDrawingSettlement returns newLPValue computed without any cap check: LP earnings can push it above the safe limit enforced by _calculateLpPoolCap",
+        "contentDigest": "sha256:e756679fe6f6c6d8527e4ac2ec4b387495d1e1410d56fa2d4d8a8fa1a51e014e"
+      },
+      {
+        "endLine": 186,
+        "snippet": "        // check more conservative.\n        uint256 totalPoolValue = lpDrawingState[_drawingId].lpPoolTotal + lpDrawingState[_drawingId].pendingDeposits;\n        if (_amount + totalPoolValue > lpPoolCap) revert JackpotErrors.ExceedsPoolCap();\n",
+        "filePath": "contracts/JackpotLPManager.sol",
+        "startLine": 183,
+        "explanation": "processDeposit enforces the pool cap only for new deposits, not for LP earnings during drawing settlement",
+        "contentDigest": "sha256:c716a8a24cd304e2f9f9eef64cac3f6502ee573dc15497337cf30d7af861c705"
+      },
+      {
+        "endLine": 1476,
+        "snippet": "    function _calculateLpPoolCap(uint256 _normalBallMax) internal view returns (uint256) {\n        // We use MAX_BIT_VECTOR_SIZE because that's the max number that can be packed in a uint256 bit vector\n        uint256 maxAllowableTickets = Combinations.choose(_normalBallMax, NORMAL_BALL_COUNT) * (MAX_BIT_VECTOR_SIZE - _normalBallMax);\n        uint256 maxPrizePool = maxAllowableTickets * ticketPrice * (PRECISE_UNIT - lpEdgeTarget) / PRECISE_UNIT;\n\n        // We need to make sure that the lpPoolCap is not greater than the governance pool cap\n        return Math.min(maxPrizePool * PRECISE_UNIT / (PRECISE_UNIT - reserveRatio), governancePoolCap);\n    }",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 1469,
+        "explanation": "_calculateLpPoolCap computes the safe maximum LP value (ensuring bonusBallMax + normalBallMax <= MAX_BIT_VECTOR_SIZE=255), but is NOT called during settlement",
+        "contentDigest": "sha256:f5bf46029c5994fe23dc4d34a9b56b7012a99d9bf854e16ba8b2e23796ce3b4b"
+      },
+      {
+        "endLine": 1497,
+        "snippet": "        uint256 combosPerBonusball = Combinations.choose(normalBallMax, NORMAL_BALL_COUNT);\n        uint256 minNumberTickets = newPrizePool * PRECISE_UNIT / ((PRECISE_UNIT - lpEdgeTarget) * ticketPrice);\n        uint8 newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball)));\n        newDrawingState.bonusballMax = newBonusball;",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 1494,
+        "explanation": "_setNewDrawingState computes newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball))). If newLPValue exceeds the safe limit, newBonusball > 255-normalBallMax",
+        "contentDigest": "sha256:07316a55415b4faae6bf3f0ba069700386fbd804e7372e54a86030cfebf21397"
+      },
+      {
+        "endLine": 748,
+        "snippet": "            uint256 newLpValue,\n            uint256 newAccumulatorValue\n        ) = jackpotLPManager.processDrawingSettlement(\n            currentDrawingId,\n            currentDrawingState.lpEarnings,\n            drawingUserWinnings,\n            protocolFeeAmount\n        );\n\n        _setNewDrawingState(newLpValue, currentDrawingState.drawingTime + drawingDurationInSeconds);\n        emit JackpotSettled(currentDrawingId - 1, currentDrawingState.globalTicketsBought, drawingUserWinnings, _randomNumbers[1][0].toUint8(), winningNumbers, newAccumulatorValue);",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 738,
+        "explanation": "scaledEntropyCallback passes uncapped newLpValue from processDrawingSettlement directly to _setNewDrawingState",
+        "contentDigest": "sha256:9e6bbc7dc511f5da716763c973dd420367985e57920b1528b839fa569a081fc2"
+      },
+      {
+        "endLine": 142,
+        "snippet": "        ticketNumbers = set |= 1 << (_bonusball + _tracker.normalMax);",
+        "filePath": "contracts/lib/TicketComboTracker.sol",
+        "startLine": 142,
+        "explanation": "insert computes 1 << (_bonusball + _tracker.normalMax). If _bonusball + normalMax >= 256, this bit-shift is silently incorrect (uint256 shift by >= 256 = 0 in Solidity), corrupting the bit vector tracking",
+        "contentDigest": "sha256:33f39e871a8640ab6b4819ec7fffb4c6c760f9d3e0832a08a4427fd0527834ac"
+      },
+      {
+        "endLine": 185,
+        "snippet": "        if (_amount + totalPoolValue > lpPoolCap) revert JackpotErrors.ExceedsPoolCap();",
+        "filePath": "contracts/JackpotLPManager.sol",
+        "startLine": 185,
+        "explanation": "Referred to in the model's reasoning; lines read from the snapshot by the harness.",
+        "contentDigest": "sha256:a7818ef20b0a342ce4ec450b36391754435cda04dc72c4e0f3c0c5ffb5b1e196"
+      },
+      {
+        "endLine": 1507,
+        "snippet": "    function _setNewDrawingState(uint256 _newLpValue, uint256 _nextDrawingTime) internal {\n        currentDrawingId++;\n\n        jackpotLPManager.initializeDrawingLP(currentDrawingId, _newLpValue);\n\n        DrawingState storage newDrawingState = drawingState[currentDrawingId];\n        uint256 newPrizePool = _newLpValue * (PRECISE_UNIT - reserveRatio) / PRECISE_UNIT;\n        newDrawingState.prizePool = newPrizePool;\n        newDrawingState.ticketPrice = ticketPrice;\n        newDrawingState.edgePerTicket = lpEdgeTarget * ticketPrice / PRECISE_UNIT;\n        newDrawingState.globalTicketsBought = 0;\n        newDrawingState.lpEarnings = 0;\n        newDrawingState.ballMax = normalBallMax;\n        newDrawingState.drawingTime = _nextDrawingTime;\n        newDrawingState.jackpotLock = false;\n\n        uint256 combosPerBonusball = Combinations.choose(normalBallMax, NORMAL_BALL_COUNT);\n        uint256 minNumberTickets = newPrizePool * PRECISE_UNIT / ((PRECISE_UNIT - lpEdgeTarget) * ticketPrice);\n        uint8 newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball)));\n        newDrawingState.bonusballMax = newBonusball;\n        \n        TicketComboTracker.init(drawingEntries[currentDrawingId], normalBallMax, newBonusball, NORMAL_BALL_COUNT);\n\n        // Note: we want to set this when we set the payouts because it is important to the product that the targeted\n        // guaranteed minimums are calculated net of the correct referral win share. It is grouped here with `setDrawingTierInfo`\n        // to emphasize this relationship.\n        newDrawingState.referralWinShare = referralWinShare;\n        payoutCalculator.setDrawingTierInfo(currentDrawingId);\n\n        emit NewDrawingInitialized(",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 1478,
+        "explanation": "Referred to in the model's reasoning; lines read from the snapshot by the harness.",
+        "contentDigest": "sha256:41dad6bca173d8d40f882779e40074aa83092e95d11837ad277ef46d3778597b"
+      },
+      {
+        "endLine": 748,
+        "snippet": "    function scaledEntropyCallback(\n        bytes32,\n        uint256[][] memory _randomNumbers,\n        bytes memory\n    )\n        external\n        nonReentrant\n        onlyEntropy\n    {\n        // Note: in previous versions we had an entropyCallbackLock to prevent double calls, but this is no longer needed\n        // since we use the currentDrawingState - if the scaledEntropyCallback call succeeded then currentDrawingState\n        // would be the next drawing and jackpotLock would be false\n        DrawingState storage currentDrawingState = drawingState[currentDrawingId];\n        if (!currentDrawingState.jackpotLock) revert JackpotErrors.JackpotNotLocked();\n\n        (uint256 winningNumbers, uint256 drawingUserWinnings) = _calculateDrawingUserWinnings(currentDrawingState, _randomNumbers);\n        currentDrawingState.winningTicket = winningNumbers;\n\n        uint256 protocolFeeAmount = _transferProtocolFee(currentDrawingState.lpEarnings, drawingUserWinnings);\n\n        (\n            uint256 newLpValue,\n            uint256 newAccumulatorValue\n        ) = jackpotLPManager.processDrawingSettlement(\n            currentDrawingId,\n            currentDrawingState.lpEarnings,\n            drawingUserWinnings,\n            protocolFeeAmount\n        );\n\n        _setNewDrawingState(newLpValue, currentDrawingState.drawingTime + drawingDurationInSeconds);\n        emit JackpotSettled(currentDrawingId - 1, currentDrawingState.globalTicketsBought, drawingUserWinnings, _randomNumbers[1][0].toUint8(), winningNumbers, newAccumulatorValue);",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 717,
+        "explanation": "Referred to in the model's reasoning; lines read from the snapshot by the harness.",
+        "contentDigest": "sha256:1853129459cc6f67eff1f718702b757096c2eb1faec9a37d6067c2ecd88b1449"
+      },
+      {
+        "endLine": 392,
+        "snippet": "    function processDrawingSettlement(\n        uint256 _drawingId,\n        uint256 _lpEarnings,\n        uint256 _userWinnings,\n        uint256 _protocolFeeAmount\n    ) external onlyJackpot() returns (uint256 newLPValue, uint256 newAccumulator) {\n        LPDrawingState storage currentLP = lpDrawingState[_drawingId];\n        uint256 postDrawLpValue = currentLP.lpPoolTotal + _lpEarnings - _userWinnings - _protocolFeeAmount;\n\n        // Note: we don't need to update the accumulator for the first drawing (0) since it's already set to PRECISE_UNIT\n        if (_drawingId > 0) {\n            // When setting for drawingId we need to use the accumulator from the previous drawing. If LP was 0 in previous\n            // drawing then we need to set the accumulator to PRECISE_UNIT to avoid division by zero.\n            newAccumulator = currentLP.lpPoolTotal == 0 ? PRECISE_UNIT :\n                (drawingAccumulator[_drawingId - 1] * postDrawLpValue) / currentLP.lpPoolTotal;\n            drawingAccumulator[_drawingId] = newAccumulator;\n        }\n        \n        // Convert pending withdrawals to usdc to calculate the new lp value\n        uint256 withdrawalsInUSDC = currentLP.pendingWithdrawals * newAccumulator / PRECISE_UNIT;\n        newLPValue = postDrawLpValue + currentLP.pendingDeposits - withdrawalsInUSDC;\n    }",
+        "filePath": "contracts/JackpotLPManager.sol",
+        "startLine": 371,
+        "explanation": "Referred to in the model's reasoning; lines read from the snapshot by the harness.",
+        "contentDigest": "sha256:9e1d5efed5133d1da6f4b5e71b34e5814ea361ec937ee4cdce7fbde73ed89510"
+      },
+      {
+        "endLine": 1496,
+        "snippet": "        uint8 newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball)));",
+        "filePath": "contracts/Jackpot.sol",
+        "startLine": 1496,
+        "explanation": "Referred to in the model's reasoning; lines read from the snapshot by the harness.",
+        "contentDigest": "sha256:945d173164d7cdee7c0cacec7ee94e6f1856049119095bd0fede5a94300afc66"
+      }
+    ],
+    "classification": {
+      "name": "Missing cap enforcement during settlement / Arithmetic boundary violation",
+      "standardId": "CWE-190"
+    },
+    "verificationStatus": "PASS"
+  },
+  "events": [
+    {
+      "sequence": 1,
+      "type": "run.started",
+      "occurredAt": "2026-10-28T17:37:59.973Z"
+    },
+    {
+      "sequence": 2,
+      "type": "stage.started",
+      "occurredAt": "2026-10-28T17:37:59.985Z"
+    },
+    {
+      "sequence": 3,
+      "type": "stage.finished",
+      "occurredAt": "2026-10-28T17:38:00.000Z"
+    },
+    {
+      "sequence": 4,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.009Z"
+    },
+    {
+      "sequence": 5,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.017Z"
+    },
+    {
+      "sequence": 6,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.023Z"
+    },
+    {
+      "sequence": 7,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.028Z"
+    },
+    {
+      "sequence": 8,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.033Z"
+    },
+    {
+      "sequence": 9,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.037Z"
+    },
+    {
+      "sequence": 10,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.042Z"
+    },
+    {
+      "sequence": 11,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.048Z"
+    },
+    {
+      "sequence": 12,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.052Z"
+    },
+    {
+      "sequence": 13,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.056Z"
+    },
+    {
+      "sequence": 14,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.061Z"
+    },
+    {
+      "sequence": 15,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.066Z"
+    },
+    {
+      "sequence": 16,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.071Z"
+    },
+    {
+      "sequence": 17,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.079Z"
+    },
+    {
+      "sequence": 18,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:00.084Z"
+    },
+    {
+      "sequence": 19,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:00.094Z"
+    },
+    {
+      "sequence": 20,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:00.100Z"
+    },
+    {
+      "sequence": 21,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:05.199Z"
+    },
+    {
+      "sequence": 22,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:05.211Z"
+    },
+    {
+      "sequence": 23,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:05.218Z"
+    },
+    {
+      "sequence": 24,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:05.223Z"
+    },
+    {
+      "sequence": 25,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:05.231Z"
+    },
+    {
+      "sequence": 26,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:05.238Z"
+    },
+    {
+      "sequence": 27,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:05.242Z"
+    },
+    {
+      "sequence": 28,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:05.248Z"
+    },
+    {
+      "sequence": 29,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:05.255Z"
+    },
+    {
+      "sequence": 30,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:05.259Z"
+    },
+    {
+      "sequence": 31,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:05.264Z"
+    },
+    {
+      "sequence": 32,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:05.271Z"
+    },
+    {
+      "sequence": 33,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:05.276Z"
+    },
+    {
+      "sequence": 34,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:08.635Z"
+    },
+    {
+      "sequence": 35,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:08.654Z"
+    },
+    {
+      "sequence": 36,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:08.659Z"
+    },
+    {
+      "sequence": 37,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:08.664Z"
+    },
+    {
+      "sequence": 38,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:08.670Z"
+    },
+    {
+      "sequence": 39,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:08.675Z"
+    },
+    {
+      "sequence": 40,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:08.679Z"
+    },
+    {
+      "sequence": 41,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:08.684Z"
+    },
+    {
+      "sequence": 42,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:08.688Z"
+    },
+    {
+      "sequence": 43,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:08.693Z"
+    },
+    {
+      "sequence": 44,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:08.700Z"
+    },
+    {
+      "sequence": 45,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:08.706Z"
+    },
+    {
+      "sequence": 46,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:11.900Z"
+    },
+    {
+      "sequence": 47,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:11.908Z"
+    },
+    {
+      "sequence": 48,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:11.913Z"
+    },
+    {
+      "sequence": 49,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:11.918Z"
+    },
+    {
+      "sequence": 50,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:11.948Z"
+    },
+    {
+      "sequence": 51,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:11.953Z"
+    },
+    {
+      "sequence": 52,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:11.958Z"
+    },
+    {
+      "sequence": 53,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:11.964Z"
+    },
+    {
+      "sequence": 54,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:11.969Z"
+    },
+    {
+      "sequence": 55,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:11.974Z"
+    },
+    {
+      "sequence": 56,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:11.982Z"
+    },
+    {
+      "sequence": 57,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:11.988Z"
+    },
+    {
+      "sequence": 58,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:15.740Z"
+    },
+    {
+      "sequence": 59,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:15.750Z"
+    },
+    {
+      "sequence": 60,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:15.755Z"
+    },
+    {
+      "sequence": 61,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:15.761Z"
+    },
+    {
+      "sequence": 62,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:15.766Z"
+    },
+    {
+      "sequence": 63,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:15.771Z"
+    },
+    {
+      "sequence": 64,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:15.776Z"
+    },
+    {
+      "sequence": 65,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:15.780Z"
+    },
+    {
+      "sequence": 66,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:15.787Z"
+    },
+    {
+      "sequence": 67,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:15.793Z"
+    },
+    {
+      "sequence": 68,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:15.799Z"
+    },
+    {
+      "sequence": 69,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:15.804Z"
+    },
+    {
+      "sequence": 70,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:20.076Z"
+    },
+    {
+      "sequence": 71,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:20.089Z"
+    },
+    {
+      "sequence": 72,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:20.096Z"
+    },
+    {
+      "sequence": 73,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:20.100Z"
+    },
+    {
+      "sequence": 74,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:20.123Z"
+    },
+    {
+      "sequence": 75,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:20.128Z"
+    },
+    {
+      "sequence": 76,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:20.132Z"
+    },
+    {
+      "sequence": 77,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:20.135Z"
+    },
+    {
+      "sequence": 78,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:20.139Z"
+    },
+    {
+      "sequence": 79,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:20.145Z"
+    },
+    {
+      "sequence": 80,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:20.153Z"
+    },
+    {
+      "sequence": 81,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:20.157Z"
+    },
+    {
+      "sequence": 82,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:23.363Z"
+    },
+    {
+      "sequence": 83,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:23.372Z"
+    },
+    {
+      "sequence": 84,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:23.376Z"
+    },
+    {
+      "sequence": 85,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:23.380Z"
+    },
+    {
+      "sequence": 86,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:23.386Z"
+    },
+    {
+      "sequence": 87,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:23.390Z"
+    },
+    {
+      "sequence": 88,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:23.394Z"
+    },
+    {
+      "sequence": 89,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:23.398Z"
+    },
+    {
+      "sequence": 90,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:23.402Z"
+    },
+    {
+      "sequence": 91,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:23.406Z"
+    },
+    {
+      "sequence": 92,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:23.413Z"
+    },
+    {
+      "sequence": 93,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:23.420Z"
+    },
+    {
+      "sequence": 94,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:26.245Z"
+    },
+    {
+      "sequence": 95,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:26.255Z"
+    },
+    {
+      "sequence": 96,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:26.259Z"
+    },
+    {
+      "sequence": 97,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:26.265Z"
+    },
+    {
+      "sequence": 98,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:26.270Z"
+    },
+    {
+      "sequence": 99,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:26.274Z"
+    },
+    {
+      "sequence": 100,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:26.278Z"
+    },
+    {
+      "sequence": 101,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:26.283Z"
+    },
+    {
+      "sequence": 102,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:26.287Z"
+    },
+    {
+      "sequence": 103,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:26.295Z"
+    },
+    {
+      "sequence": 104,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:26.304Z"
+    },
+    {
+      "sequence": 105,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:26.311Z"
+    },
+    {
+      "sequence": 106,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:30.425Z"
+    },
+    {
+      "sequence": 107,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:30.439Z"
+    },
+    {
+      "sequence": 108,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:30.445Z"
+    },
+    {
+      "sequence": 109,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:30.450Z"
+    },
+    {
+      "sequence": 110,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:30.472Z"
+    },
+    {
+      "sequence": 111,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:30.478Z"
+    },
+    {
+      "sequence": 112,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:30.481Z"
+    },
+    {
+      "sequence": 113,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:30.485Z"
+    },
+    {
+      "sequence": 114,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:30.488Z"
+    },
+    {
+      "sequence": 115,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:30.494Z"
+    },
+    {
+      "sequence": 116,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:30.500Z"
+    },
+    {
+      "sequence": 117,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:30.505Z"
+    },
+    {
+      "sequence": 118,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:32.933Z"
+    },
+    {
+      "sequence": 119,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:32.942Z"
+    },
+    {
+      "sequence": 120,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:32.946Z"
+    },
+    {
+      "sequence": 121,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:32.952Z"
+    },
+    {
+      "sequence": 122,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:32.956Z"
+    },
+    {
+      "sequence": 123,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:32.960Z"
+    },
+    {
+      "sequence": 124,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:32.967Z"
+    },
+    {
+      "sequence": 125,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:32.973Z"
+    },
+    {
+      "sequence": 126,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:35.494Z"
+    },
+    {
+      "sequence": 127,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:35.503Z"
+    },
+    {
+      "sequence": 128,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:38:35.508Z"
+    },
+    {
+      "sequence": 129,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:38:35.513Z"
+    },
+    {
+      "sequence": 130,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:35.517Z"
+    },
+    {
+      "sequence": 131,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:35.521Z"
+    },
+    {
+      "sequence": 132,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:35.525Z"
+    },
+    {
+      "sequence": 133,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:35.534Z"
+    },
+    {
+      "sequence": 134,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:35.538Z"
+    },
+    {
+      "sequence": 135,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:38:56.867Z"
+    },
+    {
+      "sequence": 136,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:38:56.908Z"
+    },
+    {
+      "sequence": 137,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:56.913Z"
+    },
+    {
+      "sequence": 138,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:38:56.919Z"
+    },
+    {
+      "sequence": 139,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:38:56.925Z"
+    },
+    {
+      "sequence": 140,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:38:56.930Z"
+    },
+    {
+      "sequence": 141,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:39:19.097Z"
+    },
+    {
+      "sequence": 142,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:39:19.113Z"
+    },
+    {
+      "sequence": 143,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:39:19.117Z"
+    },
+    {
+      "sequence": 144,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:39:19.122Z"
+    },
+    {
+      "sequence": 145,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:39:19.126Z"
+    },
+    {
+      "sequence": 146,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:39:19.133Z"
+    },
+    {
+      "sequence": 147,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:39:19.139Z"
+    },
+    {
+      "sequence": 148,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:40:00.831Z"
+    },
+    {
+      "sequence": 149,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:40:00.848Z"
+    },
+    {
+      "sequence": 150,
+      "type": "run.completed",
+      "occurredAt": "2026-10-28T17:40:00.861Z"
+    }
+  ]
+}

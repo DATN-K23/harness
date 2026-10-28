@@ -43,7 +43,14 @@ import {
   mustAnswerNow,
   stepsStillNeeded,
 } from "../judge/step-budget"
-import { offersSubmission, submitVerdictTool, submitVerificationTool, submittedText } from "../judge/structured-output"
+import {
+  offersSubmission,
+  SubmitVerdictToolName,
+  SubmitVerificationToolName,
+  submitVerdictTool,
+  submitVerificationTool,
+  submittedText,
+} from "../judge/structured-output"
 import { unverifiedVerdict, withheldVerdict } from "../judge/unverified-verdict"
 import { withReferencedEvidence } from "../judge/evidence-references"
 import { composeConsensusVerdict, reportSeverity, staticVerdictDecision } from "../judge/verdict-policy"
@@ -420,7 +427,17 @@ export class JudgeStep {
             : forced
               ? { toolsDisabled: true }
               : offersSubmission(request.tools ?? [])
-                ? { toolChoice: "required" as const }
+                // A pending direction may submit only its own result: offered submit_verdict, Claude Sonnet submitted
+                // a verdict during the backward direction until its repairs ran out (2026-10-29).
+                ? pending !== undefined
+                  ? {
+                      tools: [
+                        ...(request.tools ?? []).filter((tool) => tool.name !== SubmitVerdictToolName && tool.name !== SubmitVerificationToolName),
+                        submitVerificationTool(pending),
+                      ],
+                      toolChoice: "required" as const,
+                    }
+                  : { toolChoice: "required" as const }
                 : {}),
         },
         deadlineMs: input.stopState.startedAtMs + input.limits.wallClockTimeoutMs,

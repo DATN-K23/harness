@@ -1,0 +1,124 @@
+[stage] ingestion ok
+── step 1
+   model call reasoning #1: 7.1k tokens, 5.1s
+   model → 2 tool call(s)
+   → glob {"pattern":"**/*.sol"}
+   → list_dir {}
+   model says: I'll analyze this finding by examining the relevant code in the snapshot.
+   ← glob: 51 lines of output (new)
+   ← list_dir: 4 lines of output (new)
+── step 2
+   model call reasoning #1: 8.3k tokens, 3.4s
+   model → 2 tool call(s)
+   → read_file {"path":"contracts/JackpotLPManager.sol","startLine":360,"endLine":430}
+   → read_file {"path":"contracts/Jackpot.sol","startLine":1460,"endLine":1520}
+   ← read_file contracts/JackpotLPManager.sol:360-430 (71 new lines)
+   ← read_file contracts/Jackpot.sol:1460-1520 (61 new lines)
+── step 3
+   model call reasoning #1: 10.4k tokens, 3.2s
+   model → 2 tool call(s)
+   → read_file {"endLine":1560,"path":"contracts/Jackpot.sol","startLine":1510}
+   → grep {"pattern":"_calculateLpPoolCap|lpPoolCap|bonusBallMax|bonusballMax"}
+   ← read_file contracts/Jackpot.sol:1510-1560 (40 new lines)
+   ← grep: 51 lines of output (44 new lines)
+── step 4
+   model call reasoning #1: 13.5k tokens, 3.7s
+   model → 2 tool call(s)
+   → read_file {"endLine":450,"path":"contracts/JackpotLPManager.sol","startLine":420}
+   → read_file {"endLine":200,"path":"contracts/JackpotLPManager.sol","startLine":160}
+   ← read_file contracts/JackpotLPManager.sol:420-450 (17 new lines)
+   ← read_file contracts/JackpotLPManager.sol:160-200 (40 new lines)
+── step 5
+   model call reasoning #1: 14.7k tokens, 4.3s
+   model → 2 tool call(s)
+   → read_file {"endLine":800,"path":"contracts/Jackpot.sol","startLine":750}
+   → grep {"pattern":"processDrawingSettlement|_setNewDrawingState|settleDrawing"}
+   ← read_file contracts/Jackpot.sol:750-800 (51 new lines)
+   ← grep: 9 lines of output (7 new lines)
+── step 6
+   model call reasoning #1: 15.9k tokens, 3.2s
+   model → 2 tool call(s)
+   → read_file {"startLine":700,"endLine":760,"path":"contracts/Jackpot.sol"}
+   → read_file {"endLine":1510,"path":"contracts/Jackpot.sol","startLine":1478}
+   ← read_file contracts/Jackpot.sol:700-760 (48 new lines)
+   ← read_file contracts/Jackpot.sol:1478-1510 (nothing new)
+── step 7
+   model call reasoning #1: 17.5k tokens, 2.8s
+   model → 2 tool call(s)
+   → read_file {"endLine":175,"path":"contracts/lib/TicketComboTracker.sol","startLine":130}
+   → read_file {"path":"contracts/lib/TicketComboTracker.sol","startLine":1,"endLine":70}
+   ← read_file contracts/lib/TicketComboTracker.sol:130-175 (45 new lines)
+   ← read_file contracts/lib/TicketComboTracker.sol:1-70 (66 new lines)
+── step 8
+   model call reasoning #1: 18.9k tokens, 4.1s
+   model → 2 tool call(s)
+   → read_file {"endLine":170,"path":"contracts/lib/TicketComboTracker.sol","startLine":60}
+   → grep {"pattern":"MAX_BIT_VECTOR_SIZE|NORMAL_BALL_COUNT|bonusballMin"}
+   ← read_file contracts/lib/TicketComboTracker.sol:60-170 (59 new lines)
+   ← grep: 23 lines of output (17 new lines)
+── step 9
+   model call reasoning #1: 20.7k tokens, 2.4s
+   model → 1 tool call(s)
+   → read_file {"endLine":1510,"path":"contracts/Jackpot.sol","startLine":1485}
+   ← read_file contracts/Jackpot.sol:1485-1510 (nothing new)
+── step 10
+   model call reasoning #1: 21.3k tokens, 2.5s
+   model → 1 tool call(s)
+   → read_file {"startLine":110,"endLine":145,"path":"contracts/lib/TicketComboTracker.sol"}
+   model says: Now I have a clear picture of the code. Let me trace the full path of the finding:
+   ← read_file contracts/lib/TicketComboTracker.sol:110-145 (nothing new)
+── step 11
+   model call reasoning #1: 22.9k tokens, 21.3s
+   model → 1 tool call(s)
+   ★ Bidirectional forward result: {"reachability":"reachable","explanation":"The path is: entropy provider calls `scaledEntropyCallback` (Jackpot.sol:717-748) → calls `jackpotLPManager.processDrawingSettlement(currentDrawingId, ...)` (JackpotL…
+   ★ Verification direction: backward
+── step 12
+   model call reasoning #1: 23.8k tokens, 22.2s
+   model → 1 tool call(s)
+   ★ Bidirectional backward result: {"reconstruction":"reconstructed","explanation":"The backward reconstruction confirms the path: \n1. `scaledEntropyCallback` (Jackpot.sol:717-748) calls `jackpotLPManager.processDrawingSettlement(currentDrawi…
+   ★ Bidirectional consensus: agreed-valid
+   harness: Produce a normative JSON verdict only if source citations directly support the specific forward reachability and backward reconstruction/blocker claim. Cite ex…
+── step 13
+   model call reasoning #1: 26.5k tokens, 41.7s
+   model → 1 tool call(s)
+========================================
+Judge Run Summary
+========================================
+Run ID:       run-1793209079926
+Finding ID:   finding-1793209079926
+Snapshot ID:  snap_e6948cc616b6
+State:        completed
+----------------------------------------
+Judge Verdict:
+  Validity:          valid
+  Status:            PASS
+  Confidence:        HIGH
+  Reason Code:       EXPLOIT_CONFIRMED
+  Summary:           LP pool cap is not enforced in processDrawingSettlement, allowing LP earnings to push newLPValue above the safety limit computed by _calculateLpPoolCap, causing bonusballMax to exceed 255-normalBallMax, which causes overflow/DOS in TicketComboTracker.insert during ticket purchases
+  Reasoning:         The finding is confirmed by source reading through the following chain:
+
+1. `processDrawingSettlement` (JackpotLPManager.sol:388-391) computes `newLPValue = postDrawLpValue + currentLP.pendingDeposits - withdrawalsInUSDC` with no cap check. LP earnings can grow the pool by up to 30% (lpEdgeTarget) per draw.
+
+2. The deposit cap check at JackpotLPManager.sol:185 (`if (_amount + totalPoolValue > lpPoolCap) revert`) only applies to new deposits, not to settlement earnings.
+
+3. This uncapped `newLPValue` is passed to `_setNewDrawingState` (Jackpot.sol:1478-1507). At lines 1494-1497, `newBonusball = uint8(Math.max(bonusballMin, Math.ceilDiv(minNumberTickets, combosPerBonusball)))`. If `newLPValue` exceeds the value `_calculateLpPoolCap` would return for the current normalBallMax, `newBonusball` will exceed `255 - normalBallMax` (since `MAX_BIT_VECTOR_SIZE = 255`).
+
+4. `_calculateLpPoolCap` (Jackpot.sol:1469-1476) computes the safe limit: `maxAllowableTickets = Combinations.choose(_normalBallMax, NORMAL_BALL_COUNT) * (MAX_BIT_VECTOR_SIZE - _normalBallMax)`. This function is called by admin governance functions (setNormalBallMax, setGovernancePoolCap, etc.) but NOT during drawing settlement.
+
+5. Once `newBonusball + normalBallMax >= 256`, subsequent ticket purchases will call `TicketComboTracker.insert` which executes `ticketNumbers = set |= 1 << (_bonusball + _tracker.normalMax)` (TicketComboTracker.sol:142). In Solidity 0.8+, a shift by >= 256 bits on a uint256 returns 0 (no revert), causing silent corruption of the bit vector tracking logic, leading to incorrect payout calculations or DOS scenarios.
+
+The path is fully reachable: entropy callback → processDrawingSettlement → _setNewDrawingState → bonusballMax overflow. No blocking checks exist between LP earnings accumulation and the bonusball computation.
+  Cites Evidence:
+    - contracts/JackpotLPManager.sol:388-391 (digest: sha256:e756679fe6f6c6d8527e4ac2ec4b387495d1e1410d56fa2d4d8a8fa1a51e014e)
+    - contracts/JackpotLPManager.sol:183-186 (digest: sha256:c716a8a24cd304e2f9f9eef64cac3f6502ee573dc15497337cf30d7af861c705)
+    - contracts/Jackpot.sol:1469-1476 (digest: sha256:f5bf46029c5994fe23dc4d34a9b56b7012a99d9bf854e16ba8b2e23796ce3b4b)
+    - contracts/Jackpot.sol:1494-1497 (digest: sha256:07316a55415b4faae6bf3f0ba069700386fbd804e7372e54a86030cfebf21397)
+    - contracts/Jackpot.sol:738-748 (digest: sha256:9e6bbc7dc511f5da716763c973dd420367985e57920b1528b839fa569a081fc2)
+    - contracts/lib/TicketComboTracker.sol:142-142 (digest: sha256:33f39e871a8640ab6b4819ec7fffb4c6c760f9d3e0832a08a4427fd0527834ac)
+    - contracts/JackpotLPManager.sol:185-185 (digest: sha256:a7818ef20b0a342ce4ec450b36391754435cda04dc72c4e0f3c0c5ffb5b1e196)
+    - contracts/Jackpot.sol:1478-1507 (digest: sha256:41dad6bca173d8d40f882779e40074aa83092e95d11837ad277ef46d3778597b)
+    - contracts/Jackpot.sol:717-748 (digest: sha256:1853129459cc6f67eff1f718702b757096c2eb1faec9a37d6067c2ecd88b1449)
+    - contracts/JackpotLPManager.sol:371-392 (digest: sha256:9e1d5efed5133d1da6f4b5e71b34e5814ea361ec937ee4cdce7fbde73ed89510)
+    - contracts/Jackpot.sol:1496-1496 (digest: sha256:945d173164d7cdee7c0cacec7ee94e6f1856049119095bd0fede5a94300afc66)
+========================================
+exit=0

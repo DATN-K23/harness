@@ -369,7 +369,10 @@ describe("JudgeRunner: reasoning loop", () => {
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
     expect(w.gateway.callCount).toBe(3)
     expect(w.gateway.calls.every((call) => call.toolChoice === "required")).toBe(true)
-    expect(w.gateway.calls[0].tools?.map((tool) => tool.name)).toEqual(expect.arrayContaining(["submit_verdict", "submit_verification"]))
+    // The forward direction is offered its own submission only; the verdict phase gets submit_verdict.
+    expect(w.gateway.calls[0].tools?.map((tool) => tool.name)).toContain("submit_verification")
+    expect(w.gateway.calls[0].tools?.map((tool) => tool.name)).not.toContain("submit_verdict")
+    expect(w.gateway.calls[2].tools?.map((tool) => tool.name)).toContain("submit_verdict")
     expect(await world.events("tool.requested")).toHaveLength(0)
     const [started] = await world.events("run.started")
     expect(started.payload.snapshot).toMatchObject({ enableStructuredOutput: true })

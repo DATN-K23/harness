@@ -1,0 +1,951 @@
+{
+  "runId": "run-1793208683047",
+  "state": "failed",
+  "stateVersion": 3,
+  "terminalReason": "schema_repair_exhausted",
+  "snapshotId": "snap_e6948cc616b6",
+  "findingId": "finding-1793208683047",
+  "verdict": null,
+  "events": [
+    {
+      "sequence": 1,
+      "type": "run.started",
+      "occurredAt": "2026-10-28T17:31:23.090Z"
+    },
+    {
+      "sequence": 2,
+      "type": "stage.started",
+      "occurredAt": "2026-10-28T17:31:23.099Z"
+    },
+    {
+      "sequence": 3,
+      "type": "stage.finished",
+      "occurredAt": "2026-10-28T17:31:23.115Z"
+    },
+    {
+      "sequence": 4,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.124Z"
+    },
+    {
+      "sequence": 5,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.132Z"
+    },
+    {
+      "sequence": 6,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.136Z"
+    },
+    {
+      "sequence": 7,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.141Z"
+    },
+    {
+      "sequence": 8,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.145Z"
+    },
+    {
+      "sequence": 9,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.150Z"
+    },
+    {
+      "sequence": 10,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.155Z"
+    },
+    {
+      "sequence": 11,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.159Z"
+    },
+    {
+      "sequence": 12,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.165Z"
+    },
+    {
+      "sequence": 13,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.168Z"
+    },
+    {
+      "sequence": 14,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.173Z"
+    },
+    {
+      "sequence": 15,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.178Z"
+    },
+    {
+      "sequence": 16,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.182Z"
+    },
+    {
+      "sequence": 17,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.186Z"
+    },
+    {
+      "sequence": 18,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:23.191Z"
+    },
+    {
+      "sequence": 19,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:23.202Z"
+    },
+    {
+      "sequence": 20,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:23.207Z"
+    },
+    {
+      "sequence": 21,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:26.438Z"
+    },
+    {
+      "sequence": 22,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:26.449Z"
+    },
+    {
+      "sequence": 23,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:26.456Z"
+    },
+    {
+      "sequence": 24,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:26.461Z"
+    },
+    {
+      "sequence": 25,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:26.490Z"
+    },
+    {
+      "sequence": 26,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:26.497Z"
+    },
+    {
+      "sequence": 27,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:26.502Z"
+    },
+    {
+      "sequence": 28,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:26.506Z"
+    },
+    {
+      "sequence": 29,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:26.511Z"
+    },
+    {
+      "sequence": 30,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:26.515Z"
+    },
+    {
+      "sequence": 31,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:26.522Z"
+    },
+    {
+      "sequence": 32,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:26.527Z"
+    },
+    {
+      "sequence": 33,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:26.531Z"
+    },
+    {
+      "sequence": 34,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:29.964Z"
+    },
+    {
+      "sequence": 35,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:29.974Z"
+    },
+    {
+      "sequence": 36,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:29.979Z"
+    },
+    {
+      "sequence": 37,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:29.985Z"
+    },
+    {
+      "sequence": 38,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:29.991Z"
+    },
+    {
+      "sequence": 39,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:29.996Z"
+    },
+    {
+      "sequence": 40,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:30.002Z"
+    },
+    {
+      "sequence": 41,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:30.006Z"
+    },
+    {
+      "sequence": 42,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:30.011Z"
+    },
+    {
+      "sequence": 43,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:30.017Z"
+    },
+    {
+      "sequence": 44,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:30.023Z"
+    },
+    {
+      "sequence": 45,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:30.027Z"
+    },
+    {
+      "sequence": 46,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:33.409Z"
+    },
+    {
+      "sequence": 47,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:33.418Z"
+    },
+    {
+      "sequence": 48,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:33.423Z"
+    },
+    {
+      "sequence": 49,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:33.427Z"
+    },
+    {
+      "sequence": 50,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:33.450Z"
+    },
+    {
+      "sequence": 51,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:33.455Z"
+    },
+    {
+      "sequence": 52,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:33.459Z"
+    },
+    {
+      "sequence": 53,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:33.462Z"
+    },
+    {
+      "sequence": 54,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:33.466Z"
+    },
+    {
+      "sequence": 55,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:33.470Z"
+    },
+    {
+      "sequence": 56,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:33.476Z"
+    },
+    {
+      "sequence": 57,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:33.481Z"
+    },
+    {
+      "sequence": 58,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:37.127Z"
+    },
+    {
+      "sequence": 59,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:37.139Z"
+    },
+    {
+      "sequence": 60,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:37.145Z"
+    },
+    {
+      "sequence": 61,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:37.151Z"
+    },
+    {
+      "sequence": 62,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:37.159Z"
+    },
+    {
+      "sequence": 63,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:37.166Z"
+    },
+    {
+      "sequence": 64,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:37.173Z"
+    },
+    {
+      "sequence": 65,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:37.177Z"
+    },
+    {
+      "sequence": 66,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:37.183Z"
+    },
+    {
+      "sequence": 67,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:37.189Z"
+    },
+    {
+      "sequence": 68,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:37.201Z"
+    },
+    {
+      "sequence": 69,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:37.207Z"
+    },
+    {
+      "sequence": 70,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:40.762Z"
+    },
+    {
+      "sequence": 71,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:40.770Z"
+    },
+    {
+      "sequence": 72,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:40.774Z"
+    },
+    {
+      "sequence": 73,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:40.779Z"
+    },
+    {
+      "sequence": 74,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:40.786Z"
+    },
+    {
+      "sequence": 75,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:40.790Z"
+    },
+    {
+      "sequence": 76,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:40.795Z"
+    },
+    {
+      "sequence": 77,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:40.799Z"
+    },
+    {
+      "sequence": 78,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:40.802Z"
+    },
+    {
+      "sequence": 79,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:40.806Z"
+    },
+    {
+      "sequence": 80,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:40.813Z"
+    },
+    {
+      "sequence": 81,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:40.817Z"
+    },
+    {
+      "sequence": 82,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:44.506Z"
+    },
+    {
+      "sequence": 83,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:44.516Z"
+    },
+    {
+      "sequence": 84,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:44.526Z"
+    },
+    {
+      "sequence": 85,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:44.532Z"
+    },
+    {
+      "sequence": 86,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:44.538Z"
+    },
+    {
+      "sequence": 87,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:44.544Z"
+    },
+    {
+      "sequence": 88,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:44.549Z"
+    },
+    {
+      "sequence": 89,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:44.553Z"
+    },
+    {
+      "sequence": 90,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:44.559Z"
+    },
+    {
+      "sequence": 91,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:44.564Z"
+    },
+    {
+      "sequence": 92,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:44.582Z"
+    },
+    {
+      "sequence": 93,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:44.598Z"
+    },
+    {
+      "sequence": 94,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:48.109Z"
+    },
+    {
+      "sequence": 95,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:48.118Z"
+    },
+    {
+      "sequence": 96,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:48.122Z"
+    },
+    {
+      "sequence": 97,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:48.127Z"
+    },
+    {
+      "sequence": 98,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:48.132Z"
+    },
+    {
+      "sequence": 99,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:48.136Z"
+    },
+    {
+      "sequence": 100,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:48.140Z"
+    },
+    {
+      "sequence": 101,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:48.146Z"
+    },
+    {
+      "sequence": 102,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:48.150Z"
+    },
+    {
+      "sequence": 103,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:48.155Z"
+    },
+    {
+      "sequence": 104,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:48.161Z"
+    },
+    {
+      "sequence": 105,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:48.166Z"
+    },
+    {
+      "sequence": 106,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:50.943Z"
+    },
+    {
+      "sequence": 107,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:50.952Z"
+    },
+    {
+      "sequence": 108,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:50.956Z"
+    },
+    {
+      "sequence": 109,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:50.964Z"
+    },
+    {
+      "sequence": 110,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:50.969Z"
+    },
+    {
+      "sequence": 111,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:50.976Z"
+    },
+    {
+      "sequence": 112,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:50.981Z"
+    },
+    {
+      "sequence": 113,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:50.988Z"
+    },
+    {
+      "sequence": 114,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:50.995Z"
+    },
+    {
+      "sequence": 115,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:53.623Z"
+    },
+    {
+      "sequence": 116,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:53.633Z"
+    },
+    {
+      "sequence": 117,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:53.637Z"
+    },
+    {
+      "sequence": 118,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:53.644Z"
+    },
+    {
+      "sequence": 119,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:53.647Z"
+    },
+    {
+      "sequence": 120,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:53.651Z"
+    },
+    {
+      "sequence": 121,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:53.659Z"
+    },
+    {
+      "sequence": 122,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:53.664Z"
+    },
+    {
+      "sequence": 123,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:56.137Z"
+    },
+    {
+      "sequence": 124,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:56.146Z"
+    },
+    {
+      "sequence": 125,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:56.151Z"
+    },
+    {
+      "sequence": 126,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:56.156Z"
+    },
+    {
+      "sequence": 127,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:56.160Z"
+    },
+    {
+      "sequence": 128,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:56.166Z"
+    },
+    {
+      "sequence": 129,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:56.173Z"
+    },
+    {
+      "sequence": 130,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:56.177Z"
+    },
+    {
+      "sequence": 131,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:31:59.713Z"
+    },
+    {
+      "sequence": 132,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:31:59.723Z"
+    },
+    {
+      "sequence": 133,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:31:59.728Z"
+    },
+    {
+      "sequence": 134,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:31:59.758Z"
+    },
+    {
+      "sequence": 135,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:59.763Z"
+    },
+    {
+      "sequence": 136,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:59.769Z"
+    },
+    {
+      "sequence": 137,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:31:59.774Z"
+    },
+    {
+      "sequence": 138,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:31:59.781Z"
+    },
+    {
+      "sequence": 139,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:31:59.791Z"
+    },
+    {
+      "sequence": 140,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:32:02.419Z"
+    },
+    {
+      "sequence": 141,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:32:02.428Z"
+    },
+    {
+      "sequence": 142,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:32:02.432Z"
+    },
+    {
+      "sequence": 143,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:32:02.437Z"
+    },
+    {
+      "sequence": 144,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:02.442Z"
+    },
+    {
+      "sequence": 145,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:02.447Z"
+    },
+    {
+      "sequence": 146,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:32:02.454Z"
+    },
+    {
+      "sequence": 147,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:32:02.460Z"
+    },
+    {
+      "sequence": 148,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:32:06.015Z"
+    },
+    {
+      "sequence": 149,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:32:06.024Z"
+    },
+    {
+      "sequence": 150,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:32:06.028Z"
+    },
+    {
+      "sequence": 151,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:32:06.033Z"
+    },
+    {
+      "sequence": 152,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:06.037Z"
+    },
+    {
+      "sequence": 153,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:06.040Z"
+    },
+    {
+      "sequence": 154,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:06.044Z"
+    },
+    {
+      "sequence": 155,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:32:06.051Z"
+    },
+    {
+      "sequence": 156,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:32:06.056Z"
+    },
+    {
+      "sequence": 157,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:32:22.558Z"
+    },
+    {
+      "sequence": 158,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:32:22.573Z"
+    },
+    {
+      "sequence": 159,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:22.578Z"
+    },
+    {
+      "sequence": 160,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:32:22.582Z"
+    },
+    {
+      "sequence": 161,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:32:22.590Z"
+    },
+    {
+      "sequence": 162,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:32:22.595Z"
+    },
+    {
+      "sequence": 163,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:33:03.216Z"
+    },
+    {
+      "sequence": 164,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:33:03.253Z"
+    },
+    {
+      "sequence": 165,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:33:03.258Z"
+    },
+    {
+      "sequence": 166,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:03.263Z"
+    },
+    {
+      "sequence": 167,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:03.268Z"
+    },
+    {
+      "sequence": 168,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:33:03.276Z"
+    },
+    {
+      "sequence": 169,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:33:03.280Z"
+    },
+    {
+      "sequence": 170,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:33:07.529Z"
+    },
+    {
+      "sequence": 171,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:33:07.543Z"
+    },
+    {
+      "sequence": 172,
+      "type": "tool.requested",
+      "occurredAt": "2026-10-28T17:33:07.554Z"
+    },
+    {
+      "sequence": 173,
+      "type": "tool.completed",
+      "occurredAt": "2026-10-28T17:33:07.558Z"
+    },
+    {
+      "sequence": 174,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:07.562Z"
+    },
+    {
+      "sequence": 175,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:07.565Z"
+    },
+    {
+      "sequence": 176,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:33:07.572Z"
+    },
+    {
+      "sequence": 177,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:33:07.578Z"
+    },
+    {
+      "sequence": 178,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:33:43.902Z"
+    },
+    {
+      "sequence": 179,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:33:43.927Z"
+    },
+    {
+      "sequence": 180,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:33:43.933Z"
+    },
+    {
+      "sequence": 181,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:43.937Z"
+    },
+    {
+      "sequence": 182,
+      "type": "context.item_added",
+      "occurredAt": "2026-10-28T17:33:43.943Z"
+    },
+    {
+      "sequence": 183,
+      "type": "context.allocated",
+      "occurredAt": "2026-10-28T17:33:43.951Z"
+    },
+    {
+      "sequence": 184,
+      "type": "step.started",
+      "occurredAt": "2026-10-28T17:33:43.955Z"
+    },
+    {
+      "sequence": 185,
+      "type": "provider.attempted",
+      "occurredAt": "2026-10-28T17:34:12.170Z"
+    },
+    {
+      "sequence": 186,
+      "type": "model.responded",
+      "occurredAt": "2026-10-28T17:34:12.185Z"
+    },
+    {
+      "sequence": 187,
+      "type": "verdict.validation_failed",
+      "occurredAt": "2026-10-28T17:34:12.189Z"
+    },
+    {
+      "sequence": 188,
+      "type": "run.failed",
+      "occurredAt": "2026-10-28T17:34:12.194Z"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { ContextItem, ModelAttemptError } from "@harness/protocol"
 import { loadPrompt } from "../../src/prompts/index"
 import { parseForwardResult } from "../../src/judge/bidirectional-verifier"
+import { withSubmissionTools } from "../../src/judge/structured-output"
 import { ScriptedContextEngine } from "../../src/testing/fake-context-engines"
 import { errorResponse, textResponse, toolCallResponse, usageOf } from "../../src/testing/scripted-model-gateway"
 import { digestOf, textDigest } from "../../src/util/digest"
@@ -85,6 +86,23 @@ describe("JudgeStep: seven gates", () => {
     }))
     expect(onlySubmission(short.gateway.calls[0])).toBe(true)
     expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"blocked"')
+  })
+
+  test("a structured-output direction is offered only its own submission besides the reading tools", async () => {
+    const h = await createHarness({ script: [toolCallResponse([{ id: "s1", name: "submit_verification", arguments: { reachability: "reachable", explanation: "entry reaches sink" } }])] })
+    const result = await h.step.execute(h.input({ tools: withSubmissionTools(h.input().tools), items: [...baseItems, forwardDirection()] }))
+    const names = h.gateway.calls[0].tools?.map((tool) => tool.name) ?? []
+    expect(h.gateway.calls[0].toolChoice).toBe("required")
+    expect(names).toContain("read_file")
+    expect(names).toContain("submit_verification")
+    expect(names).not.toContain("submit_verdict")
+    expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"reachable"')
+  })
+
+  test("a structured-output verdict phase still offers submit_verdict", async () => {
+    const h = await createHarness({ script: [readVault()] })
+    await h.step.execute(h.input({ tools: withSubmissionTools(h.input().tools), items: [...baseItems, consensusAt(2, "agreed-valid")] }))
+    expect(h.gateway.calls[0].tools?.map((tool) => tool.name)).toContain("submit_verdict")
   })
 
   test("a direction whose last three reads found nothing new is forced to answer", async () => {

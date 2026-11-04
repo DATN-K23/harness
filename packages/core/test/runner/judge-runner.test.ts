@@ -923,6 +923,7 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       verificationStepBudget: true,
       evidenceSaturationReads: true,
       enableStaticVerdicts: true,
+      reasoningEffort: true,
       modelLimits: true,
       profileId: true,
       runtime: true,

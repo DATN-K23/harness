@@ -106,6 +106,8 @@ export interface JudgeRunConfig {
    * while BCE is incomplete, as the Sprint 9 design decided.
    */
   enableStaticVerdicts?: boolean
+  /** The `reasoning_effort` the gateway sends, recorded in the run configuration (Rule R1); the provider default when absent. */
+  reasoningEffort?: import("@harness/protocol").ReasoningEffort
   modelLimits: ModelLimits
   profileId: string
   runtime?: NonNullable<import("@harness/protocol").RunConfigSnapshot["runtime"]>
@@ -415,6 +417,7 @@ class RunExecution {
           enableStructuredOutput: config.enableStructuredOutput,
           enableClaimExtraction: config.enableClaimExtraction,
           enableStaticVerdicts: config.enableStaticVerdicts,
+          ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
           ...(config.enableBidirectionalVerification === false
             ? {}
             : {

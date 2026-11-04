@@ -60,6 +60,7 @@ export interface MultiTurnRunInput {
   pricing?: ModelPricingStatus
   providerProfile?: {
     outputTokensField: "max_tokens" | "max_completion_tokens"
+    reasoningEffort?: import("@harness/protocol").ReasoningEffort
     maxContextTokens?: number
     maxOutputTokens?: number
     inputCostPerMTok?: number

@@ -1,5 +1,6 @@
 import { z } from "zod"
 import type { ContextPolicy } from "./context"
+import { ReasoningEfforts } from "./model-gateway"
 import { BudgetLimitsSchema } from "./stop-conditions"
 
 export const Sha256DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/)
@@ -129,6 +130,8 @@ export const RunConfigSnapshotSchema = z
     verificationStepBudget: z.number().int().positive().optional(),
     /** Tool results without new evidence after which a direction answers; present when bidirectional verification is on. */
     evidenceSaturationReads: z.number().int().positive().optional(),
+    /** The `reasoning_effort` sent on every provider attempt; absent when none is configured (the provider default). */
+    reasoningEffort: z.enum(ReasoningEfforts).optional(),
     runtime: z.object({
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { z } from "zod"
+import { ReasoningEfforts } from "@harness/protocol"
 
 export function findRootEnvFile(startDir: string = process.cwd()): string | undefined {
   let curr = resolve(startDir)
@@ -103,6 +104,9 @@ export const RuntimeConfigSchema = z
       .preprocess((value) => (value === undefined || value === null || value === "" ? "max_tokens" : value),
         z.enum(ModelOutputTokensFields))
       .default("max_tokens"),
+    modelReasoningEffort: z
+      .preprocess((value) => (value === undefined || value === null || value === "" ? undefined : value),
+        z.enum(ReasoningEfforts).optional()),
     modelInputCostPerMTok: optionalNonNegativeNumber,
     modelOutputCostPerMTok: optionalNonNegativeNumber,
     snapshotDir: z.string().min(1),
@@ -157,6 +161,7 @@ const FIELD_TO_ENV_KEY: Record<string, string> = {
   modelMaxOutputTokens: "MODEL_MAX_OUTPUT_TOKENS",
   modelMaxContextTokens: "MODEL_MAX_CONTEXT_TOKENS",
   modelOutputTokensField: "MODEL_OUTPUT_TOKENS_FIELD",
+  modelReasoningEffort: "MODEL_REASONING_EFFORT",
   modelInputCostPerMTok: "MODEL_INPUT_COST_PER_MTOK",
   modelOutputCostPerMTok: "MODEL_OUTPUT_COST_PER_MTOK",
   snapshotDir: "HARNESS_SNAPSHOT_DIR",
@@ -184,6 +189,7 @@ export function loadRuntimeConfig(env: Record<string, string | undefined> = proc
     modelMaxOutputTokens: env.MODEL_MAX_OUTPUT_TOKENS,
     modelMaxContextTokens: env.MODEL_MAX_CONTEXT_TOKENS,
     modelOutputTokensField: env.MODEL_OUTPUT_TOKENS_FIELD,
+    modelReasoningEffort: env.MODEL_REASONING_EFFORT,
     modelInputCostPerMTok: env.MODEL_INPUT_COST_PER_MTOK,
     modelOutputCostPerMTok: env.MODEL_OUTPUT_COST_PER_MTOK,
     snapshotDir: env.HARNESS_SNAPSHOT_DIR?.trim() || resolve(repoRoot, "data", "snapshots"),

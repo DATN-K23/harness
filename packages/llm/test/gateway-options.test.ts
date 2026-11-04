@@ -45,6 +45,16 @@ describe("gateway request options", () => {
     expect(withHistory.requests[0]?.tool_choice).toBe("none")
   })
 
+  test("a configured reasoning effort is sent on every attempt, and none is sent otherwise", async () => {
+    const withEffort = new RecordingClient(readRecordingFixture("content-filter"))
+    await new RealModelGateway({ client: withEffort.client, reasoningEffort: "max" }).executeAttempt(baseRequest())
+    expect(withEffort.requests[0]?.reasoning_effort as string | undefined).toBe("max")
+
+    const without = new RecordingClient(readRecordingFixture("content-filter"))
+    await new RealModelGateway({ client: without.client }).executeAttempt(baseRequest())
+    expect(without.requests[0]).not.toHaveProperty("reasoning_effort")
+  })
+
   test("a required tool choice is lowered for structured output", async () => {
     const recording = new RecordingClient(readRecordingFixture("content-filter"))
     await new RealModelGateway({ client: recording.client }).executeAttempt(baseRequest({ tools, toolChoice: "required" }))

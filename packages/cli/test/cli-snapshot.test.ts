@@ -29,6 +29,7 @@ const makeGatewayFactory = (modelOverride?: string) => {
       apiKey: config.modelApiKey,
       model: modelOverride ?? config.modelName,
       outputTokensField: config.modelOutputTokensField,
+      reasoningEffort: config.modelReasoningEffort,
       inputCostPerMTok: config.modelInputCostPerMTok,
       outputCostPerMTok: config.modelOutputCostPerMTok,
       baseURL: config.modelBaseUrl,
@@ -228,6 +229,30 @@ describe("snapshot-backed CLI runs", () => {
     }
   })
 
+  test("a reasoning effort is refused where it would not be recorded, and an unknown level is refused", async () => {
+    const root = await makeTempDir()
+    try {
+      const { gatewayFactory, clients } = makeGatewayFactory()
+      const errors: string[] = []
+      const promptOnly = await runCli(["run", "--prompt", "Summarise Vault", "--reasoning-effort", "max"], {
+        env: testEnv(path.join(root, "snapshots")),
+        storeFactory: () => new InMemoryRunStore({ clock: { nowMs: () => 1000 } }),
+        gatewayFactory,
+        stderr: (message) => errors.push(message),
+      })
+      expect(promptOnly).toBe(1)
+      expect(errors.join("\n")).toContain("snapshot runs only")
+      const unknown = await runCli(["run", "--prompt", "Summarise Vault", "--mock", "--reasoning-effort", "ultra"], {
+        stderr: (message) => errors.push(message),
+      })
+      expect(unknown).toBe(1)
+      expect(errors.join("\n")).toContain("--reasoning-effort must be one of")
+      expect(clients).toHaveLength(0)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("Run flags override configured limits and provider settings are persisted", async () => {
     const root = await makeTempDir()
     try {
@@ -244,7 +269,7 @@ describe("snapshot-backed CLI runs", () => {
       const exitCode = await runCli([
         "run", "--snapshot", "snap_cli_test", "--prompt", "Summarise Vault",
         "--max-steps", "5", "--max-tool-calls", "2", "--max-output-tokens", "77",
-        "--max-total-tokens", "60000", "--timeout", "10000",
+        "--max-total-tokens", "60000", "--timeout", "10000", "--reasoning-effort", "max",
       ], {
         env,
         storeFactory: () => store,
@@ -253,6 +278,7 @@ describe("snapshot-backed CLI runs", () => {
       })
       expect(exitCode).toBe(0)
       expect(clients[0]?.requests[0]?.max_tokens).toBe(77)
+      expect(clients[0]?.requests[0]?.reasoning_effort as string | undefined).toBe("max")
       const runId = output.join("\n").match(/Run ID:\s+(\S+)/)?.[1]
       expect(runId).toBeDefined()
       const summary = await getMultiTurnExecutionSummary(runId!, store)
@@ -264,7 +290,7 @@ describe("snapshot-backed CLI runs", () => {
       })
       const started = summary?.events.find((event) => event.type === "run.started")
       expect((started?.payload as { providerProfile?: { outputTokensField?: string; maxContextTokens?: number; maxOutputTokens?: number }; requestOptions?: { maxOutputTokens?: number } }).providerProfile)
-        .toMatchObject({ outputTokensField: "max_tokens", maxContextTokens: 131072, maxOutputTokens: 4096 })
+        .toMatchObject({ outputTokensField: "max_tokens", reasoningEffort: "max", maxContextTokens: 131072, maxOutputTokens: 4096 })
       expect((started?.payload as { requestOptions?: { maxOutputTokens?: number } }).requestOptions?.maxOutputTokens).toBe(77)
     } finally {
       await fs.rm(root, { recursive: true, force: true })

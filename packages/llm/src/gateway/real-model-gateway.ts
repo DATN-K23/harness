@@ -5,6 +5,7 @@ import {
   type ModelAttemptRequest,
   type ModelAttemptResponse,
   type ModelGatewayPort,
+  type ReasoningEffort,
 } from "@harness/protocol"
 import OpenAI from "openai"
 import { normalizeProviderError, redactSecrets } from "../errors/provider-error"
@@ -21,6 +22,8 @@ export interface RealModelGatewayOptions {
   secrets?: string[]
   client?: OpenAI
   outputTokensField?: "max_tokens" | "max_completion_tokens"
+  /** Sent as `reasoning_effort` on every attempt; omitted, the provider's default applies. */
+  reasoningEffort?: ReasoningEffort
   inputCostPerMTok?: number
   outputCostPerMTok?: number
 }
@@ -32,6 +35,7 @@ export class RealModelGateway implements ModelGatewayPort {
   private readonly secrets: string[]
   private readonly defaultModel: string
   private readonly outputTokensField: "max_tokens" | "max_completion_tokens"
+  private readonly reasoningEffort?: ReasoningEffort
   private readonly pricingOverride?: ModelPricingOverride
 
   constructor(options: RealModelGatewayOptions = {}) {
@@ -50,6 +54,7 @@ export class RealModelGateway implements ModelGatewayPort {
     this.timeoutMs = options.timeoutMs ?? 30_000
     this.defaultModel = options.model ?? "gpt-4o-mini"
     this.outputTokensField = options.outputTokensField ?? "max_tokens"
+    this.reasoningEffort = options.reasoningEffort
     this.pricingOverride =
       hasInputPrice && hasOutputPrice
         ? {
@@ -136,6 +141,10 @@ export class RealModelGateway implements ModelGatewayPort {
       ...outputLimit,
       ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
       ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      // The SDK types list OpenAI's efforts only; `max` (DeepSeek V4) is passed through as the provider names it.
+      ...(this.reasoningEffort !== undefined
+        ? { reasoning_effort: this.reasoningEffort as OpenAI.Chat.ChatCompletionCreateParams["reasoning_effort"] }
+        : {}),
     }
 
     let combinedSignal: AbortSignal | undefined

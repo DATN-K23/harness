@@ -23,6 +23,7 @@ export interface RunConfigInput {
   enableStaticVerdicts?: boolean
   verificationStepBudget?: number
   evidenceSaturationReads?: number
+  reasoningEffort?: import("@harness/protocol").ReasoningEffort
   toolLimits?: ToolLimits
   systemPromptDigest: string
   verdictSchemaDigest: string
@@ -57,6 +58,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     enableStaticVerdicts: input.enableStaticVerdicts ?? false,
     ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
     ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
+    ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
     ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,

@@ -68,6 +68,14 @@ describe("buildRunConfigSnapshot", () => {
     expect(JSON.stringify(baseline.snapshot)).not.toMatch(/apiKey|secret/i)
   })
 
+  test("a configured reasoning effort is recorded and changes the digest", () => {
+    const baseline = buildRunConfigSnapshot(inputWith(allOn))
+    const max = buildRunConfigSnapshot({ ...inputWith(allOn), reasoningEffort: "max" })
+    expect(baseline.snapshot.reasoningEffort).toBeUndefined()
+    expect(max.snapshot.reasoningEffort).toBe("max")
+    expect(max.digest).not.toBe(baseline.digest)
+  })
+
   test("the digest is stable across calls", () => {
     expect(buildRunConfigSnapshot(inputWith(allOn)).digest).toBe(buildRunConfigSnapshot(inputWith(allOn)).digest)
   })

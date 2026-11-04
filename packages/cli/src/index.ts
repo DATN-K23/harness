@@ -1,9 +1,9 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
-import type { ModelGatewayPort, RunStorePort } from "@harness/protocol"
+import type { ModelGatewayPort, ReasoningEffort, RunStorePort } from "@harness/protocol"
 import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
-import { DefaultRetryConfig } from "@harness/protocol"
+import { DefaultRetryConfig, ReasoningEfforts } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
 import { PostgresRunStore } from "@harness/schema"
 import { priceUsage, RealModelGateway } from "@harness/llm"
@@ -59,6 +59,8 @@ Options:
   --max-tool-calls <count>    Maximum tool calls for a snapshot run
   --max-output-tokens <count> Maximum output tokens per provider attempt
   --max-total-tokens <count>  Maximum total tokens for the run
+  --reasoning-effort <level>  Send reasoning_effort (none|minimal|low|medium|high|xhigh|max) on every attempt of a
+                              snapshot run; overrides MODEL_REASONING_EFFORT (recorded in the run config)
   --structured-output         Judge: submit verdicts through schema-typed tools (recorded in the run config)
   --no-bidirectional          Judge: skip forward/backward verification of the claim (recorded in the run config)
   --include-root <dir>        Include only this repository-relative path (repeatable)
@@ -94,6 +96,7 @@ export interface CliParsedArgs {
   maxToolCalls?: string
   maxOutputTokens?: string
   maxTotalTokens?: string
+  reasoningEffort?: string
   structuredOutput?: boolean
   noBidirectional?: boolean
 }
@@ -134,6 +137,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       "max-tool-calls": { type: "string" },
       "max-output-tokens": { type: "string" },
       "max-total-tokens": { type: "string" },
+      "reasoning-effort": { type: "string" },
       "structured-output": { type: "boolean" },
       "no-bidirectional": { type: "boolean" },
     },
@@ -169,6 +173,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     maxToolCalls: asString(values["max-tool-calls"]),
     maxOutputTokens: asString(values["max-output-tokens"]),
     maxTotalTokens: asString(values["max-total-tokens"]),
+    reasoningEffort: asString(values["reasoning-effort"]),
     structuredOutput: Boolean(values["structured-output"]),
     noBidirectional: Boolean(values["no-bidirectional"]),
   }
@@ -322,6 +327,16 @@ async function runCommand(
       stderr(`Error: ${timeoutOverride.error ?? maxOutputTokensOverride.error}`)
       return 1
     }
+    if (parsed.reasoningEffort !== undefined && !(ReasoningEfforts as readonly string[]).includes(parsed.reasoningEffort)) {
+      stderr(`Error: --reasoning-effort must be one of ${ReasoningEfforts.join(", ")}.`)
+      return 1
+    }
+    const reasoningEffort = (parsed.reasoningEffort as ReasoningEffort | undefined) ?? config?.modelReasoningEffort
+    // The single-turn baseline records no run configuration, so an effort it sent would leave no trace (Rule R1).
+    if (reasoningEffort !== undefined && parsed.snapshot === undefined && !parsed.mock) {
+      stderr("Error: a reasoning effort applies to snapshot runs only, which record it; unset --reasoning-effort and MODEL_REASONING_EFFORT for a prompt-only run.")
+      return 1
+    }
 
     if (parsed.snapshot !== undefined && snapshot) {
       const effectiveConfig = config
@@ -397,7 +412,7 @@ async function runCommand(
           }),
         ])
       } else if (effectiveConfig) {
-        const gatewayConfig = { ...effectiveConfig, modelName: profileId, modelTimeoutMs: timeoutMs }
+        const gatewayConfig = { ...effectiveConfig, modelName: profileId, modelTimeoutMs: timeoutMs, modelReasoningEffort: reasoningEffort }
         gateway = deps.gatewayFactory ? deps.gatewayFactory(gatewayConfig) : createRealGateway(gatewayConfig, secrets)
       } else {
         throw new ConfigValidationError("Invalid runtime configuration:\n  MODEL_API_KEY: required", ["MODEL_API_KEY"])
@@ -469,6 +484,7 @@ async function runCommand(
             // The scripted --mock provider has no answer for an extraction call.
             enableClaimExtraction: !parsed.mock && !parsed.noClaimExtraction,
             enableStaticVerdicts: Boolean(parsed.staticVerdicts),
+            ...(reasoningEffort === undefined || parsed.mock ? {} : { reasoningEffort }),
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
           },
@@ -617,6 +633,7 @@ async function runCommand(
           pricing: profilePricing,
           providerProfile: {
             outputTokensField: effectiveConfig?.modelOutputTokensField ?? "max_tokens",
+            ...(reasoningEffort === undefined || parsed.mock ? {} : { reasoningEffort }),
             ...(effectiveConfig?.modelMaxContextTokens !== undefined ? { maxContextTokens: effectiveConfig.modelMaxContextTokens } : {}),
             maxOutputTokens: effectiveConfig?.modelMaxOutputTokens ?? maxOutputTokens,
             ...(inputPrice !== undefined ? { inputCostPerMTok: inputPrice } : {}),
@@ -767,6 +784,7 @@ function createRealGateway(config: RuntimeConfig, secrets: string[]): RealModelG
     apiKey: config.modelApiKey,
     model: config.modelName,
     outputTokensField: config.modelOutputTokensField,
+    reasoningEffort: config.modelReasoningEffort,
     inputCostPerMTok: config.modelInputCostPerMTok,
     outputCostPerMTok: config.modelOutputCostPerMTok,
     baseURL: config.modelBaseUrl,

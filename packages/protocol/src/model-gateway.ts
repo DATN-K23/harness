@@ -62,6 +62,13 @@ export type ModelUsage = TokenUsage & { costUsd: number; pricing?: ModelPricingS
 
 export const FinishReasons = ["stop", "tool_calls", "length", "error"] as const
 
+/**
+ * The reasoning effort sent as `reasoning_effort` on every attempt when one is configured. `max` is DeepSeek V4's
+ * top level (OpenCode offers it as that model's `max` variant); providers reject or ignore the values they lack.
+ */
+export const ReasoningEfforts = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const
+export type ReasoningEffort = (typeof ReasoningEfforts)[number]
+
 export type FinishReason = (typeof FinishReasons)[number]
 
 export interface ModelAttemptRequest {

@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { ContextItemSchema, PrepareTelemetrySchema, TransformationSchema } from "./context"
-import { ModelAttemptErrorClassifications, ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, TokenUsageSchema, FinishReasons } from "./model-gateway"
+import { ModelAttemptErrorClassifications, ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, ReasoningEfforts, TokenUsageSchema, FinishReasons } from "./model-gateway"
 import { RunConfigSnapshotSchema, Sha256DigestSchema } from "./run-config"
 import { BudgetTerminalReasonSchema, TerminalReasonSchema } from "./stop-conditions"
 import { VerdictReasonCodes, JudgeVerdictSchema } from "./verdict"
@@ -132,6 +132,7 @@ export const EventPayloadSchemas = {
     providerProfile: z
       .object({
         outputTokensField: z.enum(["max_tokens", "max_completion_tokens"]),
+        reasoningEffort: z.enum(ReasoningEfforts).optional(),
         maxContextTokens: z.number().int().positive().optional(),
         maxOutputTokens: z.number().int().positive().optional(),
         inputCostPerMTok: z.number().nonnegative().optional(),

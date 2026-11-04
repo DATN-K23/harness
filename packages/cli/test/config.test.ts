@@ -94,6 +94,12 @@ describe("loadRuntimeConfig", () => {
     )
   })
 
+  test("a reasoning effort is optional and checked against the known levels", () => {
+    expect(loadRuntimeConfig(validEnv).modelReasoningEffort).toBeUndefined()
+    expect(loadRuntimeConfig({ ...validEnv, MODEL_REASONING_EFFORT: "max" }).modelReasoningEffort).toBe("max")
+    expect(() => loadRuntimeConfig({ ...validEnv, MODEL_REASONING_EFFORT: "ultra" })).toThrow(/MODEL_REASONING_EFFORT/)
+  })
+
   test("invalid output-token field fails fast with the setting name", () => {
     expect(() => loadRuntimeConfig({ ...validEnv, MODEL_OUTPUT_TOKENS_FIELD: "max_output" })).toThrow(
       /MODEL_OUTPUT_TOKENS_FIELD/,

@@ -55,7 +55,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
       return { content: input.content, isTruncated: false, tokensBefore, tokensAfter: tokensBefore }
     const continuationNote = continuation(input, limit, lines.length)
     const content = [...lines.slice(0, limit), continuationNote].join("\n")
-    return { content, isTruncated: true, tokensBefore, tokensAfter: estimateTokens(content), continuationNote }
+    return { content, isTruncated: true, tokensBefore, tokensAfter: estimateTokens(content), continuationNote, shownLines: limit }
   }
 
   protected begin(input: PrepareInput) {
@@ -206,6 +206,13 @@ export class ProductionContextEngine implements ContextEnginePort {
       }
       break
     }
-    return { content, isTruncated: true, tokensBefore, tokensAfter: this.tokenizer.count(content), continuationNote: fullContinuationNote }
+    return {
+      content,
+      isTruncated: true,
+      tokensBefore,
+      tokensAfter: this.tokenizer.count(content),
+      continuationNote: fullContinuationNote,
+      shownLines: prefix === "" ? 0 : count,
+    }
   }
 }

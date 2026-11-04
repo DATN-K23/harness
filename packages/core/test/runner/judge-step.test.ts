@@ -202,6 +202,25 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome.type).toBe("continue_turn")
   })
 
+  test("a read cut by the context engine records only the lines kept and says where to continue", async () => {
+    const big = Array.from({ length: 120 }, (_, index) => `line ${index + 1} of Big.sol`).join("\n")
+    const h = await createHarness({
+      files: { "src/Big.sol": `${big}\n` },
+      script: [toolCallResponse([{ id: "big", name: "read_file", arguments: { path: "src/Big.sol", startLine: 1, endLine: 120 } }])],
+    })
+    const result = await h.step.execute(h.input({ items: [
+      ...baseItems,
+      { id: "direction", turn: 0, type: "system_prompt", isPinned: true, content: `Verification direction: forward\n${loadPrompt("forward-verification.v1").text}` },
+    ] }))
+    const read = result.newItems.find((item) => item.type === "tool_result")
+    // The harness policy keeps 50 lines; recording 1-120 made the next reads of 51-120 count as nothing new
+    // (gemini-4-argon on nado, 2026-11-04: the forward direction was forced after reading 200 of 659 lines).
+    expect(read?.toolMeta?.lineRange).toEqual([1, 50])
+    expect(read?.content).toContain("line 50 of Big.sol")
+    expect(read?.content).not.toContain("line 51 of Big.sol")
+    expect(read?.content).toContain("read src/Big.sol from line 51")
+  })
+
   test("agreed-invalid consensus without a snapshot-grounded citation is UNVERIFIED", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [

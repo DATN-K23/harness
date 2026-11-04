@@ -28,6 +28,7 @@ import {
   type ContextEnginePort,
   type ContextPolicy,
   ContextPolicySchema,
+  shownLineRange,
 } from "@harness/protocol"
 import { EventSink } from "./event-sink"
 import { ParallelToolDispatcher } from "../tool/dispatcher"
@@ -1371,9 +1372,13 @@ export class MultiTurnRunner {
               ...(dispatchedCall.result.lineRange !== undefined ? { lineRange: dispatchedCall.result.lineRange } : {}),
               policy: contextPolicy,
             })
+            // A truncated read keeps only the lines the model sees as its range, so the cut lines never count as read.
+            const { lineRange: _requested, ...unranged } = dispatchedCall.result
+            const lineRange = shownLineRange(dispatchedCall.result.lineRange, shaped)
             dispatchedCall.result = {
-              ...dispatchedCall.result,
+              ...unranged,
               content: shaped.content,
+              ...(lineRange === undefined ? {} : { lineRange }),
               ...(shaped.isTruncated ? { isTruncated: true } : {}),
             }
 

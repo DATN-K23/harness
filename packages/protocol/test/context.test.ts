@@ -4,6 +4,7 @@ import {
   ContextItemTypes,
   PrepareResultSchema,
   selectPinnedItems,
+  shownLineRange,
   type ContextItem,
 } from "../src/context"
 
@@ -207,5 +208,22 @@ describe("selectPinnedItems", () => {
     const b = item({ id: "b", isPinned: true })
     expect(selectPinnedItems([a, item({ id: "x" }), b]).map((entry) => entry.id)).toEqual(["a", "b"])
     expect(selectPinnedItems([item()])).toEqual([])
+  })
+})
+
+describe("shownLineRange", () => {
+  test("shrinks a truncated read to the lines kept", () => {
+    expect(shownLineRange([101, 659], { isTruncated: true, shownLines: 50 })).toEqual([101, 150])
+  })
+
+  test("keeps the range when nothing was cut or the count is unknown", () => {
+    expect(shownLineRange([1, 30], { isTruncated: false })).toEqual([1, 30])
+    expect(shownLineRange([1, 30], { isTruncated: true })).toEqual([1, 30])
+    expect(shownLineRange(undefined, { isTruncated: true, shownLines: 5 })).toBeUndefined()
+  })
+
+  test("never grows past the returned range, and drops it when no line was kept", () => {
+    expect(shownLineRange([1, 3], { isTruncated: true, shownLines: 10 })).toEqual([1, 3])
+    expect(shownLineRange([1, 30], { isTruncated: true, shownLines: 0 })).toBeUndefined()
   })
 })

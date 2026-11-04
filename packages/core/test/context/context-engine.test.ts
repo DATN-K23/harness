@@ -117,6 +117,7 @@ describe("ProductionContextEngine", () => {
     expect(result.isTruncated).toBe(true)
     expect(result.content.split("\n").filter((line) => !line.startsWith("[truncated")).length).toBeLessThanOrEqual(2)
     expect(createO200kTokenizer().count(result.content)).toBeLessThanOrEqual(200)
+    expect(result.shownLines).toBe(2)
   })
 
   test("never exceeds the output token cap when continuation text cannot fit", async () => {
@@ -124,6 +125,7 @@ describe("ProductionContextEngine", () => {
     const result = await engine.shapeToolResult({ content: "an exceptionally long first line", toolName: "read_file", policy: tinyPolicy })
     expect(createO200kTokenizer().count(result.content)).toBeLessThanOrEqual(1)
     expect(result.continuationNote).toContain("truncated read_file output")
+    expect(result.shownLines).toBe(0)
   })
 
   test("includes continuation text inside the token cap when it can fit", async () => {

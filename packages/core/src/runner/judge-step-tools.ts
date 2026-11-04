@@ -1,4 +1,4 @@
-import type { ContextItem, ModelToolCall, ToolCallOutcome, ToolExecutionResult } from "@harness/protocol"
+import { shownLineRange, type ContextItem, type ModelToolCall, type ToolCallOutcome, type ToolExecutionResult } from "@harness/protocol"
 import {
   NextStepMarker,
   ParallelToolDispatcher,
@@ -44,16 +44,20 @@ const disabledMessage = (call: ModelToolCall) =>
 const settle = async (context: ToolBranchContext, call: DispatchedCall): Promise<Settled> => {
   const { deps, input } = context
   const filtered = await deps.security.filterSecrets(call.result.content, input.signal)
+  // The path and range let a truncated read say where to continue; the recorded range is what the model really sees.
   const shaped = await deps.contextEngine.shapeToolResult({
     content: filtered.content,
     toolName: call.toolName,
     policy: input.policy,
+    ...(call.result.filePath === undefined ? {} : { path: call.result.filePath }),
+    ...(call.result.lineRange === undefined ? {} : { lineRange: call.result.lineRange }),
   })
   const note = shaped.isTruncated ? shaped.continuationNote : undefined
   const content = note !== undefined && !shaped.content.includes(note) ? `${shaped.content}\n${note}` : shaped.content
+  const lineRange = shownLineRange(call.result.lineRange, shaped)
   const location = {
     ...(call.result.filePath === undefined ? {} : { filePath: call.result.filePath }),
-    ...(call.result.lineRange === undefined ? {} : { lineRange: call.result.lineRange }),
+    ...(lineRange === undefined ? {} : { lineRange }),
   }
   const identity = { callId: call.callId, toolName: call.toolName }
   const request = context.newItem(

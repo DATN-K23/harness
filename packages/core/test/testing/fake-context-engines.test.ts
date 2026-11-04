@@ -132,6 +132,7 @@ describe("shapeToolResult (fake truncation)", () => {
     expect(shaped.isTruncated).toBe(true)
     expect(shaped.continuationNote).toContain("showing 3 of 5 lines")
     expect(shaped.content.split("\n")).toEqual(["one", "two", "three", shaped.continuationNote ?? ""])
+    expect(shaped.shownLines).toBe(3)
     expect(shaped.tokensBefore).toBe(estimateTokens(output))
     expect(shaped.tokensAfter).toBe(estimateTokens(shaped.content))
   })

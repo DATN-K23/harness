@@ -142,6 +142,21 @@ export interface ShapeToolResultOutcome {
   tokensBefore: number
   tokensAfter: number
   continuationNote?: string
+  /** When truncated: how many leading lines of the input content the shaped content keeps. */
+  shownLines?: number
+}
+
+/**
+ * The lines of a read the model really sees: a truncated result keeps only `shownLines` lines from the start of the
+ * range the tool returned, so the range recorded with it must shrink to them, or the lines cut off count as read.
+ */
+export const shownLineRange = (
+  lineRange: [number, number] | undefined,
+  outcome: Pick<ShapeToolResultOutcome, "isTruncated" | "shownLines">,
+): [number, number] | undefined => {
+  if (lineRange === undefined || !outcome.isTruncated || outcome.shownLines === undefined) return lineRange
+  if (outcome.shownLines <= 0) return undefined
+  return [lineRange[0], Math.min(lineRange[1], lineRange[0] + outcome.shownLines - 1)]
 }
 
 export interface ContextEnginePort {

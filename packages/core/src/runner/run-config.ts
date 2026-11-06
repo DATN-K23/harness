@@ -17,6 +17,7 @@ export interface RunConfigInput {
   limits: BudgetLimits
   maxProbeRuns?: number
   enablePocExecution?: boolean
+  localExecution?: RunConfigSnapshot["localExecution"]
   enableBidirectionalVerification?: boolean
   enableStructuredOutput?: boolean
   enableClaimExtraction?: boolean
@@ -44,6 +45,7 @@ export interface BuiltRunConfig {
  * malformed digest, a missing field or context flags that disagree with `policy.flags` throw before a run starts.
  */
 export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig => {
+  const { sandboxMode: _legacyMode, foundryImage: _legacyImage, ...runtime } = input.runtime ?? {}
   const snapshot = RunConfigSnapshotSchema.parse({
     flags: input.flags,
     contextPolicy: input.policy,
@@ -52,6 +54,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     ...(input.toolLimits !== undefined ? { toolLimits: input.toolLimits } : {}),
     maxProbeRuns: input.maxProbeRuns ?? DefaultMaxProbeRuns,
     enablePocExecution: input.enablePocExecution ?? false,
+    localExecution: input.localExecution ?? { version: 1, backend: input.enablePocExecution ? "scripted" : "disabled" },
     enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
     enableStructuredOutput: input.enableStructuredOutput ?? false,
     enableClaimExtraction: input.enableClaimExtraction ?? false,
@@ -59,7 +62,7 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
     ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
     ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
-    ...(input.runtime !== undefined ? { runtime: input.runtime } : {}),
+    ...(input.runtime !== undefined ? { runtime } : {}),
     systemPromptDigest: input.systemPromptDigest,
     verdictSchemaDigest: input.verdictSchemaDigest,
     ...(input.verificationPromptDigest !== undefined ? { verificationPromptDigest: input.verificationPromptDigest } : {}),

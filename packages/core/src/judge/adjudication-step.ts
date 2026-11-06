@@ -1,9 +1,9 @@
+import type { VerificationPort } from "../verification"
 import type {
   BceSlice,
   CandidateFinding,
   DeconstructedClaim,
   ContextItem,
-  SandboxPort,
   SanitizerPort,
   SanitizerResult,
   SecurityFilterPort,
@@ -46,7 +46,7 @@ export interface StateProbeOptions {
   claim?: DeconstructedClaim
   stage: StageInput
   sanitizer: SanitizerPort
-  sandbox: SandboxPort
+  verification: VerificationPort
   maxProbeRuns: number
   counter: ProbeCounter
   evidence?: Map<string, { before: string; after: string }>
@@ -73,17 +73,17 @@ const isVariableList = (value: unknown): value is string[] =>
 
 /**
  * The Tier 2 probe tool, or `undefined` in Tier 1 or when the run allows no probe runs. Each execution injects
- * probes through the sanitizer port and re-runs the PoC through the sandbox port; it is not a model attempt. The
+ * probes through the sanitizer port and re-runs the PoC through the verification port; it is not a model attempt. The
  * limit is checked and reserved before the first await, so concurrent calls from one response cannot exceed it.
  */
 export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefined => {
-  if (selectTier(options.sanitized) === 1 || options.maxProbeRuns <= 0 || options.claim === undefined) return undefined
+  if (!options.verification.supportsStateProbe || selectTier(options.sanitized) === 1 || options.maxProbeRuns <= 0 || options.claim === undefined) return undefined
   const { counter, maxProbeRuns } = options
   const evidence = options.evidence ?? new Map<string, { before: string; after: string }>()
   return {
     definition: {
       name: RunStateProbeToolName,
-      description: `Inject state probes for the named state variables into the submitted PoC, re-run it in the sandbox and return each variable's value before and after the exploit (post minus pre). At most ${maxProbeRuns} runs per adjudication.`,
+      description: `Inject state probes for the named state variables into the submitted PoC, run the verification probe and return each variable's value before and after the exploit (post minus pre). At most ${maxProbeRuns} runs per adjudication.`,
       parameters: {
         type: "object",
         properties: { stateVariables: { type: "array", items: { type: "string" } } },
@@ -115,7 +115,7 @@ export const stateProbeFor = (options: StateProbeOptions): StateProbe | undefine
         stateVariables,
         signal,
       )
-      const probe = await options.sandbox.runStateProbe({ ...options.stage, probedTestFile }, signal)
+      const probe = await options.verification.runStateProbe({ ...options.stage, probedTestFile }, signal)
       evidence.clear()
       if (probe.outcome !== "passed") {
         return failure(

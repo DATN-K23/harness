@@ -6,6 +6,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./execution": "./src/execution/index.ts",
+    "./verification": "./src/verification/index.ts",
     "./testing": "./src/testing/index.ts"
   },
   "scripts": {

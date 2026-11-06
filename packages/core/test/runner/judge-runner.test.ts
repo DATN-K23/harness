@@ -71,17 +71,17 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     const result = await w.start("worker-a", runInput(inputConfig))
     expect(result).toMatchObject({ kind: "committed", state: "completed" })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
     expect((await world.events("run.started"))[0].payload.snapshot).toMatchObject({ enablePocExecution: false })
   })
 
-  test("explicit runtime opt-in retains the sanitizer and sandbox PoC path", async () => {
+  test("explicit runtime opt-in retains the sanitizer and verification PoC path", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
     const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] }, script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText] })
     await w.start("worker-a", runInput({ enablePocExecution: true }))
     expect(w.sanitizer.sanitizeCalls).toHaveLength(1)
-    expect(w.sandbox.singleShotCalls).toHaveLength(1)
+    expect(w.verification.singleShotCalls).toHaveLength(1)
     expect((await world.events("run.started"))[0].payload.snapshot).toMatchObject({ enablePocExecution: true })
   })
 
@@ -96,7 +96,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     ] })
     await w.start("worker-a", runInput({ enablePocExecution: true }))
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
   })
 
   test("legacy missing_poc remains a compatibility fast-reject", async () => {
@@ -108,7 +108,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
   test.each([
     ["malformed fenced JSON", "Target: Vault.withdraw\nRoot cause: missing auth\nAttack scenario: attacker calls\nImpact: funds stolen\nState: balance falls\n\n```json\n{ malformed JSON }\n```"],
     ["prohibited metadata", "Target: Vault.withdraw\nRoot cause: missing auth\nAttack scenario: attacker calls\nImpact: funds stolen\nState: balance falls\n\n```json\n{\"nested\":{\"groundTruthLabel\":\"vulnerable\"}}\n```"],
-  ] as const)("actual %s completes unverified without provider or sandbox calls", async (_name, reportMarkdown) => {
+  ] as const)("actual %s completes unverified without provider or verification calls", async (_name, reportMarkdown) => {
     const world = createWorld()
     const source = new InMemorySnapshot({ snapshotId: "snap-1", files: {} })
     const w = world.worker({ ingestionPort: new SnapshotIngestion({ source }) })
@@ -118,7 +118,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     expect(committed?.reasoning.length).toBeGreaterThanOrEqual(50)
     expect(w.gateway.callCount).toBe(0)
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
     expect(source.reads).toHaveLength(0)
   })
 
@@ -133,48 +133,51 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     const [ingestionFinished] = (await world.events("stage.finished")).filter((event) => event.payload.stage === "ingestion")
     expect(ingestionFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "CLAIM_INCOMPLETE" })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
   })
 
-  test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, sandbox never called", async () => {
+  test("anti-cheat violation: NON_FAITHFUL_OVERRIDE, verification never called", async () => {
     const world = createWorld()
     const w = world.worker({
-      sanitizer: { kind: "cheat_detected", findings: [{ ruleId: "vm-ffi", message: "vm.ffi escapes the sandbox" }] },
+      sanitizer: { kind: "cheat_detected", findings: [{ ruleId: "vm-ffi", message: "vm.ffi escapes the verification" }] },
     })
     await expectFastReject(world, w, await w.start(), "NON_FAITHFUL_OVERRIDE")
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
   })
 
-  test("sandbox failure is unverified: an exit code alone is not evidence of invalidity", async () => {
+  test("verification failure is unverified: an exit code alone is not evidence of invalidity", async () => {
     const world = createWorld()
-    const w = world.worker({ sandbox: { outcome: "infrastructure_failed", exitCode: 1, trace: "[FAIL] testExploit() reverted", durationMs: 4 } })
+    const telemetry = { outcome: "infrastructure_failed", permissionDecision: "allowed", outputBytes: 24,
+      preparationMs: 1, processMs: 2, cleanupMs: 1, totalMs: 4 } as const
+    const w = world.worker({ verification: { outcome: "infrastructure_failed", exitCode: 1,
+      trace: "[FAIL] testExploit() reverted", durationMs: 4, telemetry } })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
     expect(w.gateway.callCount).toBe(0)
-    const [sandboxFinished] = (await world.events("stage.finished")).filter(
-      (event) => event.payload.stage === "sandbox",
+    const [verificationFinished] = (await world.events("stage.finished")).filter(
+      (event) => event.payload.stage === "verification",
     )
-    expect(sandboxFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "EXECUTION_FAILED" })
+    expect(verificationFinished.payload).toMatchObject({ outcome: "rejected", reasonCode: "EXECUTION_FAILED", verification: telemetry })
   })
 
-  test.each(["setup_failed", "timed_out"] as const)("sandbox %s outcome is unverified", async (outcome) => {
+  test.each(["setup_failed", "timed_out"] as const)("verification %s outcome is unverified", async (outcome) => {
     const world = createWorld()
-    const w = world.worker({ sandbox: { outcome, exitCode: 1, trace: "", durationMs: 4 } })
+    const w = world.worker({ verification: { outcome, exitCode: 1, trace: "", durationMs: 4 } })
     expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
   })
 
-  test("a thrown sandbox error ends unverified instead of interrupting the worker", async () => {
+  test("a thrown verification error ends unverified instead of interrupting the worker", async () => {
     const world = createWorld()
-    const w = world.worker({ wrapSandbox: (sandbox) => ({
-      runSingleShot: async () => { throw new Error("sandbox unavailable") },
-      runStateProbe: (input, signal) => sandbox.runStateProbe(input, signal),
+    const w = world.worker({ wrapVerification: (verification) => ({
+      runSingleShot: async () => { throw new Error("verification unavailable") },
+      runStateProbe: (input, signal) => verification.runStateProbe(input, signal),
     }) })
     expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { reasonCode: "EXECUTION_FAILED", validity: "unverified", verificationStatus: "UNVERIFIED" } })
   })
 
   test("an assertion failure without validated claim evidence remains unverified", async () => {
     const world = createWorld()
-    const w = world.worker({ sandbox: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit()", durationMs: 4 } })
+    const w = world.worker({ verification: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit()", durationMs: 4 } })
     expect(await w.start()).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" } })
   })
 })
@@ -198,7 +201,7 @@ describe("JudgeRunner: reasoning loop", () => {
     })
     const result = await w.start("worker-a", runInput({ maxProbeRuns: 1 }))
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
-    expect(w.sandbox.stateProbeCalls).toHaveLength(1)
+    expect(w.verification.stateProbeCalls).toHaveLength(1)
     expect(w.sanitizer.probeCalls).toHaveLength(1)
     expect((await world.events("tool.requested")).some((event) => event.payload.toolName === "run_state_probe")).toBe(true)
     expect(await world.state()).toBe("completed")
@@ -230,7 +233,7 @@ describe("JudgeRunner: reasoning loop", () => {
     })
     const result = await w.start("worker-a", runInput({ maxProbeRuns: 1 }))
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS", citesEvidence: [{ filePath: "src/Vault.sol", startLine: 21, endLine: 25 }] } })
-    expect(w.sandbox.stateProbeCalls).toHaveLength(1)
+    expect(w.verification.stateProbeCalls).toHaveLength(1)
     expect((await world.events("tool.requested")).some((event) => event.payload.toolName === "run_state_probe")).toBe(true)
     expect(await world.state()).toBe("completed")
     await expectContiguous(world)
@@ -246,7 +249,7 @@ describe("JudgeRunner: reasoning loop", () => {
     })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
-    expect(w.sandbox.stateProbeCalls).toHaveLength(0)
+    expect(w.verification.stateProbeCalls).toHaveLength(0)
     expect(w.sanitizer.probeCalls).toHaveLength(0)
   })
 
@@ -336,7 +339,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const result = await w.start("worker-a", runInput({ enablePocExecution: true }))
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
-    expect(w.sandbox.singleShotCalls).toHaveLength(0)
+    expect(w.verification.singleShotCalls).toHaveLength(0)
   })
 
   test("kind ok with no BCE status or slices cannot yield a citation-valid static PASS", async () => {
@@ -703,7 +706,7 @@ describe("JudgeRunner: recovery by hydration", () => {
 
     const b = world.worker({ ...stages, script: [toolCallResponse([{ id: "probe-1", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), verdictText] })
     expect(await b.start("worker-b", input)).toMatchObject({ kind: "committed", state: "completed" })
-    expect(b.sandbox.stateProbeCalls).toHaveLength(1)
+    expect(b.verification.stateProbeCalls).toHaveLength(1)
   })
 
   test("partial initial context (no trace, no allocation): failed with persistence_failure and no model call", async () => {
@@ -761,7 +764,7 @@ describe("JudgeRunner: cooperative cancellation", () => {
     expect(await cancelledWorld.events("run.cancelled")).toHaveLength(1)
   })
 
-  // Polls: 1 before ingestion, 2 before the sandbox, 3 before step 1's prepare, 4 after it, 5 before its tools,
+  // Polls: 1 before ingestion, 2 before the verification, 3 before step 1's prepare, 4 after it, 5 before its tools,
   // 6 before step 2's prepare.
   test("cancel before the provider call of step 2: no attempt for step 2, cancelled, earlier events kept", async () => {
     const world = createWorld()
@@ -819,13 +822,13 @@ describe("JudgeRunner: never crashes the worker", () => {
         deadlines.push(fire)
         return () => {}
       },
-      // The deadline passes while the sandbox runs; the scripted sandbox then rejects on the aborted signal.
-      wrapSandbox: (sandbox) => ({
+      // The deadline passes while the verification runs; the scripted verification then rejects on the aborted signal.
+      wrapVerification: (verification) => ({
         runSingleShot: (input, signal) => {
           deadlines.forEach((fire) => fire())
-          return sandbox.runSingleShot(input, signal)
+          return verification.runSingleShot(input, signal)
         },
-        runStateProbe: (input, signal) => sandbox.runStateProbe(input, signal),
+        runStateProbe: (input, signal) => verification.runStateProbe(input, signal),
       }),
     })
     const result = await w.start()

@@ -1,3 +1,4 @@
+import type { VerificationPort, VerificationResult, StateProbeResult } from "../../src/verification"
 import { expect } from "bun:test"
 import {
   DefaultRetryConfig,
@@ -8,10 +9,7 @@ import {
   type NewTrajectoryEvent,
   type ModelGatewayPort,
   type RunStorePort,
-  type SandboxPort,
-  type SandboxResult,
   type SanitizerPort,
-  type StateProbeResult,
   type SanitizerResult,
 } from "@harness/protocol"
 import type { SetTimer } from "../../src/runner/cancellation"
@@ -32,7 +30,7 @@ import {
 import {
   FakeCancellation,
   ScriptedIngestion,
-  ScriptedSandbox,
+  ScriptedVerification,
   ScriptedSanitizer,
 } from "../../src/testing/scripted-stages"
 import { createIdGenerator } from "../../src/util/id"
@@ -74,7 +72,7 @@ export const okSanitizer: SanitizerResult = {
   antiCheatReport: { rulesChecked: ["vm-ffi"], findings: [] },
 }
 
-export const okSandbox: SandboxResult = {
+export const okVerification: VerificationResult = {
   outcome: "passed",
   exitCode: 0,
   trace: "[PASS] testExploit()\n  withdraw -> call{value}",
@@ -159,12 +157,12 @@ export interface WorkerOptions {
   ingestion?: IngestionResult
   ingestionPort?: IngestionPort
   sanitizer?: SanitizerResult
-  sandbox?: SandboxResult
+  verification?: VerificationResult
   stateProbe?: StateProbeResult
   sanitizerResult?: SanitizerResult
-  /** Wraps the scripted gateway or sandbox, e.g. to break a port's contract; the scripted fake stays inspectable. */
+  /** Wraps the scripted gateway or verification, e.g. to break a port's contract; the scripted fake stays inspectable. */
   wrapGateway?: (gateway: ScriptedModelGateway) => ModelGatewayPort
-  wrapSandbox?: (sandbox: ScriptedSandbox) => SandboxPort
+  wrapVerification?: (verification: ScriptedVerification) => VerificationPort
   wrapSanitizer?: (sanitizer: ScriptedSanitizer) => SanitizerPort
   /** Defaults to a timer that never fires. */
   setTimer?: SetTimer
@@ -190,8 +188,8 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
     const registry = new InMemoryToolRegistry({ files, deniedPrefixes: ["secrets"] })
     const ingestion = new ScriptedIngestion([workerOptions.ingestion ?? okIngestion])
     const sanitizer = new ScriptedSanitizer([workerOptions.sanitizerResult ?? workerOptions.sanitizer ?? okSanitizer])
-    const sandbox = new ScriptedSandbox({
-      singleShot: [workerOptions.sandbox === undefined ? okSandbox : { ...workerOptions.sandbox, outcome: workerOptions.sandbox.outcome ?? (workerOptions.sandbox.exitCode === 0 ? "passed" : "assertion_failed") }],
+    const verification = new ScriptedVerification({
+      singleShot: [workerOptions.verification === undefined ? okVerification : { ...workerOptions.verification, outcome: workerOptions.verification.outcome ?? (workerOptions.verification.exitCode === 0 ? "passed" : "assertion_failed") }],
       ...(workerOptions.stateProbe === undefined ? {} : { stateProbe: [workerOptions.stateProbe] }),
     })
     const source = new InMemorySnapshot({ snapshotId: "snap-1", files })
@@ -204,7 +202,7 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
       snapshot: source,
       ingestion: workerOptions.ingestionPort ?? ingestion,
       sanitizer: workerOptions.wrapSanitizer?.(sanitizer) ?? sanitizer,
-      sandbox: workerOptions.wrapSandbox?.(sandbox) ?? sandbox,
+      verification: workerOptions.wrapVerification?.(verification) ?? verification,
       cancellation,
       clock,
       random,
@@ -213,7 +211,7 @@ export const createWorld = (options: { leaseMs?: number } = {}) => {
       setTimer: workerOptions.setTimer ?? (() => () => {}),
     })
     const start = async (workerId = "worker-a", input = runInput()) => runner.run(await claim(workerId), input)
-    return { runner, gateway, engine, registry, ingestion, sanitizer, sandbox, start }
+    return { runner, gateway, engine, registry, ingestion, sanitizer, verification, start }
   }
 
   const events = async (type?: EventType) =>

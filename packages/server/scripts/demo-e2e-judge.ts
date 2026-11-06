@@ -128,7 +128,7 @@ State: balances[msg.sender] is correctly reset before transfer.
         sanitize: async () => ({ kind: "ok" as const, stitchedTestFile: "", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } }),
         injectStateProbes: async () => ({ probedTestFile: "" }),
       },
-      sandbox: {
+      verification: {
         runSingleShot: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0 }),
         runStateProbe: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0, observedBefore: null, observedAfter: null, stateDeltas: [] }),
       },

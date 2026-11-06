@@ -188,7 +188,7 @@ describe("Judge submission service", () => {
   test("HTTP submission is claimed, judged and retrieved as unverified end-to-end", async () => {
     const { InMemorySnapshot: CoreSnapshot } = await import("@harness/core")
     const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom, textResponse } = await import("@harness/core/testing")
-    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedSandbox } = await import("@harness/core/testing")
+    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedVerification } = await import("@harness/core/testing")
     const { baseConfig, verdictText } = await import("../../core/test/helpers/runner-world")
     const { files } = await import("../../core/test/runner/judge-step-harness")
     const clock = new FakeClock(Date.parse("2026-10-21T12:00:00.000Z"))
@@ -229,7 +229,7 @@ describe("Judge submission service", () => {
         security: new RegexSecurityFilter(), snapshot,
         ingestion: new SnapshotIngestion({ source: snapshot }),
         sanitizer: new ScriptedSanitizer([{ kind: "cheat_detected", findings: [] }]),
-        sandbox: new ScriptedSandbox({}), cancellation, clock,
+        verification: new ScriptedVerification({}), cancellation, clock,
         random: new SeededRandom(1), sleep: new FakeSleep(clock), ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
       }),
     })

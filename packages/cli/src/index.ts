@@ -1,3 +1,4 @@
+import { unavailableVerification } from "@harness/core/verification"
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, ReasoningEffort, RunStorePort } from "@harness/protocol"
@@ -504,10 +505,6 @@ async function runCommand(
           sanitize: async () => ({ kind: "ok" as const, stitchedTestFile: "", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } }),
           injectStateProbes: async () => ({ probedTestFile: "" }),
         }
-        const sandbox: import("@harness/protocol").SandboxPort = {
-          runSingleShot: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0 }),
-          runStateProbe: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0, observedBefore: null, observedAfter: null, stateDeltas: [] }),
-        }
 
         let judgeGateway = gateway
         if (parsed.mock) {
@@ -546,7 +543,7 @@ async function runCommand(
           security,
           ingestion,
           sanitizer,
-          sandbox,
+          verification: unavailableVerification,
           cancellation,
           clock,
           random,

@@ -109,6 +109,29 @@ export const ToolLimitsSchema = z.object({
 })
 
 export type ToolLimits = z.infer<typeof ToolLimitsSchema>
+export const LocalExecutionProfileSchema = z.discriminatedUnion("backend", [
+  z.object({ version: z.literal(1), backend: z.literal("disabled") }),
+  z.object({ version: z.literal(1), backend: z.literal("scripted") }),
+  z.object({
+    version: z.literal(1), backend: z.literal("host"),
+    platform: z.string().regex(/^[a-z0-9_]+$/), architecture: z.string().regex(/^[a-z0-9_]+$/),
+    policyDigest: Sha256DigestSchema, toolchainDigest: Sha256DigestSchema,
+    snapshotDigest: Sha256DigestSchema, testDigest: Sha256DigestSchema,
+    timeoutMs: z.number().int().positive(), maxOutputBytes: z.number().int().positive(),
+  }),
+])
+export type LocalExecutionProfile = z.infer<typeof LocalExecutionProfileSchema>
+
+export const VerificationTelemetrySchema = z.object({
+  outcome: z.enum(["unavailable", "denied", "cancelled", "output_limit", "passed", "assertion_failed", "infrastructure_failed", "setup_failed", "timed_out"]),
+  permissionDecision: z.enum(["allowed", "denied", "unavailable", "not_evaluated"]),
+  outputBytes: z.number().int().nonnegative(),
+  preparationMs: z.number().nonnegative(), processMs: z.number().nonnegative(),
+  cleanupMs: z.number().nonnegative(), totalMs: z.number().nonnegative(),
+  maxRssBytes: z.number().int().nonnegative().optional(),
+})
+export type VerificationTelemetry = z.infer<typeof VerificationTelemetrySchema>
+
 export const RunConfigSnapshotSchema = z
   .object({
     flags: ResolvedFlagsSchema,
@@ -118,6 +141,7 @@ export const RunConfigSnapshotSchema = z
     toolLimits: ToolLimitsSchema.optional(),
     maxProbeRuns: z.number().int().nonnegative(),
     enablePocExecution: z.boolean().default(false),
+    localExecution: LocalExecutionProfileSchema.optional(),
     /** Forward/backward verification of a deconstructed claim; legacy snapshots predate the flag and ran it always. */
     enableBidirectionalVerification: z.boolean().default(true),
     /** Verdicts and direction results submitted through schema-typed tools instead of JSON text. */
@@ -136,9 +160,9 @@ export const RunConfigSnapshotSchema = z
       providerName: z.string().min(1), modelName: z.string().min(1), baseURL: z.string().optional(),
       timeoutMs: z.number().int().positive(), inputCostPerMTok: z.number().nonnegative().optional(),
       outputCostPerMTok: z.number().nonnegative().optional(), profileVersion: z.string().min(1),
-      ingestionVersion: z.string().min(1), sandboxMode: z.enum(["disabled", "enabled"]),
+      ingestionVersion: z.string().min(1), sandboxMode: z.enum(["disabled", "enabled"]).optional(),
       maxContextTokens: z.number().int().positive(), maxOutputTokens: z.number().int().positive(),
-      solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1),
+      solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1).optional(),
     }).optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,
@@ -150,6 +174,10 @@ export const RunConfigSnapshotSchema = z
     claimExtractionPromptDigest: Sha256DigestSchema.optional(),
   })
   .superRefine((snapshot, ctx) => {
+    if (snapshot.localExecution !== undefined &&
+        (snapshot.enablePocExecution !== (snapshot.localExecution.backend !== "disabled") ||
+          snapshot.runtime?.sandboxMode !== undefined || snapshot.runtime?.foundryImage !== undefined))
+      ctx.addIssue({ code: "custom", path: ["localExecution"], message: "execution profile disagrees with run configuration" })
     ContextFlagNames.filter((name) => snapshot.flags[name] !== snapshot.contextPolicy.flags[name]).forEach((name) =>
       ctx.addIssue({
         code: "custom",

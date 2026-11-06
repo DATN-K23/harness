@@ -56,16 +56,16 @@ describe("checkBoundary", () => {
     })
   })
 
-  test("before_stages reports ingestion by default and sandbox when asked", async () => {
+  test("before_stages reports ingestion by default and verification when asked", async () => {
     const port = new FakeCancellation()
     port.requested = true
     expect(await checkBoundary(port, "run-1", "before_stages")).toEqual({
       kind: "cancel",
       boundary: "before_ingestion",
     })
-    expect(await checkBoundary(port, "run-1", "before_stages", { stage: "sandbox" })).toEqual({
+    expect(await checkBoundary(port, "run-1", "before_stages", { stage: "verification" })).toEqual({
       kind: "cancel",
-      boundary: "before_sandbox",
+      boundary: "before_verification",
     })
   })
 

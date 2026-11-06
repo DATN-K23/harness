@@ -1,3 +1,4 @@
+import { unavailableVerification } from "@harness/core/verification"
 import { lstat, readdir } from "node:fs/promises"
 import { realpath } from "node:fs/promises"
 import { createIdGenerator, DiskSourceSnapshot, JudgeDefaultLimits, ProductionContextEngine, ProductionSecurityFilter, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
@@ -5,13 +6,11 @@ import type { JudgeRunConfig } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { RealModelGateway } from "@harness/llm/gateway"
 import { PostgresRunStore } from "@harness/schema"
-import { spawnDocker } from "./docker-foundry-sandbox"
 import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
 import { createKeychainCredentialProvider } from "./keychain-credential"
 import { startCheckedLocalServer } from "./production-startup"
 import { createJudgeRuntime } from "./judge-runtime"
 import { ConservativePocPolicy } from "./poc-policy"
-import { DockerFoundrySandbox } from "./docker-foundry-sandbox"
 import { PostgresCancellation } from "@harness/schema"
 import type { ClockPort, ModelGatewayPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
 import { startPollingWorker } from "./worker-lifecycle"
@@ -98,8 +97,8 @@ export const makeProductionJudgeConfig = (runtime: {
     runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
       timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,
       outputCostPerMTok: runtime.modelOutputCostPerMTok, profileVersion: "judge-local-v1",
-      ingestionVersion: "snapshot-ingestion-solc-0.8.30", sandboxMode: "disabled", maxContextTokens: 128_000,
-      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30", foundryImage: "ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c" } })
+      ingestionVersion: "snapshot-ingestion-solc-0.8.30", maxContextTokens: 128_000,
+      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30" } })
 }
 
 const deepFreeze = <T>(value: T): T => {
@@ -224,7 +223,7 @@ export const startProductionLocalServerWithOperations = async (options: {
               tools: new ToolRegistry({ snapshot, snapshotId: run.snapshotId, secrets: [options.modelApiKey] }),
               security: new ProductionSecurityFilter(), ingestion: new SnapshotIngestion({ source: snapshot }),
               sanitizer: new ConservativePocPolicy({ compilerAvailable: false }),
-              sandbox: new DockerFoundrySandbox(spawnDocker, snapshot, { root: "" }, { enabled: false }),
+              verification: unavailableVerification,
               cancellation: new PostgresCancellation(store.client), clock: systemClock, random: systemRandom, sleep: systemSleep, ids,
               }
           },

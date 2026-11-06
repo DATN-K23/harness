@@ -20,6 +20,21 @@ beforeAll(async () => {
 afterAll(() => rmSync(outputDir, { recursive: true, force: true }))
 
 describe("demo", () => {
+  test("same seed preserves the verification scenario event digests", async () => {
+    const repeated = mkdtempSync(join(tmpdir(), "harness-demo-repeat-"))
+    try {
+      await runDemo(repeated)
+      const events = (dir: string) => readFileSync(join(dir, "failing-poc", "06-event-stream.jsonl"), "utf8").trim()
+        .split("\n").map((line) => {
+          const { type, sequence, payloadDigest } = JSON.parse(line)
+          return { type, sequence, payloadDigest }
+        })
+      expect(events(repeated)).toEqual(events(outputDir))
+    } finally {
+      rmSync(repeated, { recursive: true, force: true })
+    }
+  })
+
   test("runs the offline scenarios and prints a summary row for each", () => {
     expect(rows.map((row) => row.scenario)).toEqual(["confirmed-exploit", "missing-poc", "cheating-poc", "failing-poc", "narrative-agreed", "disputed-witness"])
     const summary = formatSummary(rows)
@@ -30,7 +45,9 @@ describe("demo", () => {
   })
 
   test("missing, cheating and failing PoC scenarios have the expected row reasons", () => {
-    expect(rows.slice(1, 4).map((row) => row.reason)).toEqual(["MISSING_POC", "provider_permanent", "provider_permanent"])
+    expect(rows.slice(1, 4).map((row) => row.reason)).toEqual(["MISSING_POC", "NON_FAITHFUL_OVERRIDE", "EXECUTION_FAILED"])
+    expect(readJson("failing-poc", "04-exploit-proof.json").execution).toMatchObject({ evidence: "simulated" })
+    expect(readJson("failing-poc", "03-trajectory.json").summary.configSnapshot.localExecution).toEqual({ version: 1, backend: "scripted" })
   })
 
   test("narrative-only agreement remains unverified when BCE is incomplete", () => {

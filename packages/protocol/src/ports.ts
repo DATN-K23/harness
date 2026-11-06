@@ -170,31 +170,6 @@ export interface SanitizerPort {
   ): Promise<{ probedTestFile: string }>
 }
 
-export interface SandboxResult {
-  outcome: "passed" | "assertion_failed" | "infrastructure_failed" | "setup_failed" | "timed_out"
-  exitCode: number
-  trace: string
-  durationMs: number
-}
-
-export interface StateDelta {
-  variable: string
-  before: string
-  after: string
-}
-
-export interface StateProbeResult {
-  outcome: "passed" | "assertion_failed" | "infrastructure_failed" | "setup_failed" | "timed_out"
-  exitCode: number
-  trace: string
-  stateDeltas: StateDelta[]
-}
-
-export interface SandboxPort {
-  runSingleShot(input: StageInput & { testFile: string }, signal?: AbortSignal): Promise<SandboxResult>
-  runStateProbe(input: StageInput & { probedTestFile: string }, signal?: AbortSignal): Promise<StateProbeResult>
-}
-
 export type SnapshotReadResult =
   | { kind: "ok"; lines: string[] }
   | { kind: "not_found" }

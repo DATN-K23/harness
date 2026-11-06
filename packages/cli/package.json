@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@harness/cli",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "dev": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@harness/core": "workspace:*",
+    "@harness/protocol": "workspace:*",
+    "@harness/llm": "workspace:*",
+    "@harness/schema": "workspace:*",
+    "@harness/server": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "postgres": "3.4.5"
+  }
+}

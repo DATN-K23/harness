@@ -1,0 +1,257 @@
+import { describe, expect, test } from "bun:test"
+import { createIdGenerator, digestOf, SnapshotIngestion } from "@harness/core"
+import { InMemorySnapshot } from "@harness/core"
+import { createJudgeSubmissionService, loadAdmittedJudgeInput } from "../src/judge-submission-service"
+import { createOutboxWorker } from "../src/outbox-worker"
+import { createJudgeRuntime } from "../src/judge-runtime"
+
+describe("Judge submission service", () => {
+  test("resolves snapshot and atomically admits canonical finding/config with idempotency key", async () => {
+    const calls: unknown[] = []
+    const snapshot = new InMemorySnapshot({ snapshotId: "snapshot-1", files: { "src/Vault.sol": "contract Vault {}" } })
+    const store = {
+      admit: async (input: unknown) => {
+        calls.push(input)
+        return { kind: "accepted" as const, runId: "run-fixed" }
+      },
+    }
+    const service = createJudgeSubmissionService({
+      store: store as never,
+      snapshots: snapshot,
+      ids: createIdGenerator({ clock: () => 1, random: (size) => new Uint8Array(size) }),
+      config: { profileId: "p1", maxSteps: 8 },
+    })
+    const request = {
+      finding: { findingId: "finding-1", reportMarkdown: "Possible reentrancy." },
+      snapshotId: "snapshot-1",
+      idempotencyKey: "key-1",
+    }
+    expect(await service.submit(request)).toEqual({ kind: "accepted", runId: "run-fixed" })
+    expect(calls).toEqual([{
+      runId: "run_00000000100100000000000000",
+      findingId: "finding-1",
+      reportMarkdown: "Possible reentrancy.",
+      snapshotId: "snapshot-1",
+      config: { profileId: "p1", maxSteps: 8 },
+      idempotencyKey: "key-1",
+      requestDigest: digestOf({
+        finding: request.finding,
+        snapshotId: "snapshot-1",
+        config: { profileId: "p1", maxSteps: 8 },
+      }),
+    }])
+  })
+
+  test("does not admit a missing snapshot", async () => {
+    let admissions = 0
+    const service = createJudgeSubmissionService({
+      store: { admit: async () => { admissions++; return { kind: "accepted", runId: "run-x" } } } as never,
+      snapshots: new InMemorySnapshot({ snapshotId: "snapshot-present", files: { "A.sol": "contract A {}" } }),
+      ids: createIdGenerator({ clock: () => 1, random: (size) => new Uint8Array(size) }),
+      config: {},
+    })
+    expect(await service.submit({
+      finding: { findingId: "finding-1", reportMarkdown: "Report" },
+      snapshotId: "missing",
+      idempotencyKey: "key-1",
+    })).toEqual({ kind: "not_found", resource: "snapshot" })
+    expect(admissions).toBe(0)
+  })
+
+  test("same idempotency key and canonical request reuse the original accepted run", async () => {
+    let admissions = 0
+    const snapshot = new InMemorySnapshot({ snapshotId: "snapshot-1", files: { "A.sol": "contract A {}" } })
+    const service = createJudgeSubmissionService({
+      store: {
+        admit: async (input: { requestDigest: string }) => {
+          admissions++
+          return admissions === 1
+            ? { kind: "accepted" as const, runId: "run-original" }
+            : { kind: "replayed" as const, runId: "run-original" }
+        },
+      } as never,
+      snapshots: snapshot,
+      ids: createIdGenerator({ clock: () => 1, random: (size) => new Uint8Array(size) }),
+      config: { profileId: "p1" },
+    })
+    const request = {
+      finding: { findingId: "finding-1", reportMarkdown: "Report" },
+      snapshotId: "snapshot-1",
+      idempotencyKey: "same-key",
+    }
+    const [first, replay] = await Promise.all([service.submit(request), service.submit(request)])
+    expect(first).toEqual({ kind: "accepted", runId: "run-original" })
+    expect(replay).toEqual({ kind: "replayed", runId: "run-original" })
+    expect(admissions).toBe(2)
+  })
+
+  test("concurrent submissions bind to one persistent run ID, not each request's candidate ID", async () => {
+    const byKey = new Map<string, { digest: string; runId: string }>()
+    let nextId = 0
+    const snapshot = new InMemorySnapshot({ snapshotId: "snapshot-1", files: { "A.sol": "contract A {}" } })
+    const service = createJudgeSubmissionService({
+      store: {
+        admit: async (input: { runId: string; idempotencyKey: string; requestDigest: string }) => {
+          const existing = byKey.get(input.idempotencyKey)
+          if (existing)
+            return existing.digest === input.requestDigest
+              ? { kind: "replayed" as const, runId: existing.runId }
+              : { kind: "conflict" as const }
+          await Promise.resolve()
+          const raced = byKey.get(input.idempotencyKey)
+          if (raced) return raced.digest === input.requestDigest
+            ? { kind: "replayed" as const, runId: raced.runId }
+            : { kind: "conflict" as const }
+          const accepted = { digest: input.requestDigest, runId: `db-run-${++nextId}` }
+          byKey.set(input.idempotencyKey, accepted)
+          return { kind: "accepted" as const, runId: accepted.runId }
+        },
+      } as never,
+      snapshots: snapshot,
+      ids: createIdGenerator({ clock: () => 1, random: (size) => new Uint8Array(size) }),
+      config: { profileId: "p1" },
+    })
+    const request = {
+      finding: { findingId: "finding-1", reportMarkdown: "Report" },
+      snapshotId: "snapshot-1",
+      idempotencyKey: "race-key",
+    }
+    const results = await Promise.all([service.submit(request), service.submit(request)])
+    expect(results).toEqual([
+      { kind: "accepted", runId: "db-run-1" },
+      { kind: "replayed", runId: "db-run-1" },
+    ])
+  })
+
+  test("outbox worker dispatches only stable run ID and is independent of request abort", async () => {
+    const order: string[] = []
+    const store = {
+      loadPendingOutbox: async () => ["run-durable"],
+      claimOutbox: async (runId: string) => { order.push(`outbox:${runId}`); return true },
+      markOutboxPublished: async (runId: string) => { order.push(`published:${runId}`); return true },
+      claim: async ({ runId, workerId }: { runId: string; workerId: string }) => {
+        order.push(`claim:${runId}:${workerId}`)
+        return { kind: "claimed" as const, claim: { runId, claimToken: "claim", claimVersion: 1 }, state: "queued" as const, stateVersion: 1 }
+      },
+    }
+    const worker = createOutboxWorker({
+      store: store as never,
+      workerId: "worker-1",
+      execute: async (runId) => { order.push(`execute:${runId}`) },
+    })
+    const disconnectedRequest = new AbortController()
+    disconnectedRequest.abort()
+    await worker.runOnce()
+    expect(order).toEqual([
+      "outbox:run-durable",
+      "claim:run-durable:worker-1",
+      "execute:run-durable",
+      "published:run-durable",
+    ])
+  })
+
+  test("worker reloads finding, snapshot and frozen config from admitted run", async () => {
+    const result = await loadAdmittedJudgeInput({
+      loadRun: async () => ({
+        runId: "run-1",
+        state: "queued",
+        stateVersion: 1,
+        findingId: "finding-1",
+        prompt: "Report body",
+        snapshotId: "snapshot-1",
+        configSnapshot: { profileId: "frozen-profile" },
+      }),
+    } as never, "run-1")
+    expect(result).toEqual({
+      finding: { findingId: "finding-1", reportMarkdown: "Report body" },
+      snapshotId: "snapshot-1",
+      config: { profileId: "frozen-profile" },
+    })
+  })
+
+  test("worker leaves outbox claim recoverable when execution throws", async () => {
+    const order: string[] = []
+    const worker = createOutboxWorker({
+      store: {
+        loadPendingOutbox: async () => ["run-failed"],
+        claimOutbox: async () => true,
+        markOutboxPublished: async () => { order.push("published"); return true },
+        claim: async () => ({ kind: "claimed", claim: { runId: "run-failed", claimToken: "c", claimVersion: 1 }, state: "queued", stateVersion: 1 }),
+      } as never,
+      workerId: "worker-1",
+      execute: async () => { throw new Error("runner failed") },
+    })
+    await expect(worker.runOnce()).rejects.toThrow("runner failed")
+    expect(order).toEqual([])
+  })
+
+  test("HTTP submission is claimed, judged and retrieved as unverified end-to-end", async () => {
+    const { InMemorySnapshot: CoreSnapshot } = await import("@harness/core")
+    const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom, textResponse } = await import("@harness/core/testing")
+    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedSandbox } = await import("@harness/core/testing")
+    const { baseConfig, verdictText } = await import("../../core/test/helpers/runner-world")
+    const { files } = await import("../../core/test/runner/judge-step-harness")
+    const clock = new FakeClock(Date.parse("2026-10-21T12:00:00.000Z"))
+    const snapshot = new CoreSnapshot({ snapshotId: "snap-1", files })
+    const gateway = new ScriptedModelGateway([
+      textResponse("acknowledged"),
+      textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
+      textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
+      verdictText,
+    ])
+    const cancellation = new FakeCancellation()
+    const inMemory = new (await import("@harness/core/testing")).InMemoryRunStore({ clock })
+    const outbox = new Set<string>()
+    const durableStore = new Proxy(inMemory, {
+      get(target, property, receiver) {
+        if (property === "admit") return async (input: Parameters<typeof inMemory.admit>[0]) => {
+          const result = await inMemory.admit(input)
+          if (result.kind === "accepted") outbox.add(result.runId)
+          return result
+        }
+        if (property === "loadPendingOutbox") return async () => [...outbox]
+        if (property === "claimOutbox") return async (runId: string) => outbox.has(runId)
+        if (property === "markOutboxPublished") return async (runId: string) => outbox.delete(runId)
+        const value = Reflect.get(target, property, receiver)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    })
+    const runtime = createJudgeRuntime({
+      store: durableStore as never,
+      snapshots: snapshot,
+      ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
+      workerId: "worker-a",
+      config: baseConfig,
+      cursorSecret: "cursor-secret",
+      credential: "local-secret",
+      runnerDeps: () => ({
+        contextEngine: new PassThroughContextEngine(), gateway, tools: new InMemoryToolRegistry({ files }),
+        security: new RegexSecurityFilter(), snapshot,
+        ingestion: new SnapshotIngestion({ source: snapshot }),
+        sanitizer: new ScriptedSanitizer([{ kind: "cheat_detected", findings: [] }]),
+        sandbox: new ScriptedSandbox({}), cancellation, clock,
+        random: new SeededRandom(1), sleep: new FakeSleep(clock), ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
+      }),
+    })
+    const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer local-secret", "content-type": "application/json", "idempotency-key": "e2e-key" },
+      body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw\nRoot cause: external call before balance update\nAttack scenario: reenter withdraw\nImpact: fund loss\nState: balance reduced" }, snapshotId: "snap-1" }),
+    }))
+    expect(submit.status).toBe(202)
+    const { runId } = await submit.json() as { runId: string }
+    expect(await runtime.worker.runOnce()).toBe(1)
+    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: "Bearer local-secret" } }))
+    expect(await run.json()).toMatchObject({
+      state: "completed",
+      findingId: "finding-7",
+      verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" },
+    })
+    expect(gateway.calls.every((call) => !JSON.stringify(call).match(/groundTruthLabel|adjudicationReport|scoringMetadata/i))).toBe(true)
+    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: "Bearer local-secret" } }))
+    const events = await eventsResponse.text()
+    expect(events).not.toMatch(/groundTruthLabel|adjudicationReport|scoringMetadata/i)
+    expect(events).not.toContain("test-only-sensitive-marker")
+  })
+
+})

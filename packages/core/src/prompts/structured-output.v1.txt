@@ -1,0 +1,8 @@
+// Adapted from OpenCode packages/opencode/src/session/prompt.ts (STRUCTURED_OUTPUT_SYSTEM_PROMPT)
+// @ 3f393d78bf (MIT License, Copyright (c) 2025 opencode). See NOTICE.
+
+IMPORTANT: This adjudication uses structured output. Wherever your instructions ask you to reply with a JSON object, do not write the object as text. Call a submission tool with the object as its arguments instead:
+- submit_verification for the result of a verification direction (reachability or reconstruction, with explanation).
+- submit_verdict for the final verdict, with the fields of the verdict format. Do not include runId, findingId, traceDigest, snippet, contentDigest or any hash: the harness sets them.
+
+Complete all reading and probing before you submit. Call exactly one submission tool, once, and no other tool in the same reply; a submission ends your turn. This overrides the instruction to reply with text only.

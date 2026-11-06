@@ -1,0 +1,73 @@
+This repository contains material adapted from OpenCode (https://github.com/anomalyco/opencode),
+commit 3f393d78bf, which is distributed under the following license.
+
+MIT License
+
+Copyright (c) 2025 opencode
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Adapted files
+=============
+
+One entry per line: "- file: <path in this repository> | source: <path in OpenCode> | attribution: <kind>".
+Attribution "header" means the file begins with a comment naming the OpenCode source path, the commit and
+the MIT license. Attribution "notice-only" is used for JSON files, which cannot carry comments; this entry is
+their attribution.
+
+- file: bunfig.toml | source: bunfig.toml | attribution: header
+- file: .editorconfig | source: .editorconfig | attribution: header
+- file: package.json | source: package.json | attribution: notice-only
+- file: tsconfig.json | source: tsconfig.json | attribution: notice-only
+- file: turbo.json | source: turbo.json | attribution: notice-only
+- file: packages/protocol/package.json | source: packages/protocol/package.json | attribution: notice-only
+- file: packages/protocol/tsconfig.json | source: packages/protocol/tsconfig.json | attribution: notice-only
+- file: packages/core/package.json | source: packages/protocol/package.json | attribution: notice-only
+- file: packages/core/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/core/src/util/id.ts | source: packages/schema/src/identifier.ts | attribution: header
+- file: packages/core/src/util/truncate.ts | source: packages/opencode/src/tool/truncate.ts | attribution: header
+- file: packages/core/src/prompts/max-steps.v1.txt | source: packages/core/src/session/runner/max-steps.ts | attribution: header
+- file: packages/core/src/runner/retry-policy.ts | source: packages/opencode/src/session/retry.ts | attribution: header
+- file: packages/core/src/runner/retry-policy.ts | source: packages/llm/src/provider-error.ts | attribution: header
+- file: packages/core/src/runner/single-turn-runner.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/core/src/runner/multi-turn-runner.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/core/src/runner/request-assembly.ts | source: packages/core/src/session/runner/to-llm-message.ts | attribution: header
+- file: packages/cli/bunfig.toml | source: bunfig.toml | attribution: header
+- file: packages/cli/package.json | source: packages/cli/package.json | attribution: notice-only
+- file: packages/cli/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/schema/package.json | source: packages/schema/package.json | attribution: notice-only
+- file: packages/schema/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/server/src/runtime-security.ts | source: packages/server/src/auth.ts | attribution: header
+- file: packages/llm/package.json | source: packages/llm/package.json | attribution: notice-only
+- file: packages/llm/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/llm/src/errors/provider-error.ts | source: packages/llm/src/provider-error.ts | attribution: header
+- file: packages/llm/src/gateway/message-converter.ts | source: packages/core/src/session/runner/to-llm-message.ts | attribution: header
+- file: packages/llm/src/gateway/real-model-gateway.ts | source: packages/core/src/session/runner/llm.ts | attribution: header
+- file: packages/server/package.json | source: packages/server/package.json | attribution: notice-only
+- file: packages/server/tsconfig.json | source: packages/core/tsconfig.json | attribution: notice-only
+- file: packages/core/src/context/compaction.ts | source: packages/core/src/session/compaction.ts | attribution: header
+- file: packages/core/src/judge/structured-output.ts | source: packages/opencode/src/session/prompt.ts | attribution: header
+- file: packages/core/src/prompts/structured-output.v1.txt | source: packages/opencode/src/session/prompt.ts | attribution: header
+- file: packages/core/src/tool/handlers/read-file.ts | source: packages/opencode/src/tool/read.ts | attribution: header
+- file: packages/core/src/tool/registry.ts | source: packages/core/src/tool/registry.ts | attribution: header
+- file: packages/core/src/security-filter.ts | source: packages/http-recorder/src/redaction.ts | attribution: header
+- file: packages/llm/src/gateway/response-mapping.ts | source: packages/llm/src/protocols/openai-chat.ts | attribution: header
+- file: packages/llm/src/gateway/response-mapping.ts | source: packages/llm/src/protocols/shared.ts | attribution: header
+- file: packages/llm/src/gateway/tool-lowering.ts | source: packages/llm/src/protocols/openai-chat.ts | attribution: header
+- file: packages/llm/src/gateway/tool-lowering.ts | source: packages/llm/src/protocols/utils/tool-schema.ts | attribution: header

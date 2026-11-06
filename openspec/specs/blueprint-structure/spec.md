@@ -14,11 +14,15 @@ Thư mục `blueprint/` MUST chứa tối đa 10 file normative (markdown, schem
 - **THEN** tổng số file bản mẫu MUST nhỏ hơn hoặc bằng 10
 
 ### Requirement: Blueprint SHALL have flat-first directory structure
-Blueprint MUST tổ chức theo cấu trúc phẳng ưu tiên, tối đa 2 cấp thư mục (gốc + 1 cấp con). Không được có nested subdirectories sâu hơn 1 cấp.
+Blueprint MUST tổ chức theo cấu trúc phẳng ưu tiên, tối đa 2 cấp thư mục (gốc + 1 cấp con). Không được có nested subdirectories sâu hơn 1 cấp. Thư mục mã nguồn `packages/core/src/` MUST tổ chức theo các khối capability được định nghĩa trong kiến trúc tổng quan: `source/` (quản lý snapshot), `tool/` (công cụ đọc mã nguồn), `context/` (rút gọn ngữ cảnh và token), `sandbox/` (môi trường thực thi an toàn), `judge/` (chế độ Judge), `audit/` (chế độ Audit), và `eval/` (bộ đánh giá thực nghiệm).
 
 #### Scenario: No deeply nested directories
 - **WHEN** duyệt cây thư mục `blueprint/`
 - **THEN** không có file nào nằm sâu quá `blueprint/<section>/<file>` (tức là KHÔNG có `blueprint/a/b/c.md`)
+
+#### Scenario: Core source modules align with capability layout
+- **WHEN** kiểm tra cấu trúc thư mục `packages/core/src/`
+- **THEN** các module `source/`, `tool/`, `context/`, `sandbox/`, `judge/`, `audit/`, và `eval/` được tổ chức độc lập theo đúng ranh giới capability của blueprint
 
 ### Requirement: Blueprint SHALL preserve current architecture decisions
 Các lựa chọn kiến trúc còn hiệu lực MUST được ghi tại tài liệu blueprint có thẩm quyền, gồm stack, package ownership, provider boundary, runtime/desktop boundary và điều kiện tái sử dụng OpenCode. Quyết định tái sử dụng source MUST được phân biệt với đổi stack, chọn dependency/fork hay tích hợp code.

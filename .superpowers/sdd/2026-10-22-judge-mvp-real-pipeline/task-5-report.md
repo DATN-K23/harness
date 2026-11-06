@@ -1,0 +1,29 @@
+# Task 5 report — PoC policy and Foundry sandbox
+
+## Outcome: Opt-in Linux ARM64 adapter implemented and tested; production remains BLOCKED
+
+The exact ARM64 image `ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c` was inspected: Forge 1.5.1 (`b0a9dd9`), UID 10001, no `solc` or Node. A reproducible offline compiler path was verified: official Node v22.14.0 Linux ARM64 archive SHA-256 `08bfbf538bad0e8cbb0269f0173cca28d705874a67a22f60b57d99dc99e30050` (matched Node's published `SHASUMS256.txt`), repository solc-js 0.8.30+commit.73712a01 with bun.lock integrity-pinned dependencies, mounted read-only. A small checked-in test shim delegates Forge's standard JSON input to solc-js, rejects compiler mismatch through a runtime version probe, and avoids network compiler lookup. A real benign Foundry test passed offline in the bounded container. The daemon is Linux ARM64, not production macOS Docker Desktop.
+
+`ConservativePocPolicy` remains a deny-only text screen: it always rejects and never returns `ok`. `DockerFoundrySandbox` is opt-in (`enabled` defaults false), stages only `.sol` snapshot reads plus the supplied test, and rejects unsafe paths/empty tests. Compiler artifacts have fixed paths under one configured root: Node v22.14.0, the complete solc 0.8.30 package, locked dependencies, and executable shim. Exact Node, shim, solc package, and dependency-tree SHA-256 pins are checked; symlinks and unexpected files in mounted trees are rejected before Docker. Forge runs with argv-based `Bun.spawn` (test text is never shell-interpolated), `--offline`, read-only source/root, `network=none`, non-root UID, caps dropped, no-new-privileges, 1 GiB memory, one CPU, 64 PIDs, 32 MiB `/tmp`, and 256 MiB `/scratch` tmpfs. Cache and compiler output paths point under `/scratch`; there is no unbounded writable host bind. Success requires Forge exit 0 and a `[PASS]` result for every named `test*` function in the supplied test; empty/missing/mis-targeted output cannot pass. Compiler probe has a unique container name and runs `solc --version` through the mounted shim; process timeout/cancellation kill and remove named containers. `runStateProbe` remains bounded but does not parse state deltas. The adapter is not composed in production.
+
+## Prerequisites to resume
+
+1. The live integration provisions the fixed artifact layout outside the repository at `TASK5_ARTIFACT_ROOT`; no artifact downloads occur during container execution.
+2. Verify on supported macOS Docker Desktop configurations bind/root read-only, UID behavior, dropped capabilities/no-new-privileges, tmpfs and CPU/RAM/PIDs, cancellation/kill, output limits and cleanup. Linux evidence is not macOS evidence.
+3. Keep `enablePocExecution` false in all production composition until the compiler, adapter and macOS gates pass review. No composition change is part of this task.
+4. Replace the deny-only policy with a reviewed parser plus claim/assertion binding before any policy can return `ok`; acceptance remains eligibility, never isolation or proof of exploitability.
+
+## Verification / scope
+
+- Read Task 5 brief, approved design, Task 1 decision, and Task 3/4 reports; inspected current ports and runner permission semantics.
+- `TASK5_ARTIFACT_ROOT="$HOME/Library/Caches/harness-task5/artifacts" bun test packages/server/test/docker-foundry-sandbox.test.ts` → 12 pass, 0 fail, including live Linux ARM64 benign and assertion-failure PoCs. Tests cover empty/missing/mis-targeted Forge pass output, trusted artifact path/secret rejection, hashed artifacts, exact argv/tmpfs placement, compiler probe naming, timeout/cancellation kill/remove, typed outcome mapping, and traversal refusal.
+- Final post-fix run: `TASK5_ARTIFACT_ROOT="$HOME/Library/Caches/harness-task5/artifacts" bun test packages/server/test/docker-foundry-sandbox.test.ts` → 12 pass, 0 fail; `bun run --cwd packages/server test` → 53 pass, 0 fail; `bun run --cwd packages/server typecheck` → pass; `bun turbo typecheck` → six packages successful; `git diff --check` → pass.
+- Task 5 fix round 2: added an already-aborted-signal regression for `spawnDocker`; observed RED as a 5-second test timeout with one dangling child, then GREEN after checking `signal.aborted` immediately after listener registration and invoking termination. Final non-Docker run: `bun test packages/server/test/docker-foundry-sandbox.test.ts` → 13 pass, 0 fail (live Docker test skipped without `TASK5_ARTIFACT_ROOT`); `bun run --cwd packages/server test` → 54 pass, 0 fail; `bun run --cwd packages/server typecheck` → pass; `bun turbo typecheck` → six packages successful; `git diff --check` → pass. No PoC/container was started in this fix round.
+- Live authorization was limited to disposable Linux ARM64 Engine 29.6.1 container runs with `--network=none`, exact image digest, no secrets, and only fixture snapshot/test plus pinned read-only toolchain. Benign assertion passed and expected assertion failure was classified separately.
+- Host daemon evidence: Linux ARM64 Docker Engine 29.6.1 only. No macOS Docker Desktop validation; root read-only/mount semantics and resource enforcement on supported macOS configurations remain unverified.
+- No production composition enablement. No adversarial resource-abuse fixture was run; text policy is not a sound admission filter and denies all. `runStateProbe` does not parse state deltas. No claim of production readiness or macOS isolation proof is made.
+- `bun turbo test` remains red in `@harness/core`: 873 pass, 5 fail, all in the pre-existing `test/demo/demo.test.ts` expectations for old enabled-PoC/witness behavior. This is the carried Task 4 stale-demo blocker; focused server tests and all-package typecheck pass.
+
+## Addendum
+
+- Commit `d9285f7` clarifies separate authorization; current user instruction authorizes image inspection, benign integration, and bounded hostile PoCs within the task scope.

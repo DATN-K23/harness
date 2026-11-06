@@ -1,0 +1,41 @@
+# Task 6 report — production local composition gate
+
+## Outcome: PARTIAL / RELEASE BLOCKED
+
+No production composition was delivered. The proposed `startProductionJudgeServer` wrapper and its exports/tests were removed after review found its readiness callbacks and runtime factory caller-controlled: a caller could supply no-op checks and arbitrary adapters, while the wrapper checked a config value it discarded. That API could not prove actual adapter identity or effective runtime configuration and provided false assurance. `startJudgeServer` remains unchanged; the README explicitly records production composition as BLOCKED.
+
+Task 5 has no approved production sanitizer/sandbox or image, and Task 3 reports its BCE as incomplete; no production verdict capability is claimed. Do not treat caller-provided readiness callbacks as evidence of production dependencies.
+
+No Docker command, image pull, container, model endpoint or PostgreSQL was used. This task did not create a CLI executable or assert live dependency readiness.
+
+## Verification
+
+- Review disposition: addressed by deleting the unsafe wrapper/export/tests; the existing `startJudgeServer` API was not changed.
+- `bun run --cwd packages/server typecheck` — passed.
+- `bun test packages/server/test` — **32 pass, 0 fail**.
+
+## Resume implementation — safe local readiness endpoint
+
+- Added `bun run cli:serve` using a real Bun listener, loopback-only binding, required explicit CLI runtime config, snapshot-root directory check, pinned Foundry image digest inspection, real Postgres `select 1`, and existing macOS Keychain credential provider before listen. The listener has authenticated health only; all other paths return 503. No test/scripted infrastructure is composed.
+- Health reports API compatibility and the limited capabilities `poc-execution-disabled` and `bce-incomplete`; it explicitly says Judge execution is unavailable. PoC remains literal false and is not configurable by API/env/args. The model key is validated for presence but no model request is made; provider connectivity is not claimed.
+- Judge release remains **BLOCKED**, accurately: Task 3 BCE remains incomplete, Task 5 sanitizer is deny-only, and Docker Desktop/macOS isolation is unvalidated. The listener does not pretend to offer a functional Judge pipeline.
+- Added a regression asserting production config rejects `enablePocExecution: true` and defaults to false.
+- Verification: focused test 2 pass; server tests 56 pass; CLI tests 53 pass (test runner printed its existing cancellation notice); `bun turbo typecheck` 6/6; `git diff --check` passed. No external provider, DB, Docker command, or Keychain was exercised here.
+- Remaining limitations: no integration test can establish readiness without approved live local dependencies; startup's non-network provider validation is only presence/config validation. Existing `startJudgeServer` and callback API remain untouched.
+
+## Fix round 1 — handshake, signals, and startup failures
+
+- Removed the placeholder contract digest from both health responses. No canonical versioned contract serialization exists to hash, so the handshake now carries only `apiVersion`; `assertApiCompatibility` throws on version mismatch. Docs and API tests reflect version-only compatibility.
+- Added shared idempotent SIGINT/SIGTERM shutdown handling; both remove both handlers and call server/store cleanup once.
+- Added startup prerequisite regressions for non-loopback bind, missing DB/model config, unsupported provider, credential-bearing base URL, missing snapshot root, plus authenticated health and unavailable execution behavior. These fail before listening; tests use no live services or Docker.
+- TDD evidence: compatibility tests first failed against the fake digest/version requirement; lifecycle test first failed due to missing implementation module; production runtime health/startup tests were then implemented. Fixes are verified by the focused suite below.
+- Verification: `bun test packages/server/test/runtime-security.test.ts packages/server/test/judge-api.test.ts packages/server/test/production-runtime.test.ts packages/cli/test/server-lifecycle.test.ts` — 26 pass; full server/CLI tests and typechecks follow.
+- Production remains blocked; no Judge execution or PoC is exposed.
+
+## Fix round 2 — verify actual readiness gates prevent listen
+
+- Replaced the vacuous `listened` assertion with tests against internal `startCheckedLocalServer`, which executes the exact ordered startup orchestration used by production. Tests inject only that internal operation seam; the public `startProductionLocalServer` options and package exports do not accept readiness callbacks.
+- Production still binds those operations directly to fixed real checks: filesystem snapshot-root inspection, pinned Docker `image inspect`, `PostgresRunStore` `select 1`, the existing Keychain provider, and `Bun.serve`.
+- Added independent injected failures at image inspection, database ping, and Keychain credential retrieval; each asserts the listener operation counter remains exactly zero. Successful startup asserts one actual listener invocation and uses its fetch handler to confirm authenticated health. No Docker, DB, Keychain, or network was touched.
+- TDD: startup test first failed because the internal orchestration module was absent; production wired fixed operations into that orchestration only after the RED result.
+- Verification: `bun run --cwd packages/server test` — 61 pass; server typecheck passed; `bun run --cwd packages/cli test` — 54 pass (existing cancellation notice printed); CLI typecheck and `git diff --check` passed. Judge execution remains unavailable and PoC execution remains false.

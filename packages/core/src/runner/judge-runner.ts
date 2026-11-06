@@ -1,3 +1,4 @@
+import type { VerificationPort } from "../verification"
 import {
   EventPayloadSchemas,
   StopPrecedence,
@@ -18,7 +19,6 @@ import {
   type RetryConfig,
   type RunClaim,
   type RunStorePort,
-  type SandboxPort,
   type SanitizerPort,
   type SecurityFilterPort,
   type SleepPort,
@@ -88,7 +88,7 @@ export interface JudgeRunConfig {
   retry: RetryConfig
   limits: BudgetLimits
   maxProbeRuns?: number
-  /** Runtime PoC execution remains disabled until the selected sandbox is validated. */
+  /** Internal verification opt-in. Production Judge rejects it. */
   enablePocExecution?: boolean
   /** Forward then backward verification of a deconstructed claim before the verdict; on unless set to `false`. */
   enableBidirectionalVerification?: boolean
@@ -129,7 +129,7 @@ export interface JudgeRunnerDeps {
   snapshot: SourceSnapshotPort
   ingestion: IngestionPort
   sanitizer: SanitizerPort
-  sandbox: SandboxPort
+  verification: VerificationPort
   cancellation: CancellationPort
   clock: ClockPort
   random: RandomPort
@@ -413,6 +413,8 @@ class RunExecution {
           limits: config.limits,
           maxProbeRuns: config.maxProbeRuns,
           enablePocExecution: config.enablePocExecution,
+          ...(config.enablePocExecution && this.deps.verification.executionProfile
+            ? { localExecution: this.deps.verification.executionProfile } : {}),
           enableBidirectionalVerification: config.enableBidirectionalVerification,
           enableStructuredOutput: config.enableStructuredOutput,
           enableClaimExtraction: config.enableClaimExtraction,

@@ -13,15 +13,12 @@ import type {
   RandomPort,
   RunClaim,
   RunStorePort,
-  SandboxPort,
-  SandboxResult,
   SanitizerPort,
   SanitizerResult,
   SecurityFilterPort,
   SleepPort,
   SnapshotReadResult,
   SourceSnapshotPort,
-  StateProbeResult,
   ToolDefinition,
   ToolExecutionResult,
   ToolRegistryPort,
@@ -69,8 +66,6 @@ type AgentVisible = [
   ToolExecutionResult,
   IngestionResult,
   SanitizerResult,
-  SandboxResult,
-  StateProbeResult,
   SnapshotReadResult,
   ModelAttemptRequest,
   ModelAttemptResponse,
@@ -175,7 +170,7 @@ describe("RunStorePort", () => {
 })
 
 describe("stage ports", () => {
-  test("ingestion, sanitizer and sandbox results are tagged and carry the ruled fields", async () => {
+  test("ingestion and sanitizer results are tagged and carry the ruled fields", async () => {
     const finding: CandidateFinding = { findingId: "finding-1", reportMarkdown: "# report" }
     const ingestion: IngestionPort = {
       async ingest(): Promise<IngestionResult> {
@@ -196,14 +191,6 @@ describe("stage ports", () => {
         return { probedTestFile: `${stitchedTestFile}// probes ${stateVariables.join(",")}` }
       },
     }
-    const sandbox: SandboxPort = {
-      async runSingleShot(): Promise<SandboxResult> {
-        return { outcome: "passed", exitCode: 0, trace: "trace", durationMs: 5 }
-      },
-      async runStateProbe(): Promise<StateProbeResult> {
-        return { outcome: "passed", exitCode: 0, trace: "probe", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] }
-      },
-    }
     const input = { runId: "run-1", snapshotId: "snap-1" }
     const ingested = await ingestion.ingest({ ...input, finding })
     expect(ingested.kind).toBe("ok")
@@ -211,9 +198,6 @@ describe("stage ports", () => {
     expect(sanitized.kind === "ok" && sanitized.hasSubmitterAssertions).toBe(false)
     const probed = await sanitizer.injectStateProbes("file;", ["totalSupply"])
     expect(probed.probedTestFile).toBe("file;// probes totalSupply")
-    const probe = await sandbox.runStateProbe({ ...input, probedTestFile: probed.probedTestFile })
-    expect(probe.stateDeltas[0]).toEqual({ variable: "totalSupply", before: "1", after: "2" })
-    expect((await sandbox.runSingleShot({ ...input, testFile: "x" })).exitCode).toBe(0)
   })
 
   test("a missing PoC and a detected cheat are expressible as results", () => {

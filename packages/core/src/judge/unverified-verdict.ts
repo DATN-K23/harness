@@ -51,8 +51,8 @@ export const withheldVerdict = (verdict: JudgeVerdict, wording: VerdictWording):
   })
 }
 
-export const SandboxUnverified: VerdictWording = {
-  summary: "Sandbox execution did not establish a result.",
+export const VerificationUnverified: VerdictWording = {
+  summary: "Verification execution did not establish a result.",
   reasoning:
-    "The sandbox did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
+    "The verification did not report a validated test outcome; infrastructure, setup, timeout, or assertion status cannot be inferred from the process exit code.",
 }

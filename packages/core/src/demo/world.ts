@@ -1,12 +1,11 @@
+import type { VerificationResult, StateProbeResult } from "../verification"
 import type {
   ContextEnginePort,
   IngestionResult,
   NewTrajectoryEvent,
   RunState,
   RunStorePort,
-  SandboxResult,
   SanitizerResult,
-  StateProbeResult,
   TrajectoryEvent,
 } from "@harness/protocol"
 import { EventBus } from "../runner/event-bus"
@@ -18,7 +17,7 @@ import { InMemorySnapshot } from "../testing/in-memory-snapshot"
 import { InMemoryToolRegistry } from "../testing/in-memory-tool-registry"
 import { RegexSecurityFilter } from "../testing/regex-security-filter"
 import { ScriptedModelGateway, type ScriptedModelEntry } from "../testing/scripted-model-gateway"
-import { FakeCancellation, ScriptedIngestion, ScriptedSandbox, ScriptedSanitizer } from "../testing/scripted-stages"
+import { FakeCancellation, ScriptedIngestion, ScriptedVerification, ScriptedSanitizer } from "../testing/scripted-stages"
 import { createIdGenerator } from "../util/id"
 import { DemoSnapshotId, demoInput, snapshotFiles } from "./fixtures"
 import { recordStages, type StageRecord } from "./recorder"
@@ -28,7 +27,7 @@ export interface ScenarioSpec {
   name: string
   ingestion: IngestionResult
   sanitizer: SanitizerResult
-  sandbox: SandboxResult
+  verification: VerificationResult
   stateProbes?: StateProbeResult[]
   script: ScriptedModelEntry[]
   engine?: () => ContextEnginePort
@@ -129,8 +128,8 @@ export const runScenario = async (spec: ScenarioSpec, options: ScenarioOptions):
       {
         ingestion: new ScriptedIngestion([spec.ingestion]),
         sanitizer: new ScriptedSanitizer([spec.sanitizer]),
-        sandbox: new ScriptedSandbox({
-          singleShot: [spec.sandbox],
+        verification: new ScriptedVerification({
+          singleShot: [spec.verification],
           ...(spec.stateProbes === undefined || spec.stateProbes.length === 0
             ? {}
             : { stateProbe: spec.stateProbes as [StateProbeResult, ...StateProbeResult[]] }),

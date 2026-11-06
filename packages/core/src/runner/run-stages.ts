@@ -21,7 +21,7 @@ import {
 } from "../judge/adjudication-step"
 import { MaxExtractionOutputTokens, claimExtractionItems, parseExtractedFields } from "../judge/claim-extraction"
 import { structuredOutputPrompt, withSubmissionTools } from "../judge/structured-output"
-import { SandboxUnverified, unverifiedVerdict, type VerdictWording } from "../judge/unverified-verdict"
+import { VerificationUnverified, unverifiedVerdict, type VerdictWording } from "../judge/unverified-verdict"
 import { isDeniedSourceFile } from "../source/source-snapshot"
 import { textDigest } from "../util/digest"
 import { checkBoundary, type CancellationBoundary } from "./cancellation"
@@ -48,10 +48,10 @@ export interface StageContext {
   deadlineMs: number
 }
 
-type StageName = "ingestion" | "claim_extraction" | "sanitizer" | "sandbox"
+type StageName = "ingestion" | "claim_extraction" | "sanitizer" | "verification"
 
-class SandboxCallFailed extends Error {
-  constructor(readonly sandboxError: unknown) { super("sandbox call failed") }
+class VerificationCallFailed extends Error {
+  constructor(readonly verificationError: unknown) { super("verification call failed") }
 }
 
 export type Staged =
@@ -67,6 +67,7 @@ const runStage = async <Result>(
   stage: StageName,
   call: () => Promise<Result>,
   rejected: (result: Result) => string | undefined,
+  telemetry?: (result: Result) => import("@harness/protocol").VerificationTelemetry | undefined,
 ) => {
   const { clock } = context.deps
   const startedAt = clock.nowMs()
@@ -76,14 +77,16 @@ const runStage = async <Result>(
     // A refused write ends this worker's writes; a typed fault (a failed provider call) keeps its reason.
     if (error instanceof StaleWrite) throw error
     await context.persist("stage.finished", { stage, outcome: "failed", durationMs: durationMs() })
-    if (stage === "sandbox" && !context.signal?.aborted) throw new SandboxCallFailed(error)
+    if (stage === "verification" && !context.signal?.aborted) throw new VerificationCallFailed(error)
     throw error instanceof StepFault ? error : new StepFault("worker_interrupted", error)
   })
   const reasonCode = rejected(result)
+  const verification = telemetry?.(result)
   await context.persist("stage.finished", {
     stage,
     outcome: reasonCode === undefined ? "ok" : "rejected",
     ...(reasonCode === undefined ? {} : { reasonCode }),
+    ...(verification === undefined ? {} : { verification }),
     durationMs: durationMs(),
   })
   return result
@@ -99,7 +102,7 @@ type Admission =
 const InvalidReport: VerdictWording = {
   summary: "The submitted report could not be safely interpreted.",
   reasoning:
-    "Report input was malformed or contained prohibited metadata, so no provider or sandbox evaluation was attempted.",
+    "Report input was malformed or contained prohibited metadata, so no provider or verification evaluation was attempted.",
 }
 
 const InvalidClaim: VerdictWording = {
@@ -226,8 +229,8 @@ const extractClaim = async (context: StageContext): Promise<Extraction> => {
 }
 
 /**
- * Stages 1-3 (design 4.1-4.3, D12) with cancellation boundary 1 before ingestion and before the sandbox. A reject ends
- * the run `completed` with a fast-reject verdict, an unusable report or a sandbox without a validated outcome ends it
+ * Stages 1-3 (design 4.1-4.3, D12) with cancellation boundary 1 before ingestion and before the verification. A reject ends
+ * the run `completed` with a fast-reject verdict, an unusable report or a verification without a validated outcome ends it
  * `unverified`. The only model call possible here is claim extraction, when the run enables it and the report's
  * layout left claim fields missing.
  */
@@ -281,24 +284,25 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   if (sanitized.kind === "cheat_detected")
     return reject({ reasonCode: "NON_FAITHFUL_OVERRIDE", findings: sanitized.findings })
 
-  const beforeSandbox = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "sandbox", signal })
-  if (beforeSandbox.kind === "cancel") return cancelled(beforeSandbox.boundary)
+  const beforeVerification = await checkBoundary(deps.cancellation, runId, "before_stages", { stage: "verification", signal })
+  if (beforeVerification.kind === "cancel") return cancelled(beforeVerification.boundary)
   const executed = await runStage(
     context,
-    "sandbox",
-    () => deps.sandbox.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
+    "verification",
+    () => deps.verification.runSingleShot({ ...stage, testFile: sanitized.stitchedTestFile }, signal),
     (result) => (result.outcome === "passed" ? undefined : "EXECUTION_FAILED"),
+    (result) => result.telemetry,
   ).catch((error: unknown) => {
-    if (error instanceof SandboxCallFailed) return undefined
+    if (error instanceof VerificationCallFailed) return undefined
     throw error
   })
   // An infrastructure failure or a failing exit code never becomes an invalid finding.
   if (executed === undefined)
     return unverified(
-      { summary: SandboxUnverified.summary, reasoning: "The sandbox failed before reporting a validated test outcome." },
+      { summary: VerificationUnverified.summary, reasoning: "The verification failed before reporting a validated test outcome." },
       "EXECUTION_FAILED",
     )
-  if (executed.outcome !== "passed") return unverified(SandboxUnverified, "EXECUTION_FAILED", textDigest(executed.trace))
+  if (executed.outcome !== "passed") return unverified(VerificationUnverified, "EXECUTION_FAILED", textDigest(executed.trace))
   return { kind: "passed", ...judged, pocCode, sanitized, trace: executed.trace }
 }
 
@@ -321,7 +325,7 @@ const probeTools = (context: StageContext, sanitized: SanitizedPoc, probeRunsUse
     ...(claim === undefined ? {} : { claim }),
     stage: { runId: context.runId, snapshotId: context.input.snapshotId },
     sanitizer: context.deps.sanitizer,
-    sandbox: context.deps.sandbox,
+    verification: context.deps.verification,
     security: context.deps.security,
     maxProbeRuns: maxProbeRunsOf(context.input),
     counter: createProbeCounter(probeRunsUsed),
@@ -384,7 +388,7 @@ export const enterStageFour = async (
 
 /**
  * The registry after a takeover. A Tier 2 run (its persisted tool descriptions offer the probe) needs the stitched
- * test file again: the sanitizer is a stage port without model or sandbox work, so it is asked once more, silently.
+ * test file again: the sanitizer is a stage port without model or verification work, so it is asked once more, silently.
  * The probe counter starts at the probe runs the history already requested.
  */
 export const recoverTools = async (context: StageContext, history: HydratedHistory): Promise<Tooling> => {

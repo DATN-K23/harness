@@ -40,12 +40,26 @@ export const isLoopbackHost = (host: string): boolean => {
   return normalized === "::1"
 }
 
-export const isAuthorizedLocalRequest = (request: Request, credential: string): boolean => {
-  if (!credential) return false
+export const requireLocalServerPassword = (password: string | undefined): string => {
+  if (!password?.trim() || /[\x00-\x1f\x7f]/.test(password))
+    throw new Error("HARNESS_SERVER_PASSWORD must be set to a non-empty password without control characters")
+  return password
+}
+
+export const localAuthorization = (password: string): string =>
+  `Basic ${Buffer.from(`harness:${password}`, "utf8").toString("base64")}`
+
+export const isAuthorizedLocalRequest = (request: Request, password: string): boolean => {
+  if (!password?.trim()) return false
   const authorization = request.headers.get("authorization") ?? ""
-  const match = /^Bearer\s+(.+)$/i.exec(authorization)
+  const match = /^Basic +([A-Za-z0-9+/]+={0,2})$/i.exec(authorization)
   if (!match) return false
   const actual = Buffer.from(match[1])
-  const expected = Buffer.from(credential)
+  const expected = Buffer.from(localAuthorization(password).slice("Basic ".length))
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
+
+export const localAuthenticationRequired = () => Response.json(
+  { error: { code: "unauthorized", message: "Authentication required" } },
+  { status: 401, headers: { "WWW-Authenticate": 'Basic realm="Harness", charset="UTF-8"' } },
+)

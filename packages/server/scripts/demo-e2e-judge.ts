@@ -1,3 +1,4 @@
+import { localAuthorization } from "../src/runtime-security"
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -128,7 +129,7 @@ State: balances[msg.sender] is correctly reset before transfer.
         sanitize: async () => ({ kind: "ok" as const, stitchedTestFile: "", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } }),
         injectStateProbes: async () => ({ probedTestFile: "" }),
       },
-      sandbox: {
+      verification: {
         runSingleShot: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0 }),
         runStateProbe: async () => ({ outcome: "passed" as const, exitCode: 0, trace: "", durationMs: 0, observedBefore: null, observedAfter: null, stateDeltas: [] }),
       },
@@ -145,7 +146,7 @@ State: balances[msg.sender] is correctly reset before transfer.
     new Request("http://localhost/v1/judge/runs", {
       method: "POST",
       headers: {
-        authorization: "Bearer demo-credential",
+        authorization: localAuthorization("demo-credential"),
         "content-type": "application/json",
         "idempotency-key": `demo-key-${Date.now()}`,
       },
@@ -165,7 +166,7 @@ State: balances[msg.sender] is correctly reset before transfer.
   console.log("[5] Polling status and verdict from GET /v1/judge/runs/:id...")
   const statusRes = await runtime.api.fetch(
     new Request(`http://localhost/v1/judge/runs/${runId}`, {
-      headers: { authorization: "Bearer demo-credential" },
+      headers: { authorization: localAuthorization("demo-credential") },
     }),
   )
   const status = (await statusRes.json()) as { state: string; verdict?: Record<string, unknown> }
@@ -175,7 +176,7 @@ State: balances[msg.sender] is correctly reset before transfer.
   console.log("\n[6] Polling trajectory events from GET /v1/judge/runs/:id/events...")
   const eventsRes = await runtime.api.fetch(
     new Request(`http://localhost/v1/judge/runs/${runId}/events?limit=5`, {
-      headers: { authorization: "Bearer demo-credential" },
+      headers: { authorization: localAuthorization("demo-credential") },
     }),
   )
   const events = (await eventsRes.json()) as { events: Array<{ sequence: number; type: string }> }

@@ -7,7 +7,7 @@ import type {
   StageInput,
   CandidateFinding,
 } from "@harness/protocol"
-export { ScriptedSandbox, type ScriptedSandboxResults } from "../sandbox/scripted-sandbox"
+export { ScriptedVerification, type ScriptedVerificationResults } from "./scripted-verification"
 
 /** Results are returned verbatim, one per call; once the list is used up the last one repeats. */
 class ResultScript<Result> {

@@ -1,10 +1,10 @@
-import { createKeychainCredentialProvider, type KeychainCredentialProvider } from "./keychain-credential"
 import { startLocalRuntime } from "./local-runtime"
+import { isLoopbackHost, requireLocalServerPassword } from "./runtime-security"
 
 export interface JudgeServerStartupOptions<T> {
   hostname: string
   port: number
-  credentialProvider?: KeychainCredentialProvider
+  getCredential?(): Promise<string>
   createRuntime(credential: string): {
     api: { fetch(request: Request): Promise<Response> }
     worker: { runOnce(): Promise<number> }
@@ -15,7 +15,8 @@ export interface JudgeServerStartupOptions<T> {
 }
 
 export const startJudgeServer = async <T>(options: JudgeServerStartupOptions<T>) => {
-  const credential = await (options.credentialProvider ?? createKeychainCredentialProvider()).getOrCreate()
+  if (!isLoopbackHost(options.hostname)) throw new Error("Server must bind to loopback")
+  const credential = requireLocalServerPassword(await options.getCredential?.() ?? process.env.HARNESS_SERVER_PASSWORD)
   const runtime = options.createRuntime(credential)
   const listener = startLocalRuntime({
     hostname: options.hostname,

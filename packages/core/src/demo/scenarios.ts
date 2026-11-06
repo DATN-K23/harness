@@ -1,4 +1,5 @@
-import type { ContextItem, IngestionResult, SandboxResult, SanitizerResult, StateProbeResult } from "@harness/protocol"
+import type { VerificationResult, StateProbeResult } from "../verification"
+import type { ContextItem, IngestionResult, SanitizerResult } from "@harness/protocol"
 import { ScriptedContextEngine, estimateTokens } from "../testing/fake-context-engines"
 import {
   errorResponse,
@@ -30,7 +31,7 @@ const okSanitizer: SanitizerResult = {
   },
 }
 
-const okSandbox: SandboxResult = {
+const okVerification: VerificationResult = {
   outcome: "passed",
   exitCode: 0,
   trace:
@@ -137,7 +138,7 @@ const summarizeUnpinned = (input: { items: ContextItem[] }) => ({
 const base = {
   ingestion: okIngestion,
   sanitizer: okSanitizer,
-  sandbox: okSandbox,
+  verification: okVerification,
 }
 
 const confirmed: ScenarioSpec = {
@@ -157,6 +158,7 @@ const missingPoc: ScenarioSpec = { ...confirmed, name: "missing-poc", ingestion:
 const cheatingPoc: ScenarioSpec = {
   ...confirmed,
   name: "cheating-poc",
+  config: { enablePocExecution: true },
   sanitizer: {
     kind: "cheat_detected",
     findings: [{ ruleId: "vm-store", message: "vm.store overwrites Vault.balances directly", line: 3 }],
@@ -167,7 +169,8 @@ const cheatingPoc: ScenarioSpec = {
 const failingPoc: ScenarioSpec = {
   ...confirmed,
   name: "failing-poc",
-  sandbox: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit() reverted: Vault: insufficient", durationMs: 920 },
+  config: { enablePocExecution: true },
+  verification: { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] testExploit() reverted: Vault: insufficient", durationMs: 920 },
   script: [],
 }
 

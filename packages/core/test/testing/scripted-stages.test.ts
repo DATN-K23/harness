@@ -1,9 +1,10 @@
+import type { VerificationResult, StateProbeResult } from "../../src/verification"
 import { describe, expect, test } from "bun:test"
-import type { IngestionResult, SandboxResult, SanitizerResult, StageInput, StateProbeResult } from "@harness/protocol"
+import type { IngestionResult, SanitizerResult, StageInput } from "@harness/protocol"
 import {
   FakeCancellation,
   ScriptedIngestion,
-  ScriptedSandbox,
+  ScriptedVerification,
   ScriptedSanitizer,
 } from "../../src/testing/scripted-stages"
 
@@ -78,9 +79,9 @@ describe("ScriptedSanitizer", () => {
   })
 })
 
-describe("ScriptedSandbox", () => {
-  const passed: SandboxResult = { outcome: "passed", exitCode: 0, trace: "[PASS] test_exploit() (gas: 91234)", durationMs: 420 }
-  const failed: SandboxResult = { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] test_exploit()", durationMs: 90 }
+describe("ScriptedVerification", () => {
+  const passed: VerificationResult = { outcome: "passed", exitCode: 0, trace: "[PASS] test_exploit() (gas: 91234)", durationMs: 420 }
+  const failed: VerificationResult = { outcome: "assertion_failed", exitCode: 1, trace: "[FAIL] test_exploit()", durationMs: 90 }
   const probe: StateProbeResult = {
     outcome: "passed",
     exitCode: 0,
@@ -89,26 +90,26 @@ describe("ScriptedSandbox", () => {
   }
 
   test("single-shot results come back verbatim, in order, with the last repeating", async () => {
-    const sandbox = new ScriptedSandbox({ singleShot: [failed, passed] })
-    const results = await Promise.all([1, 2, 3].map(() => sandbox.runSingleShot({ ...stage, testFile: "T" })))
+    const verification = new ScriptedVerification({ singleShot: [failed, passed] })
+    const results = await Promise.all([1, 2, 3].map(() => verification.runSingleShot({ ...stage, testFile: "T" })))
     expect(results[0]).toBe(failed)
     expect(results[1]).toBe(passed)
     expect(results[2]).toBe(passed)
-    expect(sandbox.singleShotCalls).toHaveLength(3)
+    expect(verification.singleShotCalls).toHaveLength(3)
   })
 
   test("state probe results, including state deltas, come back verbatim", async () => {
-    const sandbox = new ScriptedSandbox({ singleShot: [passed], stateProbe: [probe] })
-    const result = await sandbox.runStateProbe({ ...stage, probedTestFile: "P" })
+    const verification = new ScriptedVerification({ singleShot: [passed], stateProbe: [probe] })
+    const result = await verification.runStateProbe({ ...stage, probedTestFile: "P" })
     expect(result).toBe(probe)
     expect(result.stateDeltas).toEqual([{ variable: "balances[victim]", before: "100 ether", after: "0" }])
-    expect(sandbox.stateProbeCalls).toEqual([{ ...stage, probedTestFile: "P" }])
+    expect(verification.stateProbeCalls).toEqual([{ ...stage, probedTestFile: "P" }])
   })
 
   test("calling an unscripted method fails loudly instead of inventing a result", async () => {
-    const sandbox = new ScriptedSandbox({ singleShot: [passed] })
-    await expect(sandbox.runStateProbe({ ...stage, probedTestFile: "P" })).rejects.toThrow(
-      "ScriptedSandbox.runStateProbe: no result was scripted",
+    const verification = new ScriptedVerification({ singleShot: [passed] })
+    await expect(verification.runStateProbe({ ...stage, probedTestFile: "P" })).rejects.toThrow(
+      "ScriptedVerification.runStateProbe: no result was scripted",
     )
   })
 })

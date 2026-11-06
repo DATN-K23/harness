@@ -1,3 +1,4 @@
+import { unavailableVerification } from "@harness/core/verification"
 import { lstat, readdir } from "node:fs/promises"
 import { realpath } from "node:fs/promises"
 import { createIdGenerator, DiskSourceSnapshot, JudgeDefaultLimits, ProductionContextEngine, ProductionSecurityFilter, SnapshotIngestion, SnapshotManager, ToolRegistry, createO200kTokenizer, systemIdSources } from "@harness/core"
@@ -5,13 +6,10 @@ import type { JudgeRunConfig } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { RealModelGateway } from "@harness/llm/gateway"
 import { PostgresRunStore } from "@harness/schema"
-import { spawnDocker } from "./docker-foundry-sandbox"
-import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
-import { createKeychainCredentialProvider } from "./keychain-credential"
+import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost, localAuthenticationRequired, requireLocalServerPassword } from "./runtime-security"
 import { startCheckedLocalServer } from "./production-startup"
 import { createJudgeRuntime } from "./judge-runtime"
 import { ConservativePocPolicy } from "./poc-policy"
-import { DockerFoundrySandbox } from "./docker-foundry-sandbox"
 import { PostgresCancellation } from "@harness/schema"
 import type { ClockPort, ModelGatewayPort, RandomPort, SleepPort, SourceSnapshotPort } from "@harness/protocol"
 import { startPollingWorker } from "./worker-lifecycle"
@@ -98,8 +96,8 @@ export const makeProductionJudgeConfig = (runtime: {
     runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
       timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,
       outputCostPerMTok: runtime.modelOutputCostPerMTok, profileVersion: "judge-local-v1",
-      ingestionVersion: "snapshot-ingestion-solc-0.8.30", sandboxMode: "disabled", maxContextTokens: 128_000,
-      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30", foundryImage: "ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c" } })
+      ingestionVersion: "snapshot-ingestion-solc-0.8.30", maxContextTokens: 128_000,
+      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30" } })
 }
 
 const deepFreeze = <T>(value: T): T => {
@@ -126,7 +124,7 @@ const assertSnapshotRoot = async (root: string) => {
 
 export const createProductionHealthHandler = (credential: string) => async (request: Request) => {
   if (!isAuthorizedLocalRequest(request, credential))
-    return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
+    return localAuthenticationRequired()
   const url = new URL(request.url)
   if (request.method === "GET" && url.pathname === "/v1/health") return Response.json({
     endpointId: "harness-local-runtime",
@@ -145,6 +143,9 @@ interface ProductionStartupOperations {
   startCheckedLocalServer: typeof startCheckedLocalServer
   getCredential?(): Promise<string>
   createGateway?(): ModelGatewayPort
+  bind?(options: { hostname: string; port: number; fetch(request: Request): Promise<Response> }): {
+    hostname: string; port: number; stop(closeActive?: boolean): unknown
+  }
 }
 
 const productionStartupOperations: ProductionStartupOperations = {
@@ -167,10 +168,24 @@ export const startProductionLocalServer = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  serverPassword?: string
   snapshotDir: string
   hostname: string
   port: number
 }) => startProductionLocalServerWithOperations(options, productionStartupOperations)
+
+/** Compose the Judge worker and HTTP handler under a listener already owned by the CLI daemon. */
+export const startProductionJudgeHandler = async (options: Parameters<typeof startProductionLocalServer>[0]) => {
+  let handle!: (request: Request) => Promise<Response>
+  const runtime = await startProductionLocalServerWithOperations(options, {
+    ...productionStartupOperations,
+    bind({ hostname, port, fetch }) {
+      handle = fetch
+      return { hostname, port, stop() {} }
+    },
+  })
+  return { fetch: handle, stop: runtime.stop }
+}
 
 /** Internal startup seam for verifying preflight ordering without infrastructure. */
 export const startProductionLocalServerWithOperations = async (options: {
@@ -186,6 +201,7 @@ export const startProductionLocalServerWithOperations = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  serverPassword?: string
   snapshotDir: string
   hostname: string
   port: number
@@ -197,6 +213,7 @@ export const startProductionLocalServerWithOperations = async (options: {
     throw new Error("Unsupported model provider")
   const providerConfig = resolveProductionProvider({ providerName: options.providerName, apiKey: options.modelApiKey,
     model: options.modelName, baseURL: options.modelBaseUrl })
+  const password = operations.getCredential ? undefined : requireLocalServerPassword(options.serverPassword ?? process.env.HARNESS_SERVER_PASSWORD)
   const validatedOptions = { ...options, modelBaseUrl: providerConfig.baseURL }
   const store = operations.createStore(options.databaseUrl)
   try {
@@ -204,7 +221,7 @@ export const startProductionLocalServerWithOperations = async (options: {
     const started = await operations.startCheckedLocalServer(options, {
       checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
       async pingDatabase() { await store.client.sql`select 1` },
-      getCredential: () => operations.getCredential?.() ?? createKeychainCredentialProvider().getOrCreate(),
+      getCredential: async () => requireLocalServerPassword(operations.getCredential ? await operations.getCredential() : password),
       listen(hostname, port, _fetch, credential) {
         const config = makeProductionJudgeConfig(validatedOptions)
         const ids = createIdGenerator(systemIdSources)
@@ -224,14 +241,15 @@ export const startProductionLocalServerWithOperations = async (options: {
               tools: new ToolRegistry({ snapshot, snapshotId: run.snapshotId, secrets: [options.modelApiKey] }),
               security: new ProductionSecurityFilter(), ingestion: new SnapshotIngestion({ source: snapshot }),
               sanitizer: new ConservativePocPolicy({ compilerAvailable: false }),
-              sandbox: new DockerFoundrySandbox(spawnDocker, snapshot, { root: "" }, { enabled: false }),
+              verification: unavailableVerification,
               cancellation: new PostgresCancellation(store.client), clock: systemClock, random: systemRandom, sleep: systemSleep, ids,
               }
           },
         })
         const health = createProductionHealthHandler(credential)
-        const server = Bun.serve({ hostname, port, fetch: (request) =>
-          request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) })
+        const listener = { hostname, port, fetch: (request: Request) =>
+          request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) }
+        const server = operations.bind ? operations.bind(listener) : Bun.serve(listener)
         const worker = startPollingWorker(() => runtime.worker.runOnce(), 250, 5_000, () => store.close())
         return { hostname: server.hostname, port: server.port, async stop() { await worker.stop(); server.stop(true) } }
       },

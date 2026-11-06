@@ -1,3 +1,4 @@
+import { localAuthorization } from "../src/runtime-security"
 import { describe, expect, test } from "bun:test"
 import { createIdGenerator, digestOf, SnapshotIngestion } from "@harness/core"
 import { InMemorySnapshot } from "@harness/core"
@@ -235,20 +236,20 @@ describe("Judge submission service", () => {
     })
     const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer local-secret", "content-type": "application/json", "idempotency-key": "e2e-key" },
+      headers: { authorization: localAuthorization("local-secret"), "content-type": "application/json", "idempotency-key": "e2e-key" },
       body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw\nRoot cause: external call before balance update\nAttack scenario: reenter withdraw\nImpact: fund loss\nState: balance reduced" }, snapshotId: "snap-1" }),
     }))
     expect(submit.status).toBe(202)
     const { runId } = await submit.json() as { runId: string }
     expect(await runtime.worker.runOnce()).toBe(1)
-    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: "Bearer local-secret" } }))
+    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: localAuthorization("local-secret") } }))
     expect(await run.json()).toMatchObject({
       state: "completed",
       findingId: "finding-7",
       verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" },
     })
     expect(gateway.calls.every((call) => !JSON.stringify(call).match(/groundTruthLabel|adjudicationReport|scoringMetadata/i))).toBe(true)
-    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: "Bearer local-secret" } }))
+    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: localAuthorization("local-secret") } }))
     const events = await eventsResponse.text()
     expect(events).not.toMatch(/groundTruthLabel|adjudicationReport|scoringMetadata/i)
     expect(events).not.toContain("test-only-sensitive-marker")

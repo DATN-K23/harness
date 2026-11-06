@@ -1,10 +1,11 @@
+import { localAuthorization } from "../src/runtime-security"
 import { describe, expect, test } from "bun:test"
 import { createJudgeApi } from "../src/judge-api"
 
 describe("Judge submission API", () => {
   test("health endpoint returns authenticated API compatibility identity", async () => {
     const app = createJudgeApi({ credential: "test-credential", submit: async () => ({ kind: "accepted", runId: "r" }) })
-    const response = await app.fetch(new Request("http://localhost/v1/health", { headers: { authorization: "Bearer test-credential" } }))
+    const response = await app.fetch(new Request("http://localhost/v1/health", { headers: { authorization: localAuthorization("test-credential") } }))
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
       endpointId: "harness-local-runtime",
@@ -28,7 +29,7 @@ describe("Judge submission API", () => {
     })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-1" },
+      headers: { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-1" },
       body: JSON.stringify({
         finding: { findingId: "finding-1", reportMarkdown: "Possible reentrancy." },
         snapshotId: "snapshot-1",
@@ -63,7 +64,7 @@ describe("Judge submission API", () => {
     })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-1" },
+      headers: { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-1" },
       body: JSON.stringify({ finding: { findingId: "", reportMarkdown: "" }, snapshotId: "missing" }),
     }))
     expect(response.status).toBe(400)
@@ -82,7 +83,7 @@ describe("Judge submission API", () => {
     })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-gt" },
+      headers: { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-gt" },
       body: JSON.stringify({
         finding: {
           findingId: "finding-gt",
@@ -102,7 +103,7 @@ describe("Judge submission API", () => {
     const app = createJudgeApi({ credential: "test-credential", submit: async () => ({ kind: "conflict" }) })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-1" },
+      headers: { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-1" },
       body: JSON.stringify({
         finding: { findingId: "finding-1", reportMarkdown: "Different report" },
         snapshotId: "snapshot-1",
@@ -115,7 +116,7 @@ describe("Judge submission API", () => {
   test("rejects malformed JSON and oversized bodies before admission", async () => {
     let calls = 0
     const app = createJudgeApi({ credential: "test-credential", submit: async () => { calls++; return { kind: "accepted", runId: "run-1" } } })
-    const headers = { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-1" }
+    const headers = { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-1" }
     const malformed = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST", headers, body: "{not-json",
     }))
@@ -131,7 +132,7 @@ describe("Judge submission API", () => {
     const app = createJudgeApi({ credential: "test-credential", submit: async () => { throw new Error("database unavailable") } })
     const response = await app.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer test-credential", "content-type": "application/json", "idempotency-key": "key-1" },
+      headers: { authorization: localAuthorization("test-credential"), "content-type": "application/json", "idempotency-key": "key-1" },
       body: JSON.stringify({ finding: { findingId: "finding-1", reportMarkdown: "Report" }, snapshotId: "snapshot-1" }),
     }))
     expect(response.status).toBe(503)
@@ -155,7 +156,7 @@ describe("Judge submission API", () => {
         }),
       } as never,
     })
-    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1", { headers: { authorization: "Bearer test-credential" } }))
+    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1", { headers: { authorization: localAuthorization("test-credential") } }))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       runId: "run-1",
@@ -179,7 +180,7 @@ describe("Judge submission API", () => {
         ].filter((event) => event.sequence > afterSequence),
       } as never,
     })
-    const auth = { authorization: "Bearer test-credential" }
+    const auth = { authorization: localAuthorization("test-credential") }
     const first = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/events?limit=1", { headers: auth }))
     expect(first.status).toBe(200)
     const firstBody = await first.json() as { events: { sequence: number }[]; nextCursor?: string }
@@ -211,7 +212,7 @@ describe("Judge submission API", () => {
         loadEvents: async () => { eventReads++; return [] },
       } as never,
     })
-    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/unknown/events", { headers: { authorization: "Bearer test-credential" } }))
+    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/unknown/events", { headers: { authorization: localAuthorization("test-credential") } }))
     expect(response.status).toBe(404)
     expect(eventReads).toBe(0)
   })
@@ -226,7 +227,7 @@ describe("Judge submission API", () => {
         loadEvents: async () => [],
       } as never,
     })
-    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/events", { headers: { authorization: "Bearer test-credential" } }))
+    const response = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/events", { headers: { authorization: localAuthorization("test-credential") } }))
     expect(await response.json()).toEqual({ events: [], nextCursor: null })
   })
 
@@ -242,7 +243,7 @@ describe("Judge submission API", () => {
         },
       } as never,
     })
-    const headers = { authorization: "Bearer test-credential" }
+    const headers = { authorization: localAuthorization("test-credential") }
     const first = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/cancel", { method: "POST", headers }))
     const again = await app.fetch(new Request("http://localhost/v1/judge/runs/run-1/cancel", { method: "POST", headers }))
     expect(first.status).toBe(202)
@@ -260,7 +261,7 @@ describe("Judge submission API", () => {
         requestCancellation: async (runId: string) => runId === "missing" ? { kind: "not_found" } : { kind: "terminal" },
       } as never,
     })
-    const headers = { authorization: "Bearer test-credential" }
+    const headers = { authorization: localAuthorization("test-credential") }
     expect((await app.fetch(new Request("http://localhost/v1/judge/runs/missing/cancel", { method: "POST", headers }))).status).toBe(404)
     expect((await app.fetch(new Request("http://localhost/v1/judge/runs/completed/cancel", { method: "POST", headers }))).status).toBe(409)
   })

@@ -21,8 +21,11 @@ import { executeSnapshotListCommand } from "./commands/snapshot"
 import { executeViewCommand } from "./commands/view"
 import { createJudgeLiveTrace } from "./judge-live-trace"
 import { redactSecrets } from "./redaction"
-import { startProductionLocalServer } from "../../server/src/production-runtime"
+import { createProductionHealthHandler, localAuthorization, startProductionJudgeHandler, startProductionLocalServer } from "@harness/server"
 import { waitForServerShutdown } from "./server-lifecycle"
+import { judgeViaServer } from "./commands/judge"
+import { ensureSharedServer, findSharedServer, runSharedDaemon } from "./shared-server"
+import { runSharedCommand, serveSharedCommand } from "./shared-commands"
 
 export * from "./config"
 export * from "./redaction"
@@ -41,14 +44,16 @@ Usage:
   bun run cli:run -- --snapshot <id> --prompt "<text>" [run limits]
   bun run cli:run -- --snapshot <id> --finding <path> [run limits]
   bun run cli:view -- --id <runId> [--json]
-  bun run cli:serve
+  bun run cli:serve [status|stop]
+  bun run cli:judge -- --snapshot <id> --finding <path> [--server <loopback-url>]
 
 Commands:
   repo add       Ingest a repository into an immutable source snapshot
   snapshot list  List registered source snapshots
   run            Execute a single-turn or snapshot-backed multi-turn run
   view           Inspect a historical run and its trajectory
-  serve          Start the fail-closed local health/API compatibility server
+  serve          Start or reuse the shared local HTTP server (status/stop to manage it)
+  judge          Submit a finding through a local server and wait for the result
 
 Options:
   --prompt <text>             Prompt text to evaluate (required for run unless --finding is used)
@@ -71,6 +76,8 @@ Options:
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
+  --server <url>              Judge: connect to an explicitly selected loopback server
+  --foreground                Serve: run an explicit foreground listener with configured credentials
   --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
@@ -81,6 +88,9 @@ export interface CliParsedArgs {
   positionals: string[]
   prompt?: string
   finding?: string
+  server?: string
+  managed?: boolean
+  foreground?: boolean
   model?: string
   timeout?: string
   snapshot?: string
@@ -112,16 +122,28 @@ export interface RunCliDependencies {
   stdout?: CliWriter
   stderr?: CliWriter
   snapshotDir?: string
+  cwd?: string
+  useSharedServer?: boolean
   processSignals?: { on(event: "SIGINT", listener: () => void): unknown; off(event: "SIGINT", listener: () => void): unknown }
 }
 
 export function parseCliArgs(args: string[]): CliParsedArgs {
   if (args.includes("--max-cost-usd")) throw new Error("Unknown option '--max-cost-usd'. See --help.")
+  if (args[0] === "judge") {
+    const { values } = parseArgs({ args: args.slice(1), options: {
+      snapshot: { type: "string" }, finding: { type: "string" }, server: { type: "string" },
+      help: { type: "boolean", short: "h" },
+    } })
+    return { command: "judge", snapshot: values.snapshot, finding: values.finding, server: values.server,
+      help: values.help, positionals: [], includeRoots: [] }
+  }
   const { values, positionals } = parseArgs({
     args,
     options: {
       prompt: { type: "string" },
       finding: { type: "string" },
+      managed: { type: "boolean" },
+      foreground: { type: "boolean" },
       model: { type: "string" },
       timeout: { type: "string" },
       snapshot: { type: "string" },
@@ -146,14 +168,15 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     strict: false,
   })
   const includeRoot = values["include-root"]
+  const knownCommand = ["run", "view", "repo", "snapshot", "serve"].includes(positionals[0] ?? "")
   return {
-    command: positionals[0] === "run" || positionals[0] === "view" || positionals[0] === "repo" || positionals[0] === "snapshot" || positionals[0] === "serve"
-      ? positionals[0]
-      : (values.prompt !== undefined || values.finding !== undefined ? "run" : positionals[0]),
+    command: knownCommand || (values.prompt === undefined && values.finding === undefined) ? positionals[0] : "run",
     subcommand: positionals[1],
-    positionals: positionals.slice(positionals[0] === "run" || positionals[0] === "view" || positionals[0] === "repo" || positionals[0] === "snapshot" || positionals[0] === "serve" ? 2 : 1),
+    positionals: positionals.slice(knownCommand ? 2 : 1),
     prompt: asString(values.prompt),
     finding: asString(values.finding),
+    managed: Boolean(values.managed),
+    foreground: Boolean(values.foreground),
     model: asString(values.model),
     timeout: asString(values.timeout),
     snapshot: asString(values.snapshot),
@@ -202,10 +225,29 @@ export async function runCli(
   const env = deps.env ?? process.env
   const snapshotDir = resolveSnapshotStorageDir(env, deps.snapshotDir)
   const secrets = env.MODEL_API_KEY ? [env.MODEL_API_KEY] : []
+  const cwd = deps.cwd ?? process.cwd()
+
+  if (deps.useSharedServer && isSharedCommand(parsed)) {
+    const controller = new AbortController()
+    const cancel = () => controller.abort()
+    process.once("SIGINT", cancel)
+    process.once("SIGTERM", cancel)
+    try {
+      const server = await ensureSharedServer({ ...env, HARNESS_SNAPSHOT_DIR: resolve(snapshotDir) }, controller.signal)
+      return await runSharedCommand(server, argv, cwd, { stdout, stderr }, controller.signal)
+    } catch (error) {
+      if (controller.signal.aborted) return 130
+      stderr(`Error: ${safeError(error, secrets)}`)
+      return 1
+    } finally {
+      process.off("SIGINT", cancel)
+      process.off("SIGTERM", cancel)
+    }
+  }
 
   if (parsed.command === "repo" && parsed.subcommand === "add") {
     const result = await executeRepoAddCommand({
-      sourceDir: parsed.positionals[0],
+      sourceDir: parsed.positionals[0]?.trim() ? resolve(cwd, parsed.positionals[0]) : undefined,
       storageDir: snapshotDir,
       ...(parsed.includeRoots.length > 0 ? { includeRoots: parsed.includeRoots } : {}),
       snapshotId: parsed.snapshotId,
@@ -231,34 +273,118 @@ export async function runCli(
     return viewCommand(parsed, deps, env, stdout, stderr, secrets)
   }
 
-  if (parsed.command === "serve") {
+  if (parsed.command === "judge") {
+    const controller = new AbortController()
+    const cancel = () => controller.abort()
+    process.once("SIGINT", cancel)
+    process.once("SIGTERM", cancel)
     try {
-      const config = loadCliConfig(env, deps.snapshotDir)
-      const server = await startProductionLocalServer({
-        databaseUrl: config.databaseUrl,
-        modelApiKey: config.modelApiKey,
-        modelName: config.modelName,
-        providerName: config.providerName,
-        modelBaseUrl: config.modelBaseUrl,
-        modelTimeoutMs: config.modelTimeoutMs,
-        modelMaxOutputTokens: config.modelMaxOutputTokens,
-        modelInputCostPerMTok: config.modelInputCostPerMTok,
-        modelOutputCostPerMTok: config.modelOutputCostPerMTok,
-        snapshotDir: config.snapshotDir,
-        hostname: env.HARNESS_HOST ?? "127.0.0.1",
-        port: Number(env.HARNESS_PORT ?? 4318),
-      })
-      stdout(`Harness local Judge API listening on ${server.server.hostname}:${server.server.port}; verdict capability remains UNVERIFIED`)
-      await waitForServerShutdown(process, () => server.stop())
-      return 0
+      const result = await judgeViaServer(parsed, { ...env, HARNESS_SNAPSHOT_DIR: resolve(snapshotDir) }, stdout, controller.signal)
+      stdout(JSON.stringify(result))
+      return result.state === "completed" ? 0 : 1
     } catch (error) {
-      stderr(`Error: ${safeError(error, secrets)}`)
+      if (controller.signal.aborted) return 130
+      stderr(`Error: ${safeError(error, env.HARNESS_SERVER_PASSWORD ? [...secrets, env.HARNESS_SERVER_PASSWORD] : secrets)}`)
+      return 1
+    } finally {
+      process.off("SIGINT", cancel)
+      process.off("SIGTERM", cancel)
+    }
+  }
+
+  if (parsed.command === "serve") {
+    const serverPassword = env.HARNESS_SERVER_PASSWORD
+    try {
+      if (parsed.managed) {
+        await serveManagedRuntime(env, resolve(snapshotDir))
+        return 0
+      }
+      if (parsed.foreground) {
+        const server = await startProductionLocalServer(productionOptions(loadCliConfig(env, deps.snapshotDir), {
+          hostname: env.HARNESS_HOST ?? "127.0.0.1", port: Number(env.HARNESS_PORT ?? 4318), password: serverPassword ?? "",
+        }))
+        stdout(`Harness local Judge API listening on ${server.server.hostname}:${server.server.port}`)
+        await waitForServerShutdown(process, () => server.stop())
+        return 0
+      }
+      return await manageSharedServer(parsed.subcommand, { ...env, HARNESS_SNAPSHOT_DIR: resolve(snapshotDir) }, stdout)
+    } catch (error) {
+      stderr(`Error: ${safeError(error, serverPassword ? [...secrets, serverPassword] : secrets)}`)
       return 1
     }
   }
 
   stderr(`Error: Unknown command '${parsed.command ?? ""}'. See --help.`)
   return 1
+}
+
+const isSharedCommand = (parsed: CliParsedArgs) => !parsed.mock && !parsed.help && (
+  parsed.command === "run" || parsed.command === "view" ||
+  (parsed.command === "repo" && parsed.subcommand === "add") ||
+  (parsed.command === "snapshot" && parsed.subcommand === "list")
+)
+
+const productionOptions = (config: RuntimeConfig, endpoint: { hostname: string; port: number; password: string }) => ({
+  databaseUrl: config.databaseUrl, modelApiKey: config.modelApiKey, modelName: config.modelName, providerName: config.providerName,
+  modelBaseUrl: config.modelBaseUrl, modelTimeoutMs: config.modelTimeoutMs, modelMaxOutputTokens: config.modelMaxOutputTokens,
+  modelInputCostPerMTok: config.modelInputCostPerMTok, modelOutputCostPerMTok: config.modelOutputCostPerMTok,
+  snapshotDir: config.snapshotDir, hostname: endpoint.hostname, port: endpoint.port, serverPassword: endpoint.password,
+})
+
+const serveManagedRuntime = async (env: Record<string, string | undefined>, snapshotDir: string) => {
+  const { HARNESS_SERVER_PASSWORD: _foregroundPassword, ...commandEnv } = env
+  let judge: Promise<Awaited<ReturnType<typeof startProductionJudgeHandler>>> | undefined
+  await runSharedDaemon({
+    async fetch(request, password) {
+      const { pathname } = new URL(request.url)
+      if (request.method === "POST" && pathname === "/_local/command")
+        return serveSharedCommand(request, async ({ argv, cwd }, writers) => {
+          if (!isSharedCommand(parseCliArgs(argv))) {
+            writers.stderr("Error: Command is unavailable over the shared API")
+            return 1
+          }
+          return runCli(argv, { ...writers, env: commandEnv, snapshotDir, cwd })
+        })
+      if (request.method === "GET" && pathname === "/v1/health") return createProductionHealthHandler(password)(request)
+      if (!pathname.startsWith("/v1/judge/runs")) return new Response(null, { status: 404 })
+      try {
+        judge ??= Promise.resolve().then(() => startProductionJudgeHandler(productionOptions(loadCliConfig(commandEnv, snapshotDir), {
+          hostname: "127.0.0.1", port: 0, password,
+        }))).catch((error: unknown) => { judge = undefined; throw error })
+        const runtime = await judge
+        return await runtime.fetch(request)
+      } catch {
+        return Response.json({ error: { code: "unavailable", message: "Check database, provider and snapshot configuration" } }, { status: 503 })
+      }
+    },
+    async stop() { await (await judge?.catch(() => undefined))?.stop() },
+  })
+}
+
+const manageSharedServer = async (action: string | undefined, env: Record<string, string | undefined>, stdout: CliWriter) => {
+  const signal = AbortSignal.timeout(16_000)
+  if (action === undefined) {
+    const server = await ensureSharedServer(env, signal)
+    stdout(`Harness shared server listening on ${server.origin}`)
+    return 0
+  }
+  if (action !== "status" && action !== "stop") throw new Error("Usage: cli:serve [status|stop]")
+  const server = await findSharedServer(signal)
+  if (!server) {
+    stdout("Harness shared server is not running")
+    return 0
+  }
+  if (action === "status") {
+    stdout(`Harness shared server listening on ${server.origin}`)
+    return 0
+  }
+  const response = await fetch(server.origin + "/_local/stop", {
+    method: "POST", redirect: "error", signal, headers: { authorization: localAuthorization(server.password) },
+  })
+  if (response.status !== 202) throw new Error("Shared server rejected shutdown")
+  while ((await findSharedServer(signal))?.password === server.password) await Bun.sleep(100)
+  stdout("Harness shared server stopped")
+  return 0
 }
 
 async function runCommand(
@@ -299,7 +425,7 @@ async function runCommand(
     let findingMarkdown = ""
     if (parsed.finding !== undefined) {
       try {
-        const filePath = resolve(findRepositoryRoot() ?? process.cwd(), parsed.finding)
+        const filePath = resolve(deps.cwd ?? findRepositoryRoot(), parsed.finding)
         const file = Bun.file(filePath)
         if (!(await file.exists())) {
           stderr(redactSecrets(`Error: Finding file '${parsed.finding}' could not be read.`, secrets))
@@ -842,7 +968,7 @@ function safeError(error: unknown, secrets: readonly string[]): string {
 
 // Auto-run if executed directly via CLI.
 if (import.meta.main) {
-  runCli().then((code) => {
+  runCli(process.argv.slice(2), { useSharedServer: true }).then((code) => {
     if (code !== 0) process.exit(code)
   })
 }

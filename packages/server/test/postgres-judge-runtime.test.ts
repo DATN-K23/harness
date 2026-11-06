@@ -1,3 +1,4 @@
+import { localAuthorization } from "../src/runtime-security"
 import { unavailableVerification } from "@harness/core/verification"
 import { afterAll, describe, expect, test } from "bun:test"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
@@ -145,7 +146,7 @@ if (enabled) {
         })
         try {
           const baseUrl = `http://${server.server.hostname}:${server.server.port}`
-          const auth = { authorization: `Bearer ${credential}` }
+          const auth = { authorization: localAuthorization(credential) }
           expect((await fetch(`${baseUrl}/v1/health`, { headers: auth })).status).toBe(200)
           expect((await fetch(`${baseUrl}/v1/judge/runs`, { method: "POST" })).status).toBe(401)
           const submit = await fetch(`${baseUrl}/v1/judge/runs`, { method: "POST", headers: { ...auth, "content-type": "application/json", "idempotency-key": `listener-e2e-${crypto.randomUUID()}` }, body: JSON.stringify({ finding: { findingId: "finding-listener-e2e", reportMarkdown: "Unsupported narrative." }, snapshotId: ingested.snapshotId }) })
@@ -223,7 +224,7 @@ if (enabled) {
 
         const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
           method: "POST",
-          headers: { authorization: "Bearer postgres-e2e-credential", "content-type": "application/json", "idempotency-key": `postgres-e2e-${crypto.randomUUID()}` },
+          headers: { authorization: localAuthorization("postgres-e2e-credential"), "content-type": "application/json", "idempotency-key": `postgres-e2e-${crypto.randomUUID()}` },
           body: JSON.stringify({ finding: { findingId: "finding-postgres-e2e", reportMarkdown: "This narrative has no supported report fields." }, snapshotId: ingested.snapshotId }),
         }))
         expect(submit.status).toBe(202)
@@ -231,7 +232,7 @@ if (enabled) {
         expect(await runtime.worker.runOnce()).toBe(1)
 
         const result = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, {
-          headers: { authorization: "Bearer postgres-e2e-credential" },
+          headers: { authorization: localAuthorization("postgres-e2e-credential") },
         }))
         expect(result.status).toBe(200)
         expect(await result.json()).toMatchObject({

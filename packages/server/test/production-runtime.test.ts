@@ -1,3 +1,4 @@
+import { localAuthorization } from "../src/runtime-security"
 import { describe, expect, test } from "bun:test"
 import { assertProductionJudgeConfig, createProductionHealthHandler, makeProductionJudgeConfig, resolveProductionSnapshot, resolveProductionProvider, startProductionLocalServer, startProductionLocalServerWithOperations } from "../src/production-runtime"
 import { JudgeDefaultLimits, ProductionSecurityFilter } from "@harness/core"
@@ -31,10 +32,10 @@ describe("production runtime safety", () => {
     expect(state.listens).toBe(0)
   })
 
-  test("Keychain failure prevents listening", async () => {
+  test("local token failure prevents listening", async () => {
     const state = setup()
-    state.keychain = async () => { throw new Error("Keychain failed") }
-    await expect(startCheckedLocalServer(state.options, state.ops)).rejects.toThrow("Keychain failed")
+    state.token = async () => { throw new Error("local token failed") }
+    await expect(startCheckedLocalServer(state.options, state.ops)).rejects.toThrow("local token failed")
     expect(state.listens).toBe(0)
   })
 
@@ -42,13 +43,13 @@ describe("production runtime safety", () => {
     const state = setup()
     const result = await startCheckedLocalServer(state.options, state.ops)
     expect(state.listens).toBe(1)
-    expect(await result.fetch(new Request("http://localhost/v1/health", { headers: { authorization: "Bearer keychain-secret" } })).then((r) => r.status)).toBe(200)
+    expect(await result.fetch(new Request("http://localhost/v1/health", { headers: { authorization: localAuthorization("token-secret") } })).then((r) => r.status)).toBe(200)
     await result.stop()
   })
 
-  test("health requires Keychain bearer auth and reports actual limited capabilities", async () => {
-    const fetch = createProductionHealthHandler("keychain-secret")
-    const health = new Request("http://localhost/v1/health", { headers: { authorization: "Bearer keychain-secret" } })
+  test("health requires Basic authentication and reports actual limited capabilities", async () => {
+    const fetch = createProductionHealthHandler("token-secret")
+    const health = new Request("http://localhost/v1/health", { headers: { authorization: localAuthorization("token-secret") } })
     const denied = await fetch(new Request("http://localhost/v1/health"))
     expect(denied.status).toBe(401)
     const response = await fetch(health)
@@ -116,12 +117,24 @@ describe("production runtime safety", () => {
     })).rejects.toThrow("must not contain credentials")
   })
 
-  test("invalid provider URLs do not construct Postgres or start snapshot, Keychain, or listener operations", async () => {
-    const calls = { postgres: 0, snapshot: 0, keychain: 0, listen: 0 }
+  test("missing or invalid server password fails before infrastructure startup", async () => {
+    const options = { databaseUrl: "postgres://db", modelApiKey: "key", modelName: "model", providerName: "openai",
+      snapshotDir: "/snapshots", hostname: "127.0.0.1", port: 0 }
+    for (const serverPassword of ["", "   ", "invalid\npassword"]) {
+      await expect(startProductionLocalServerWithOperations({ ...options, serverPassword }, {
+        createStore: () => { throw new Error("unexpected database initialization") },
+        resolveSnapshotRoot: async () => { throw new Error("unexpected snapshot access") },
+        startCheckedLocalServer: async () => { throw new Error("unexpected listen") },
+      })).rejects.toThrow("HARNESS_SERVER_PASSWORD")
+    }
+  })
+
+  test("invalid provider URLs do not construct Postgres or start snapshot, local token, or listener operations", async () => {
+    const calls = { postgres: 0, snapshot: 0, token: 0, listen: 0 }
     const operations = {
       createStore: () => { calls.postgres++; return undefined as never },
       resolveSnapshotRoot: async () => { calls.snapshot++; return "/snapshots" },
-      startCheckedLocalServer: async () => { calls.keychain++; calls.listen++; return undefined as never },
+      startCheckedLocalServer: async () => { calls.token++; calls.listen++; return undefined as never },
     }
     const base = {
       databaseUrl: "postgres://db", modelApiKey: "key", modelName: "model", providerName: "openai",
@@ -132,7 +145,7 @@ describe("production runtime safety", () => {
       await expect(startProductionLocalServerWithOperations({ ...base, modelBaseUrl }, operations)).rejects.toThrow()
     }
 
-    expect(calls).toEqual({ postgres: 0, snapshot: 0, keychain: 0, listen: 0 })
+    expect(calls).toEqual({ postgres: 0, snapshot: 0, token: 0, listen: 0 })
   })
 
   test("production run config records non-secret runtime settings and changes with them", () => {
@@ -212,12 +225,12 @@ describe("production runtime safety", () => {
 function setup() {
   let listens = 0
   let ping: () => Promise<void> = async () => {}
-  let keychain: () => Promise<string> = async () => "keychain-secret"
+  let token: () => Promise<string> = async () => "token-secret"
   const options = { databaseUrl: "postgres://db", modelApiKey: "model-secret", modelName: "model", providerName: "openai", snapshotDir: "/snapshots", hostname: "127.0.0.1", port: 1234 }
   const ops = {
     checkSnapshot: async () => {},
     pingDatabase: () => ping(),
-    getCredential: () => keychain(),
+    getCredential: () => token(),
     listen: (_hostname: string, _port: number, fetch: (request: Request) => Promise<Response>) => {
       listens++
       return { fetch, stop() {} }
@@ -228,6 +241,6 @@ function setup() {
     ops,
     get listens() { return listens },
     set ping(value: () => Promise<void>) { ping = value },
-    set keychain(value: () => Promise<string>) { keychain = value },
+    set token(value: () => Promise<string>) { token = value },
   }
 }

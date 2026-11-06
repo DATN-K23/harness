@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { ApiCompatibility, assertApiCompatibility, validateApiCompatibility, isLoopbackHost, isAuthorizedLocalRequest } from "../src/runtime-security"
+import { ApiCompatibility, assertApiCompatibility, validateApiCompatibility, isLoopbackHost, isAuthorizedLocalRequest, localAuthorization } from "../src/runtime-security"
 import { listenLocal } from "../src/local-server"
 import { startJudgeServer } from "../src/startup"
 
@@ -30,11 +30,16 @@ describe("local runtime security", () => {
 
   test("rejects missing or incorrect credentials and accepts the injected credential", () => {
     const request = (credential?: string) => new Request("http://127.0.0.1/health", {
-      headers: credential === undefined ? {} : { authorization: `Bearer ${credential}` },
+      headers: credential === undefined ? {} : { authorization: localAuthorization(credential) },
     })
     expect(isAuthorizedLocalRequest(request(), "installation-secret")).toBe(false)
     expect(isAuthorizedLocalRequest(request("wrong-secret"), "installation-secret")).toBe(false)
     expect(isAuthorizedLocalRequest(request("installation-secret"), "installation-secret")).toBe(true)
+    const withHeader = (authorization: string) => new Request("http://127.0.0.1/health", { headers: { authorization } })
+    expect(isAuthorizedLocalRequest(withHeader("Bearer installation-secret"), "installation-secret")).toBe(false)
+    expect(isAuthorizedLocalRequest(withHeader(`Basic ${btoa("other:installation-secret")}`), "installation-secret")).toBe(false)
+    expect(isAuthorizedLocalRequest(withHeader("Basic !!!!"), "installation-secret")).toBe(false)
+    expect(isAuthorizedLocalRequest(withHeader(`basic ${btoa("harness:a:b")}`), "a:b")).toBe(true)
   })
 
   test("refuses public bind hosts before invoking the listener", () => {
@@ -50,7 +55,7 @@ describe("local runtime security", () => {
     expect(isAuthorizedLocalRequest(request, "installation-secret")).toBe(false)
   })
 
-  test("refuses service startup when no Keychain credential can be supplied", async () => {
+  test("refuses service startup when no server password is supplied", async () => {
     const { startLocalRuntime } = await import("../src/local-runtime")
     let listenCalls = 0
     expect(() => startLocalRuntime({
@@ -59,19 +64,16 @@ describe("local runtime security", () => {
       credential: undefined,
       listen: () => { listenCalls++; return {} },
       fetch: async () => Response.json({ ok: true }),
-    })).toThrow("Keychain credential unavailable")
+    })).toThrow("HARNESS_SERVER_PASSWORD")
     expect(listenCalls).toBe(0)
   })
 
-  test("loads credential from Keychain provider and binds local runtime before serving", async () => {
+  test("loads the configured password before serving", async () => {
     const sequence: string[] = []
     const server = await startJudgeServer<{ fetch(request: Request): Promise<Response> }>({
       hostname: "127.0.0.1",
       port: 4555,
-      credentialProvider: {
-        getOrCreate: async () => { sequence.push("keychain"); return "protected-secret" },
-        rotate: async () => "protected-secret-rotated",
-      },
+      getCredential: async () => { sequence.push("password"); return "protected-secret" },
       createRuntime: (credential) => {
         sequence.push(`runtime:${credential}`)
         return { api: { fetch: async () => Response.json({ ok: true }) }, worker: { runOnce: async () => { sequence.push("worker"); return 1 } } }
@@ -82,8 +84,8 @@ describe("local runtime security", () => {
       },
       runWorker: false,
     })
-    expect(sequence).toEqual(["keychain", "runtime:protected-secret", "listen:127.0.0.1:4555"])
-    expect((await server.fetch(new Request("http://127.0.0.1/health", { headers: { authorization: "Bearer protected-secret" } }))).status).toBe(200)
+    expect(sequence).toEqual(["password", "runtime:protected-secret", "listen:127.0.0.1:4555"])
+    expect((await server.fetch(new Request("http://127.0.0.1/health", { headers: { authorization: localAuthorization("protected-secret") } }))).status).toBe(200)
     expect(server.runWorkerOnce).toBeDefined()
     await server.runWorkerOnce()
     expect(sequence.at(-1)).toBe("worker")

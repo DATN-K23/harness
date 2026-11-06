@@ -6,8 +6,7 @@ import type { JudgeRunConfig } from "@harness/core"
 import { DefaultRetryConfig } from "@harness/protocol"
 import { RealModelGateway } from "@harness/llm/gateway"
 import { PostgresRunStore } from "@harness/schema"
-import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost } from "./runtime-security"
-import { createKeychainCredentialProvider } from "./keychain-credential"
+import { ApiCompatibility, isAuthorizedLocalRequest, isLoopbackHost, localAuthenticationRequired, requireLocalServerPassword } from "./runtime-security"
 import { startCheckedLocalServer } from "./production-startup"
 import { createJudgeRuntime } from "./judge-runtime"
 import { ConservativePocPolicy } from "./poc-policy"
@@ -125,7 +124,7 @@ const assertSnapshotRoot = async (root: string) => {
 
 export const createProductionHealthHandler = (credential: string) => async (request: Request) => {
   if (!isAuthorizedLocalRequest(request, credential))
-    return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
+    return localAuthenticationRequired()
   const url = new URL(request.url)
   if (request.method === "GET" && url.pathname === "/v1/health") return Response.json({
     endpointId: "harness-local-runtime",
@@ -144,6 +143,9 @@ interface ProductionStartupOperations {
   startCheckedLocalServer: typeof startCheckedLocalServer
   getCredential?(): Promise<string>
   createGateway?(): ModelGatewayPort
+  bind?(options: { hostname: string; port: number; fetch(request: Request): Promise<Response> }): {
+    hostname: string; port: number; stop(closeActive?: boolean): unknown
+  }
 }
 
 const productionStartupOperations: ProductionStartupOperations = {
@@ -166,10 +168,24 @@ export const startProductionLocalServer = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  serverPassword?: string
   snapshotDir: string
   hostname: string
   port: number
 }) => startProductionLocalServerWithOperations(options, productionStartupOperations)
+
+/** Compose the Judge worker and HTTP handler under a listener already owned by the CLI daemon. */
+export const startProductionJudgeHandler = async (options: Parameters<typeof startProductionLocalServer>[0]) => {
+  let handle!: (request: Request) => Promise<Response>
+  const runtime = await startProductionLocalServerWithOperations(options, {
+    ...productionStartupOperations,
+    bind({ hostname, port, fetch }) {
+      handle = fetch
+      return { hostname, port, stop() {} }
+    },
+  })
+  return { fetch: handle, stop: runtime.stop }
+}
 
 /** Internal startup seam for verifying preflight ordering without infrastructure. */
 export const startProductionLocalServerWithOperations = async (options: {
@@ -185,6 +201,7 @@ export const startProductionLocalServerWithOperations = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  serverPassword?: string
   snapshotDir: string
   hostname: string
   port: number
@@ -196,6 +213,7 @@ export const startProductionLocalServerWithOperations = async (options: {
     throw new Error("Unsupported model provider")
   const providerConfig = resolveProductionProvider({ providerName: options.providerName, apiKey: options.modelApiKey,
     model: options.modelName, baseURL: options.modelBaseUrl })
+  const password = operations.getCredential ? undefined : requireLocalServerPassword(options.serverPassword ?? process.env.HARNESS_SERVER_PASSWORD)
   const validatedOptions = { ...options, modelBaseUrl: providerConfig.baseURL }
   const store = operations.createStore(options.databaseUrl)
   try {
@@ -203,7 +221,7 @@ export const startProductionLocalServerWithOperations = async (options: {
     const started = await operations.startCheckedLocalServer(options, {
       checkSnapshot: () => assertSnapshotRoot(options.snapshotDir),
       async pingDatabase() { await store.client.sql`select 1` },
-      getCredential: () => operations.getCredential?.() ?? createKeychainCredentialProvider().getOrCreate(),
+      getCredential: async () => requireLocalServerPassword(operations.getCredential ? await operations.getCredential() : password),
       listen(hostname, port, _fetch, credential) {
         const config = makeProductionJudgeConfig(validatedOptions)
         const ids = createIdGenerator(systemIdSources)
@@ -229,8 +247,9 @@ export const startProductionLocalServerWithOperations = async (options: {
           },
         })
         const health = createProductionHealthHandler(credential)
-        const server = Bun.serve({ hostname, port, fetch: (request) =>
-          request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) })
+        const listener = { hostname, port, fetch: (request: Request) =>
+          request.method === "GET" && new URL(request.url).pathname === "/v1/health" ? health(request) : runtime.api.fetch(request) }
+        const server = operations.bind ? operations.bind(listener) : Bun.serve(listener)
         const worker = startPollingWorker(() => runtime.worker.runOnce(), 250, 5_000, () => store.close())
         return { hostname: server.hostname, port: server.port, async stop() { await worker.stop(); server.stop(true) } }
       },

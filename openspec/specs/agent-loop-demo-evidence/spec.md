@@ -7,7 +7,7 @@ Defines test infrastructure, deterministic fakes, automated scenario evidence, o
 ## Requirements
 
 ### Requirement: Deterministic fakes for every port
-`@harness/core/testing` SHALL provide fakes for every port: scripted model gateway, threshold-driven context engine, in-memory tool registry with read-only files, regex security filter, scripted ingestion/sanitizer/sandbox, in-memory snapshot reader, in-memory run store, fake clock, seeded random, and fake sleep. The in-memory run store SHALL enforce unique contiguous sequences, compare-and-set transitions, claim tokens with lease expiry, and terminal immutability with the same rules as the contract. A fake context engine SHALL be labeled as a stand-in whose token estimate is not the authoritative `o200k_base` count.
+`@harness/core/testing` SHALL provide fakes for every port: scripted model gateway, threshold-driven context engine, in-memory tool registry with read-only files, regex security filter, scripted ingestion/sanitizer/verification, scripted local execution, in-memory snapshot reader, in-memory run store, fake clock, seeded random, and fake sleep. The old scripted sandbox contract SHALL be removed and all connected demo/test fixtures SHALL use the replacement operations. Scripted verification SHALL remain labeled simulated evidence and SHALL NOT count as evidence of native host execution. The in-memory run store SHALL enforce unique contiguous sequences, compare-and-set transitions, claim tokens with lease expiry, and terminal immutability with the same rules as the contract. A fake context engine SHALL be labeled as a stand-in whose token estimate is not the authoritative `o200k_base` count.
 
 #### Scenario: Store rejects what the contract forbids
 - **GIVEN** the in-memory run store
@@ -18,6 +18,11 @@ Defines test infrastructure, deterministic fakes, automated scenario evidence, o
 - **GIVEN** the same scenario, seed and flags
 - **WHEN** the run is executed twice
 - **THEN** the two event streams have identical types, sequences and payload digests
+
+#### Scenario: Offline demo needs no native executor
+- **GIVEN** native toolchain artifacts are absent
+- **WHEN** the offline demo and fixed-seed stress suite use scripted verification/execution
+- **THEN** they remain runnable offline, report simulated evidence explicitly and do not spawn host commands
 
 ### Requirement: Runnable demo with the four judge scenarios
 `bun run demo` in `packages/core` SHALL execute, without network access, the four scenarios of the demo specification (confirmed exploit, missing PoC, cheating PoC, failing PoC) and print a summary of terminal state, reason, steps, tokens and cost for each. Each scenario SHALL write its output bundle to a directory under the package's demo output path.

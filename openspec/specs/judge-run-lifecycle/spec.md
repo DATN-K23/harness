@@ -33,25 +33,25 @@ The runner SHALL append events with a unique contiguous `(runId, sequence)` star
 - **THEN** the pending call is visible in the history and is reported as interrupted rather than silently re-executed
 
 ### Requirement: Zero-token fast-reject stages
-The runner SHALL execute ingestion, sanitization and sandbox stages through their ports before any model call. A reject from any of them SHALL commit a schema-valid `invalid`/`FAIL` verdict with the stage's reason code (`MISSING_POC`, `NON_FAITHFUL_OVERRIDE`, `EXECUTION_FAILED`), transition the run to `completed`, and make no model gateway call. The runner SHALL NOT repair or modify a submitter's PoC.
+The runner SHALL preserve zero-token rejection for missing PoC and non-faithful overrides when those checks do not require a provider call. These rejections SHALL complete with the corresponding schema-valid invalid verdict and no further provider or verification call. The runner SHALL NOT repair or modify a submitter PoC. Disabled verification SHALL be skipped in read-only Judge. In an enabled internal composition, denial or failure to obtain validated execution evidence SHALL produce an unverified outcome, without treating unavailable execution as an invalid finding.
 
 #### Scenario: Missing PoC
 - **GIVEN** a candidate finding for which the ingestion port reports `missing_poc`
 - **WHEN** the run executes
-- **THEN** the run completes with reason `MISSING_POC`, the model gateway call count is 0, total tokens are 0, and the sanitizer and sandbox ports are not called
+- **THEN** the run completes with reason `MISSING_POC`, the model gateway call count is 0, total tokens are 0, and the sanitizer and verification ports are not called
 
 #### Scenario: Anti-cheat violation
 - **GIVEN** a PoC for which the sanitizer reports `cheat_detected`
 - **WHEN** the run executes
-- **THEN** the run completes with reason `NON_FAITHFUL_OVERRIDE` and the sandbox port is not called
+- **THEN** the run completes with reason `NON_FAITHFUL_OVERRIDE` and the verification port is not called
 
 #### Scenario: Sandbox failure
-- **GIVEN** a sandbox result with a non-zero exit code
-- **WHEN** the run executes
-- **THEN** the run completes with reason `EXECUTION_FAILED` and the model gateway call count is 0
+- **GIVEN** an enabled internal composition and a verification outcome without valid evidence
+- **WHEN** the runner receives the outcome
+- **THEN** it completes with an unverified verdict and does not enter execution-trace reasoning
 
 ### Requirement: Reasoning loop dispatch
-After stage 3 passes, the runner SHALL shape the execution trace through the context engine, record the transformation, build the initial pinned context, and loop on `JudgeStep` outcomes: `completed` commits the verdict and `completed` state; `budget_exhausted` commits `budget_exhausted` with the stop reason; `failed` commits `failed`; `needs_compaction` runs compaction; `continue_turn` appends tool results to the context and increments the step. The runner SHALL record all exhausted limits it observed in telemetry and exactly one terminal reason.
+After preflight allows the run to continue, the runner SHALL shape the available evidence through the context engine, record the transformation, build the initial pinned context, and loop on `JudgeStep` outcomes: `completed` commits the verdict and `completed` state; `budget_exhausted` commits `budget_exhausted` with the stop reason; `failed` commits `failed`; `needs_compaction` runs compaction; `continue_turn` appends tool results to the context and increments the step. The runner SHALL record all exhausted limits it observed in telemetry and exactly one terminal reason.
 
 #### Scenario: Multi-step run completes
 - **GIVEN** a scripted model that requests two tool calls and then returns a valid verdict
@@ -85,7 +85,7 @@ When the runner starts on a run already in `running`, it SHALL rebuild the conte
 - **THEN** the run is committed `failed` with a `persistence_failure` event and no model call is made
 
 ### Requirement: Cooperative cancellation
-The runner SHALL poll the cancellation port before the ingestion/sandbox stages, before each context preparation and provider call, and before each tool dispatch. On observing a request it SHALL stop new provider and tool work, commit `cancelled` by compare-and-set, and preserve all prior events. If the run is already terminal it SHALL change nothing.
+The runner SHALL poll the cancellation port before ingestion and any enabled verification stage, before each context preparation and provider call, and before each tool dispatch. On observing a request it SHALL stop new provider and tool work, commit `cancelled` by compare-and-set, and preserve all prior events. If the run is already terminal it SHALL change nothing.
 
 #### Scenario: Cancel before provider call
 - **GIVEN** a cancellation requested while step 2 is preparing context

@@ -31,7 +31,7 @@ The blueprint MUST define which fields are visible for accepted, queued, running
 - **THEN** the blueprint identifies the visible partial data, legal transition, cancellation outcome, and preservation of committed events
 
 ### Requirement: Non-public access-controlled local-runtime boundary
-The blueprint SHALL define the MVP control plane as a single-user local daemon reachable only through a loopback-bound endpoint or OS-equivalent local IPC. Endpoint discovery MUST use an installation-scoped protected rendezvous mechanism, and requests MUST use an installation-scoped access credential or equivalent OS access control. The credential MUST remain under native-shell/OS-protected custody, MUST NOT appear in URLs, renderer persistence, ordinary logs, trajectories or exports, and MUST be rotatable without changing run identity. If no approved protected credential backend is available, connection setup MUST fail closed; plaintext files, renderer storage and silent insecure fallbacks are prohibited. Public-interface binding, remote access and multi-tenancy MUST be disabled and marked as future work; local process access control MUST NOT be presented as production multi-user authorization.
+The blueprint SHALL define the MVP control plane as a single-user local daemon reachable only through a loopback-bound endpoint or OS-equivalent local IPC. Endpoint discovery MUST use an installation-scoped protected rendezvous mechanism, and requests MUST use an installation-scoped access credential or equivalent OS access control. The credential MUST remain under native-shell/OS-protected custody, MUST NOT appear in URLs, renderer persistence, ordinary logs, trajectories or exports, and MUST be rotatable without changing run identity. Desktop integrations SHALL use an approved protected credential backend and fail closed if it cannot be established. Operator-started `cli:serve --foreground` SHALL require HTTP Basic authentication with username `harness` and an explicit operator-configured `HARNESS_SERVER_PASSWORD`. Missing or invalid configuration SHALL prevent startup. The server SHALL NOT pass credentials to the renderer. Real CLI commands SHALL discover or start one shared loopback daemon, authenticate over HTTP, and reuse it until an authenticated shutdown. Concurrent startup SHALL produce at most one listening managed daemon. The managed process SHALL publish its credential in a protected user endpoint record. Mock commands MAY run offline without a daemon. An explicitly supplied loopback Judge endpoint MAY use operator credentials. Public-interface binding, remote access and multi-tenancy MUST be disabled and marked as future work; local process access control MUST NOT be presented as production multi-user authorization.
 
 #### Scenario: Deployment assumptions are checked
 - **GIVEN** the API security and desktop/runtime connection sections
@@ -42,6 +42,16 @@ The blueprint SHALL define the MVP control plane as a single-user local daemon r
 - **GIVEN** the desktop starts on a host where no approved protected credential backend can be established
 - **WHEN** it attempts to discover or authenticate to the local runtime
 - **THEN** the connection remains unauthorized with an actionable safe error, no plaintext credential is created or exposed to the renderer, and no anonymous or direct-access fallback is attempted
+
+#### Scenario: Standalone CLI server restarts
+- **GIVEN** the server has an operator-configured password
+- **WHEN** the server restarts and receives a request with the same configured Basic credential
+- **THEN** the configured credential remains valid on loopback and unauthenticated requests are rejected
+
+#### Scenario: Commands reuse a shared local daemon
+- **GIVEN** no managed server is running and multiple real CLI commands start
+- **WHEN** they discover or launch the shared endpoint
+- **THEN** one authenticated daemon serves the commands and remains available after the clients exit
 
 ### Requirement: Durable handoff and polling-first client contract
 The blueprint MUST separate request lifetime and desktop lifecycle from run execution by committing run identity and recoverable work intent before returning submission success. The MVP desktop SHALL obtain state and committed ordered events through finite retrieval requests with cursor-based polling; streaming MAY be a later projection but MUST NOT be required for correctness. The OpenAPI contract MUST remain the source for the generated TypeScript local-runtime client; generation MUST use an explicit public-schema allowlist that excludes scorer-only schemas, and generated artifacts MUST be checked for drift rather than edited manually.

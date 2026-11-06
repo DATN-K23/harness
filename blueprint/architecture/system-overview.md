@@ -112,7 +112,7 @@ These are conceptual responsibilities, not a required Python tree or empty folde
 | `packages/desktop/src-tauri/permissions` | scopes for runtime bridge, picker, notification and update-preparation commands                 | generic filesystem/shell/process/env/URL/raw-secret/direct-updater grants        |
 | `packages/desktop/src-tauri/src/commands`| typed validation and dispatch into one native integration owner                                | business rules, arbitrary command or endpoint execution                          |
 | runtime supervision                     | protected rendezvous, discover/start-or-attach/status                                           | owning run state or terminating runtime on window/host exit                      |
-| credential store                        | OS-protected installation credential access/rotation                                            | returning persistent raw secret to renderer or plaintext fallback                |
+| credential store                        | OS-protected desktop custody. The shared CLI daemon publishes a process credential in protected per-user state. Explicit foreground serve reads an operator-provided password. | returning the raw secret to renderer, shared files or anonymous fallback           |
 
 ### Process composition
 

@@ -7,5 +7,6 @@ This proposal adopts the approach described in the core paper:
 
 ## Overview
 
-- [Context-Centric Graph Specialists](docs/context_centric_graph_specialists_proposal.md)
-- [Slither AST Parser Integration](docs/slither_ast_parser_proposal.md)
+- [Context-Centric Graph Specialists](docs/multi-agent/context_centric_graph_specialists_proposal.md)
+- [View-Normalized RRF & State-Pivot Assembly](docs/multi-agent/vn_rrf_gather_refine_proposal.md)
+- [Slither AST Parser Integration](docs/graph/slither_ast_parser_proposal.md)

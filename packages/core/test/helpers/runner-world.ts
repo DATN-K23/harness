@@ -64,7 +64,6 @@ export const runInput = (config: Partial<JudgeRunConfig> = {}): JudgeRunInput =>
 export const okIngestion: IngestionResult = {
   kind: "ok",
   pocCode: "function testExploit() public { vault.withdraw(1 ether); assertGt(attacker.balance, 1 ether); }",
-  bceSlices: [{ filePath: "src/Vault.sol", content: "line 10 of Vault.sol", lineRange: [10, 10] }],
 }
 
 export const okSanitizer: SanitizerResult = {

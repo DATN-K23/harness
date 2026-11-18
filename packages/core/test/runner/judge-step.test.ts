@@ -156,9 +156,9 @@ describe("JudgeStep: seven gates", () => {
   }
   const reportWithSeverity: ContextItem = { id: "itm-finding", turn: 0, type: "candidate_finding", isPinned: true, content: "# Reentrancy in withdraw\n\nROOT CAUSE: call before update\nSEVERITY: high" }
 
-  test("with static verdicts, a verdict step the provider blocks after agreed-valid is composed by the harness", async () => {
+  test("a verdict step the provider blocks after agreed-valid is composed by the harness", async () => {
     const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
-    const result = await h.step.execute(h.input({ stepIndex: 3, enableStaticVerdicts: true, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))
+    const result = await h.step.execute(h.input({ stepIndex: 3, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "valid", severity: "HIGH", confidence: "LOW", summary: expect.stringContaining("Composed by the harness") } })
     if (result.outcome.type === "completed")
       expect(result.outcome.verdict.citesEvidence.map((evidence) => `${evidence.filePath}:${evidence.startLine}-${evidence.endLine}`)).toEqual(["src/Vault.sol:21-25", "src/Vault.sol:24-24"])
@@ -166,7 +166,7 @@ describe("JudgeStep: seven gates", () => {
 
   test("a composed rejection still needs a guard in the source the directions referred to", async () => {
     const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
-    const result = await h.step.execute(h.input({ stepIndex: 3, enableStaticVerdicts: true, items: [...baseItems, ...agreed("agreed-invalid")] }))
+    const result = await h.step.execute(h.input({ stepIndex: 3, items: [...baseItems, ...agreed("agreed-invalid")] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", summary: "No blocking guard was confirmed in the cited source." } })
   })
 
@@ -177,12 +177,6 @@ describe("JudgeStep: seven gates", () => {
     expect(result.outcome.type).toBe("continue_turn")
     expect(result.newItems[0]?.content).toStartWith('Bidirectional forward result: {"reachability":"incomplete","explanation":"The provider\'s content filter refused')
     expect(result.newItems[1]?.content).toStartWith("Verification direction: backward")
-  })
-
-  test("without static verdicts a blocked verdict step still fails the run", async () => {
-    const h = await createHarness({ script: Array.from({ length: 8 }, () => errorResponse(blocked())) })
-    const result = await h.step.execute(h.input({ stepIndex: 3, items: [baseItems[0]!, reportWithSeverity, ...agreed("agreed-valid")] }))
-    expect(result.outcome.type).toBe("failed")
   })
 
   test("a forced direction answers through submit_verification, the other direction's field null", async () => {
@@ -221,14 +215,15 @@ describe("JudgeStep: seven gates", () => {
     expect(read?.content).toContain("read src/Big.sol from line 51")
   })
 
-  test("agreed-invalid consensus without a snapshot-grounded citation is UNVERIFIED", async () => {
+  test("agreed-invalid consensus: a rejection citing no guard in the snapshot is UNVERIFIED", async () => {
     const h = await createHarness({ script: [textResponse(json(invalidVerdict))] })
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
       { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
-    expect(h.gateway.callCount).toBe(0)
+    // The model is asked for the rejection and its guard; the TV4 rules withhold it.
+    expect(h.gateway.callCount).toBe(1)
     expect(await h.events("verdict.validation_failed")).toHaveLength(0)
   })
 

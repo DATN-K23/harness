@@ -170,9 +170,10 @@ describe("ContextItemSchema", () => {
   })
 
   test("accepts every documented item type and rejects others", () => {
-    expect(ContextItemTypes).toHaveLength(12)
+    expect(ContextItemTypes).toHaveLength(11)
     ContextItemTypes.forEach((type) => expect(ContextItemSchema.safeParse(item({ type })).success).toBe(true))
     expect(ContextItemSchema.safeParse({ ...item(), type: "ground_truth" }).success).toBe(false)
+    expect(ContextItemSchema.safeParse({ ...item(), type: "bce_sliced_ast" }).success).toBe(false)
   })
 
   test("rejects missing required fields", () => {

@@ -150,10 +150,6 @@ describe("adjudication step: initial context", () => {
       snapshotId: "snap-1",
       finding: { findingId: "finding-7", reportMarkdown: "# Reentrancy in Vault.withdraw" },
       pocCode: "function testExploit() public { vault.withdraw(1); }",
-      bceSlices: [
-        { filePath: "src/Vault.sol", content: "function withdraw() {}", lineRange: [10, 20] },
-        { filePath: "src/Token.sol", content: "function transfer() {}" },
-      ],
       tier: 2,
       maxProbeRuns: 2,
       systemPrompt: "You are the Judge.",
@@ -172,8 +168,6 @@ describe("adjudication step: initial context", () => {
       "system_prompt",
       "candidate_finding",
       "submitter_poc",
-      "bce_sliced_ast",
-      "bce_sliced_ast",
       "execution_trace",
     ])
     expect(items.every((item) => item.isPinned && item.turn === 0)).toBe(true)
@@ -183,7 +177,8 @@ describe("adjudication step: initial context", () => {
     expect(header).toContain("Case header")
     for (const value of ["runId: run-1", "findingId: finding-7", "snapshotId: snap-1", "tier: 2"])
       expect(header).toContain(value)
-    expect(items[9].content).toContain("src/Vault.sol (lines 10-20)")
+    // Source reaches the model only through the snapshot tools: no slice or BCE note is pinned.
+    expect(items.some((item) => item.content.startsWith("BCE status"))).toBe(false)
   })
 
   const minimal = (overrides: Partial<Parameters<typeof buildInitialContext>[0]> = {}) => {
@@ -194,7 +189,6 @@ describe("adjudication step: initial context", () => {
       snapshotId: "snap-1",
       finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw" },
       pocCode: "",
-      bceSlices: [],
       maxProbeRuns: 2,
       systemPrompt: "You are the Judge.",
       tools: [],
@@ -211,7 +205,7 @@ describe("adjudication step: initial context", () => {
   })
 
   test("the verification direction is pinned before the trace, which stays the last initial item", () => {
-    const items = minimal({ bceIncomplete: true, verificationDirection: "forward" })
+    const items = minimal({ verificationDirection: "forward" })
     expect(items.at(-1)?.type).toBe("execution_trace")
     expect(items.at(-2)).toMatchObject({ type: "system_prompt", isPinned: true })
     expect(items.at(-2)?.content).toStartWith("Verification direction: forward\n")

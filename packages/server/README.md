@@ -18,7 +18,7 @@ The server package exposes the local Judge API handler and runtime composition p
 
 `startJudgeServer` is an injectable composition seam. `bun run cli:serve` binds only loopback, checks explicit database/model config, the accessible immutable snapshot root, live PostgreSQL, and macOS Keychain, and composes the real Postgres store, disk snapshot resolver, `RealModelGateway`, production context engine, tools, snapshot ingestion, cancellation, and polling worker. There is no provider call at startup; execution uses the configured gateway. The API credential comes only from Keychain.
 
-**Judge release remains BLOCKED; this is a real local submission/worker path, not an adjudication-capable service.** BCE remains explicitly incomplete, so all supported submissions must resolve UNVERIFIED; PoC policy denies all and execution is hardcoded false (no API/config switch). Docker remains disabled in composition and macOS isolation is unverified. Health reports `judgeExecution: unverified-only`, `enablePocExecution: false`, and `bce-incomplete`. Startup does not incur a provider request; provider connectivity is discovered on first actual run.
+**Judge release remains BLOCKED; this is a real local submission/worker path, not an adjudication-capable service.** There is no BCE stage: the model reads the source it needs through the snapshot tools, and a valid or invalid verdict is accepted only under the TV4 conclusion rules (both directions agree; a valid verdict cites source the harness resolves, an invalid one a guard the harness reads in the cited lines), otherwise it resolves UNVERIFIED; PoC policy denies all and execution is hardcoded false (no API/config switch). Docker remains disabled in composition and macOS isolation is unverified. Health reports `judgeExecution: static-tv4`, `enablePocExecution: false`, and `static-verdicts-tv4`. Startup does not incur a provider request; provider connectivity is discovered on first actual run.
 
 ## API
 
@@ -73,7 +73,7 @@ url = "http://127.0.0.1:${HARNESS_PORT:-4318}/v1/judge/runs"
 CURL_CONFIG
 ```
 
-5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and Keychain credential. The expected verdict is `UNVERIFIED` (currently `UNRESOLVED`), because semantic BCE is incomplete; the service does not confirm or refute the finding. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.
+5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and Keychain credential. The verdict is `valid` or `invalid` only when it passes the TV4 conclusion rules; otherwise it is `UNVERIFIED` (`UNRESOLVED`). No conclusion rests on execution evidence. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.
 6. Stop with Ctrl-C or SIGTERM. The worker stops polling and closes the listener/database pool after active work settles. Runs/events remain in the dedicated database; do not clear shared tables as cleanup.
 
 Never use a production key/database for manual smoke tests. The live guarded listener integration is separate and requires `HARNESS_POSTGRES_E2E=1` plus `HARNESS_POSTGRES_E2E_DATABASE_URL`; it intentionally never falls back to `DATABASE_URL`. Run it only with a fresh disposable PostgreSQL container/database, for example:
@@ -88,9 +88,9 @@ The opt-in requires `HARNESS_POSTGRES_E2E_DEDICATED=1`, refuses a matching norma
 ## Bounds, coverage and recovery
 
 - API JSON is capped at 256 KiB; report extraction defaults to 64,000 UTF-8 bytes. Snapshot ingestion examines at most 128 Solidity files, 120 lines per file and 512 KiB total source, and returns incomplete when limits/toolchain/import mapping prevent analysis. AST slices are retrieval context, not proof of a complete call/data-flow graph.
-- The offline demo is scripted test material, not a supported Solidity coverage claim. It now records incomplete-BCE claims as UNVERIFIED, does not run PoCs by default, and emits no generated witness. PoC policy currently rejects every input.
+- The offline demo is scripted test material, not a supported Solidity coverage claim. Its narrative-agreed scenario is concluded valid under the TV4 rules; it does not run PoCs by default, and emits no generated witness. PoC policy currently rejects every input.
 - On interrupted local startup, stop with Ctrl-C; `cli:serve` stops polling, closes its listener and database pool. Docker is not invoked by this runtime. Do not run production/repository PoCs.
-- Toolchain evidence recorded for BCE is `solc-js 0.8.30+commit.73712a01`; sandbox evidence is Foundry Forge 1.5.1 in the pinned ARM64 image, tested on Linux only. Docker Desktop/macOS behavior is unverified. The opt-in disposable-Postgres listener test covers HTTP→Postgres→worker→production-adapter using a test-only credential seam; its no-call assertion is not provider-routing coverage. Real Keychain interaction and provider routing against a controlled endpoint remain release gates.
+- No Solidity compiler is used (the BCE stage and its `solc-js` dependency were removed); sandbox evidence is Foundry Forge 1.5.1 in the pinned ARM64 image, tested on Linux only. Docker Desktop/macOS behavior is unverified. The opt-in disposable-Postgres listener test covers HTTP→Postgres→worker→production-adapter using a test-only credential seam; its no-call assertion is not provider-routing coverage. Real Keychain interaction and provider routing against a controlled endpoint remain release gates.
 
 The local `/v1/health` handshake is authenticated and reports the API version (no contract digest is advertised because there is no canonical versioned contract serialization to hash). Clients must fail closed on API-version mismatch; `assertApiCompatibility` implements that check. The handshake also reports deliberately limited runtime capabilities.
 

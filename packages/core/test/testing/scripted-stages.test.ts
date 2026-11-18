@@ -13,7 +13,6 @@ const finding = { findingId: "f-1", reportMarkdown: "## Reentrancy in withdraw()
 const okIngestion: IngestionResult = {
   kind: "ok",
   pocCode: "contract Poc {}",
-  bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw() {}", lineRange: [10, 14] }],
 }
 const missing: IngestionResult = { kind: "missing_poc" }
 

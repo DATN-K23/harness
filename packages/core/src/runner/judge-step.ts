@@ -114,8 +114,6 @@ export interface JudgeStepInput {
   verificationStepBudget?: number
   /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
   evidenceSaturationReads?: number
-  /** Conclude valid/invalid without execution evidence under the TV4 conclusion rules (`staticVerdictDecision`). */
-  enableStaticVerdicts?: boolean
 }
 
 export interface JudgeStepResult {
@@ -219,21 +217,14 @@ export class JudgeStep {
 
   /**
    * Outcomes the context already settles, decided before any provider attempt so no tokens are spent on them: a
-   * blocking consensus without complete source evidence, and a disputed one whose bounded witness failed or cannot run.
+   * disputed consensus whose bounded witness failed or cannot run. A blocking consensus goes on to the verdict step,
+   * where the model cites the guard and the TV4 rules check it.
    */
   private decideWithoutModel(
     verification: VerificationState,
     witness: ReturnType<typeof witnessOf>,
-    staticVerdicts: boolean,
   ): { summary: string; reasoning: string } | undefined {
     const { consensus } = verification
-    // With static verdicts the model is asked for the rejection and its cited guard, which the verdict policy checks.
-    if (!staticVerdicts && consensus === "agreed-invalid" && (verification.bceIncomplete || !verification.hasBceSlices))
-      return {
-        summary: "The blocking consensus has no source evidence.",
-        reasoning:
-          "No BCE source citation is available to verify the blocker against the immutable snapshot, so the result remains unresolved.",
-      }
     if (consensus !== "disputed" && consensus !== "inconclusive") return undefined
     const failed = witness.result !== undefined && (witness.result.toolMeta?.isError === true || !witness.result.content.includes(ProbeDeltaMarker))
     if (failed || (witness.result === undefined && !witness.offered))
@@ -262,7 +253,7 @@ export class JudgeStep {
       finish({ type: "completed", verdict: unverifiedVerdict(identity, "UNRESOLVED", { summary, reasoning }) })
     const verification = readVerificationState(input.items)
     const witness = witnessOf(input)
-    const decided = this.decideWithoutModel(verification, witness, input.enableStaticVerdicts === true)
+    const decided = this.decideWithoutModel(verification, witness)
     if (decided !== undefined) return unresolved(decided.summary, decided.reasoning)
 
     // Gate 1: context preflight. The engine signals; the step decides and never calls the gateway on stop/compaction.
@@ -348,12 +339,12 @@ export class JudgeStep {
           totalTokensUsed: input.budget.totalTokensUsed,
           totalTokenBudget: input.limits.totalTokenBudget,
         }))
-    // With static verdicts, an agreed consensus whose verdict step gives no verdict is concluded by the harness: the
-    // direction results become the verdict, the source they referred to is read from the snapshot, and the TV4 rules
-    // decide as for a model verdict. Undefined when that does not apply.
+    // An agreed consensus whose verdict step gives no verdict is concluded by the harness: the direction results become
+    // the verdict, the source they referred to is read from the snapshot, and the TV4 rules decide as for a model
+    // verdict. Undefined when that does not apply.
     const composeFromConsensus = async (): Promise<JudgeStepResult | undefined> => {
       const { consensus, forward, backward } = verification
-      if (input.enableStaticVerdicts !== true || forward === undefined || backward === undefined) return undefined
+      if (forward === undefined || backward === undefined) return undefined
       if (consensus !== "agreed-valid" && consensus !== "agreed-invalid") return undefined
       const report = input.items.find((item) => item.type === "candidate_finding" && !item.content.startsWith("Claim decomposition\n"))
       const composed = composeConsensusVerdict({
@@ -628,27 +619,20 @@ export class JudgeStep {
         },
       ).catch(asFault("worker_interrupted"))
       if (synthesis.kind === "accepted") {
-        if (verification.bceIncomplete && synthesis.verdict.validity !== "unverified") {
-          // Static verdicts follow the TV4 conclusion rules; without them, incomplete BCE withholds every conclusion.
-          // The source the model referred to in its own words (the reasoning, the direction results) is read from the
-          // snapshot and added as evidence, so a guard it named but did not cite can still be confirmed in the code.
-          const verdict = input.enableStaticVerdicts === true
-            ? await withReferencedEvidence(
-                { snapshot: deps.snapshot, security: deps.security },
-                {
-                  verdict: synthesis.verdict,
-                  texts: [synthesis.verdict.summary, synthesis.verdict.reasoning, verification.forward?.explanation ?? "", verification.backward?.explanation ?? ""],
-                  snapshotId: input.snapshotId,
-                  signal: input.signal,
-                },
-              ).catch(asFault("worker_interrupted"))
-            : synthesis.verdict
-          const decision = input.enableStaticVerdicts === true
-            ? staticVerdictDecision(verdict, verification.consensus)
-            : { kind: "withhold" as const, wording: {
-                summary: "The claim remains unresolved because BCE is incomplete.",
-                reasoning: "The model's citations resolve to the immutable snapshot, but incomplete BCE cannot establish the claimed path or a blocking guard.",
-              } }
+        if (synthesis.verdict.validity !== "unverified") {
+          // Every valid/invalid verdict passes the TV4 conclusion rules. The source the model referred to in its own
+          // words (the reasoning, the direction results) is read from the snapshot and added as evidence first, so a
+          // guard it named but did not cite can still be confirmed in the code.
+          const verdict = await withReferencedEvidence(
+            { snapshot: deps.snapshot, security: deps.security },
+            {
+              verdict: synthesis.verdict,
+              texts: [synthesis.verdict.summary, synthesis.verdict.reasoning, verification.forward?.explanation ?? "", verification.backward?.explanation ?? ""],
+              snapshotId: input.snapshotId,
+              signal: input.signal,
+            },
+          ).catch(asFault("worker_interrupted"))
+          const decision = staticVerdictDecision(verdict, verification.consensus)
           if (decision.kind === "withhold")
             return finish({ type: "completed", verdict: withheldVerdict(verdict, decision.wording) })
           return finish({ type: "completed", verdict })

@@ -15,9 +15,6 @@ const poc = "function testExploit() public { vault.deposit{value: 1 ether}(); at
 const okIngestion: IngestionResult = {
   kind: "ok",
   pocCode: poc,
-  bceSlices: [
-    { filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] },
-  ],
 }
 
 const okSanitizer: SanitizerResult = {
@@ -177,7 +174,6 @@ const narrativeAgreed: ScenarioSpec = {
   ingestion: {
     kind: "narrative_only",
     claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "reenter withdraw", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" },
-    bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] }],
   },
   sanitizer: okSanitizer,
   script: [
@@ -195,7 +191,6 @@ const disputedWitness: ScenarioSpec = {
     kind: "ok",
     pocCode: poc,
     claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "reenter withdraw", callerAssumptions: [], claimedImpact: "attacker receives more ether than deposited", claimedState: "balanceOf(attacker) increases by more than the deposit" },
-    bceSlices: [{ filePath: "src/Vault.sol", content: "function withdraw(uint256 amount) external { ... }", lineRange: [11, 16] }],
   },
   sanitizer: okSanitizer,
   stateProbes: [{ ...probe, stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3000000000000000000" }] }],

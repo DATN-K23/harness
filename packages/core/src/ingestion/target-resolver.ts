@@ -3,10 +3,13 @@ import type { TargetReference } from "./report-normalizer"
 /** Lines read from one file to confirm a target; declarations further down are not searched. */
 export const MaxResolutionLines = 5_000
 
+/** Files read to confirm an explicit `Contract.function` target, the ones named after the contract first. */
+export const MaxConfirmationFiles = 512
+
 export interface ResolvedTarget {
   contract: string
   functionName: string
-  /** Named by an explicit target field and not confirmed by reading; the compiler checks it when it can. */
+  /** Named by an explicit target field; confirmed like any other target by reading its declaration. */
   explicit: boolean
 }
 
@@ -53,9 +56,29 @@ const filesFor = (reference: string, paths: readonly string[]) => {
 const basename = (path: string) => segments(path).at(-1) ?? ""
 
 /**
- * The first reference that names exactly one function in the snapshot. Explicit `Contract.function` targets are
- * accepted as written; every other reference is confirmed by reading only the file it points to (or, for a bare
- * `Contract.function`, the file named after the contract), so an unconfirmed guess never becomes a target.
+ * Whether a function of that name is declared inside a contract, library or interface of that name (comments ignored),
+ * in the files named after the contract first, then in the rest, up to `MaxConfirmationFiles` files.
+ */
+const declares = async (
+  contract: string,
+  functionName: string,
+  paths: readonly string[],
+  read: (path: string) => Promise<string | undefined>,
+) => {
+  const named = paths.filter((path) => basename(path) === `${contract}.sol`)
+  const ordered = [...named, ...paths.filter((path) => !named.includes(path))].slice(0, MaxConfirmationFiles)
+  for (const path of ordered) {
+    const source = await read(path)
+    if (source !== undefined && functionsOf(source).some((fn) => fn.name === functionName && fn.contract === contract)) return true
+  }
+  return false
+}
+
+/**
+ * The first reference that names exactly one function in the snapshot. An explicit `Contract.function` target is
+ * confirmed by finding that function inside that contract in the snapshot; every other reference is confirmed by
+ * reading only the file it points to (or, for a bare `Contract.function`, the file named after the contract), so an
+ * unconfirmed guess never becomes a target.
  */
 export const resolveTarget = async (
   references: readonly TargetReference[],
@@ -63,8 +86,11 @@ export const resolveTarget = async (
   read: (path: string) => Promise<string | undefined>,
 ): Promise<ResolvedTarget | undefined> => {
   for (const reference of references) {
-    if (reference.explicit && reference.contract !== undefined && reference.functionName !== undefined)
-      return { contract: reference.contract, functionName: reference.functionName, explicit: true }
+    if (reference.explicit && reference.contract !== undefined && reference.functionName !== undefined) {
+      if (await declares(reference.contract, reference.functionName, paths, read))
+        return { contract: reference.contract, functionName: reference.functionName, explicit: true }
+      continue
+    }
     const files =
       reference.filePath !== undefined
         ? filesFor(reference.filePath, paths)

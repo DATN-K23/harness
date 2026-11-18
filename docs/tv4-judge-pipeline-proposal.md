@@ -3,6 +3,7 @@
 > **Nguồn:** Nhánh `tv4-judge-pipeline-proposal`, commit `37571a0` (proposal của thành viên 4).
 > **Trạng thái:** Đề xuất nghiên cứu; chưa phải thiết kế được duyệt hay mô tả implementation hiện tại.
 > **Mục đích:** Tóm lược và đặt đề xuất vào các ranh giới kiến trúc, an toàn hiện hành của Harness.
+> **Cập nhật 2026-11-18:** Harness **không** triển khai bước BCE. Model tự đọc phần source cần thiết qua các tool snapshot (`read_file`, `grep`, `glob`, `list_dir`) thay vì nhận sẵn các slice AST, vì slice ghim vào context làm tốn token và gây nhiễu (trên 12 run Judge thật, BCE không trả về slice nào). Quy tắc tổng hợp ở mục 4 được giữ và luôn áp dụng (`staticVerdictDecision`).
 
 ## 1. Tóm tắt
 

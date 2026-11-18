@@ -179,8 +179,7 @@ describe("stage ports", () => {
     const finding: CandidateFinding = { findingId: "finding-1", reportMarkdown: "# report" }
     const ingestion: IngestionPort = {
       async ingest(): Promise<IngestionResult> {
-        const bceSlices = [{ filePath: "src/A.sol", content: "contract A {}" }]
-        return { kind: "ok", pocCode: "contract T {}", bceSlices }
+        return { kind: "ok", pocCode: "contract T {}" }
       },
     }
     const sanitizer: SanitizerPort = {
@@ -226,12 +225,12 @@ describe("stage ports", () => {
   })
 
   test("narrative-only ingestion carries typed claims without PoC", () => {
-    const narrative: IngestionResult = { kind: "narrative_only", bceSlices: [], claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" } }
+    const narrative: IngestionResult = { kind: "narrative_only", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" } }
     expect(narrative.kind).toBe("narrative_only")
   })
 
   test("successful narrative ingestion cannot omit its claim", () => {
-    // The discriminated union rejects `{ kind: "ok", bceSlices: [] }` at compile time.
+    // The discriminated union rejects `{ kind: "narrative_only" }` without a claim at compile time.
     const invalid: IngestionResult = { kind: "invalid_report" }
     expect(invalid.kind).toBe("invalid_report")
   })

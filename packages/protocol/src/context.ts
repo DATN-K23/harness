@@ -6,7 +6,6 @@ export const ContextItemTypes = [
   "tool_description",
   "candidate_finding",
   "submitter_poc",
-  "bce_sliced_ast",
   "assistant_reasoning",
   "tool_request",
   "tool_result",

@@ -15,6 +15,13 @@ describe("production runtime safety", () => {
     expect(bounded.enablePocExecution).toBe(false)
   })
 
+  test("records only the context behaviour ProductionContextEngine implements (R1)", () => {
+    const config = makeProductionJudgeConfig({ providerName: "9router", modelName: "test" })
+    const unimplemented = { enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false }
+    expect(config.flags).toMatchObject({ enableToolTruncation: true, ...unimplemented })
+    expect(config.policy.flags).toMatchObject({ enableToolTruncation: true, ...unimplemented })
+  })
+
   test("rejects PoC execution regardless of caller-provided config", () => {
     expect(() => assertProductionJudgeConfig({ enablePocExecution: true })).toThrow("PoC execution is disabled")
   })

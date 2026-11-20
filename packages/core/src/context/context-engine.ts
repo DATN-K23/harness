@@ -1,5 +1,7 @@
 import type {
   ContextEnginePort,
+  ContextItem,
+  ContextPolicy,
   PrepareResult,
   RecordResult,
   ShapeToolResultOutcome,
@@ -29,16 +31,67 @@ const continuationWithFallback = (input: ShapeInputWithRange, count: number, tot
     : { exact, fallback: exact }
 }
 
+/** What a ready request held, so the provider's real prompt count for it can anchor the next estimate. */
+interface SentShape {
+  itemIds: string[]
+  /** Estimated tokens of each item as sent, so a later change to it (masking) can be added to the real count. */
+  itemTokens: number[]
+  toolTokens: number
+}
+
+type Transformation = NonNullable<PrepareResult["transformations"]>[number]
+
+const maskNote = (item: ContextItem) => {
+  const meta = item.toolMeta
+  const range = meta?.lineRange === undefined ? "" : ` lines ${meta.lineRange[0]}-${meta.lineRange[1]}`
+  const where = meta?.filePath === undefined ? "" : ` for ${meta.filePath}${range}`
+  const lines = item.content.split("\n").length
+  return `[earlier ${meta?.toolName ?? "tool"} result${where} hidden to save context (${lines} lines); call the tool again if you need it]`
+}
+
+/**
+ * With `enableObsMasking`, every unpinned tool result behind the newest `recentWindowTokens` of context is replaced by
+ * a one-line note naming what it held. The history itself is unchanged: each request derives its view from it again.
+ */
+export const maskOldToolResults = (items: readonly ContextItem[], policy: ContextPolicy): ContextItem[] => {
+  if (!policy.flags.enableObsMasking) return [...items]
+  let newer = 0
+  return items
+    .toReversed()
+    .map((item) => {
+      const old = newer >= policy.recentWindowTokens
+      newer += estimateTokens(item.content)
+      if (!old || item.isPinned || item.type !== "tool_result") return item
+      const content = maskNote(item)
+      return content.length < item.content.length ? { ...item, content } : item
+    })
+    .toReversed()
+}
+
+const toolTokens = (input: PrepareInput) =>
+  input.request?.tools === undefined ? 0 : estimateTokens(JSON.stringify(input.request.tools))
+
 export abstract class FakeContextEngine implements ContextEnginePort {
   readonly nonAuthoritative = true
   readonly label = FakeContextEngineLabel
   readonly prepareCalls: PrepareInput[] = []
   private lastEstimate = 0
-
+  /** The last ready request of a `calibrated` policy, waiting for its real usage in `record`. */
+  private pending: SentShape | undefined
+  /** The latest request whose real prompt count the provider reported. */
+  private anchor: (SentShape & { promptTokens: number }) | undefined
+  /** The items the current request sends (masked when masking is on). */
+  private view: ContextItem[] = []
+  /** Items whose masking was already reported, so each masking is persisted once, not on every later step. */
+  private readonly maskedIds = new Set<string>()
 
   abstract prepare(input: PrepareInput): Promise<PrepareResult>
 
   async record(input: RecordInput): Promise<RecordResult> {
+    // Usage of a compaction call has no pending shape (its prepare was not ready), so it never becomes the anchor.
+    if (this.pending !== undefined && input.actualUsage !== null && input.actualUsage.promptTokens > 0)
+      this.anchor = { ...this.pending, promptTokens: input.actualUsage.promptTokens }
+    this.pending = undefined
     if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
       totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,
@@ -60,8 +113,31 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 
   protected begin(input: PrepareInput) {
     this.prepareCalls.push(structuredClone(input))
-    this.lastEstimate = estimateItemTokens(input.items)
+    this.pending = undefined
+    this.view = maskOldToolResults(input.items, input.policy)
+    const characters = estimateItemTokens(this.view)
+    this.lastEstimate = input.policy.tokenEstimate === "calibrated" ? (this.calibrated(input) ?? characters) : characters
     return this.lastEstimate
+  }
+
+  /**
+   * The provider's real prompt count of the last request plus a characters-over-four estimate of what changed since:
+   * the items appended after it, earlier items now sent shorter (masked), and the difference in tool definitions.
+   * Undefined without a real count, or when the items no longer extend that request (a compaction replaced some), so
+   * the caller falls back to characters.
+   * shortcut: the anchor also counts what the runner adds after `prepare` (a forced step's instruction, a filtered
+   * tool list), so the estimate after such a step runs a few hundred tokens high; anchor the sent request if it matters.
+   * The real count also holds any prompt a router adds (9router's cx/* route adds the Codex CLI prompt, ~2,500 tokens,
+   * to every request); a direct provider API adds none. Only the first request, estimated from characters, misses it.
+   */
+  private calibrated(input: PrepareInput): number | undefined {
+    const anchor = this.anchor
+    const items = this.view
+    if (anchor === undefined || anchor.itemIds.length > items.length) return undefined
+    if (anchor.itemIds.some((id, index) => items[index]?.id !== id)) return undefined
+    const changed = anchor.itemTokens.reduce((sum, tokens, index) => sum + estimateTokens(items[index]!.content) - tokens, 0)
+    const appended = estimateItemTokens(items.slice(anchor.itemIds.length))
+    return Math.max(0, anchor.promptTokens + changed + appended + toolTokens(input) - anchor.toolTokens)
   }
 
   protected telemetry(input: PrepareInput, estimate: number): PrepareResult["telemetry"] {
@@ -73,7 +149,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
       estimatedSafetyTokens: Math.ceil(estimate * Math.max(0, input.modelLimits.safetyMarginFactor - 1)),
       windowLimitTokens: input.policy.windowLimitTokens,
       outputReserveTokens: input.policy.outputReserveTokens,
-      tokensSaved: 0,
+      tokensSaved: Math.max(0, estimateItemTokens(input.items) - estimateItemTokens(this.view)),
       budgetRemainingTokens: Math.max(0, input.budget.totalTokenLimit - input.budget.totalTokensUsed),
       contentDigest: digestOf(input.items),
       requestDigest: input.request === undefined ? undefined : digestOf(input.request),
@@ -82,10 +158,31 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   }
 
   protected ready(input: PrepareInput, estimate: number): PrepareResult {
+    const items = this.view
+    if (input.policy.tokenEstimate === "calibrated")
+      this.pending = {
+        itemIds: items.map((item) => item.id),
+        itemTokens: items.map((item) => estimateTokens(item.content)),
+        toolTokens: toolTokens(input),
+      }
+    const transformations: Transformation[] = items.flatMap((item, index) => {
+      const original = input.items[index]!
+      if (item === original || this.maskedIds.has(item.id)) return []
+      this.maskedIds.add(item.id)
+      return [{
+        action: "masked" as const,
+        targetItemId: item.id,
+        tokensBefore: estimateTokens(original.content),
+        tokensAfter: estimateTokens(item.content),
+        replacementNote: item.content,
+      }]
+    })
+    const masked = items.some((item, index) => item !== input.items[index])
     return {
       status: "ready",
-      preparedItems: input.items,
-      ...(input.request !== undefined ? { preparedRequest: input.request } : {}),
+      preparedItems: masked ? items : input.items,
+      ...(input.request !== undefined ? { preparedRequest: masked ? { ...input.request, items } : input.request } : {}),
+      ...(transformations.length > 0 ? { transformations } : {}),
       telemetry: this.telemetry(input, estimate),
     }
   }

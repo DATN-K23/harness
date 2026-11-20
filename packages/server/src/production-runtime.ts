@@ -71,17 +71,18 @@ export const makeProductionJudgeConfig = (runtime: {
   wallClockTimeoutMs?: number
 }): JudgeRunConfig => {
   const maxOutputTokens = runtime.modelMaxOutputTokens ?? 4096
+  // Context flags record what ProductionContextEngine really does: it truncates tool output and never compacts.
   const flags = {
-    enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true, enableDropEmpty: true,
-    enableLlmCompaction: true, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
+    enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false,
+    enableLlmCompaction: false, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
     enableNoProgressDetection: true, enableInfraRetry: true, enableParallelToolDispatch: true,
   }
   const policy = {
     policyVersion: "judge-local-v1", windowLimitTokens: 100_000, outputReserveTokens: maxOutputTokens,
     compactionThreshold: 0.8, safetyMarginFactor: 1.2, recentWindowTokens: 10_000,
     toolOutputMaxTokens: 4_000, toolOutputMaxLines: 50, maxCompactions: 2,
-    flags: { enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true,
-      enableDropEmpty: true, enableLlmCompaction: true, enableSessionNote: false },
+    flags: { enableToolTruncation: true, enableObsMasking: false, enableSupersedeReads: false,
+      enableDropEmpty: false, enableLlmCompaction: false, enableSessionNote: false },
   }
   return deepFreeze({ flags, policy, retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
     limits: {

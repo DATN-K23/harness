@@ -50,6 +50,12 @@ export interface ContextPolicy {
   toolOutputMaxTokens: number
   toolOutputMaxLines: number
   maxCompactions: number
+  /**
+   * How the context engine estimates a request before it is sent: `characters` divides characters by four;
+   * `calibrated` starts from the provider's real prompt count of the previous request and estimates only what was
+   * added since. Absent means `characters` (snapshots that predate the field).
+   */
+  tokenEstimate?: "characters" | "calibrated"
   flags: {
     enableToolTruncation: boolean
     enableObsMasking: boolean

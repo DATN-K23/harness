@@ -26,11 +26,12 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["run"]).mock).toBe(false)
   })
 
-  test("parses the Judge experiment flags, both off by default", () => {
-    expect(parseCliArgs(["run"])).toMatchObject({ structuredOutput: false, noBidirectional: false })
-    expect(parseCliArgs(["run", "--structured-output", "--no-bidirectional"])).toMatchObject({
+  test("parses the Judge experiment flags, all off by default", () => {
+    expect(parseCliArgs(["run"])).toMatchObject({ structuredOutput: false, noBidirectional: false, obsMasking: false })
+    expect(parseCliArgs(["run", "--structured-output", "--no-bidirectional", "--obs-masking"])).toMatchObject({
       structuredOutput: true,
       noBidirectional: true,
+      obsMasking: true,
     })
   })
 

@@ -70,6 +70,7 @@ Options:
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
+  --obs-masking               Judge: hide tool results older than the newest 10,000 tokens behind one-line notes (recorded)
   --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
@@ -88,6 +89,7 @@ export interface CliParsedArgs {
   noClaimExtraction?: boolean
   noLive?: boolean
   staticVerdicts?: boolean
+  obsMasking?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -129,6 +131,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       "no-claim-extraction": { type: "boolean" },
       "no-live": { type: "boolean" },
       "static-verdicts": { type: "boolean" },
+      "obs-masking": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -161,6 +164,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
     noLive: Boolean(values["no-live"]),
     staticVerdicts: Boolean(values["static-verdicts"]),
+    obsMasking: Boolean(values["obs-masking"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -432,12 +436,14 @@ async function runCommand(
           finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
+            // Context flags record what the CLI engine (PassThrough) really does: it truncates tool output and, with
+            // --obs-masking, hides old tool results.
             flags: {
               enableToolTruncation: true,
-              enableObsMasking: true,
-              enableSupersedeReads: true,
-              enableDropEmpty: true,
-              enableLlmCompaction: true,
+              enableObsMasking: Boolean(parsed.obsMasking),
+              enableSupersedeReads: false,
+              enableDropEmpty: false,
+              enableLlmCompaction: false,
               enableSessionNote: false,
               enableSchemaRepair: true,
               enableMaxStepsForcing: true,
@@ -446,7 +452,8 @@ async function runCommand(
               enableParallelToolDispatch: true,
             },
             policy: {
-              policyVersion: "cli-judge-v1",
+              // v2: estimates start from the provider's real prompt count of the previous step.
+              policyVersion: "cli-judge-v2",
               windowLimitTokens: 100_000,
               outputReserveTokens: maxOutputTokens,
               compactionThreshold: 0.8,
@@ -455,12 +462,13 @@ async function runCommand(
               toolOutputMaxTokens: 4_000,
               toolOutputMaxLines: 50,
               maxCompactions: 2,
+              tokenEstimate: "calibrated",
               flags: {
                 enableToolTruncation: true,
-                enableObsMasking: true,
-                enableSupersedeReads: true,
-                enableDropEmpty: true,
-                enableLlmCompaction: true,
+                enableObsMasking: Boolean(parsed.obsMasking),
+                enableSupersedeReads: false,
+                enableDropEmpty: false,
+                enableLlmCompaction: false,
                 enableSessionNote: false,
               },
             },

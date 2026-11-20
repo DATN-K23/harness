@@ -414,32 +414,33 @@ export class JudgeStep {
     if (stopNow !== undefined) return finish({ type: "budget_exhausted", reason: stopNow })
     await persist("step.started", { stepIndex: input.stepIndex, toolsDisabled: forced })
 
+    const sent: import("@harness/protocol").ModelAttemptRequest = {
+      ...request,
+      items: sentItems,
+      // A structured-output run answers through a submission tool, as OpenCode's json_schema format requires.
+      // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
+      // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
+      ...(submissionForced
+        ? { tools: [pending !== undefined ? submitVerificationTool(pending) : submitVerdictTool()], toolChoice: "required" as const }
+        : forced
+          ? { toolsDisabled: true }
+          : offersSubmission(request.tools ?? [])
+            // A pending direction may submit only its own result: offered submit_verdict, Claude Sonnet submitted
+            // a verdict during the backward direction until its repairs ran out (2026-10-29).
+            ? pending !== undefined
+              ? {
+                  tools: [
+                    ...(request.tools ?? []).filter((tool) => tool.name !== SubmitVerdictToolName && tool.name !== SubmitVerificationToolName),
+                    submitVerificationTool(pending),
+                  ],
+                  toolChoice: "required" as const,
+                }
+              : { toolChoice: "required" as const }
+            : {}),
+    }
     const retried: RetryOutcome = await deps.retryPolicy
       .run({
-        request: {
-          ...request,
-          items: sentItems,
-          // A structured-output run answers through a submission tool, as OpenCode's json_schema format requires.
-          // A forced direction keeps one tool, the result submission, and must call it or answer in text: models that
-          // keep calling tools after they were removed (Gemini, measured 2026-10-23) then still give their answer.
-          ...(submissionForced
-            ? { tools: [pending !== undefined ? submitVerificationTool(pending) : submitVerdictTool()], toolChoice: "required" as const }
-            : forced
-              ? { toolsDisabled: true }
-              : offersSubmission(request.tools ?? [])
-                // A pending direction may submit only its own result: offered submit_verdict, Claude Sonnet submitted
-                // a verdict during the backward direction until its repairs ran out (2026-10-29).
-                ? pending !== undefined
-                  ? {
-                      tools: [
-                        ...(request.tools ?? []).filter((tool) => tool.name !== SubmitVerdictToolName && tool.name !== SubmitVerificationToolName),
-                        submitVerificationTool(pending),
-                      ],
-                      toolChoice: "required" as const,
-                    }
-                  : { toolChoice: "required" as const }
-                : {}),
-        },
+        request: sent,
         deadlineMs: input.stopState.startedAtMs + input.limits.wallClockTimeoutMs,
         signal: input.signal,
         beforeRetry: stopBefore,
@@ -515,6 +516,7 @@ export class JudgeStep {
           totalTokensUsed: input.budget.totalTokensUsed + failedSpend.totalTokens,
           costUsd: input.budget.costUsd + failedSpend.costUsd,
         },
+        request: sent,
       })
       .catch(asFault("worker_interrupted"))
 

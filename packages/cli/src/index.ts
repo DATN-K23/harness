@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, ReasoningEffort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ThresholdContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { DefaultRetryConfig, ReasoningEfforts } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
@@ -71,6 +71,7 @@ Options:
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
   --obs-masking               Judge: hide tool results older than the newest 10,000 tokens behind one-line notes (recorded)
+  --llm-compaction            Judge: past 80% of the context window, have the model summarize older items (recorded)
   --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
@@ -90,6 +91,7 @@ export interface CliParsedArgs {
   noLive?: boolean
   staticVerdicts?: boolean
   obsMasking?: boolean
+  llmCompaction?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -132,6 +134,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       "no-live": { type: "boolean" },
       "static-verdicts": { type: "boolean" },
       "obs-masking": { type: "boolean" },
+      "llm-compaction": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -165,6 +168,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     noLive: Boolean(values["no-live"]),
     staticVerdicts: Boolean(values["static-verdicts"]),
     obsMasking: Boolean(values["obs-masking"]),
+    llmCompaction: Boolean(values["llm-compaction"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -436,14 +440,14 @@ async function runCommand(
           finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
-            // Context flags record what the CLI engine (PassThrough) really does: it truncates tool output and, with
-            // --obs-masking, hides old tool results.
+            // Context flags record what the CLI engine really does: it truncates tool output, with --obs-masking hides
+            // old tool results and with --llm-compaction (Threshold engine) summarizes older items near the window.
             flags: {
               enableToolTruncation: true,
               enableObsMasking: Boolean(parsed.obsMasking),
               enableSupersedeReads: false,
               enableDropEmpty: false,
-              enableLlmCompaction: false,
+              enableLlmCompaction: Boolean(parsed.llmCompaction),
               enableSessionNote: false,
               enableSchemaRepair: true,
               enableMaxStepsForcing: true,
@@ -468,7 +472,7 @@ async function runCommand(
                 enableObsMasking: Boolean(parsed.obsMasking),
                 enableSupersedeReads: false,
                 enableDropEmpty: false,
-                enableLlmCompaction: false,
+                enableLlmCompaction: Boolean(parsed.llmCompaction),
                 enableSessionNote: false,
               },
             },
@@ -550,7 +554,8 @@ async function runCommand(
           gateway: judgeGateway,
           tools: registry,
           snapshot,
-          contextEngine: new PassThroughContextEngine(),
+          // Without compaction the PassThrough engine never stops or compacts, as before the flag existed.
+          contextEngine: parsed.llmCompaction ? new ThresholdContextEngine() : new PassThroughContextEngine(),
           security,
           ingestion,
           sanitizer,

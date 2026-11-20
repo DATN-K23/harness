@@ -175,6 +175,26 @@ describe("ThresholdContextEngine", () => {
     expect(result.summaryPrompt.length).toBeGreaterThan(0)
   })
 
+  test("never asks for a compaction that cannot get under the threshold", async () => {
+    // threshold 400; pinned 500 + recent 100 stay even after an empty summary, so summarizing "old" cannot help.
+    const items = [item("pinned", 2_000, { isPinned: true }), item("old", 400), item("recent", 400)]
+    expect((await engine().prepare(input(items))).status).toBe("ready")
+    const overRoom = [item("pinned", 3_200, { isPinned: true }), item("old", 400), item("recent", 400)]
+    expect(await engine().prepare(input(overRoom))).toMatchObject({ status: "stop", stopReason: "context_budget" })
+  })
+
+  test("keeps a tool call and its result together when the recent window splits them", async () => {
+    const call = (id: string, callId: string, characters: number) =>
+      item(id, characters, { type: "tool_request", toolMeta: { callId, toolName: "read_file" } })
+    const result = (id: string, callId: string, characters: number) =>
+      item(id, characters, { toolMeta: { callId, toolName: "read_file" } })
+    // The recent window (100 tokens) holds only the last result, so c2's call would be summarized without it.
+    const items = [call("req-1", "c1", 400), result("res-1", "c1", 800), call("req-2", "c2", 40), result("res-2", "c2", 400)]
+    const prepared = await engine().prepare(input(items))
+    if (prepared.status !== "needs_compaction") throw new Error("expected needs_compaction")
+    expect(prepared.itemsToSummarize.map((candidate) => candidate.id)).toEqual(["req-1", "res-1"])
+  })
+
   test("stops with context_budget when over the room and compaction is unavailable", async () => {
     const items = [item("a", 2_000), item("b", 2_000)]
     const exhausted = await engine().prepare(input(items, { budget: budget({ compactionsCount: 2 }) }))
@@ -226,6 +246,22 @@ describe("calibrated token estimate", () => {
     const fewerTools = await engine.prepare(withTools([item("a", 400)], ""))
     const removed = estimateTokens(JSON.stringify(tools("x".repeat(40)))) - estimateTokens(JSON.stringify(tools("")))
     expect(fewerTools.telemetry.estimatedInputTokens).toBe(2_000 - removed)
+  })
+
+  test("anchors on the request really sent: an added instruction and disabled tools leave the anchor", async () => {
+    const engine = new PassThroughContextEngine()
+    const prepared = withTools([item("a", 400)], "x".repeat(40))
+    await engine.prepare(prepared)
+    const instruction = item("forced", 40, { type: "harness_instruction" })
+    await engine.record({
+      actualUsage: usage(2_000),
+      modelLimits,
+      budget: budget(),
+      request: { ...prepared.request, items: [item("a", 400), instruction], toolsDisabled: true },
+    })
+    const next = await engine.prepare(withTools([item("a", 400), item("b", 40)], "x".repeat(40)))
+    // 2,000 real - 10 for the instruction (not in the history) + 10 appended + the tools sent again (none were sent).
+    expect(next.telemetry.estimatedInputTokens).toBe(2_000 - 10 + 10 + estimateTokens(JSON.stringify(tools("x".repeat(40)))))
   })
 
   test("falls back to characters when the items no longer extend the anchored request", async () => {
@@ -303,6 +339,13 @@ describe("observation masking", () => {
     expect(result.status === "ready" && result.preparedRequest).toBe(sent)
     expect(result.transformations).toBeUndefined()
     expect(result.telemetry.tokensSaved).toBe(0)
+  })
+
+  test("the compaction decision sees the masked request, so masking that fits avoids a summary call", async () => {
+    // Unmasked: 500 + 100 = 600 tokens, over the 0.5 x (1,000 - 200) = 400 threshold; masked it fits.
+    const items = [read, item("recent", 400)]
+    expect((await new ThresholdContextEngine().prepare(input(items))).status).toBe("needs_compaction")
+    expect((await new ThresholdContextEngine().prepare(input(items, { policy: masking() }))).status).toBe("ready")
   })
 
   test("a calibrated estimate subtracts what masking removed since the anchored request", async () => {

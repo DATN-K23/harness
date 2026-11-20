@@ -178,6 +178,8 @@ export interface ContextEnginePort {
     actualUsage: TokenUsage | null
     modelLimits: ModelLimits
     budget: RunBudget
+    /** The request the usage was reported for, as sent: it may hold more than `prepare` returned (a forced step's instruction, a changed tool list). */
+    request?: ModelAttemptRequest
   }): Promise<RecordResult>
 
   shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy; path?: string; lineRange?: [number, number] }): Promise<ShapeToolResultOutcome>

@@ -1,12 +1,14 @@
 // Adapted from OpenCode packages/core/src/session/compaction.ts @ 3f393d78bf (MIT License). See NOTICE.
 import type { PrepareResult } from "@harness/protocol"
 import { FakeContextEngine, type PrepareInput } from "./context-engine"
-import { estimateTokens } from "./token-estimator"
+import { estimateItemTokens, estimateTokens } from "./token-estimator"
 
 /**
  * Decides from the estimate alone. `compactionThreshold` is read as a fraction of the room left after the output
  * reserve. Over the threshold it asks for compaction while compaction is enabled and budgeted, over the room itself it
- * stops with `context_budget`, and a run that would pass its total token limit stops with `total_tokens`.
+ * stops with `context_budget`, and a run that would pass its total token limit stops with `total_tokens`. It never
+ * asks for a compaction that cannot get under the threshold, since even an empty summary would leave the pinned and
+ * recent items over it (a window too small for `recentWindowTokens`).
  */
 export class ThresholdContextEngine extends FakeContextEngine {
   async prepare(input: PrepareInput): Promise<PrepareResult> {
@@ -17,11 +19,14 @@ export class ThresholdContextEngine extends FakeContextEngine {
       return { status: "stop", stopReason: "total_tokens", telemetry }
 
     const room = policy.windowLimitTokens - policy.outputReserveTokens
-    if (estimate <= policy.compactionThreshold * room) return this.ready(input, estimate)
+    const threshold = policy.compactionThreshold * room
+    if (estimate <= threshold) return this.ready(input, estimate)
 
     const canCompact = policy.flags.enableLlmCompaction && budget.compactionsCount < policy.maxCompactions
     const itemsToSummarize = canCompact ? this.olderUnpinned(input) : []
-    if (itemsToSummarize.length > 0)
+    const summarized = new Set(itemsToSummarize.map((item) => item.id))
+    const freed = estimateItemTokens(this.view.filter((item) => summarized.has(item.id)))
+    if (itemsToSummarize.length > 0 && estimate - freed <= threshold)
       return {
         status: "needs_compaction",
         summaryPrompt: "Summarize these context items, keeping every finding and file reference.",
@@ -40,7 +45,16 @@ export class ThresholdContextEngine extends FakeContextEngine {
       recent.add(item.id)
       recentTokens += estimateTokens(item.content)
     }
-    return input.items.filter((item) => !item.isPinned && !recent.has(item.id))
+    const older = input.items.filter((item) => !item.isPinned && !recent.has(item.id))
+    // A tool call and its result are summarized together or not at all: the recent window can split a pair, and a
+    // result left without its call (or a call without its result) is history no provider request can carry.
+    const summarized = new Set(older.map((item) => item.id))
+    const split = new Set(
+      input.items
+        .filter((item) => item.toolMeta !== undefined && !summarized.has(item.id))
+        .map((item) => item.toolMeta!.callId),
+    )
+    return older.filter((item) => item.toolMeta === undefined || !split.has(item.toolMeta.callId))
   }
 }
 

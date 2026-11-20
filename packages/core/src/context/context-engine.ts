@@ -2,6 +2,7 @@ import type {
   ContextEnginePort,
   ContextItem,
   ContextPolicy,
+  ModelAttemptRequest,
   PrepareResult,
   RecordResult,
   ShapeToolResultOutcome,
@@ -68,8 +69,9 @@ export const maskOldToolResults = (items: readonly ContextItem[], policy: Contex
     .toReversed()
 }
 
-const toolTokens = (input: PrepareInput) =>
-  input.request?.tools === undefined ? 0 : estimateTokens(JSON.stringify(input.request.tools))
+/** Tokens of the tool definitions a request sends; a request with tools disabled sends none. */
+const toolTokens = (request: ModelAttemptRequest | undefined) =>
+  request?.tools === undefined || request.toolsDisabled === true ? 0 : estimateTokens(JSON.stringify(request.tools))
 
 export abstract class FakeContextEngine implements ContextEnginePort {
   readonly nonAuthoritative = true
@@ -81,7 +83,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   /** The latest request whose real prompt count the provider reported. */
   private anchor: (SentShape & { promptTokens: number }) | undefined
   /** The items the current request sends (masked when masking is on). */
-  private view: ContextItem[] = []
+  protected view: ContextItem[] = []
   /** Items whose masking was already reported, so each masking is persisted once, not on every later step. */
   private readonly maskedIds = new Set<string>()
 
@@ -89,8 +91,18 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 
   async record(input: RecordInput): Promise<RecordResult> {
     // Usage of a compaction call has no pending shape (its prepare was not ready), so it never becomes the anchor.
-    if (this.pending !== undefined && input.actualUsage !== null && input.actualUsage.promptTokens > 0)
-      this.anchor = { ...this.pending, promptTokens: input.actualUsage.promptTokens }
+    if (this.pending !== undefined && input.actualUsage !== null && input.actualUsage.promptTokens > 0) {
+      const sent = input.request
+      const prepared = new Set(this.pending.itemIds)
+      // Items the runner added after `prepare` (a forced step's instruction) are in the real count but not in the
+      // history the next request extends, so they leave the anchor; its tools are the ones really sent.
+      const added = sent === undefined ? 0 : estimateItemTokens(sent.items.filter((item) => !prepared.has(item.id)))
+      this.anchor = {
+        ...this.pending,
+        toolTokens: sent === undefined ? this.pending.toolTokens : toolTokens(sent),
+        promptTokens: Math.max(0, input.actualUsage.promptTokens - added),
+      }
+    }
     this.pending = undefined
     if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
@@ -124,11 +136,11 @@ export abstract class FakeContextEngine implements ContextEnginePort {
    * The provider's real prompt count of the last request plus a characters-over-four estimate of what changed since:
    * the items appended after it, earlier items now sent shorter (masked), and the difference in tool definitions.
    * Undefined without a real count, or when the items no longer extend that request (a compaction replaced some), so
-   * the caller falls back to characters.
-   * shortcut: the anchor also counts what the runner adds after `prepare` (a forced step's instruction, a filtered
-   * tool list), so the estimate after such a step runs a few hundred tokens high; anchor the sent request if it matters.
-   * The real count also holds any prompt a router adds (9router's cx/* route adds the Codex CLI prompt, ~2,500 tokens,
-   * to every request); a direct provider API adds none. Only the first request, estimated from characters, misses it.
+   * the caller falls back to characters. Without the sent request in `record`, what the runner adds after `prepare`
+   * stays in the anchor and the next estimate runs a few hundred tokens high.
+   * The real count also holds any prompt a router adds; only the first request, estimated from characters, misses it.
+   * (9router's cx/* route adds the Codex CLI prompt, ~2,500 tokens, only to requests without a system message, which
+   * a Judge request always has; measured 2026-11-21.)
    */
   private calibrated(input: PrepareInput): number | undefined {
     const anchor = this.anchor
@@ -137,7 +149,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
     if (anchor.itemIds.some((id, index) => items[index]?.id !== id)) return undefined
     const changed = anchor.itemTokens.reduce((sum, tokens, index) => sum + estimateTokens(items[index]!.content) - tokens, 0)
     const appended = estimateItemTokens(items.slice(anchor.itemIds.length))
-    return Math.max(0, anchor.promptTokens + changed + appended + toolTokens(input) - anchor.toolTokens)
+    return Math.max(0, anchor.promptTokens + changed + appended + toolTokens(input.request) - anchor.toolTokens)
   }
 
   protected telemetry(input: PrepareInput, estimate: number): PrepareResult["telemetry"] {
@@ -163,7 +175,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
       this.pending = {
         itemIds: items.map((item) => item.id),
         itemTokens: items.map((item) => estimateTokens(item.content)),
-        toolTokens: toolTokens(input),
+        toolTokens: toolTokens(input.request),
       }
     const transformations: Transformation[] = items.flatMap((item, index) => {
       const original = input.items[index]!

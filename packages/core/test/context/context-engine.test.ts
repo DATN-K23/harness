@@ -165,3 +165,62 @@ describe("ProductionContextEngine", () => {
     expect(tokenizer.count(result.content)).toBeLessThanOrEqual(tokenizer.count(marker) + tokenizer.count("a\n"))
   })
 })
+
+describe("ProductionContextEngine context reductions", () => {
+  const tokenizer = createO200kTokenizer()
+  const requestFor = (items: ContextItem[]) => ({ runId: "run", stepIndex: 1, attemptIndex: 1, profileId: "model", items })
+  const words = (count: number) => "word ".repeat(count)
+  const result = (id: string, content: string, filePath = "src/Vault.sol"): ContextItem => ({
+    id, turn: 1, type: "tool_result", isPinned: false, content,
+    toolMeta: { callId: `call-${id}`, toolName: "read_file", filePath, lineRange: [1, 50] },
+  })
+  const withFlags = (flags: Partial<ContextPolicy["flags"]>, overrides: Partial<ContextPolicy> = {}): ContextPolicy =>
+    ({ ...policy, recentWindowTokens: 50, maxCompactions: 2, ...overrides, flags: { ...policy.flags, ...flags } })
+
+  test("masks old tool results in the sent request, reports each once, and counts the saving", async () => {
+    const engine = new ProductionContextEngine(tokenizer)
+    const items = [result("old", words(600)), result("recent", words(100))]
+    const masking = withFlags({ enableObsMasking: true })
+    const first = await engine.prepare({ items, request: requestFor(items), policy: masking, modelLimits: limits, budget })
+    if (first.status !== "ready") throw new Error("expected ready")
+    expect(first.preparedRequest?.items[0]!.content).toStartWith("[earlier read_file result for src/Vault.sol lines 1-50 hidden")
+    expect(first.preparedItems).toEqual(first.preparedRequest!.items)
+    expect(first.transformations?.map((change) => change.targetItemId)).toEqual(["old"])
+    expect(first.telemetry.tokensSaved).toBeGreaterThan(500)
+    expect(items[0]!.content).toBe(words(600))
+    expect(PrepareResultSchema.safeParse(first).success).toBe(true)
+    const again = await engine.prepare({ items, request: requestFor(items), policy: masking, modelLimits: limits, budget })
+    expect(again.transformations).toBeUndefined()
+    const plain = await engine.prepare({ items, request: requestFor(items), policy, modelLimits: limits, budget })
+    expect(again.telemetry.estimatedInputTokens).toBeLessThan(plain.telemetry.estimatedInputTokens - 500)
+  })
+
+  test("asks for a compaction past the threshold when enabled, and only when it can get under it", async () => {
+    // threshold = 0.8 x (2,000 - 200) = 1,440 tokens.
+    const small = { windowLimitTokens: 2_000, outputReserveTokens: 200 }
+    const items = [result("old", words(1_500)), result("recent", words(100))]
+    const compacting = withFlags({ enableLlmCompaction: true }, small)
+    const asked = await new ProductionContextEngine(tokenizer).prepare({ items, request: requestFor(items), policy: compacting, modelLimits: limits, budget })
+    if (asked.status !== "needs_compaction") throw new Error(`expected needs_compaction, got ${asked.status}`)
+    expect(asked.itemsToSummarize.map((candidate) => candidate.id)).toEqual(["old"])
+    expect(PrepareResultSchema.safeParse(asked).success).toBe(true)
+
+    const off = await new ProductionContextEngine(tokenizer).prepare({ items, request: requestFor(items), policy: withFlags({}, small), modelLimits: limits, budget })
+    expect(off.status).toBe("stop")
+    // A pinned item keeps the request over the threshold whatever is summarized, so no summary call is asked for.
+    const pinned = [{ ...item("pinned", words(1_500), true) }, result("old", words(20)), result("recent", words(100))]
+    const futile = await new ProductionContextEngine(tokenizer).prepare({ items: pinned, request: requestFor(pinned), policy: compacting, modelLimits: limits, budget })
+    expect(futile.status).toBe("stop")
+  })
+
+  test("a calibrated estimate starts from the provider's real prompt count of the previous request", async () => {
+    const engine = new ProductionContextEngine(tokenizer)
+    const calibrated = withFlags({}, { tokenEstimate: "calibrated" })
+    const items = [item("instructions", "Inspect this contract", true)]
+    await engine.prepare({ items, request: requestFor(items), policy: calibrated, modelLimits: limits, budget })
+    await engine.record({ actualUsage: { promptTokens: 5_000, completionTokens: 10, totalTokens: 5_010 }, modelLimits: limits, budget })
+    const appended = [...items, result("read", words(40))]
+    const next = await engine.prepare({ items: appended, request: requestFor(appended), policy: calibrated, modelLimits: limits, budget })
+    expect(next.telemetry.estimatedInputTokens).toBe(5_000 + tokenizer.count(words(40)))
+  })
+})

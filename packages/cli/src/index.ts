@@ -70,8 +70,10 @@ Options:
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
-  --obs-masking               Judge: hide tool results older than the newest 10,000 tokens behind one-line notes (recorded)
-  --llm-compaction            Judge: past 80% of the context window, have the model summarize older items (recorded)
+  --obs-masking               Judge and serve: hide tool results older than the newest 10,000 tokens behind one-line
+                              notes (recorded)
+  --llm-compaction            Judge and serve: past 80% of the context window, have the model summarize older items
+                              (recorded)
   --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
@@ -251,6 +253,8 @@ export async function runCli(
         modelMaxOutputTokens: config.modelMaxOutputTokens,
         modelInputCostPerMTok: config.modelInputCostPerMTok,
         modelOutputCostPerMTok: config.modelOutputCostPerMTok,
+        enableObsMasking: Boolean(parsed.obsMasking),
+        enableLlmCompaction: Boolean(parsed.llmCompaction),
         snapshotDir: config.snapshotDir,
         hostname: env.HARNESS_HOST ?? "127.0.0.1",
         port: Number(env.HARNESS_PORT ?? 4318),

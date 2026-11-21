@@ -17,9 +17,17 @@ describe("production runtime safety", () => {
 
   test("records only the context behaviour ProductionContextEngine implements (R1)", () => {
     const config = makeProductionJudgeConfig({ providerName: "9router", modelName: "test" })
-    const unimplemented = { enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false }
-    expect(config.flags).toMatchObject({ enableToolTruncation: true, ...unimplemented })
-    expect(config.policy.flags).toMatchObject({ enableToolTruncation: true, ...unimplemented })
+    const off = { enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false }
+    expect(config.flags).toMatchObject({ enableToolTruncation: true, ...off })
+    expect(config.policy.flags).toMatchObject({ enableToolTruncation: true, ...off })
+    expect(config.policy).toMatchObject({ tokenEstimate: "calibrated", policyVersion: "judge-local-v2" })
+  })
+
+  test("records masking and compaction when they are enabled, in both flag sets", () => {
+    const config = makeProductionJudgeConfig({ providerName: "9router", modelName: "test", enableObsMasking: true, enableLlmCompaction: true })
+    const on = { enableObsMasking: true, enableLlmCompaction: true, enableSupersedeReads: false, enableDropEmpty: false }
+    expect(config.flags).toMatchObject(on)
+    expect(config.policy.flags).toMatchObject(on)
   })
 
   test("rejects PoC execution regardless of caller-provided config", () => {

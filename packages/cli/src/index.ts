@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util"
 import { resolve } from "node:path"
 import type { ModelGatewayPort, ReasoningEffort, RunStorePort } from "@harness/protocol"
-import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ThresholdContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
+import { DiskSourceSnapshot, EventBus, JudgeDefaultLimits, MultiTurnRunner, SnapshotIngestion, claimMarkdown, PassThroughContextEngine, ProductionContextEngine, ProductionSecurityFilter, createIdGenerator, systemIdSources, createO200kTokenizer, SnapshotManager, ToolRegistry } from "@harness/core"
 import type { SnapshotManifest } from "@harness/core"
 import { DefaultRetryConfig, ReasoningEfforts } from "@harness/protocol"
 import { InMemoryRunStore, ScriptedModelGateway, textResponse, toolCallResponse } from "@harness/core/testing"
@@ -444,8 +444,8 @@ async function runCommand(
           finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
-            // Context flags record what the CLI engine really does: it truncates tool output, with --obs-masking hides
-            // old tool results and with --llm-compaction (Threshold engine) summarizes older items near the window.
+            // Context flags record what ProductionContextEngine really does: it truncates tool output, with --obs-masking
+            // hides old tool results and with --llm-compaction summarizes older items near the window.
             flags: {
               enableToolTruncation: true,
               enableObsMasking: Boolean(parsed.obsMasking),
@@ -460,8 +460,9 @@ async function runCommand(
               enableParallelToolDispatch: true,
             },
             policy: {
-              // v2: estimates start from the provider's real prompt count of the previous step.
-              policyVersion: "cli-judge-v2",
+              // v2: estimates start from the provider's real prompt count of the previous step. v3: the server's
+              // engine counts with the o200k tokenizer (not characters / 4) and enforces toolOutputMaxTokens.
+              policyVersion: "cli-judge-v3",
               windowLimitTokens: 100_000,
               outputReserveTokens: maxOutputTokens,
               compactionThreshold: 0.8,
@@ -558,8 +559,8 @@ async function runCommand(
           gateway: judgeGateway,
           tools: registry,
           snapshot,
-          // Without compaction the PassThrough engine never stops or compacts, as before the flag existed.
-          contextEngine: parsed.llmCompaction ? new ThresholdContextEngine() : new PassThroughContextEngine(),
+          // The same engine as the server, so CLI and server runs count and reduce context alike.
+          contextEngine: new ProductionContextEngine(createO200kTokenizer()),
           security,
           ingestion,
           sanitizer,

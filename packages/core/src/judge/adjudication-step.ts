@@ -1,6 +1,5 @@
 import type { VerificationPort } from "../verification"
 import type {
-  BceSlice,
   CandidateFinding,
   DeconstructedClaim,
   ContextItem,
@@ -16,7 +15,7 @@ import type {
 import { NextStepMarker, describeArguments } from "../step/parallel-tool-dispatcher"
 import type { IdGenerator } from "../util/id"
 import { bounded } from "../runner/judge-step-support"
-import { BceIncompleteNote, directionPrompt, type VerificationDirection } from "./bidirectional-verifier"
+import { directionPrompt, type VerificationDirection } from "./bidirectional-verifier"
 
 const MaxStateDeltaChars = 1_000
 const MaxStateDeltas = 32
@@ -162,8 +161,6 @@ export interface InitialContextInput {
   finding: CandidateFinding
   pocCode: string
   claim?: DeconstructedClaim
-  bceSlices: readonly BceSlice[]
-  bceIncomplete?: boolean
   /** `undefined` when no sanitized PoC was executed, so there is no oracle tier. */
   tier?: AdjudicationTier
   maxProbeRuns: number
@@ -206,8 +203,8 @@ export const claimFromItems = (items: readonly ContextItem[]): DeconstructedClai
 
 /**
  * The initial context in the seven-layer cache order of design 3.4. Layer 1 (system prompt, tool descriptions,
- * verdict schema, then the case header) is a fixed prefix for the whole run; layers 2 and 3 (finding, PoC, BCE
- * slices) are pinned; layers 4 to 6 (compaction summary, history, session note) do not exist yet; layer 7 is the
+ * verdict schema, then the case header) is a fixed prefix for the whole run; layers 2 and 3 (finding, PoC, claim)
+ * are pinned; layers 4 to 6 (compaction summary, history, session note) do not exist yet; layer 7 is the
  * shaped execution trace. Every initial item is pinned, so the context engine never masks or compacts it.
  */
 export const buildInitialContext = (input: InitialContextInput): ContextItem[] => {
@@ -239,13 +236,6 @@ export const buildInitialContext = (input: InitialContextInput): ContextItem[] =
     pinned("candidate_finding", input.finding.reportMarkdown),
     ...(input.pocCode === "" ? [] : [pinned("submitter_poc", input.pocCode)]),
     ...(input.claim === undefined ? [] : [pinned("candidate_finding", `${ClaimDecompositionHeader}${JSON.stringify(input.claim)}`)]),
-    ...input.bceSlices.map((slice) =>
-      pinned(
-        "bce_sliced_ast",
-        `${slice.filePath}${slice.lineRange === undefined ? "" : ` (lines ${slice.lineRange[0]}-${slice.lineRange[1]})`}\n${slice.content}`,
-      ),
-    ),
-    ...(input.bceIncomplete ? [pinned("system_prompt", BceIncompleteNote)] : []),
     ...(input.verificationDirection === undefined ? [] : [pinned("system_prompt", directionPrompt(input.verificationDirection))]),
     // The trace stays last: a takeover reads a persisted trace as "the initial context is complete".
     pinned("execution_trace", input.shapedTrace),

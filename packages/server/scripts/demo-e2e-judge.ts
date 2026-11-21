@@ -76,7 +76,7 @@ State: balances[msg.sender] is correctly reset before transfer.
     confidence: "MEDIUM",
     reasonCode: "UNRESOLVED",
     summary: "Reentrancy claim analyzed against Vault contract; status is UNVERIFIED.",
-    reasoning: "The state update balances[msg.sender] = 0 precedes the external call. Incomplete BCE mandates UNVERIFIED verdict.",
+    reasoning: "The state update balances[msg.sender] = 0 precedes the external call. Neither direction established the claim, so the verdict stays UNVERIFIED.",
     citesEvidence: [
       {
         filePath: "src/Vault.sol",
@@ -122,7 +122,6 @@ State: balances[msg.sender] is correctly reset before transfer.
             claimedImpact: "None",
             claimedState: "Balance zeroed",
           },
-          bceSlices: [],
         }),
       },
       sanitizer: {

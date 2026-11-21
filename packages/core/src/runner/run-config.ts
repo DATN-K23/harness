@@ -21,7 +21,6 @@ export interface RunConfigInput {
   enableBidirectionalVerification?: boolean
   enableStructuredOutput?: boolean
   enableClaimExtraction?: boolean
-  enableStaticVerdicts?: boolean
   verificationStepBudget?: number
   evidenceSaturationReads?: number
   reasoningEffort?: import("@harness/protocol").ReasoningEffort
@@ -58,7 +57,8 @@ export const buildRunConfigSnapshot = (input: RunConfigInput): BuiltRunConfig =>
     enableBidirectionalVerification: input.enableBidirectionalVerification ?? true,
     enableStructuredOutput: input.enableStructuredOutput ?? false,
     enableClaimExtraction: input.enableClaimExtraction ?? false,
-    enableStaticVerdicts: input.enableStaticVerdicts ?? false,
+    // The TV4 conclusion rules decide every verdict; the field tells these runs from legacy ones (Rule R1).
+    enableStaticVerdicts: true,
     ...(input.verificationStepBudget !== undefined ? { verificationStepBudget: input.verificationStepBudget } : {}),
     ...(input.evidenceSaturationReads !== undefined ? { evidenceSaturationReads: input.evidenceSaturationReads } : {}),
     ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),

@@ -35,6 +35,14 @@ export type Compaction =
   /** The run ends. Budget terminals carry only their own reason as observed. */
   | { kind: "terminal"; terminal: TerminalCommit; usage: ModelUsage }
 
+/** One item as plain text, so the summary request carries no tool-call structure a provider could reject. */
+const transcriptEntry = (item: ContextItem) => {
+  const meta = item.toolMeta
+  const range = meta?.lineRange === undefined ? "" : `:${meta.lineRange[0]}-${meta.lineRange[1]}`
+  const tool = meta === undefined ? "" : ` ${meta.toolName}${meta.filePath === undefined ? "" : ` ${meta.filePath}${range}`}`
+  return `--- ${item.type}${tool} ---\n${item.content}`
+}
+
 /**
  * One LLM compaction (design 3.5, D8): the summary request is an ordinary provider attempt through the retry policy
  * with full accounting and `record`, the summarized items are replaced by one `compaction_summary` item and
@@ -42,12 +50,14 @@ export type Compaction =
  * cancellation, and calls `prepare` again afterwards.
  */
 export const compactContext = async (deps: CompactionDeps, input: CompactionInput): Promise<Compaction> => {
-  const instruction: ContextItem = {
+  // The items go as one text transcript: a tool result whose call is not among them (the recent window can split a
+  // pair) makes the Codex route answer with an unfinished empty response (measured 2026-11-20).
+  const transcript: ContextItem = {
     id: deps.ids.next("itm_"),
     turn: input.stepIndex - 1,
-    type: "system_prompt",
+    type: "harness_instruction",
     isPinned: false,
-    content: input.summaryPrompt,
+    content: [input.summaryPrompt, ...input.itemsToSummarize.map(transcriptEntry)].join("\n\n"),
   }
   const retried = await deps.retryPolicy
     .run({
@@ -55,7 +65,7 @@ export const compactContext = async (deps: CompactionDeps, input: CompactionInpu
         runId: input.runId,
         stepIndex: input.stepIndex,
         profileId: input.profileId,
-        items: [...input.itemsToSummarize, instruction],
+        items: [transcript],
         toolsDisabled: true,
       },
       deadlineMs: input.deadlineMs,
@@ -117,7 +127,9 @@ export const compactContext = async (deps: CompactionDeps, input: CompactionInpu
     })
   const summaryItem: ContextItem = {
     id: deps.ids.next("itm_"),
-    turn: input.stepIndex - 1,
+    // The gateway orders messages by turn, so the summary takes the turn of the oldest item it replaces and is read
+    // before the history it precedes, not after the newest tool results.
+    turn: input.itemsToSummarize.reduce((oldest, item) => Math.min(oldest, item.turn), input.stepIndex - 1),
     type: "compaction_summary",
     isPinned: false,
     content: summary,

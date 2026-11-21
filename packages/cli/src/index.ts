@@ -24,7 +24,7 @@ import { redactSecrets } from "./redaction"
 import { createProductionHealthHandler, localAuthorization, startProductionJudgeHandler, startProductionLocalServer } from "@harness/server"
 import { waitForServerShutdown } from "./server-lifecycle"
 import { judgeViaServer } from "./commands/judge"
-import { ensureSharedServer, findSharedServer, runSharedDaemon } from "./shared-server"
+import { ensureSharedServer, findSharedServer, runSharedDaemon, type ServerContextFlags } from "./shared-server"
 import { runSharedCommand, serveSharedCommand } from "./shared-commands"
 
 export * from "./config"
@@ -78,7 +78,10 @@ Options:
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
   --server <url>              Judge: connect to an explicitly selected loopback server
   --foreground                Serve: run an explicit foreground listener with configured credentials
-  --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
+  --obs-masking               run --finding and serve: hide tool results older than the newest 10,000 tokens behind one-line
+                              notes (recorded)
+  --llm-compaction            run --finding and serve: past 80% of the context window, have the model summarize older items
+                              (recorded)
   -h, --help                  Show this help message
 `
 
@@ -98,7 +101,8 @@ export interface CliParsedArgs {
   mock?: boolean
   noClaimExtraction?: boolean
   noLive?: boolean
-  staticVerdicts?: boolean
+  obsMasking?: boolean
+  llmCompaction?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -151,7 +155,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       mock: { type: "boolean" },
       "no-claim-extraction": { type: "boolean" },
       "no-live": { type: "boolean" },
-      "static-verdicts": { type: "boolean" },
+      "obs-masking": { type: "boolean" },
+      "llm-compaction": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -184,7 +189,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     mock: Boolean(values.mock),
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
     noLive: Boolean(values["no-live"]),
-    staticVerdicts: Boolean(values["static-verdicts"]),
+    obsMasking: Boolean(values["obs-masking"]),
+    llmCompaction: Boolean(values["llm-compaction"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -294,20 +300,21 @@ export async function runCli(
 
   if (parsed.command === "serve") {
     const serverPassword = env.HARNESS_SERVER_PASSWORD
+    const contextFlags = { enableObsMasking: Boolean(parsed.obsMasking), enableLlmCompaction: Boolean(parsed.llmCompaction) }
     try {
       if (parsed.managed) {
-        await serveManagedRuntime(env, resolve(snapshotDir))
+        await serveManagedRuntime(env, resolve(snapshotDir), contextFlags)
         return 0
       }
       if (parsed.foreground) {
         const server = await startProductionLocalServer(productionOptions(loadCliConfig(env, deps.snapshotDir), {
           hostname: env.HARNESS_HOST ?? "127.0.0.1", port: Number(env.HARNESS_PORT ?? 4318), password: serverPassword ?? "",
-        }))
+        }, contextFlags))
         stdout(`Harness local Judge API listening on ${server.server.hostname}:${server.server.port}`)
         await waitForServerShutdown(process, () => server.stop())
         return 0
       }
-      return await manageSharedServer(parsed.subcommand, { ...env, HARNESS_SNAPSHOT_DIR: resolve(snapshotDir) }, stdout)
+      return await manageSharedServer(parsed.subcommand, { ...env, HARNESS_SNAPSHOT_DIR: resolve(snapshotDir) }, stdout, contextFlags)
     } catch (error) {
       stderr(`Error: ${safeError(error, serverPassword ? [...secrets, serverPassword] : secrets)}`)
       return 1
@@ -324,17 +331,19 @@ const isSharedCommand = (parsed: CliParsedArgs) => !parsed.mock && !parsed.help 
   (parsed.command === "snapshot" && parsed.subcommand === "list")
 )
 
-const productionOptions = (config: RuntimeConfig, endpoint: { hostname: string; port: number; password: string }) => ({
+const productionOptions = (config: RuntimeConfig, endpoint: { hostname: string; port: number; password: string }, contextFlags: ServerContextFlags) => ({
+  ...contextFlags,
   databaseUrl: config.databaseUrl, modelApiKey: config.modelApiKey, modelName: config.modelName, providerName: config.providerName,
   modelBaseUrl: config.modelBaseUrl, modelTimeoutMs: config.modelTimeoutMs, modelMaxOutputTokens: config.modelMaxOutputTokens,
   modelInputCostPerMTok: config.modelInputCostPerMTok, modelOutputCostPerMTok: config.modelOutputCostPerMTok,
   snapshotDir: config.snapshotDir, hostname: endpoint.hostname, port: endpoint.port, serverPassword: endpoint.password,
 })
 
-const serveManagedRuntime = async (env: Record<string, string | undefined>, snapshotDir: string) => {
+const serveManagedRuntime = async (env: Record<string, string | undefined>, snapshotDir: string, contextFlags: ServerContextFlags) => {
   const { HARNESS_SERVER_PASSWORD: _foregroundPassword, ...commandEnv } = env
   let judge: Promise<Awaited<ReturnType<typeof startProductionJudgeHandler>>> | undefined
   await runSharedDaemon({
+    contextFlags,
     async fetch(request, password) {
       const { pathname } = new URL(request.url)
       if (request.method === "POST" && pathname === "/_local/command")
@@ -350,7 +359,7 @@ const serveManagedRuntime = async (env: Record<string, string | undefined>, snap
       try {
         judge ??= Promise.resolve().then(() => startProductionJudgeHandler(productionOptions(loadCliConfig(commandEnv, snapshotDir), {
           hostname: "127.0.0.1", port: 0, password,
-        }))).catch((error: unknown) => { judge = undefined; throw error })
+        }, contextFlags))).catch((error: unknown) => { judge = undefined; throw error })
         const runtime = await judge
         return await runtime.fetch(request)
       } catch {
@@ -361,10 +370,11 @@ const serveManagedRuntime = async (env: Record<string, string | undefined>, snap
   })
 }
 
-const manageSharedServer = async (action: string | undefined, env: Record<string, string | undefined>, stdout: CliWriter) => {
+const manageSharedServer = async (action: string | undefined, env: Record<string, string | undefined>, stdout: CliWriter, contextFlags: ServerContextFlags) => {
   const signal = AbortSignal.timeout(16_000)
   if (action === undefined) {
-    const server = await ensureSharedServer(env, signal)
+    const requested = contextFlags.enableObsMasking || contextFlags.enableLlmCompaction ? contextFlags : undefined
+    const server = await ensureSharedServer(env, signal, requested)
     stdout(`Harness shared server listening on ${server.origin}`)
     return 0
   }
@@ -559,12 +569,14 @@ async function runCommand(
           finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
+            // Context flags record what ProductionContextEngine really does: it truncates tool output, with --obs-masking
+            // hides old tool results and with --llm-compaction summarizes older items near the window.
             flags: {
               enableToolTruncation: true,
-              enableObsMasking: true,
-              enableSupersedeReads: true,
-              enableDropEmpty: true,
-              enableLlmCompaction: true,
+              enableObsMasking: Boolean(parsed.obsMasking),
+              enableSupersedeReads: false,
+              enableDropEmpty: false,
+              enableLlmCompaction: Boolean(parsed.llmCompaction),
               enableSessionNote: false,
               enableSchemaRepair: true,
               enableMaxStepsForcing: true,
@@ -573,7 +585,9 @@ async function runCommand(
               enableParallelToolDispatch: true,
             },
             policy: {
-              policyVersion: "cli-judge-v1",
+              // v2: estimates start from the provider's real prompt count of the previous step. v3: the server's
+              // engine counts with the o200k tokenizer (not characters / 4) and enforces toolOutputMaxTokens.
+              policyVersion: "cli-judge-v3",
               windowLimitTokens: 100_000,
               outputReserveTokens: maxOutputTokens,
               compactionThreshold: 0.8,
@@ -582,12 +596,13 @@ async function runCommand(
               toolOutputMaxTokens: 4_000,
               toolOutputMaxLines: 50,
               maxCompactions: 2,
+              tokenEstimate: "calibrated",
               flags: {
                 enableToolTruncation: true,
-                enableObsMasking: true,
-                enableSupersedeReads: true,
-                enableDropEmpty: true,
-                enableLlmCompaction: true,
+                enableObsMasking: Boolean(parsed.obsMasking),
+                enableSupersedeReads: false,
+                enableDropEmpty: false,
+                enableLlmCompaction: Boolean(parsed.llmCompaction),
                 enableSessionNote: false,
               },
             },
@@ -610,7 +625,6 @@ async function runCommand(
             enableStructuredOutput: Boolean(parsed.structuredOutput),
             // The scripted --mock provider has no answer for an extraction call.
             enableClaimExtraction: !parsed.mock && !parsed.noClaimExtraction,
-            enableStaticVerdicts: Boolean(parsed.staticVerdicts),
             ...(reasoningEffort === undefined || parsed.mock ? {} : { reasoningEffort }),
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
@@ -642,7 +656,7 @@ async function runCommand(
             confidence: "MEDIUM",
             reasonCode: "UNRESOLVED",
             summary: "Evaluated finding via mock Judge runner.",
-            reasoning: "The finding narrative was parsed and evaluated; BCE status is incomplete so status remains UNVERIFIED.",
+            reasoning: "The finding narrative was parsed and evaluated; the mock provider gives no evidence, so status remains UNVERIFIED.",
             citesEvidence: [{ filePath: snapshotFiles[0] ?? "README.md", startLine: 1, endLine: 5, explanation: "Cited reference" }],
           })
           judgeGateway = new ScriptedModelGateway([
@@ -665,7 +679,8 @@ async function runCommand(
           gateway: judgeGateway,
           tools: registry,
           snapshot,
-          contextEngine: new PassThroughContextEngine(),
+          // The same engine as the server, so CLI and server runs count and reduce context alike.
+          contextEngine: new ProductionContextEngine(createO200kTokenizer()),
           security,
           ingestion,
           sanitizer,

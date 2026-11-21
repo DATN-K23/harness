@@ -16,6 +16,21 @@ describe("production runtime safety", () => {
     expect(bounded.enablePocExecution).toBe(false)
   })
 
+  test("records only the context behaviour ProductionContextEngine implements (R1)", () => {
+    const config = makeProductionJudgeConfig({ providerName: "9router", modelName: "test" })
+    const off = { enableObsMasking: false, enableSupersedeReads: false, enableDropEmpty: false, enableLlmCompaction: false }
+    expect(config.flags).toMatchObject({ enableToolTruncation: true, ...off })
+    expect(config.policy.flags).toMatchObject({ enableToolTruncation: true, ...off })
+    expect(config.policy).toMatchObject({ tokenEstimate: "calibrated", policyVersion: "judge-local-v2" })
+  })
+
+  test("records masking and compaction when they are enabled, in both flag sets", () => {
+    const config = makeProductionJudgeConfig({ providerName: "9router", modelName: "test", enableObsMasking: true, enableLlmCompaction: true })
+    const on = { enableObsMasking: true, enableLlmCompaction: true, enableSupersedeReads: false, enableDropEmpty: false }
+    expect(config.flags).toMatchObject(on)
+    expect(config.policy.flags).toMatchObject(on)
+  })
+
   test("rejects PoC execution regardless of caller-provided config", () => {
     expect(() => assertProductionJudgeConfig({ enablePocExecution: true })).toThrow("PoC execution is disabled")
   })
@@ -55,7 +70,7 @@ describe("production runtime safety", () => {
     const response = await fetch(health)
     expect(response.status).toBe(200)
     const body = await response.json() as { capabilities: string[] }
-    expect(body).toMatchObject({ apiVersion: 1, judgeExecution: "unverified-only", enablePocExecution: false })
+    expect(body).toMatchObject({ apiVersion: 1, judgeExecution: "static-tv4", enablePocExecution: false })
     expect(body.capabilities).not.toContain("state-probe")
     expect(await fetch(new Request("http://localhost/v1/judge/runs", { method: "POST" })).then((r) => r.status)).toBe(401)
   })

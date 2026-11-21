@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { readFile } from "node:fs/promises"
 import { InMemorySnapshot } from "../../src/source/in-memory-snapshot"
 import { SnapshotIngestion } from "../../src/ingestion/snapshot-ingestion"
 
@@ -11,61 +10,21 @@ const narrative = `Target: Vault.withdraw\nRoot cause: access check missing\nAtt
 const snapshot = (more: Record<string, string> = {}) => new InMemorySnapshot({ snapshotId: "snap-1", files: { ...files, ...more } })
 
 describe("SnapshotIngestion", () => {
-  test("maps a narrative claim to authorized snapshot lines and leaves BCE incomplete", async () => {
+  test("maps a narrative claim onto the snapshot and returns no source slices", async () => {
     const source = snapshot()
     const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"] } })
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.filePath === "src/Vault.sol" && slice.content === "function withdraw() external {}" && slice.lineRange?.[0] === 3)).toBe(true)
-    expect(source.reads.every((read) => read.path === "src/Vault.sol")).toBe(true)
-  })
-
-  test("returns AST-mapped bounded call, modifier, and state evidence from snapshot sources", async () => {
-    const fixture = await readFile(new URL("./fixtures/ast-evidence.sol", import.meta.url), "utf8")
-    const source = snapshot({ "src/Vault.sol": fixture.replaceAll("AstEvidence", "Vault").replaceAll("_debit", "_withdraw") })
-    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("function withdraw() external onlyOwner"))).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("function _withdraw() internal"))).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("balance = balance - 1"))).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("modifier onlyOwner()"))).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.some((slice) => slice.content.includes("this.withdraw()"))).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.every((slice) => slice.lineRange !== undefined && slice.content.length <= 2000)).toBe(true)
-    expect(result.kind === "incomplete" && result.bceSlices?.every((slice) => slice.filePath === "src/Vault.sol" && slice.lineRange?.[0]! > 0)).toBe(true)
-  })
-
-  test("keeps unresolved imports and incompatible compiler pragmas explicitly incomplete", async () => {
-    for (const sourceCode of [
-      `pragma solidity ^0.8.20; import "./Missing.sol"; contract Vault { function withdraw() external {} }`,
-      `pragma solidity ^0.9.0; contract Vault { function withdraw() external {} }`,
-      `pragma solidity ^0.8.20; contract Vault { function withdraw( external {`,
-    ]) {
-      const result = await new SnapshotIngestion({ source: snapshot({ "src/Vault.sol": sourceCode }) }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-      expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    }
-  })
-
-  test("does not accept unresolved imports even when solc emits a partial AST", async () => {
-    const result = await new SnapshotIngestion({ source: snapshot({
-      "src/Vault.sol": `pragma solidity ^0.8.20; import "./Missing.sol"; contract Vault { function withdraw() external {} }`,
-    }) }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
-  })
-
-  test("resolves imports only when their normalized path exists inside the snapshot", async () => {
-    const source = snapshot({
-      "src/Vault.sol": `pragma solidity ^0.8.20; import "./lib/Guard.sol"; contract Vault is Guard { function withdraw() external {} }`,
-      "src/lib/Guard.sol": `pragma solidity ^0.8.20; contract Guard { modifier guarded() { _; } }`,
+    expect(result).toEqual({
+      kind: "narrative_only",
+      claim: { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "access check missing", attackScenario: "attacker withdraws", callerAssumptions: [], claimedImpact: "funds stolen", claimedState: "vault balance decreases" },
     })
-    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    expect(source.reads.every((read) => read.path.startsWith("src/") && !read.path.includes(".."))).toBe(true)
+    // The explicit target is confirmed in the file named after the contract; nothing else is read.
+    expect(source.reads.every((read) => read.path === "src/Vault.sol")).toBe(true)
   })
 
   test("associates a bounded Solidity test block with the narrative claim", async () => {
     const report = `${narrative}\n\n\`\`\`solidity\ncontract Exploit { function testExploit() public { require(true); } }\n\`\`\``
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", pocCode: "contract Exploit { function testExploit() public { require(true); } }" })
+    expect(result).toMatchObject({ kind: "narrative_only", pocCode: "contract Exploit { function testExploit() public { require(true); } }" })
   })
 
   test("pairs code fences in order, so prose between two fences is never taken as the PoC", async () => {
@@ -80,7 +39,7 @@ describe("SnapshotIngestion", () => {
   test("does not interpret code-fenced Solidity as report metadata or JSON", async () => {
     const report = `${narrative}\n\n\`\`\`solidity\ncontract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }\n\`\`\``
     const result = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(report) })
-    expect(result).toMatchObject({ kind: "incomplete", pocCode: "contract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }" })
+    expect(result).toMatchObject({ kind: "narrative_only", pocCode: "contract Exploit { string label = \"safe\"; function testExploit() public { assert(true); } }" })
   })
 
   test("returns explicit incomplete for unsupported report shapes", async () => {
@@ -123,27 +82,12 @@ describe("SnapshotIngestion", () => {
     expect(source.reads).toHaveLength(0)
   })
 
-  test("does not read a source file beyond the bounded slice size", async () => {
-    const hugeSource = new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/Vault.sol": `${files["src/Vault.sol"]}${"// extra\n".repeat(130)}` } })
-    const result = await new SnapshotIngestion({ source: hugeSource }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
-    expect(hugeSource.reads.every((read) => read.endLine <= 121)).toBe(true)
-  })
-
-  test("marks an omitted Solidity file as incomplete rather than compiling a partial graph", async () => {
-    const source = snapshot({ "src/Other.sol": `${"// bounded omission\n".repeat(121)}contract Other {}` })
-    const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toMatchObject({ kind: "incomplete", reason: "bce_unavailable" })
-    expect(result.kind === "incomplete" && result.bceSlices).toBeUndefined()
-  })
-
   test("does not map absent or denied targets", async () => {
     const absent = await new SnapshotIngestion({ source: snapshot() }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative.replace("Vault.withdraw", "Missing.withdraw")) })
-    expect(absent).toEqual({ kind: "incomplete", reason: "target_not_found" })
+    expect(absent).toEqual({ kind: "incomplete", reason: "target_not_found", missingFields: ["target"] })
     const denied = new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/ground-truth/Vault.sol": files["src/Vault.sol"] } })
     const result = await new SnapshotIngestion({ source: denied }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative.replace("Vault.withdraw", "Vault.withdraw")) })
-    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
+    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found", missingFields: ["target"] })
     expect(denied.reads.every((read) => !read.path.includes("ground-truth"))).toBe(true)
   })
 
@@ -159,7 +103,7 @@ describe("SnapshotIngestion", () => {
   test("does not map target names found only in comments", async () => {
     const source = snapshot({ "src/Vault.sol": "// contract Vault { function withdraw() external {} }\ncontract Other {}" })
     const result = await new SnapshotIngestion({ source }).ingest({ runId: "run-1", snapshotId: "snap-1", finding: finding(narrative) })
-    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found" })
+    expect(result).toEqual({ kind: "incomplete", reason: "target_not_found", missingFields: ["target"] })
   })
 
   test("rejects prohibited metadata keys at any depth", async () => {
@@ -168,7 +112,7 @@ describe("SnapshotIngestion", () => {
   })
 
   describe("real report layouts", () => {
-    // A contract longer than the 120-line BCE bound, as in real codebases.
+    // A contract longer than 120 lines, as in real codebases.
     const hub = `pragma solidity ^0.8.20;\ncontract Hub {\n${"    uint256 internal pad;\n".repeat(130)}    function reportDeficit(uint256 amount) external {\n        drawn -= amount;\n    }\n    uint256 internal drawn;\n}\n`
     const source = () => new InMemorySnapshot({ snapshotId: "snap-1", files: { "src/hub/Hub.sol": hub } })
     const ingest = (reportMarkdown: string, extracted?: Record<string, string>) =>
@@ -188,8 +132,7 @@ describe("SnapshotIngestion", () => {
     test("Hound: fields map by excerpt and the target comes from AFFECTED NODES", async () => {
       const result = await ingest(hound)
       expect(result).toMatchObject({
-        kind: "incomplete",
-        reason: "bce_unavailable",
+        kind: "narrative_only",
         claim: {
           targetContracts: ["Hub"],
           targetFunctions: ["reportDeficit"],
@@ -233,8 +176,7 @@ describe("SnapshotIngestion", () => {
     test("Sherlock: sections map verbatim and the target is the function around the linked line", async () => {
       const result = await ingest(sherlock)
       expect(result).toMatchObject({
-        kind: "incomplete",
-        reason: "bce_unavailable",
+        kind: "narrative_only",
         claim: {
           targetContracts: ["Hub"],
           targetFunctions: ["reportDeficit"],
@@ -260,7 +202,7 @@ describe("SnapshotIngestion", () => {
         "",
         "The hub reverts for the asset.",
       ].join("\n")
-      expect(await ingest(report)).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetContracts: ["Hub"], targetFunctions: ["reportDeficit"] } })
+      expect(await ingest(report)).toMatchObject({ kind: "narrative_only", claim: { targetContracts: ["Hub"], targetFunctions: ["reportDeficit"] } })
     })
 
     test("a target named only in prose is accepted once the snapshot confirms it, and rejected otherwise", async () => {
@@ -277,7 +219,7 @@ describe("SnapshotIngestion", () => {
         rootCause: "Something is wrong with deficits",
         impact: "the accounting breaks when debt is written off",
       })
-      expect(filled).toMatchObject({ kind: "incomplete", reason: "bce_unavailable", claim: { targetFunctions: ["reportDeficit"], claimedImpact: "the accounting breaks when debt is written off" } })
+      expect(filled).toMatchObject({ kind: "narrative_only", claim: { targetFunctions: ["reportDeficit"], claimedImpact: "the accounting breaks when debt is written off" } })
       // A paraphrase is not an excerpt, and an unknown target is not confirmed: both stay missing.
       const rewritten = await ingest(vague, { target: "Hub.withdraw", rootCause: "Deficit accounting is broken", impact: "Loss of funds" })
       expect(rewritten).toMatchObject({ kind: "incomplete", missingFields: ["target", "rootCause", "attackOrImpact"] })

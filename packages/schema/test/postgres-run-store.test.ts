@@ -3,13 +3,14 @@ import { EventSchemaVersion, type EventType, type NewTrajectoryEvent, type RunSt
 import { runStoreContractTests, type RunStoreHarness } from "@harness/core/testing"
 import { eq } from "drizzle-orm"
 import postgres from "postgres"
-import { createDatabaseClient, DEFAULT_DATABASE_URL } from "../src/db/client"
+import { createDatabaseClient } from "../src/db/client"
 import { runMigrations } from "../src/db/migrate"
 import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/schema"
 import { PostgresRunStore } from "../src/store/postgres-run-store"
 import { redactSecrets, sanitizeSecrets } from "../src/store/redaction"
 
-const testDatabaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL
+// A dedicated test database only, never DATABASE_URL: these tests write rows into it. Unset, they are skipped.
+const testDatabaseUrl = process.env.HARNESS_TEST_DATABASE_URL ?? ""
 
 const checkPostgresReachable = async (url: string): Promise<boolean> => {
   try {
@@ -22,7 +23,7 @@ const checkPostgresReachable = async (url: string): Promise<boolean> => {
   }
 }
 
-const postgresAvailable = await checkPostgresReachable(testDatabaseUrl)
+const postgresAvailable = testDatabaseUrl !== "" && (await checkPostgresReachable(testDatabaseUrl))
 
 if (postgresAvailable) {
   // Ensure migrations are up to date before testing
@@ -134,7 +135,7 @@ if (postgresAvailable) {
   })
 } else {
   describe.skip("PostgresRunStore Conformance (PostgreSQL unavailable)", () => {
-    test("skipped because PostgreSQL is not reachable at DATABASE_URL", () => {})
+    test("skipped because HARNESS_TEST_DATABASE_URL is unset or unreachable", () => {})
   })
 }
 

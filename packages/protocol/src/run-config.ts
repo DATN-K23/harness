@@ -86,6 +86,7 @@ export const ContextPolicySchema = z.object({
   toolOutputMaxTokens: z.number().int().nonnegative(),
   toolOutputMaxLines: z.number().int().nonnegative(),
   maxCompactions: z.number().int().nonnegative(),
+  tokenEstimate: z.enum(["characters", "calibrated"]).optional(),
   flags: z.object({
     enableToolTruncation: z.boolean(),
     enableObsMasking: z.boolean(),
@@ -148,7 +149,10 @@ export const RunConfigSnapshotSchema = z
     enableStructuredOutput: z.boolean().default(false),
     /** One provider call that locates claim fields a report's format did not yield, before the run is unresolved. */
     enableClaimExtraction: z.boolean().default(false),
-    /** valid/invalid without execution evidence under the TV4 conclusion rules; off withholds every conclusion. */
+    /**
+     * valid/invalid concluded under the TV4 conclusion rules. Every run records `true` since the BCE stage was removed;
+     * `false` appears only on legacy snapshots, whose runs withheld every conclusion while BCE was incomplete.
+     */
     enableStaticVerdicts: z.boolean().default(false),
     /** Steps one verification direction may take, its answer included; present when bidirectional verification is on. */
     verificationStepBudget: z.number().int().positive().optional(),
@@ -162,7 +166,8 @@ export const RunConfigSnapshotSchema = z
       outputCostPerMTok: z.number().nonnegative().optional(), profileVersion: z.string().min(1),
       ingestionVersion: z.string().min(1), sandboxMode: z.enum(["disabled", "enabled"]).optional(),
       maxContextTokens: z.number().int().positive(), maxOutputTokens: z.number().int().positive(),
-      solidityCompilerVersion: z.string().min(1), foundryImage: z.string().min(1).optional(),
+      /** The compiler the removed BCE stage used; legacy snapshots only. */
+      solidityCompilerVersion: z.string().min(1).optional(), foundryImage: z.string().min(1).optional(),
     }).optional(),
     systemPromptDigest: Sha256DigestSchema,
     verdictSchemaDigest: Sha256DigestSchema,

@@ -100,12 +100,6 @@ export interface JudgeRunConfig {
   verificationStepBudget?: number
   /** Tool results without new evidence after which a direction must answer; defaults to `DefaultEvidenceSaturationReads`. */
   evidenceSaturationReads?: number
-  /**
-   * Conclude valid/invalid without execution evidence under the TV4 conclusion rules (both directions agree; a valid
-   * verdict cites resolved source, an invalid one a confirmed guard). Off by default: every conclusion is then withheld
-   * while BCE is incomplete, as the Sprint 9 design decided.
-   */
-  enableStaticVerdicts?: boolean
   /** The `reasoning_effort` the gateway sends, recorded in the run configuration (Rule R1); the provider default when absent. */
   reasoningEffort?: import("@harness/protocol").ReasoningEffort
   modelLimits: ModelLimits
@@ -418,7 +412,6 @@ class RunExecution {
           enableBidirectionalVerification: config.enableBidirectionalVerification,
           enableStructuredOutput: config.enableStructuredOutput,
           enableClaimExtraction: config.enableClaimExtraction,
-          enableStaticVerdicts: config.enableStaticVerdicts,
           ...(config.reasoningEffort === undefined ? {} : { reasoningEffort: config.reasoningEffort }),
           ...(config.enableBidirectionalVerification === false
             ? {}
@@ -560,7 +553,6 @@ class RunExecution {
         signal: this.signal,
         ...(config.verificationStepBudget === undefined ? {} : { verificationStepBudget: config.verificationStepBudget }),
         ...(config.evidenceSaturationReads === undefined ? {} : { evidenceSaturationReads: config.evidenceSaturationReads }),
-        ...(config.enableStaticVerdicts === true ? { enableStaticVerdicts: true } : {}),
       })
       this.usage = addUsage(this.usage, result.usage)
       this.observe(result.observedLimits)

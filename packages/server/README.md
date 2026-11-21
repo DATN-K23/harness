@@ -19,7 +19,7 @@ Running `bun run cli:serve` without arguments also starts or reuses the same dae
 password is generated at startup. CLI clients discover it through `~/.harness-server/endpoint.json`, protected by
 user-only permissions on POSIX and the user profile ACL on Windows. The descriptor can remain after shutdown
 and its password is no longer accepted once that daemon stops. The daemon captures configuration from the first
-invocation. Stop it and start a new command after changing database, provider or snapshot settings. Snapshot
+invocation. Stop it and start a new command after changing database, provider, snapshot or context settings. Use `cli:serve -- --obs-masking` or `--llm-compaction` at startup to enable those options for subsequent `cli:judge` submissions. Snapshot
 commands can run before database and provider settings are available. Judge worker startup is deferred until needed.
 
 For an operator-managed listener, set `HARNESS_SERVER_PASSWORD` and run `bun run cli:serve -- --foreground`.
@@ -36,7 +36,7 @@ The Judge CLI can explicitly attach to that listener with `--server http://127.0
 
 `startJudgeServer` is an injectable composition seam. The foreground server and the shared daemon's lazy Judge startup check explicit database/model config, the accessible immutable snapshot root, live PostgreSQL, and the configured server password before composing the real Postgres store, disk snapshot resolver, `RealModelGateway`, production context engine, tools, snapshot ingestion, cancellation, and polling worker. There is no provider call at startup; execution uses the configured gateway.
 
-**Judge release remains BLOCKED; this is a real local submission/worker path, not an adjudication-capable service.** BCE remains explicitly incomplete, so all supported submissions must resolve UNVERIFIED; PoC policy denies all and execution is hardcoded false (no API/config switch). Ordinary Judge uses unavailable verification. Health reports `judgeExecution: unverified-only`, `enablePocExecution: false`, and `bce-incomplete`. Startup does not incur a provider request; provider connectivity is discovered on first actual run.
+Judge applies the TV4 conclusion rules to the submitted finding. Both directions must agree, with resolved source supporting a valid verdict or a guard in the cited lines supporting an invalid verdict. Insufficient evidence yields `UNVERIFIED`. Ordinary Judge uses unavailable verification and denies PoC execution. Authenticated health reports `judgeExecution: static-tv4` and `enablePocExecution: false`.
 
 ## API
 
@@ -51,11 +51,11 @@ The local API accepts `POST /v1/judge/runs` with `Idempotency-Key` and JSON:
 
 For narrative-only, `reportMarkdown` can contain the bounded labeled report, for example `Target: Vault.withdraw\nRoot cause: ...\nAttack scenario: ...\nImpact: ...\nState: ...`. PoC is rejected by the deny-only policy and never executed. Both are candidate user input; neither may include ground-truth, adjudication or scoring metadata.
 
-The API returns `202` only after durable admission with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`. With BCE incomplete, verdict capability remains `unverified/UNVERIFIED`; no `valid/PASS` or `invalid/FAIL` claim is made.
+The API returns `202` only after durable admission with `runId`, state `accepted`, and `statusUrl`. Then use `GET /v1/judge/runs/{runId}`, `GET /v1/judge/runs/{runId}/events` (finite cursor pages), and `POST /v1/judge/runs/{runId}/cancel`.
 
 ## Manual provider-backed Judge test (disposable local environment)
 
-This single-run test uses the actual production `Bun.serve` API, Postgres adapter, worker, snapshot ingestion, `RealModelGateway`, and HTTP Basic authentication. Use only a dedicated disposable local Postgres database and an expendable provider key. The checked-in `manual-judge-live-20261022` snapshot resolves `Vault.withdraw`; its labeled narrative contains no PoC. AST incompleteness causes model analysis, but the only allowed terminal verdict is **UNVERIFIED**. PoCs remain denied and verification unavailable. The test caps the run at two steps, 4096 total tokens, 512 output tokens per attempt, 20-second model timeout and a 60-second polling deadline. It prints terminal state/reason/category and provider-attempt count/types/categories before checking success; it never emits prompts, responses, headers or raw provider errors.
+This single-run test uses the actual production `Bun.serve` API, Postgres adapter, worker, snapshot ingestion, `RealModelGateway`, and HTTP Basic authentication. Use only a dedicated disposable local Postgres database and an expendable provider key. The checked-in `manual-judge-live-20261022` snapshot resolves `Vault.withdraw`; its labeled narrative contains no PoC. This bounded smoke test expects **UNVERIFIED**. PoCs remain denied and verification unavailable. The test caps the run at two steps, 4096 total tokens, 512 output tokens per attempt, 20-second model timeout and a 60-second polling deadline. It prints terminal state/reason/category and provider-attempt count/types/categories before checking success; it never emits prompts, responses, headers or raw provider errors.
 
 Start a disposable Postgres container on a unique local port/name. Set `.env` model configuration, `HARNESS_SNAPSHOT_DIR` pointing at `data/snapshots`, and `HARNESS_MANUAL_JUDGE_SNAPSHOT_ID=manual-judge-live-20261022`. Set the dedicated connection URL only in `HARNESS_MANUAL_JUDGE_DATABASE_URL` (it must differ from `DATABASE_URL`), apply migrations to that disposable DB, then run:
 
@@ -89,7 +89,7 @@ url = "http://127.0.0.1:${HARNESS_PORT:-4318}/v1/judge/runs"
 CURL_CONFIG
 ```
 
-5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and the same Basic credentials. The expected verdict is `UNVERIFIED` (currently `UNRESOLVED`), because semantic BCE is incomplete; the service does not confirm or refute the finding. PoC-bearing submissions are denied by policy, state probes are unavailable, and no automatic witness is generated.
+5. Poll `GET /v1/judge/runs/{runId}` and `/events` using the returned ID and the same Basic credentials. The terminal event records the verdict under the TV4 rules.
 6. Stop with Ctrl-C or SIGTERM. The worker stops polling and closes the listener/database pool after active work settles. Runs/events remain in the dedicated database; do not clear shared tables as cleanup.
 
 Never use a production key/database for manual smoke tests. The live guarded listener integration is separate and requires `HARNESS_POSTGRES_E2E=1` plus `HARNESS_POSTGRES_E2E_DATABASE_URL`; it intentionally never falls back to `DATABASE_URL`. Run it only with a fresh disposable PostgreSQL container/database, for example:
@@ -103,10 +103,10 @@ The opt-in requires `HARNESS_POSTGRES_E2E_DEDICATED=1`, refuses a matching norma
 
 ## Bounds, coverage and recovery
 
-- API JSON is capped at 256 KiB; report extraction defaults to 64,000 UTF-8 bytes. Snapshot ingestion examines at most 128 Solidity files, 120 lines per file and 512 KiB total source, and returns incomplete when limits/toolchain/import mapping prevent analysis. AST slices are retrieval context, not proof of a complete call/data-flow graph.
-- The offline demo is scripted test material, not a supported Solidity coverage claim. It now records incomplete-BCE claims as UNVERIFIED, does not run PoCs by default, and emits no generated witness. PoC policy currently rejects every input.
+- API JSON is capped at 256 KiB; report extraction defaults to 64,000 UTF-8 bytes. Snapshot ingestion resolves the reported target using snapshot paths and, when needed, up to 5,000 lines per referenced Solidity file.
+- The offline demo is scripted test material, not a supported Solidity coverage claim. Its narrative-agreed scenario is concluded valid under the TV4 rules; it does not run PoCs by default, and emits no generated witness. PoC policy currently rejects every input.
 - Stop the shared daemon with `bun run cli:serve -- stop`. Ctrl-C stops a foreground listener. The worker and database pool are closed on shutdown.
-- Toolchain evidence recorded for BCE is `solc-js 0.8.30+commit.73712a01`; native Foundry fixture evidence is documented in the core package. The opt-in disposable-Postgres listener test covers HTTP→Postgres→worker→production-adapter using a test-only credential seam; its no-call assertion is not provider-routing coverage. Provider routing against a controlled endpoint remains a release gate.
+- The core package documents native Foundry fixture evidence. The opt-in disposable-Postgres test exercises HTTP submission, persistence and worker execution. The separate provider-backed test checks provider routing.
 
 The local `/v1/health` handshake is authenticated and reports the API version (no contract digest is advertised because there is no canonical versioned contract serialization to hash). Clients must fail closed on API-version mismatch; `assertApiCompatibility` implements that check. The handshake also reports deliberately limited runtime capabilities.
 

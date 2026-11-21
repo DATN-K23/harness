@@ -64,7 +64,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
     const w = world.worker({
-      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim },
       script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText],
     })
     const inputConfig = { enablePocExecution: enablePocExecution ?? false }
@@ -78,7 +78,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
   test("explicit runtime opt-in retains the sanitizer and verification PoC path", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] }, script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText] })
+    const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim }, script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), verdictText] })
     await w.start("worker-a", runInput({ enablePocExecution: true }))
     expect(w.sanitizer.sanitizeCalls).toHaveLength(1)
     expect(w.verification.singleShotCalls).toHaveLength(1)
@@ -88,7 +88,7 @@ describe("JudgeRunner: zero-token fast-reject", () => {
   test("explicit opt-in does not make narrative-only input generate or execute a witness", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
       textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
@@ -187,7 +187,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply changes", claimedState: "totalSupply" }
     const w = world.worker({
-      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
       stateProbe: { outcome: "passed", exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
       script: [
@@ -212,7 +212,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "re-enter withdraw", callerAssumptions: [], claimedImpact: "attacker balance exceeds deposit", claimedState: "balanceOf(attacker) grows" }
     const w = world.worker({
-      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
       stateProbe: { outcome: "passed", exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "balanceOf(attacker)", before: "0", after: "3 ether" }] },
       script: [
@@ -243,7 +243,7 @@ describe("JudgeRunner: reasoning loop", () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "external call before balance update", attackScenario: "re-enter withdraw", callerAssumptions: [], claimedImpact: "attacker balance exceeds deposit", claimedState: "balanceOf(attacker) grows" }
     const w = world.worker({
-      ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] },
+      ingestion: { kind: "ok", pocCode: "contract Test {}", claim },
       sanitizerResult: { kind: "ok", stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
       script: [textResponse("acknowledged"), textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'), textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'), textResponse("Bidirectional consensus: disputed"), toolCallResponse([{ id: "probe-unclaimed", name: "run_state_probe", arguments: { stateVariables: ["totalSupply"] } }]), textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"The model requested a state expression that is absent from the claim, so no bounded witness was run.","citesEvidence":[]}')],
     })
@@ -256,7 +256,7 @@ describe("JudgeRunner: reasoning loop", () => {
   test("narrative-only claims missing targets fail closed without ordinary verdict", async () => {
     const world = createWorld()
     const claim = { targetContracts: [], targetFunctions: [], rootCause: "", attackScenario: "", callerAssumptions: [], claimedImpact: "", claimedState: "" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [verdictText] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
     expect(w.gateway.callCount).toBe(0)
@@ -265,7 +265,7 @@ describe("JudgeRunner: reasoning loop", () => {
   test("Task 3 inconclusive narrative claim commits UNVERIFIED through terminal CAS", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
       textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
@@ -278,14 +278,14 @@ describe("JudgeRunner: reasoning loop", () => {
     await expectContiguous(world)
   })
 
-  test("continues judging a valid candidate claim when BCE returns explicit incomplete context", async () => {
+  test("continues judging a valid candidate claim the ingestion mapped onto the snapshot", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "incomplete", reason: "bce_unavailable", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
       textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
-      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"BCE is incomplete.","citesEvidence":[]}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"Neither direction established the claim.","citesEvidence":[]}'),
     ] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
@@ -296,11 +296,11 @@ describe("JudgeRunner: reasoning loop", () => {
   test("every provider.attempted event is mirrored into model_attempts", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "incomplete", reason: "bce_unavailable", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"incomplete","explanation":"insufficient evidence"}'),
       textResponse('{"reconstruction":"incomplete","explanation":"insufficient evidence"}'),
-      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"BCE is incomplete.","citesEvidence":[]}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved.","reasoning":"Neither direction established the claim.","citesEvidence":[]}'),
     ] })
     await w.start()
     const attempted = (await world.events("provider.attempted")).map((event) => EventPayloadSchemas["provider.attempted"].parse(event.payload))
@@ -311,65 +311,52 @@ describe("JudgeRunner: reasoning loop", () => {
     )
   })
 
-  test("Task 3 incomplete BCE cannot infer invalidity from a blocking consensus", async () => {
+  test("a blocking consensus goes to the verdict step, where an unverified answer stands", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [{ filePath: "src/Vault.sol", content: "line 10 of Vault.sol", lineRange: [10, 10] }], bceStatus: "incomplete" }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"blocked","explanation":"guard"}'),
       textResponse('{"reconstruction":"blocked","explanation":"sink unreachable"}'),
-      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved by incomplete evidence.","reasoning":"Both model directions report a blocker, but BCE is incomplete and missing paths cannot prove a guard blocks the claim.","citesEvidence":[]}'),
+      textResponse('{"validity":"unverified","verificationStatus":"UNVERIFIED","reasonCode":"UNRESOLVED","confidence":"LOW","summary":"The claim remains unresolved by incomplete evidence.","reasoning":"Both model directions report a blocker, but no cited check proves a guard blocks the claim.","citesEvidence":[]}'),
     ] })
     const result = await w.start()
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    // The model is asked for the guard rather than the run being settled before the verdict step.
+    expect(w.gateway.callCount).toBe(4)
     expect(await world.events("run.completed")).toHaveLength(1)
     expect(await world.state()).toBe("completed")
     await expectContiguous(world)
   })
 
-  test("incomplete BCE blocks a citation-valid static PASS and narrative-only never runs a witness", async () => {
+  test("agreeing directions and a resolved citation conclude valid, and narrative-only never runs a witness", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [], bceStatus: "incomplete" }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse("acknowledged"),
       textResponse('{"reachability":"reachable","explanation":"entry reaches target"}'),
       textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
-      textResponse('{"validity":"valid","verificationStatus":"PASS","reasonCode":"EXPLOIT_CONFIRMED","severity":"HIGH","confidence":"HIGH","summary":"Withdraw permits an attacker to drain funds.","reasoning":"The cited source lines resolve, but BCE remains incomplete and does not establish the claimed path.","citesEvidence":[{"filePath":"src/Vault.sol","startLine":10,"endLine":20,"explanation":"state update after call"}]}'),
+      textResponse('{"validity":"valid","verificationStatus":"PASS","reasonCode":"EXPLOIT_CONFIRMED","severity":"HIGH","confidence":"HIGH","summary":"Withdraw permits an attacker to drain funds.","reasoning":"The cited source lines resolve and show the state update after the call.","citesEvidence":[{"filePath":"src/Vault.sol","startLine":10,"endLine":20,"explanation":"state update after call"}]}'),
     ] })
     const result = await w.start("worker-a", runInput({ enablePocExecution: true }))
-    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS" } })
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
     expect(w.verification.singleShotCalls).toHaveLength(0)
-  })
-
-  test("kind ok with no BCE status or slices cannot yield a citation-valid static PASS", async () => {
-    const world = createWorld()
-    const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "ok", pocCode: "contract Test {}", claim, bceSlices: [] }, script: [
-      textResponse("acknowledged"),
-      textResponse('{"reachability":"reachable","explanation":"entry reaches target"}'),
-      textResponse('{"reconstruction":"reconstructed","explanation":"impact follows"}'),
-      textResponse('{"validity":"valid","verificationStatus":"PASS","reasonCode":"EXPLOIT_CONFIRMED","severity":"HIGH","confidence":"HIGH","summary":"Withdraw permits an attacker to drain funds.","reasoning":"A fabricatedly complete ingestion status cannot be inferred from absent BCE slices.","citesEvidence":[{"filePath":"src/Vault.sol","startLine":10,"endLine":20,"explanation":"state update after call"}]}'),
-    ] })
-    const result = await w.start("worker-a", runInput())
-    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })
-    // The withheld verdict keeps the resolved citations but grades no vulnerability.
-    if (result.kind === "committed") expect(result.verdict?.severity).toBeUndefined()
   })
 
   test("structured output: directions and verdict arrive through submission tools that are never dispatched", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
     const submit = (id: string, name: string, args: Record<string, unknown>) => toolCallResponse([{ id, name, arguments: args }])
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       submit("s-1", "submit_verification", { reachability: "reachable", explanation: "entry reaches target" }),
       submit("s-2", "submit_verification", { reconstruction: "reconstructed", explanation: "impact follows" }),
       submit("s-3", "submit_verdict", validVerdict),
     ] })
     const result = await w.start("worker-a", runInput({ enableStructuredOutput: true }))
 
-    // BCE is incomplete, so the accepted verdict is withheld as before.
-    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
+    // Both directions agree and the verdict cites resolved source, so the TV4 rules accept it.
+    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS" } })
     expect(w.gateway.callCount).toBe(3)
     expect(w.gateway.calls.every((call) => call.toolChoice === "required")).toBe(true)
     // The forward direction is offered its own submission only; the verdict phase gets submit_verdict.
@@ -395,7 +382,7 @@ describe("JudgeRunner: reasoning loop", () => {
   test("bidirectional verification off: the claim goes straight to the verdict and the snapshot records the flag", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [verdictText] })
     const result = await w.start("worker-a", runInput({ enableBidirectionalVerification: false }))
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified" } })
     expect(w.gateway.callCount).toBe(1)
@@ -408,7 +395,7 @@ describe("JudgeRunner: reasoning loop", () => {
   test("narrative-only report reaches semantic verification without PoC sanitation", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "balance reduced" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [verdictText] })
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [verdictText] })
     await w.start()
     expect(w.gateway.callCount).toBeGreaterThan(0)
     expect(w.sanitizer.sanitizeCalls).toHaveLength(0)
@@ -478,12 +465,35 @@ describe("JudgeRunner: compaction", () => {
     return { world, w, result: await w.start() }
   }
 
+  test("the summary takes the turn of the oldest item it replaces, not the previous step's turn", async () => {
+    const world = createWorld()
+    const engine = new ScriptedContextEngine([
+      (input) => ({ status: "ready", preparedItems: input.items }),
+      (input) => ({ status: "ready", preparedItems: input.items }),
+      summarizeUnpinned,
+    ])
+    const summary = textResponse("Steps 1-2 read Vault.sol.", { usage: usageOf(50, 10, 0.005) })
+    const w = world.worker({ engine, script: [readVault("call-1", 1, 5), readVault("call-2", 6, 9), summary, verdictText] })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed" })
+    const [compacted] = await world.events("context.compacted")
+    const { replacedItemIds, summaryItem } = EventPayloadSchemas["context.compacted"].parse(compacted!.payload)
+    const added = (await world.events("context.item_added")).map((event) => EventPayloadSchemas["context.item_added"].parse(event.payload).item)
+    const turns = added.filter((item) => replacedItemIds.includes(item.id)).map((item) => item.turn)
+    // Compaction runs before step 3, so the previous step's turn is 2; the oldest replaced item is older.
+    expect(Math.min(...turns)).toBeLessThan(2)
+    expect(summaryItem.turn).toBe(Math.min(...turns))
+  })
+
   test("compaction succeeds: context.compacted persisted, its attempt counted in the totals, run continues", async () => {
     const { world, w, result } = await runCompacted()
 
     expect(result).toMatchObject({ kind: "committed", state: "completed" })
     expect(await world.events("context.compacted")).toHaveLength(1)
     expect(w.gateway.calls[1].toolsDisabled).toBe(true)
+    // The summary request is one plain-text transcript, with no tool-call structure to pair up.
+    expect(w.gateway.calls[1].items.map((item) => item.type)).toEqual(["harness_instruction"])
+    expect(w.gateway.calls[1].items[0]!.content).toStartWith("Summarize the investigation so far.\n\n--- ")
+    expect(w.gateway.calls[1].items[0]!.content).toContain("--- tool_result read_file")
     expect(w.gateway.calls[2].items.some((item) => item.type === "compaction_summary")).toBe(true)
     expect(w.gateway.calls[2].items.some((item) => item.type === "tool_result")).toBe(false)
     const attempts = (await world.events("provider.attempted")).map((event) => event.payload)
@@ -519,7 +529,7 @@ describe("JudgeRunner: step budgets", () => {
   test("each direction is forced to answer at its budget, so a model that keeps reading still reaches a verdict", async () => {
     const world = createWorld()
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "" }
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       readVault("f-1", 1, 5),
       // The forward budget of 2 forces step 2 on; reads there are refused and asked again until the two repairs are
       // spent, then the direction is incomplete.
@@ -542,7 +552,7 @@ describe("JudgeRunner: step budgets", () => {
   })
 })
 
-describe("JudgeRunner: static verdicts (TV4 conclusion rules)", () => {
+describe("JudgeRunner: TV4 conclusion rules", () => {
   const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "fund loss", claimedState: "" }
   const agreedValid = [
     textResponse('{"reachability":"reachable","explanation":"withdraw is external and unguarded"}'),
@@ -550,32 +560,23 @@ describe("JudgeRunner: static verdicts (TV4 conclusion rules)", () => {
     verdictText,
   ]
 
-  test("on: an agreed-valid claim with resolved citations is concluded valid", async () => {
+  test("an agreed-valid claim with resolved citations is concluded valid, and the snapshot records the rules", async () => {
     const world = createWorld()
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: agreedValid })
-    const result = await w.start("worker-a", runInput({ enableStaticVerdicts: true }))
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: agreedValid })
+    const result = await w.start("worker-a", runInput())
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "valid", verificationStatus: "PASS" } })
     const [started] = await world.events("run.started")
     expect(started.payload.snapshot).toMatchObject({ enableStaticVerdicts: true })
   })
 
-  test("off (default): the same run is withheld as unverified while BCE is incomplete", async () => {
+  test("an agreed-invalid claim asks the model for the guard, and a rejection citing no guard is withheld", async () => {
     const world = createWorld()
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: agreedValid })
-    const result = await w.start("worker-a", runInput())
-    expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", reasonCode: "UNRESOLVED" } })
-    const [started] = await world.events("run.started")
-    expect(started.payload.snapshot).toMatchObject({ enableStaticVerdicts: false })
-  })
-
-  test("on: an agreed-invalid claim asks the model for the guard, and a rejection citing no guard is withheld", async () => {
-    const world = createWorld()
-    const w = world.worker({ ingestion: { kind: "narrative_only", claim, bceSlices: [] }, script: [
+    const w = world.worker({ ingestion: { kind: "narrative_only", claim }, script: [
       textResponse('{"reachability":"blocked","explanation":"guarded"}'),
       textResponse('{"reconstruction":"blocked","explanation":"guarded"}'),
       textResponse(JSON.stringify({ ...invalidVerdict, citesEvidence: [{ filePath: "src/Vault.sol", startLine: 3, endLine: 3, explanation: "the guard" }] })),
     ] })
-    const result = await w.start("worker-a", runInput({ enableStaticVerdicts: true }))
+    const result = await w.start("worker-a", runInput())
     expect(w.gateway.callCount).toBe(3)
     expect(result).toMatchObject({ kind: "committed", state: "completed", verdict: { validity: "unverified", summary: "No blocking guard was confirmed in the cited source." } })
   })
@@ -693,7 +694,7 @@ describe("JudgeRunner: recovery by hydration", () => {
     const world = createWorld({ leaseMs: 1_000 })
     const claim = { targetContracts: ["Vault"], targetFunctions: ["withdraw"], rootCause: "bad auth", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply changes", claimedState: "totalSupply" }
     const stages = {
-      ingestion: { kind: "ok" as const, pocCode: "contract Test {}", claim, bceSlices: [] },
+      ingestion: { kind: "ok" as const, pocCode: "contract Test {}", claim },
       sanitizerResult: { kind: "ok" as const, stitchedTestFile: "contract Test {}", hasSubmitterAssertions: false, antiCheatReport: { rulesChecked: [], findings: [] } },
       stateProbe: { outcome: "passed" as const, exitCode: 0, trace: "probe completed", stateDeltas: [{ variable: "totalSupply", before: "1", after: "2" }] },
     }
@@ -925,7 +926,6 @@ describe("JudgeRunner: agent-visible inputs exclude ground truth", () => {
       enableClaimExtraction: true,
       verificationStepBudget: true,
       evidenceSaturationReads: true,
-      enableStaticVerdicts: true,
       reasoningEffort: true,
       modelLimits: true,
       profileId: true,

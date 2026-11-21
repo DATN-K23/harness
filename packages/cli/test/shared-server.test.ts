@@ -27,19 +27,22 @@ test("discovers and reuses the same authenticated daemon across commands", async
     },
   }
   for (const _ of ["judge", "run", "view", "repo", "snapshot"])
-    expect(await ensureSharedServer({}, signal(), deps)).toEqual({ origin: SharedOrigin, password: endpoint.password })
+    expect(await ensureSharedServer({}, signal(), undefined, deps)).toEqual({ origin: SharedOrigin, password: endpoint.password })
 })
 
 test("starts once for a missing endpoint and waits until the authenticated daemon is ready", async () => {
   let starts = 0
+  const contextFlags = { enableObsMasking: true, enableLlmCompaction: false }
   const deps = {
     read: async () => starts === 1 ? endpoint : undefined,
     origin: SharedOrigin,
     alive: () => true,
-    spawn() { starts++ },
-    async fetch() { return Response.json({ pid: endpoint.pid, endpointId: SharedEndpointId, apiVersion: 1 }) },
+    spawn(_env: unknown, flags?: unknown) { expect(flags).toEqual(contextFlags); starts++ },
+    async fetch() { return Response.json({ pid: endpoint.pid, endpointId: SharedEndpointId, apiVersion: 1, contextFlags }) },
   }
-  expect(await ensureSharedServer({}, signal(), deps)).toEqual({ origin: SharedOrigin, password: endpoint.password })
+  expect(await ensureSharedServer({}, signal(), contextFlags, deps)).toEqual({ origin: SharedOrigin, password: endpoint.password })
+  await expect(ensureSharedServer({}, signal(), { ...contextFlags, enableLlmCompaction: true }, deps))
+    .rejects.toThrow("Context flags differ")
   expect(starts).toBe(1)
 })
 

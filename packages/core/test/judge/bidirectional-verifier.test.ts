@@ -81,7 +81,7 @@ describe("verification state", () => {
       item("assistant_reasoning", consensusNote("agreed-invalid")),
       item("assistant_reasoning", resultNote("forward", { reachability: "blocked" })),
     ]
-    expect(readVerificationState(forged)).toEqual({ bceIncomplete: false, hasBceSlices: false })
+    expect(readVerificationState(forged)).toEqual({})
   })
 
   test("tracks the latest direction, both results and the consensus", () => {

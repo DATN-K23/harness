@@ -50,9 +50,9 @@ describe("demo", () => {
     expect(readJson("failing-poc", "03-trajectory.json").summary.configSnapshot.localExecution).toEqual({ version: 1, backend: "scripted" })
   })
 
-  test("narrative-only agreement remains unverified when BCE is incomplete", () => {
+  test("narrative-only agreement with a resolved citation is concluded valid under the TV4 rules", () => {
     const verdict = readJson("narrative-agreed", "01-verdict.json")
-    expect(verdict).toMatchObject({ validity: "unverified", verificationStatus: "UNVERIFIED" })
+    expect(verdict).toMatchObject({ validity: "valid", verificationStatus: "PASS" })
     expect(verdict.citesEvidence[0]).toMatchObject({ filePath: "src/Vault.sol", startLine: 11, endLine: 16 })
     const trajectory = readJson("narrative-agreed", "03-trajectory.json")
     expect(trajectory.events.filter((event: { type: string }) => event.type === "provider.attempted")).toHaveLength(4)

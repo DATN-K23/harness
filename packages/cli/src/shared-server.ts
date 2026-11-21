@@ -19,6 +19,10 @@ interface Endpoint {
   pid: number
   password: string
 }
+export interface ServerContextFlags {
+  enableObsMasking: boolean
+  enableLlmCompaction: boolean
+}
 export interface SharedServerConnection {
   origin: string
   password: string
@@ -88,7 +92,7 @@ type ConnectionDeps = {
   read(): Promise<Endpoint | undefined>
   alive(pid: number): boolean
   fetch(url: string, init?: RequestInit): Promise<Response>
-  spawn(env: Record<string, string | undefined>): void
+  spawn(env: Record<string, string | undefined>, flags?: ServerContextFlags): void
   origin: string
 }
 
@@ -97,14 +101,18 @@ const connectionDeps = (): ConnectionDeps => ({
   alive: processAlive,
   fetch,
   origin: SharedOrigin,
-  spawn(env) {
-    Bun.spawn(command, { env, detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref()
+  spawn(env, flags) {
+    const argv = [...command]
+    if (flags?.enableObsMasking) argv.push("--obs-masking")
+    if (flags?.enableLlmCompaction) argv.push("--llm-compaction")
+    Bun.spawn(argv, { env, detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref()
   },
 })
 
 export const findSharedServer = async (
   signal: AbortSignal,
   deps: ConnectionDeps = connectionDeps(),
+  requested?: ServerContextFlags,
 ): Promise<SharedServerConnection | undefined> => {
   signal.throwIfAborted()
   const endpoint = await deps.read()
@@ -120,24 +128,30 @@ export const findSharedServer = async (
     return
   }
   if (!response.ok) return
-  const status = await response.json().catch(() => undefined) as { endpointId?: unknown; pid?: unknown; apiVersion?: unknown } | undefined
+  const status = await response.json().catch(() => undefined) as {
+    endpointId?: unknown; pid?: unknown; apiVersion?: unknown; contextFlags?: ServerContextFlags
+  } | undefined
   if (status?.endpointId !== SharedEndpointId || status.pid !== endpoint.pid || typeof status.apiVersion !== "number") return
   assertApiCompatibility({ apiVersion: status.apiVersion })
+  if (requested && (requested.enableObsMasking !== status.contextFlags?.enableObsMasking ||
+      requested.enableLlmCompaction !== status.contextFlags?.enableLlmCompaction))
+    throw new Error("Context flags differ from the running daemon. Run cli:serve -- stop before changing them")
   return { origin: deps.origin, password: endpoint.password }
 }
 
 export const ensureSharedServer = async (
   env: Record<string, string | undefined>,
   signal: AbortSignal,
+  requested?: ServerContextFlags,
   deps: ConnectionDeps = connectionDeps(),
 ): Promise<SharedServerConnection> => {
-  const existing = await findSharedServer(signal, deps)
+  const existing = await findSharedServer(signal, deps, requested)
   if (existing) return existing
 
-  deps.spawn(env)
+  deps.spawn(env, requested)
   const startup = AbortSignal.timeout(15_000)
   while (!startup.aborted) {
-    const ready = await findSharedServer(signal, deps)
+    const ready = await findSharedServer(signal, deps, requested)
     if (ready) return ready
     await Bun.sleep(100)
   }
@@ -145,6 +159,7 @@ export const ensureSharedServer = async (
 }
 
 export const runSharedDaemon = async (options: {
+  contextFlags: ServerContextFlags
   fetch(request: Request, password: string): Promise<Response>
   stop(): Promise<void>
 }, deps = { publish: sharedEndpointStore().publish, port: SharedPort }) => {
@@ -156,7 +171,8 @@ export const runSharedDaemon = async (options: {
       if (!isAuthorizedLocalRequest(request, password)) return localAuthenticationRequired()
       const { pathname } = new URL(request.url)
       if (request.method === "GET" && pathname === "/_local/status")
-        return Response.json({ endpointId: SharedEndpointId, pid: process.pid, apiVersion: ApiCompatibility.apiVersion })
+        return Response.json({ endpointId: SharedEndpointId, pid: process.pid, apiVersion: ApiCompatibility.apiVersion,
+          contextFlags: options.contextFlags })
       if (request.method === "POST" && pathname === "/_local/stop") {
         setTimeout(() => owner.abort(), 0)
         return Response.json({ stopping: true }, { status: 202 })

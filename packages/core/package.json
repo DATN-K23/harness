@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "@harness/protocol": "workspace:*",
-    "js-tiktoken": "1.0.21",
-    "solc": "0.8.30"
+    "js-tiktoken": "1.0.21"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",

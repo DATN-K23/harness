@@ -1,7 +1,6 @@
 import {
   DefaultMaxProbeRuns,
   isValidDeconstructedClaim,
-  type BceSlice,
   type ClaimField,
   type ContextItem,
   type DeconstructedClaim,
@@ -56,7 +55,7 @@ class VerificationCallFailed extends Error {
 
 export type Staged =
   | { kind: "ended"; terminal: TerminalCommit }
-  | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; bceSlices: BceSlice[]; bceIncomplete: boolean; sanitized?: SanitizedPoc; trace: string }
+  | { kind: "passed"; pocCode?: string; claim?: DeconstructedClaim; sanitized?: SanitizedPoc; trace: string }
 
 export type Tooling =
   { kind: "ready"; tools: ToolRegistryPort; traceDigest?: string } | { kind: "ended"; terminal: TerminalCommit }
@@ -94,7 +93,7 @@ const runStage = async <Result>(
 
 /** What an ingestion result means for the run: a claim to judge, a zero-token fast-reject, or an unresolved end. */
 type Admission =
-  | { kind: "judge"; claim?: DeconstructedClaim; pocCode?: string; bceSlices: BceSlice[] }
+  | { kind: "judge"; claim?: DeconstructedClaim; pocCode?: string }
   | { kind: "fast_reject"; reject: FastReject }
   /** `missing` is set when the report only lacked claim fields, which claim extraction may still locate. */
   | { kind: "unresolved"; wording: VerdictWording; missing?: ClaimField[] }
@@ -144,7 +143,6 @@ const admit = (ingested: IngestionResult): Admission => {
       return {
         kind: "judge",
         pocCode: pocOf(ingested.pocCode),
-        bceSlices: ingested.bceSlices,
         ...(ingested.claim !== undefined && isValidDeconstructedClaim(ingested.claim) ? { claim: ingested.claim } : {}),
       }
     case "incomplete":
@@ -153,7 +151,7 @@ const admit = (ingested: IngestionResult): Admission => {
         return { kind: "unresolved", wording: insufficient(ingested.missingFields, false), missing: ingested.missingFields }
       if (ingested.claim === undefined) return { kind: "unresolved", wording: unmapped(ingested.kind === "incomplete" ? ingested.reason : ingested.kind) }
       if (!isValidDeconstructedClaim(ingested.claim)) return { kind: "unresolved", wording: InvalidClaim }
-      return { kind: "judge", claim: ingested.claim, pocCode: pocOf(ingested.pocCode), bceSlices: ingested.bceSlices ?? [] }
+      return { kind: "judge", claim: ingested.claim, pocCode: pocOf(ingested.pocCode) }
     }
   }
 }
@@ -267,10 +265,7 @@ export const runStages = async (context: StageContext): Promise<Staged> => {
   if (admission.kind === "fast_reject") return reject(admission.reject)
   if (admission.kind === "unresolved") return unverified(admission.wording, "UNRESOLVED")
 
-  // No ingestion port certifies a complete BCE yet (`IngestionResult` has no such status), so every judged claim is
-  // marked incomplete: a missing call-graph edge must never turn into a negative, and no model verdict leaves
-  // UNVERIFIED before verification (proposal 4, timeline sprint 9-10).
-  const judged = { claim: admission.claim, bceSlices: admission.bceSlices, bceIncomplete: true }
+  const judged = { claim: admission.claim }
   const { pocCode } = admission
   if (pocCode === undefined) return { kind: "passed", ...judged, trace: "" }
   if (!input.config.enablePocExecution) return { kind: "passed", ...judged, pocCode, trace: "" }
@@ -360,8 +355,6 @@ export const enterStageFour = async (
     snapshotId: input.snapshotId,
     finding: input.finding,
     pocCode: staged.pocCode ?? "",
-    bceSlices: staged.bceSlices,
-    bceIncomplete: staged.bceIncomplete,
     ...(staged.sanitized === undefined ? {} : { tier: selectTier(staged.sanitized) }),
     ...(staged.claim === undefined ? {} : { claim: staged.claim }),
     ...(verifiesClaim ? { verificationDirection: "forward" as const } : {}),

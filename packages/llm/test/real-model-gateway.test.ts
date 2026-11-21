@@ -119,11 +119,11 @@ describe("Message Converter", () => {
 
     const messages = convertToChatMessages(items)
 
-    expect(messages).toHaveLength(6)
-    expect(messages[0]).toEqual({ role: "system", content: "You are an audit agent." })
-    expect(messages[1]).toEqual({ role: "system", content: "Available tools: read_file" })
-    expect(messages[2]).toEqual({ role: "user", content: "Audit this reentrancy vulnerability" })
-    expect(messages[3]).toEqual({
+    // The leading system items become one system message: 9router keeps only the first one.
+    expect(messages).toHaveLength(5)
+    expect(messages[0]).toEqual({ role: "system", content: "You are an audit agent.\n\nAvailable tools: read_file" })
+    expect(messages[1]).toEqual({ role: "user", content: "Audit this reentrancy vulnerability" })
+    expect(messages[2]).toEqual({
       role: "assistant",
       content: "Let me inspect the transfer method first.",
       tool_calls: [
@@ -137,12 +137,28 @@ describe("Message Converter", () => {
         },
       ],
     })
-    expect(messages[4]).toEqual({
+    expect(messages[3]).toEqual({
       role: "tool",
       tool_call_id: "call_abc123",
       content: "contract Token { ... }",
     })
-    expect(messages[5]).toEqual({ role: "system", content: "Summary of earlier turns." })
+    expect(messages[4]).toEqual({ role: "user", content: "Summary of earlier turns." })
+  })
+})
+
+describe("Message Converter: one system message", () => {
+  test("joins the leading system items and sends later ones (a direction, a repair request) as user messages", () => {
+    const messages = convertToChatMessages([
+      { id: "a", turn: 0, type: "system_prompt", isPinned: true, content: "Judge prompt." },
+      { id: "b", turn: 0, type: "system_prompt", isPinned: true, content: "Verification direction: forward" },
+      { id: "c", turn: 0, type: "candidate_finding", isPinned: true, content: "The report." },
+      { id: "d", turn: 3, type: "system_prompt", isPinned: false, content: "Return only JSON with the reachability field." },
+    ])
+    expect(messages).toEqual([
+      { role: "system", content: "Judge prompt.\n\nVerification direction: forward" },
+      { role: "user", content: "The report." },
+      { role: "user", content: "Return only JSON with the reachability field." },
+    ])
   })
 })
 

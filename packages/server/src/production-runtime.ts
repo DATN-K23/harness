@@ -107,8 +107,8 @@ export const makeProductionJudgeConfig = (runtime: {
     runtime: { providerName: runtime.providerName, modelName: runtime.modelName, baseURL: runtime.modelBaseUrl,
       timeoutMs: runtime.modelTimeoutMs ?? 30_000, inputCostPerMTok: runtime.modelInputCostPerMTok,
       outputCostPerMTok: runtime.modelOutputCostPerMTok, profileVersion: "judge-local-v1",
-      ingestionVersion: "snapshot-ingestion-solc-0.8.30", sandboxMode: "disabled", maxContextTokens: 128_000,
-      maxOutputTokens, solidityCompilerVersion: "solc-js-0.8.30", foundryImage: "ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c" } })
+      ingestionVersion: "snapshot-ingestion-v2", sandboxMode: "disabled", maxContextTokens: 128_000,
+      maxOutputTokens, foundryImage: "ghcr.io/foundry-rs/foundry@sha256:41c5bb8c954d386195a48c2ac22c9eb992d916df96018ac3e4b7d5e569b6e05c" } })
 }
 
 const deepFreeze = <T>(value: T): T => {
@@ -141,8 +141,8 @@ export const createProductionHealthHandler = (credential: string) => async (requ
     endpointId: "harness-local-runtime",
     apiVersion: ApiCompatibility.apiVersion,
     buildVersion: String(process.env.HARNESS_BUILD_VERSION ?? "1"),
-    capabilities: ["health", "api-version", "judge-submission", "worker", "poc-execution-disabled", "bce-incomplete"],
-    judgeExecution: "unverified-only",
+    capabilities: ["health", "api-version", "judge-submission", "worker", "poc-execution-disabled", "static-verdicts-tv4"],
+    judgeExecution: "static-tv4",
     enablePocExecution: productionJudgeConfig.enablePocExecution,
   })
   return Response.json({ error: { code: "unavailable", message: "Judge execution is not production-ready" } }, { status: 503 })
@@ -162,7 +162,7 @@ const productionStartupOperations: ProductionStartupOperations = {
   startCheckedLocalServer,
 }
 
-/** Starts the loopback API and polling worker over real local adapters; outcomes remain unverified while BCE is incomplete. */
+/** Starts the loopback API and polling worker over real local adapters; verdicts are concluded under the TV4 rules. */
 export const startProductionLocalServer = async (options: {
   databaseUrl: string
   modelApiKey: string

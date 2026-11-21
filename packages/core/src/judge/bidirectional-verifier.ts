@@ -47,14 +47,11 @@ const DirectionPrefix = "Verification direction: "
 const resultPrefix = (direction: VerificationDirection) => `Bidirectional ${direction} result: `
 const ConsensusPrefix = "Bidirectional consensus: "
 
-export const BceIncompleteNote =
-  "BCE status: incomplete. Source slices are retrieval context only; missing edges prove nothing. Return UNVERIFIED unless independent validated evidence establishes the claim."
-
 /**
  * v2 defines blocked strictly (a check read in the code, cited, that holds for every permitted caller) and rules out
  * costly or rare preconditions, unenforced trust and unread code as blockers, in neutral wording. With v1, both
  * directions answered blocked on a create2 address-collision finding that the contest judged a valid Medium
- * (Gemini 3.8 Flash, 2026-10-23); the incomplete-BCE rule kept that from becoming an invalid verdict.
+ * (Gemini 3.8 Flash, 2026-10-23); an invalid verdict now also needs a cited guard under the TV4 rules.
  */
 const DirectionPromptVersion = "v2"
 
@@ -99,22 +96,16 @@ export interface VerificationState {
   consensus?: ConsensusDecision
   /** The step whose results added the consensus: the verdict phase's steps are counted from here. */
   consensusSince?: number
-  bceIncomplete: boolean
-  hasBceSlices: boolean
 }
 
 const consensusValues: readonly string[] = ["agreed-valid", "agreed-invalid", "disputed", "inconclusive"]
 
 export const readVerificationState = (items: readonly ContextItem[]): VerificationState => {
-  const state: VerificationState = {
-    bceIncomplete: false,
-    hasBceSlices: items.some((item) => item.type === "bce_sliced_ast"),
-  }
+  const state: VerificationState = {}
   for (const item of items) {
     if (item.type !== "system_prompt") continue
     const { content } = item
-    if (content === BceIncompleteNote) state.bceIncomplete = true
-    else if (content.startsWith(DirectionPrefix)) {
+    if (content.startsWith(DirectionPrefix)) {
       state.direction = content.startsWith(`${DirectionPrefix}forward\n`) ? "forward" : "backward"
       state.directionSince = item.turn
     }

@@ -74,7 +74,6 @@ Options:
                               notes (recorded)
   --llm-compaction            Judge and serve: past 80% of the context window, have the model summarize older items
                               (recorded)
-  --static-verdicts           Judge: conclude valid/invalid without execution evidence under the TV4 rules (recorded)
   -h, --help                  Show this help message
 `
 
@@ -91,7 +90,6 @@ export interface CliParsedArgs {
   mock?: boolean
   noClaimExtraction?: boolean
   noLive?: boolean
-  staticVerdicts?: boolean
   obsMasking?: boolean
   llmCompaction?: boolean
   json?: boolean
@@ -134,7 +132,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       mock: { type: "boolean" },
       "no-claim-extraction": { type: "boolean" },
       "no-live": { type: "boolean" },
-      "static-verdicts": { type: "boolean" },
       "obs-masking": { type: "boolean" },
       "llm-compaction": { type: "boolean" },
       json: { type: "boolean" },
@@ -168,7 +165,6 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     mock: Boolean(values.mock),
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
     noLive: Boolean(values["no-live"]),
-    staticVerdicts: Boolean(values["static-verdicts"]),
     obsMasking: Boolean(values["obs-masking"]),
     llmCompaction: Boolean(values["llm-compaction"]),
     json: Boolean(values.json),
@@ -500,7 +496,6 @@ async function runCommand(
             enableStructuredOutput: Boolean(parsed.structuredOutput),
             // The scripted --mock provider has no answer for an extraction call.
             enableClaimExtraction: !parsed.mock && !parsed.noClaimExtraction,
-            enableStaticVerdicts: Boolean(parsed.staticVerdicts),
             ...(reasoningEffort === undefined || parsed.mock ? {} : { reasoningEffort }),
             modelLimits: { maxContextTokens: 128_000, maxOutputTokens, safetyMarginFactor: 1.2 },
             profileId,
@@ -536,7 +531,7 @@ async function runCommand(
             confidence: "MEDIUM",
             reasonCode: "UNRESOLVED",
             summary: "Evaluated finding via mock Judge runner.",
-            reasoning: "The finding narrative was parsed and evaluated; BCE status is incomplete so status remains UNVERIFIED.",
+            reasoning: "The finding narrative was parsed and evaluated; the mock provider gives no evidence, so status remains UNVERIFIED.",
             citesEvidence: [{ filePath: snapshotFiles[0] ?? "README.md", startLine: 1, endLine: 5, explanation: "Cited reference" }],
           })
           judgeGateway = new ScriptedModelGateway([

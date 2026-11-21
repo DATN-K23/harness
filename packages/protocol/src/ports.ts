@@ -52,42 +52,6 @@ export interface StageInput {
   snapshotId: string
 }
 
-export interface BceSlice {
-  filePath: string
-  content: string
-  lineRange?: [number, number]
-}
-
-export const StaticClaimPredicateSchema = z.strictObject({
-  kind: z.literal("unauthorized_state_write"),
-  contractName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
-  functionName: z.string().regex(/^[A-Za-z_$][\w$]*$/),
-  stateVariable: z.string().regex(/^[A-Za-z_$][\w$]*$/),
-  authorizationStateVariable: z.string().regex(/^[A-Za-z_$][\w$]*$/),
-})
-export type StaticClaimPredicate = z.infer<typeof StaticClaimPredicateSchema>
-
-const StaticBceSliceSchema = z.strictObject({
-  filePath: z.string().min(1).refine((path) => !path.startsWith("/") && !path.split("/").includes("..")),
-  content: z.string(),
-  lineRange: z.tuple([z.number().int().positive(), z.number().int().positive()]).optional(),
-})
-
-export const StaticVerificationResultSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("verified"),
-    predicate: StaticClaimPredicateSchema,
-    truth: z.enum(["true", "false"]),
-    profileId: z.literal("solidity-unauthorized-state-write-v1"),
-    evidence: z.array(StaticBceSliceSchema).min(1).max(16),
-  }),
-  z.strictObject({
-    kind: z.literal("incomplete"),
-    reason: z.enum(["unsupported_syntax", "ambiguous_target", "source_incomplete", "compiler_error", "unsupported_profile"]),
-  }),
-])
-export type StaticVerificationResult = z.infer<typeof StaticVerificationResultSchema>
-
 export interface DeconstructedClaim {
   targetContracts: string[]
   targetFunctions: string[]
@@ -126,18 +90,17 @@ export interface ExtractedClaimFields {
 
 export type IngestionResult =
   | { kind: "missing_poc" }
-  | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim; bceSlices: BceSlice[]; bceStatus?: "incomplete" }
+  | { kind: "narrative_only"; pocCode?: string; claim: DeconstructedClaim }
   | {
       kind: "incomplete"
-      reason: "unsupported_report" | "target_not_found" | "bce_unavailable"
+      reason: "unsupported_report" | "target_not_found"
       claim?: DeconstructedClaim
       pocCode?: string
-      bceSlices?: BceSlice[]
       /** Present when the report did not yield a judgeable claim: the fields still missing. */
       missingFields?: ClaimField[]
     }
   | { kind: "invalid_report" }
-  | { kind: "ok"; pocCode: string; claim?: DeconstructedClaim; bceSlices: BceSlice[] }
+  | { kind: "ok"; pocCode: string; claim?: DeconstructedClaim }
 
 export interface IngestionPort {
   ingest(

@@ -9,7 +9,7 @@ export interface TargetReference {
   functionName?: string
   filePath?: string
   line?: number
-  /** Named by an explicit target field: trusted like `Target:` and checked later by the compiler, not by reading. */
+  /** Named by an explicit target field such as `Target:`; confirmed by finding the function inside that contract. */
   explicit?: boolean
 }
 

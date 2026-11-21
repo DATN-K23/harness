@@ -21,7 +21,6 @@ const lowerSimpleItem = (item: ContextItem): OpenAI.Chat.ChatCompletionMessagePa
       return { role: "assistant", content: item.content }
     case "candidate_finding":
     case "submitter_poc":
-    case "bce_sliced_ast":
     case "execution_trace":
     case "session_note":
     default:

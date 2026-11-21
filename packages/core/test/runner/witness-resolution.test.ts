@@ -140,17 +140,15 @@ describe("JudgeStep bounded witness resolution", () => {
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "valid", verificationStatus: "PASS", citesEvidence: [{ filePath: "src/Vault.sol", startLine: 1, endLine: 2 }] } })
   })
 
-  test("unrelated BCE slice cannot synthesize an agreed-invalid verdict", async () => {
+  test("an agreed-invalid consensus with an unverified model verdict stays unverified", async () => {
     const h = await createHarness({ script: [textResponse(JSON.stringify({
       validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED", confidence: "LOW",
-      summary: "The unrelated source slice cannot resolve this blocker.",
-      reasoning: "No cited statement in this source slice demonstrates the alleged blocker or disproves the specific claimed impact, so the result remains unverified.",
+      summary: "No cited source resolves this blocker.",
+      reasoning: "No cited statement demonstrates the alleged blocker or disproves the specific claimed impact, so the result remains unverified.",
       citesEvidence: [],
     }))] })
-    const unrelated = { id: "unrelated-bce", turn: 0, type: "bce_sliced_ast" as const, isPinned: true, content: "src/Vault.sol (lines 1-2)\ncontract Vault {}\n// unrelated" }
     const result = await h.step.execute(h.input({ items: [
       ...baseItems,
-      unrelated,
       { id: "consensus", turn: 2, type: "system_prompt", isPinned: true, content: "Bidirectional consensus: agreed-invalid" },
     ] }))
     expect(result.outcome).toMatchObject({ type: "completed", verdict: { validity: "unverified", verificationStatus: "UNVERIFIED", reasonCode: "UNRESOLVED" } })

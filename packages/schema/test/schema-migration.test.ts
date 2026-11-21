@@ -4,9 +4,10 @@ import { events, idempotencyKeys, modelAttempts, outbox, runs } from "../src/db/
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import postgres from "postgres"
-import { DEFAULT_DATABASE_URL } from "../src/db/client"
+import { runMigrations } from "../src/db/migrate"
 
-const testDatabaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL
+// A dedicated test database only, never DATABASE_URL: these tests write rows into it. Unset, they are skipped.
+const testDatabaseUrl = process.env.HARNESS_TEST_DATABASE_URL ?? ""
 
 const checkPostgresReachable = async (url: string): Promise<boolean> => {
   try {
@@ -19,14 +20,15 @@ const checkPostgresReachable = async (url: string): Promise<boolean> => {
   }
 }
 
-const postgresAvailable = await checkPostgresReachable(testDatabaseUrl)
+const postgresAvailable = testDatabaseUrl !== "" && (await checkPostgresReachable(testDatabaseUrl))
+if (postgresAvailable) await runMigrations({ url: testDatabaseUrl })
 const runWithDb = postgresAvailable ? describe : describe.skip
 
 runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   test("terminal event and run state/usage commit atomically", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const runId = `terminal-atomic-${Date.now()}`
     try {
@@ -44,7 +46,8 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
         payloadDigest: `sha256:${"1".repeat(64)}`,
         occurredAt: new Date(),
       })
-      await expect(store.commitTerminal({
+      // `await expect(...).rejects` never settles on this Postgres error under Bun 1.3.14 (the test hung); settle by hand.
+      const rejected = await store.commitTerminal({
         claim: claim.claim,
         expectedState: "running",
         expectedStateVersion: claim.stateVersion,
@@ -60,7 +63,8 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
         resultContent: "completed result",
         promptTokens: 10,
         completionTokens: 5,
-      })).rejects.toThrow()
+      }).then(() => false, () => true)
+      expect(rejected).toBe(true)
       const run = await store.loadRun(runId)
       expect(run?.state).toBe("running")
       expect(run?.resultContent).toBeUndefined()
@@ -73,9 +77,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("terminal transition winning a cancellation race remains immutable", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
     const store = new PostgresRunStore({ client })
     const runId = `cancel-complete-race-${Date.now()}`
     try {
@@ -99,10 +103,10 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("PostgresCancellation request is visible to subsequent runner boundary polls", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresCancellation } = await import("../src/store/postgres-cancellation")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const cancellation = new PostgresCancellation(client)
     const runId = `cancel-signal-${Date.now()}`
@@ -122,9 +126,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("queued cancellation is durable, idempotent, and prevents run claim", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
     const store = new PostgresRunStore({ client })
     const runId = `cancel-queued-${Date.now()}`
 
@@ -151,9 +155,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("concurrent identical admissions converge on one run ID", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 4 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 4 })
     const store = new PostgresRunStore({ client })
     const base = `admission-race-${Date.now()}`
     const input = {
@@ -183,9 +187,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("expired outbox claim can be reclaimed after publisher failure", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     let now = Date.now()
     const store = new PostgresRunStore({ client, clock: { nowMs: () => now } })
     const runId = `outbox-lease-${Date.now()}`
@@ -212,9 +216,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("two outbox publishers cannot both claim the same pending item", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 2 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 2 })
     const firstStore = new PostgresRunStore({ client })
     const secondStore = new PostgresRunStore({ client })
     const runId = `outbox-race-${Date.now()}`
@@ -238,9 +242,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("outbox exposes committed work until published, and publication is idempotent", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const runId = `outbox-publisher-${Date.now()}`
 
@@ -266,9 +270,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("admit replays an identical idempotency key and conflicts on a different digest", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const firstRunId = `admission-idempotency-a-${Date.now()}`
     const secondRunId = `${firstRunId}-b`
@@ -300,9 +304,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("admit persists finding identity and immutable run configuration", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const runId = `admission-config-${Date.now()}`
     const idempotencyKey = `key-${runId}`
@@ -330,9 +334,9 @@ runWithDb("Schema Definitions for Multi-turn Runner (Sprint 3)", () => {
   })
 
   test("idempotency conflict creates no run or outbox and retains the original binding", async () => {
-    const { createDatabaseClient, DEFAULT_DATABASE_URL } = await import("../src/db/client")
+    const { createDatabaseClient } = await import("../src/db/client")
     const { PostgresRunStore } = await import("../src/store/postgres-run-store")
-    const client = createDatabaseClient({ url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL, max: 1 })
+    const client = createDatabaseClient({ url: testDatabaseUrl, max: 1 })
     const store = new PostgresRunStore({ client })
     const existingRunId = `admission-existing-${Date.now()}`
     const runId = `admission-rollback-${Date.now()}`

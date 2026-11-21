@@ -133,7 +133,8 @@ describe("gateway request options", () => {
 
     const disabled = new RecordingClient(readRecordingFixture("content-filter"))
     await new RealModelGateway({ client: disabled.client }).executeAttempt(baseRequest({ items, tools, toolsDisabled: true }))
-    expect(disabled.requests[0]?.messages).toContainEqual({ role: "system", content: "read_file: Read a file." })
+    // After the conversation started a system item goes as a user message, which every provider keeps.
+    expect(disabled.requests[0]?.messages).toContainEqual({ role: "user", content: "read_file: Read a file." })
   })
 
   test("Judge-style {name, arguments} request content replays only the arguments", async () => {

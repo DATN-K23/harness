@@ -86,6 +86,7 @@ export const ContextPolicySchema = z.object({
   toolOutputMaxTokens: z.number().int().nonnegative(),
   toolOutputMaxLines: z.number().int().nonnegative(),
   maxCompactions: z.number().int().nonnegative(),
+  tokenEstimate: z.enum(["characters", "calibrated"]).optional(),
   flags: z.object({
     enableToolTruncation: z.boolean(),
     enableObsMasking: z.boolean(),

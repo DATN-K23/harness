@@ -1,5 +1,6 @@
 import type {
   ContextEnginePort,
+  ContextItem,
   PrepareResult,
   RecordResult,
   ShapeToolResultOutcome,
@@ -7,6 +8,9 @@ import type {
 import { digestOf } from "../util/digest"
 import { estimateItemTokens, estimateTokens, FakeContextEngineLabel } from "./token-estimator"
 import type { TokenizerPort } from "./o200k-tokenizer"
+import { CompactionSummaryPrompt, MaskReport, maskOldToolResults, PromptCalibration, selectItemsToSummarize } from "./context-view"
+
+export { maskOldToolResults } from "./context-view"
 
 export type PrepareInput = Parameters<ContextEnginePort["prepare"]>[0]
 export type ShapeInput = Parameters<ContextEnginePort["shapeToolResult"]>[0]
@@ -34,11 +38,15 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   readonly label = FakeContextEngineLabel
   readonly prepareCalls: PrepareInput[] = []
   private lastEstimate = 0
-
+  private readonly calibration = new PromptCalibration(estimateTokens)
+  private readonly maskReport = new MaskReport(estimateTokens)
+  /** The items the current request sends (masked when masking is on). */
+  private view: ContextItem[] = []
 
   abstract prepare(input: PrepareInput): Promise<PrepareResult>
 
   async record(input: RecordInput): Promise<RecordResult> {
+    this.calibration.record(input.actualUsage, input.request)
     if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
       totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,
@@ -60,8 +68,18 @@ export abstract class FakeContextEngine implements ContextEnginePort {
 
   protected begin(input: PrepareInput) {
     this.prepareCalls.push(structuredClone(input))
-    this.lastEstimate = estimateItemTokens(input.items)
+    this.calibration.begin()
+    this.view = maskOldToolResults(input.items, input.policy)
+    const characters = estimateItemTokens(this.view)
+    this.lastEstimate = input.policy.tokenEstimate === "calibrated"
+      ? (this.calibration.estimate(this.view, input.request) ?? characters)
+      : characters
     return this.lastEstimate
+  }
+
+  /** The items a compaction should summarize under this request's estimate, or none when it cannot help. */
+  protected itemsToSummarize(input: PrepareInput, estimate: number, threshold: number) {
+    return selectItemsToSummarize({ history: input.items, view: this.view, policy: input.policy, estimate, threshold, count: estimateTokens })
   }
 
   protected telemetry(input: PrepareInput, estimate: number): PrepareResult["telemetry"] {
@@ -73,7 +91,7 @@ export abstract class FakeContextEngine implements ContextEnginePort {
       estimatedSafetyTokens: Math.ceil(estimate * Math.max(0, input.modelLimits.safetyMarginFactor - 1)),
       windowLimitTokens: input.policy.windowLimitTokens,
       outputReserveTokens: input.policy.outputReserveTokens,
-      tokensSaved: 0,
+      tokensSaved: Math.max(0, estimateItemTokens(input.items) - estimateItemTokens(this.view)),
       budgetRemainingTokens: Math.max(0, input.budget.totalTokenLimit - input.budget.totalTokensUsed),
       contentDigest: digestOf(input.items),
       requestDigest: input.request === undefined ? undefined : digestOf(input.request),
@@ -82,10 +100,15 @@ export abstract class FakeContextEngine implements ContextEnginePort {
   }
 
   protected ready(input: PrepareInput, estimate: number): PrepareResult {
+    const items = this.view
+    if (input.policy.tokenEstimate === "calibrated") this.calibration.sent(items, input.request)
+    const transformations = this.maskReport.newlyMasked(input.items, items)
+    const masked = items.some((item, index) => item !== input.items[index])
     return {
       status: "ready",
-      preparedItems: input.items,
-      ...(input.request !== undefined ? { preparedRequest: input.request } : {}),
+      preparedItems: masked ? items : input.items,
+      ...(input.request !== undefined ? { preparedRequest: masked ? { ...input.request, items } : input.request } : {}),
+      ...(transformations.length > 0 ? { transformations } : {}),
       telemetry: this.telemetry(input, estimate),
     }
   }
@@ -98,9 +121,21 @@ export class PassThroughContextEngine extends FakeContextEngine {
   }
 }
 
-/** Deterministic production operations. Input items must already have crossed the sanitizer boundary. */
+/**
+ * Deterministic production operations. Input items must already have crossed the sanitizer boundary. With the policy
+ * flags it masks old tool results, asks for an LLM compaction past the threshold, and with `tokenEstimate: calibrated`
+ * starts its estimate from the provider's real prompt count, as the CLI engines do; counts use the o200k tokenizer.
+ */
 export class ProductionContextEngine implements ContextEnginePort {
-  constructor(private readonly tokenizer: TokenizerPort) {}
+  private readonly count: (text: string) => number
+  private readonly calibration: PromptCalibration
+  private readonly maskReport: MaskReport
+
+  constructor(private readonly tokenizer: TokenizerPort) {
+    this.count = (text) => tokenizer.count(text)
+    this.calibration = new PromptCalibration(this.count)
+    this.maskReport = new MaskReport(this.count)
+  }
 
   async prepare(input: PrepareInput): Promise<PrepareResult> {
     const request = input.request
@@ -129,7 +164,13 @@ export class ProductionContextEngine implements ContextEnginePort {
         budgetRemainingTokens: 0, contentDigest: digestOf(input.items), requestDigest: digestOf(request), estimatedOutputTokens: 0,
       } }
     }
-    const estimate = this.tokenizer.count(JSON.stringify(request))
+    this.calibration.begin()
+    const view = maskOldToolResults(input.items, input.policy, this.count)
+    const masked = view.some((item, index) => item !== input.items[index])
+    const sent = masked ? { ...request, items: view } : request
+    const counted = this.tokenizer.count(JSON.stringify(sent))
+    const estimate = input.policy.tokenEstimate === "calibrated" ? (this.calibration.estimate(view, request) ?? counted) : counted
+    const sizeOf = (items: readonly ContextItem[]) => items.reduce((total, item) => total + this.count(item.content), 0)
     const safety = Math.ceil(estimate * (input.modelLimits.safetyMarginFactor - 1))
     const effectiveWindow = Math.min(input.policy.windowLimitTokens, input.modelLimits.maxContextTokens)
     const requestedOutput = request.maxOutputTokens === undefined
@@ -144,21 +185,38 @@ export class ProductionContextEngine implements ContextEnginePort {
       estimatedSafetyTokens: safety,
       windowLimitTokens: effectiveWindow,
       outputReserveTokens: requestedOutput,
-      tokensSaved: 0,
+      tokensSaved: masked ? Math.max(0, sizeOf(input.items) - sizeOf(view)) : 0,
       budgetRemainingTokens: Math.max(0, input.budget.totalTokenLimit - input.budget.totalTokensUsed),
       contentDigest: digestOf(input.items),
       requestDigest,
       estimatedOutputTokens: requestedOutput,
     }
+    const stop = { status: "stop" as const, stopReason: "context_budget" as const, preparedItems: input.items, telemetry }
     if (requestedOutputCap > input.policy.outputReserveTokens || input.modelLimits.maxOutputTokens < requestedOutputCap ||
-      input.budget.totalTokensUsed + estimate + safety + requestedOutput > input.budget.totalTokenLimit ||
-      estimate + safety + requestedOutput > effectiveWindow) {
-      return { status: "stop", stopReason: "context_budget", preparedItems: input.items, telemetry }
+      input.budget.totalTokensUsed + estimate + safety + requestedOutput > input.budget.totalTokenLimit)
+      return stop
+    // Past the threshold of the room left after the output, an LLM compaction runs while it is enabled, budgeted and
+    // able to get under the threshold; otherwise the request goes as long as it still fits.
+    const threshold = input.policy.compactionThreshold * (effectiveWindow - requestedOutput)
+    if (estimate > threshold && input.policy.flags.enableLlmCompaction && input.budget.compactionsCount < input.policy.maxCompactions) {
+      const itemsToSummarize = selectItemsToSummarize({ history: input.items, view, policy: input.policy, estimate, threshold, count: this.count })
+      if (itemsToSummarize.length > 0)
+        return { status: "needs_compaction", summaryPrompt: CompactionSummaryPrompt, itemsToSummarize, telemetry }
     }
-    return { status: "ready", preparedItems: input.items, preparedRequest: request, telemetry }
+    if (estimate + safety + requestedOutput > effectiveWindow) return stop
+    if (input.policy.tokenEstimate === "calibrated") this.calibration.sent(view, request)
+    const transformations = this.maskReport.newlyMasked(input.items, view)
+    return {
+      status: "ready",
+      preparedItems: masked ? view : input.items,
+      preparedRequest: sent,
+      ...(transformations.length > 0 ? { transformations } : {}),
+      telemetry,
+    }
   }
 
   async record(input: RecordInput): Promise<RecordResult> {
+    this.calibration.record(input.actualUsage, input.request)
     if (input.actualUsage === null) return { totalTokensUsed: input.budget.totalTokensUsed, tokenDelta: 0, suggestedSafetyMargin: input.modelLimits.safetyMarginFactor }
     return {
       totalTokensUsed: input.budget.totalTokensUsed + input.actualUsage.totalTokens,

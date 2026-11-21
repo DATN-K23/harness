@@ -462,12 +462,35 @@ describe("JudgeRunner: compaction", () => {
     return { world, w, result: await w.start() }
   }
 
+  test("the summary takes the turn of the oldest item it replaces, not the previous step's turn", async () => {
+    const world = createWorld()
+    const engine = new ScriptedContextEngine([
+      (input) => ({ status: "ready", preparedItems: input.items }),
+      (input) => ({ status: "ready", preparedItems: input.items }),
+      summarizeUnpinned,
+    ])
+    const summary = textResponse("Steps 1-2 read Vault.sol.", { usage: usageOf(50, 10, 0.005) })
+    const w = world.worker({ engine, script: [readVault("call-1", 1, 5), readVault("call-2", 6, 9), summary, verdictText] })
+    expect(await w.start()).toMatchObject({ kind: "committed", state: "completed" })
+    const [compacted] = await world.events("context.compacted")
+    const { replacedItemIds, summaryItem } = EventPayloadSchemas["context.compacted"].parse(compacted!.payload)
+    const added = (await world.events("context.item_added")).map((event) => EventPayloadSchemas["context.item_added"].parse(event.payload).item)
+    const turns = added.filter((item) => replacedItemIds.includes(item.id)).map((item) => item.turn)
+    // Compaction runs before step 3, so the previous step's turn is 2; the oldest replaced item is older.
+    expect(Math.min(...turns)).toBeLessThan(2)
+    expect(summaryItem.turn).toBe(Math.min(...turns))
+  })
+
   test("compaction succeeds: context.compacted persisted, its attempt counted in the totals, run continues", async () => {
     const { world, w, result } = await runCompacted()
 
     expect(result).toMatchObject({ kind: "committed", state: "completed" })
     expect(await world.events("context.compacted")).toHaveLength(1)
     expect(w.gateway.calls[1].toolsDisabled).toBe(true)
+    // The summary request is one plain-text transcript, with no tool-call structure to pair up.
+    expect(w.gateway.calls[1].items.map((item) => item.type)).toEqual(["harness_instruction"])
+    expect(w.gateway.calls[1].items[0]!.content).toStartWith("Summarize the investigation so far.\n\n--- ")
+    expect(w.gateway.calls[1].items[0]!.content).toContain("--- tool_result read_file")
     expect(w.gateway.calls[2].items.some((item) => item.type === "compaction_summary")).toBe(true)
     expect(w.gateway.calls[2].items.some((item) => item.type === "tool_result")).toBe(false)
     const attempts = (await world.events("provider.attempted")).map((event) => event.payload)

@@ -70,6 +70,10 @@ Options:
   --mock                      Use an in-memory store and scripted provider
   --no-claim-extraction       Judge: skip the model call that locates missing claim fields (recorded in the run config)
   --no-live                   Judge: do not print each step (model calls, tools, reads, answers) while the run goes
+  --obs-masking               Judge and serve: hide tool results older than the newest 10,000 tokens behind one-line
+                              notes (recorded)
+  --llm-compaction            Judge and serve: past 80% of the context window, have the model summarize older items
+                              (recorded)
   -h, --help                  Show this help message
 `
 
@@ -86,6 +90,8 @@ export interface CliParsedArgs {
   mock?: boolean
   noClaimExtraction?: boolean
   noLive?: boolean
+  obsMasking?: boolean
+  llmCompaction?: boolean
   json?: boolean
   help?: boolean
   snapshotId?: string
@@ -126,6 +132,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       mock: { type: "boolean" },
       "no-claim-extraction": { type: "boolean" },
       "no-live": { type: "boolean" },
+      "obs-masking": { type: "boolean" },
+      "llm-compaction": { type: "boolean" },
       json: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       "snapshot-id": { type: "string" },
@@ -157,6 +165,8 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     mock: Boolean(values.mock),
     noClaimExtraction: Boolean(values["no-claim-extraction"]),
     noLive: Boolean(values["no-live"]),
+    obsMasking: Boolean(values["obs-masking"]),
+    llmCompaction: Boolean(values["llm-compaction"]),
     json: Boolean(values.json),
     help: Boolean(values.help),
     snapshotId: asString(values["snapshot-id"]),
@@ -239,6 +249,8 @@ export async function runCli(
         modelMaxOutputTokens: config.modelMaxOutputTokens,
         modelInputCostPerMTok: config.modelInputCostPerMTok,
         modelOutputCostPerMTok: config.modelOutputCostPerMTok,
+        enableObsMasking: Boolean(parsed.obsMasking),
+        enableLlmCompaction: Boolean(parsed.llmCompaction),
         snapshotDir: config.snapshotDir,
         hostname: env.HARNESS_HOST ?? "127.0.0.1",
         port: Number(env.HARNESS_PORT ?? 4318),
@@ -428,12 +440,14 @@ async function runCommand(
           finding: { findingId, reportMarkdown },
           snapshotId: parsed.snapshot,
           config: {
+            // Context flags record what ProductionContextEngine really does: it truncates tool output, with --obs-masking
+            // hides old tool results and with --llm-compaction summarizes older items near the window.
             flags: {
               enableToolTruncation: true,
-              enableObsMasking: true,
-              enableSupersedeReads: true,
-              enableDropEmpty: true,
-              enableLlmCompaction: true,
+              enableObsMasking: Boolean(parsed.obsMasking),
+              enableSupersedeReads: false,
+              enableDropEmpty: false,
+              enableLlmCompaction: Boolean(parsed.llmCompaction),
               enableSessionNote: false,
               enableSchemaRepair: true,
               enableMaxStepsForcing: true,
@@ -442,7 +456,9 @@ async function runCommand(
               enableParallelToolDispatch: true,
             },
             policy: {
-              policyVersion: "cli-judge-v1",
+              // v2: estimates start from the provider's real prompt count of the previous step. v3: the server's
+              // engine counts with the o200k tokenizer (not characters / 4) and enforces toolOutputMaxTokens.
+              policyVersion: "cli-judge-v3",
               windowLimitTokens: 100_000,
               outputReserveTokens: maxOutputTokens,
               compactionThreshold: 0.8,
@@ -451,12 +467,13 @@ async function runCommand(
               toolOutputMaxTokens: 4_000,
               toolOutputMaxLines: 50,
               maxCompactions: 2,
+              tokenEstimate: "calibrated",
               flags: {
                 enableToolTruncation: true,
-                enableObsMasking: true,
-                enableSupersedeReads: true,
-                enableDropEmpty: true,
-                enableLlmCompaction: true,
+                enableObsMasking: Boolean(parsed.obsMasking),
+                enableSupersedeReads: false,
+                enableDropEmpty: false,
+                enableLlmCompaction: Boolean(parsed.llmCompaction),
                 enableSessionNote: false,
               },
             },
@@ -537,7 +554,8 @@ async function runCommand(
           gateway: judgeGateway,
           tools: registry,
           snapshot,
-          contextEngine: new PassThroughContextEngine(),
+          // The same engine as the server, so CLI and server runs count and reduce context alike.
+          contextEngine: new ProductionContextEngine(createO200kTokenizer()),
           security,
           ingestion,
           sanitizer,

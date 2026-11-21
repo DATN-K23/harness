@@ -49,6 +49,12 @@ export interface ContextPolicy {
   toolOutputMaxTokens: number
   toolOutputMaxLines: number
   maxCompactions: number
+  /**
+   * How the context engine estimates a request before it is sent: `characters` divides characters by four;
+   * `calibrated` starts from the provider's real prompt count of the previous request and estimates only what was
+   * added since. Absent means `characters` (snapshots that predate the field).
+   */
+  tokenEstimate?: "characters" | "calibrated"
   flags: {
     enableToolTruncation: boolean
     enableObsMasking: boolean
@@ -171,6 +177,8 @@ export interface ContextEnginePort {
     actualUsage: TokenUsage | null
     modelLimits: ModelLimits
     budget: RunBudget
+    /** The request the usage was reported for, as sent: it may hold more than `prepare` returned (a forced step's instruction, a changed tool list). */
+    request?: ModelAttemptRequest
   }): Promise<RecordResult>
 
   shapeToolResult(input: { content: string; toolName: string; policy: ContextPolicy; path?: string; lineRange?: [number, number] }): Promise<ShapeToolResultOutcome>

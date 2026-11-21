@@ -69,19 +69,28 @@ export const makeProductionJudgeConfig = (runtime: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  /** Hide tool results behind the newest 10,000 tokens (off by default, recorded). */
+  enableObsMasking?: boolean
+  /** Summarize older items past 80% of the window, at most twice (off by default, recorded). */
+  enableLlmCompaction?: boolean
 }): JudgeRunConfig => {
   const maxOutputTokens = runtime.modelMaxOutputTokens ?? 4096
+  const enableObsMasking = runtime.enableObsMasking === true
+  const enableLlmCompaction = runtime.enableLlmCompaction === true
+  // Context flags record what ProductionContextEngine really does: it truncates tool output and, when enabled, masks
+  // old tool results and compacts older items near the window.
   const flags = {
-    enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true, enableDropEmpty: true,
-    enableLlmCompaction: true, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
+    enableToolTruncation: true, enableObsMasking, enableSupersedeReads: false, enableDropEmpty: false,
+    enableLlmCompaction, enableSessionNote: false, enableSchemaRepair: true, enableMaxStepsForcing: true,
     enableNoProgressDetection: true, enableInfraRetry: true, enableParallelToolDispatch: true,
   }
   const policy = {
-    policyVersion: "judge-local-v1", windowLimitTokens: 100_000, outputReserveTokens: maxOutputTokens,
+    // v2: estimates start from the provider's real prompt count of the previous step.
+    policyVersion: "judge-local-v2", windowLimitTokens: 100_000, outputReserveTokens: maxOutputTokens,
     compactionThreshold: 0.8, safetyMarginFactor: 1.2, recentWindowTokens: 10_000,
-    toolOutputMaxTokens: 4_000, toolOutputMaxLines: 50, maxCompactions: 2,
-    flags: { enableToolTruncation: true, enableObsMasking: true, enableSupersedeReads: true,
-      enableDropEmpty: true, enableLlmCompaction: true, enableSessionNote: false },
+    toolOutputMaxTokens: 4_000, toolOutputMaxLines: 50, maxCompactions: 2, tokenEstimate: "calibrated" as const,
+    flags: { enableToolTruncation: true, enableObsMasking, enableSupersedeReads: false,
+      enableDropEmpty: false, enableLlmCompaction, enableSessionNote: false },
   }
   return deepFreeze({ flags, policy, retry: { ...DefaultRetryConfig, retryableStatuses: [...DefaultRetryConfig.retryableStatuses] },
     limits: {
@@ -167,6 +176,8 @@ export const startProductionLocalServer = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  enableObsMasking?: boolean
+  enableLlmCompaction?: boolean
   snapshotDir: string
   hostname: string
   port: number
@@ -186,6 +197,8 @@ export const startProductionLocalServerWithOperations = async (options: {
   maxSteps?: number
   totalTokenBudget?: number
   wallClockTimeoutMs?: number
+  enableObsMasking?: boolean
+  enableLlmCompaction?: boolean
   snapshotDir: string
   hostname: string
   port: number

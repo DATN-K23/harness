@@ -13,8 +13,10 @@ const lowerSimpleItem = (item: ContextItem): OpenAI.Chat.ChatCompletionMessagePa
   switch (item.type) {
     case "system_prompt":
     case "tool_description":
-    case "compaction_summary":
       return { role: "system", content: item.content }
+    // A summary replaces history mid-run, and Gemini filters mid-run system messages, so it goes as a user message.
+    case "compaction_summary":
+      return { role: "user", content: item.content }
     case "assistant_reasoning":
       return { role: "assistant", content: item.content }
     case "candidate_finding":
@@ -37,6 +39,24 @@ const requestArguments = (item: ContextItem): string => {
     }
   } catch {}
   return item.content
+}
+
+/**
+ * One system message, then the conversation: the leading system messages are joined, and a system message after the
+ * conversation started goes as a user message. 9router's Codex route keeps only the first system message (measured
+ * 2026-11-21) and Gemini filters mid-run ones, so a later instruction (a verification direction, a repair request)
+ * would otherwise never reach the model.
+ */
+const withOneSystemMessage = (
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+): OpenAI.Chat.ChatCompletionMessageParam[] => {
+  const firstTurn = messages.findIndex((message) => message.role !== "system")
+  const leading = messages.slice(0, firstTurn === -1 ? messages.length : firstTurn)
+  const rest = messages
+    .slice(leading.length)
+    .map((message) => (message.role === "system" ? { role: "user" as const, content: message.content } : message))
+  if (leading.length === 0) return rest
+  return [{ role: "system", content: leading.map((message) => message.content).join("\n\n") }, ...rest]
 }
 
 /** Groups stored context by turn and reconstructs each assistant tool-call message faithfully. */
@@ -123,5 +143,5 @@ export function convertToChatMessages(items: readonly ContextItem[]): OpenAI.Cha
     }
   }
 
-  return messages
+  return withOneSystemMessage(messages)
 }

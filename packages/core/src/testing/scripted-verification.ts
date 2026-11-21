@@ -1,8 +1,6 @@
+import type { VerificationPort, VerificationResult, StateProbeResult } from "../verification"
 import type {
-  SandboxPort,
-  SandboxResult,
   StageInput,
-  StateProbeResult,
 } from "@harness/protocol"
 
 /** Results are returned verbatim, one per call; once the list is used up the last one repeats. */
@@ -25,20 +23,22 @@ class ResultScript<Result> {
   }
 }
 
-export interface ScriptedSandboxResults {
-  singleShot?: readonly [SandboxResult, ...SandboxResult[]]
+export interface ScriptedVerificationResults {
+  singleShot?: readonly [VerificationResult, ...VerificationResult[]]
   stateProbe?: readonly [StateProbeResult, ...StateProbeResult[]]
 }
 
-export class ScriptedSandbox implements SandboxPort {
+export class ScriptedVerification implements VerificationPort {
+  readonly supportsStateProbe: boolean
   readonly singleShotCalls: Array<StageInput & { testFile: string }> = []
   readonly stateProbeCalls: Array<StageInput & { probedTestFile: string }> = []
-  private readonly singleShot: ResultScript<SandboxResult>
+  private readonly singleShot: ResultScript<VerificationResult>
   private readonly stateProbe: ResultScript<StateProbeResult>
 
-  constructor(results: ScriptedSandboxResults) {
-    this.singleShot = new ResultScript("ScriptedSandbox.runSingleShot", results.singleShot)
-    this.stateProbe = new ResultScript("ScriptedSandbox.runStateProbe", results.stateProbe)
+  constructor(results: ScriptedVerificationResults) {
+    this.supportsStateProbe = results.stateProbe !== undefined
+    this.singleShot = new ResultScript("ScriptedVerification.runSingleShot", results.singleShot)
+    this.stateProbe = new ResultScript("ScriptedVerification.runStateProbe", results.stateProbe)
   }
 
   async runSingleShot(input: StageInput & { testFile: string }, signal?: AbortSignal) {

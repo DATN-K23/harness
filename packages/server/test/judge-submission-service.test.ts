@@ -1,3 +1,4 @@
+import { localAuthorization } from "../src/runtime-security"
 import { describe, expect, test } from "bun:test"
 import { createIdGenerator, digestOf, SnapshotIngestion } from "@harness/core"
 import { InMemorySnapshot } from "@harness/core"
@@ -188,7 +189,7 @@ describe("Judge submission service", () => {
   test("HTTP submission is claimed, judged and retrieved as unverified end-to-end", async () => {
     const { InMemorySnapshot: CoreSnapshot } = await import("@harness/core")
     const { PassThroughContextEngine, InMemoryToolRegistry, RegexSecurityFilter, ScriptedModelGateway, FakeClock, FakeSleep, SeededRandom, textResponse } = await import("@harness/core/testing")
-    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedSandbox } = await import("@harness/core/testing")
+    const { FakeCancellation, ScriptedIngestion, ScriptedSanitizer, ScriptedVerification } = await import("@harness/core/testing")
     const { baseConfig, verdictText } = await import("../../core/test/helpers/runner-world")
     const { files } = await import("../../core/test/runner/judge-step-harness")
     const clock = new FakeClock(Date.parse("2026-10-21T12:00:00.000Z"))
@@ -229,26 +230,26 @@ describe("Judge submission service", () => {
         security: new RegexSecurityFilter(), snapshot,
         ingestion: new SnapshotIngestion({ source: snapshot }),
         sanitizer: new ScriptedSanitizer([{ kind: "cheat_detected", findings: [] }]),
-        sandbox: new ScriptedSandbox({}), cancellation, clock,
+        verification: new ScriptedVerification({}), cancellation, clock,
         random: new SeededRandom(1), sleep: new FakeSleep(clock), ids: createIdGenerator({ clock: () => clock.nowMs(), random: (size) => new Uint8Array(size) }),
       }),
     })
     const submit = await runtime.api.fetch(new Request("http://localhost/v1/judge/runs", {
       method: "POST",
-      headers: { authorization: "Bearer local-secret", "content-type": "application/json", "idempotency-key": "e2e-key" },
+      headers: { authorization: localAuthorization("local-secret"), "content-type": "application/json", "idempotency-key": "e2e-key" },
       body: JSON.stringify({ finding: { findingId: "finding-7", reportMarkdown: "Target: Vault.withdraw\nRoot cause: external call before balance update\nAttack scenario: reenter withdraw\nImpact: fund loss\nState: balance reduced" }, snapshotId: "snap-1" }),
     }))
     expect(submit.status).toBe(202)
     const { runId } = await submit.json() as { runId: string }
     expect(await runtime.worker.runOnce()).toBe(1)
-    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: "Bearer local-secret" } }))
+    const run = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}`, { headers: { authorization: localAuthorization("local-secret") } }))
     expect(await run.json()).toMatchObject({
       state: "completed",
       findingId: "finding-7",
       verdict: { validity: "unverified", verificationStatus: "UNVERIFIED" },
     })
     expect(gateway.calls.every((call) => !JSON.stringify(call).match(/groundTruthLabel|adjudicationReport|scoringMetadata/i))).toBe(true)
-    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: "Bearer local-secret" } }))
+    const eventsResponse = await runtime.api.fetch(new Request(`http://localhost/v1/judge/runs/${runId}/events`, { headers: { authorization: localAuthorization("local-secret") } }))
     const events = await eventsResponse.text()
     expect(events).not.toMatch(/groundTruthLabel|adjudicationReport|scoringMetadata/i)
     expect(events).not.toContain("test-only-sensitive-marker")

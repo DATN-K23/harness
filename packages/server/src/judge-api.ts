@@ -1,6 +1,6 @@
 import { JudgeSubmitRequestSchema, type JudgeSubmitRequest } from "@harness/protocol"
 import { createHmac, timingSafeEqual } from "node:crypto"
-import { isAuthorizedLocalRequest } from "./runtime-security"
+import { isAuthorizedLocalRequest, localAuthenticationRequired } from "./runtime-security"
 import { ApiCompatibility } from "./runtime-security"
 
 type StoredRun = Awaited<ReturnType<NonNullable<import("@harness/protocol").RunStorePort["loadRun"]>>>
@@ -59,7 +59,7 @@ export const createJudgeApi = (deps: {
 }) => ({
   async fetch(request: Request): Promise<Response> {
     if (!isAuthorizedLocalRequest(request, deps.credential))
-      return Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 })
+      return localAuthenticationRequired()
     const url = new URL(request.url)
     if (request.method === "GET" && url.pathname === "/v1/health") {
       return Response.json({

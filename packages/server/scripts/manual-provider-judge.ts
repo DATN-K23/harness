@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { createKeychainCredentialProvider } from "../src/keychain-credential"
+import { localAuthorization, requireLocalServerPassword } from "../src/runtime-security"
 import { startProductionLocalServer } from "../src/production-runtime"
 import { loadRuntimeConfig } from "../../cli/src/config"
 import { manualProviderResultSummary } from "./manual-provider-result-summary"
@@ -32,6 +32,8 @@ if (env.HARNESS_PRODUCTION_DATABASE_URL) {
   assert(`${production.hostname}:${production.port || "5432"}${production.pathname}` !== `${database.hostname}:${database.port || "5432"}${database.pathname}`, "Refusing a production database identity")
 }
 
+const serverPassword = requireLocalServerPassword(env.HARNESS_SERVER_PASSWORD)
+const headers = { authorization: localAuthorization(serverPassword) }
 const started = await startProductionLocalServer({
   databaseUrl: manualDatabaseUrl,
   modelApiKey: config.modelApiKey,
@@ -43,13 +45,12 @@ const started = await startProductionLocalServer({
   maxSteps: 8,
   totalTokenBudget: 64_000,
   wallClockTimeoutMs: 360_000,
+  serverPassword,
   snapshotDir: config.snapshotDir,
   hostname: "127.0.0.1",
   port: 0,
 })
 
-const credential = await createKeychainCredentialProvider().getOrCreate()
-const headers = { authorization: `Bearer ${credential}` }
 const api = `http://127.0.0.1:${started.server.port}`
 let runId = ""
 try {

@@ -139,7 +139,8 @@ describe("package manifests", () => {
     expect(protocol.name).toBe("@harness/protocol")
     expect(core.name).toBe("@harness/core")
     expect(protocol.exports).toEqual({ ".": "./src/index.ts" })
-    expect(core.exports).toEqual({ ".": "./src/index.ts", "./testing": "./src/testing/index.ts" })
+    expect(core.exports).toEqual({ ".": "./src/index.ts", "./testing": "./src/testing/index.ts",
+      "./execution": "./src/execution/index.ts", "./verification": "./src/verification/index.ts" })
   })
 
   test("public import paths resolve inside the owning package", () => {
@@ -147,6 +148,8 @@ describe("package manifests", () => {
     expect(resolved("@harness/protocol")).toBe(slash(join(protocolDir, "src/index.ts")))
     expect(resolved("@harness/core")).toBe(slash(join(coreDir, "src/index.ts")))
     expect(resolved("@harness/core/testing")).toBe(slash(join(coreDir, "src/testing/index.ts")))
+    expect(resolved("@harness/core/execution")).toBe(slash(join(coreDir, "src/execution/index.ts")))
+    expect(resolved("@harness/core/verification")).toBe(slash(join(coreDir, "src/verification/index.ts")))
   })
 
   test("the public entry points expose the loop and the fakes another track builds on", async () => {

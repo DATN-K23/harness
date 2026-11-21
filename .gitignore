@@ -38,3 +38,4 @@ zinn/
 .env
 .env.*
 !.env.example
+contest-dataset/

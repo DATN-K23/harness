@@ -1,9 +1,9 @@
+import type { VerificationPort } from "../verification"
 import type {
   BudgetLimits,
   CancellationPort,
   ClockPort,
   ModelGatewayPort,
-  SandboxPort,
   SourceSnapshotPort,
   ToolRegistryPort,
 } from "@harness/protocol"
@@ -25,7 +25,7 @@ export interface AuditRunnerDeps {
   readonly sourceSnapshot: SourceSnapshotPort
   readonly modelGateway?: ModelGatewayPort
   readonly toolRegistry?: ToolRegistryPort
-  readonly sandbox?: SandboxPort
+  readonly verification?: VerificationPort
   readonly clock?: ClockPort
   readonly cancellation?: CancellationPort
 }

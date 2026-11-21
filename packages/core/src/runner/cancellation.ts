@@ -19,8 +19,8 @@ export type BoundaryCheck =
   | { kind: "terminal" }
 
 export interface BoundaryOptions {
-  /** Which stage boundary is being checked; `before_stages` is polled before ingestion and again before the sandbox. */
-  stage?: "ingestion" | "sandbox"
+  /** Which stage boundary is being checked; `before_stages` is polled before ingestion and again before the verification. */
+  stage?: "ingestion" | "verification"
   runState?: RunState
   signal?: AbortSignal
 }
@@ -37,7 +37,7 @@ export const checkBoundary = async (
   if (!(await port.isRequested(runId, options.signal))) return { kind: "continue" }
   if (boundary === "before_model") return { kind: "cancel", boundary: "before_provider_call" }
   if (boundary === "before_tools") return { kind: "cancel", boundary: "before_tool_dispatch" }
-  return { kind: "cancel", boundary: options.stage === "sandbox" ? "before_sandbox" : "before_ingestion" }
+  return { kind: "cancel", boundary: options.stage === "verification" ? "before_verification" : "before_ingestion" }
 }
 
 export type RunAbortCause = "cancelled" | "wall_clock_timeout"

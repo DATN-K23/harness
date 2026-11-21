@@ -1,3 +1,4 @@
+import type { StateDelta } from "../verification"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import {
@@ -5,7 +6,6 @@ import {
   type AntiCheatFinding,
   type AttemptPurpose,
   type JudgeVerdict,
-  type StateDelta,
   type TrajectoryEvent,
 } from "@harness/protocol"
 import type { JudgeRunResult } from "../runner/judge-runner"
@@ -60,7 +60,7 @@ const noExecutionReason = (stages: StageRecord) => {
   if (stages.pocCode === undefined)
     return "No execution was performed: the candidate finding has no executable PoC, so the run was rejected at ingestion."
   if (stages.sanitizer?.kind === "cheat_detected")
-    return "No execution was performed: the anti-cheat sanitizer rejected the PoC before it reached the sandbox."
+    return "No execution was performed: the anti-cheat sanitizer rejected the PoC before verification."
   return "No execution was performed."
 }
 
@@ -68,14 +68,14 @@ interface ExploitProof {
   applicable: boolean
   reason?: string
   pocCode: string | null
-  execution?: { performed: true; exitCode: number; durationMs: number; rawTrace: string }
+  execution?: { performed: true; evidence: "simulated"; exitCode: number; durationMs: number; rawTrace: string }
   stateDeltaTable: { rows: StateDelta[]; reason?: string }
   antiCheatReport: { rulesChecked: string[]; findings: AntiCheatFinding[]; passed: boolean } | { reason: string }
 }
 
 const exploitProof = ({ stages }: BundleInput): ExploitProof => {
-  const { sanitizer, sandbox, stateProbes, pocCode } = stages
-  if (pocCode === undefined || sandbox === undefined)
+  const { sanitizer, verification, stateProbes, pocCode } = stages
+  if (pocCode === undefined || verification === undefined)
     return {
       applicable: false,
       reason: noExecutionReason(stages),
@@ -87,11 +87,11 @@ const exploitProof = ({ stages }: BundleInput): ExploitProof => {
       stateDeltaTable: { rows: [], reason: "No execution was performed, so no state was measured." },
     }
   const rows = stateProbes.filter((run) => run.exitCode === 0).flatMap((run) => run.stateDeltas)
-  const failed = sandbox.exitCode !== 0
+  const failed = verification.exitCode !== 0
   return {
     applicable: true,
     pocCode,
-    execution: { performed: true, exitCode: sandbox.exitCode, durationMs: sandbox.durationMs, rawTrace: sandbox.trace },
+    execution: { performed: true, evidence: "simulated", exitCode: verification.exitCode, durationMs: verification.durationMs, rawTrace: verification.trace },
     stateDeltaTable: {
       rows,
       ...(rows.length > 0
@@ -119,7 +119,7 @@ const proofSection = ({ execution, reason, stateDeltaTable, antiCheatReport }: E
       "",
     ].join("\n")
   return [
-    `PoC exit code ${execution.exitCode}, ${execution.durationMs} ms.`,
+    `Simulated PoC execution: exit code ${execution.exitCode}, ${execution.durationMs} ms.`,
     "",
     stateDeltaTable.rows.length === 0
       ? (stateDeltaTable.reason ?? "")

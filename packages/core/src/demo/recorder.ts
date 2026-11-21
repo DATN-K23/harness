@@ -1,22 +1,20 @@
+import type { VerificationPort, VerificationResult, StateProbeResult } from "../verification"
 import type {
   IngestionPort,
-  SandboxPort,
   SanitizerPort,
   SanitizerResult,
-  SandboxResult,
-  StateProbeResult,
 } from "@harness/protocol"
 
 /** What the stage ports returned during a run: the bundle's exploit proof is built from this, not re-derived. */
 export interface StageRecord {
   pocCode?: string
   sanitizer?: SanitizerResult
-  sandbox?: SandboxResult
+  verification?: VerificationResult
   stateProbes: StateProbeResult[]
 }
 
 export const recordStages = (
-  ports: { ingestion: IngestionPort; sanitizer: SanitizerPort; sandbox: SandboxPort },
+  ports: { ingestion: IngestionPort; sanitizer: SanitizerPort; verification: VerificationPort },
   record: StageRecord,
 ) => {
   const ingestion: IngestionPort = {
@@ -35,17 +33,18 @@ export const recordStages = (
     injectStateProbes: (stitchedTestFile, stateVariables, signal) =>
       ports.sanitizer.injectStateProbes(stitchedTestFile, stateVariables, signal),
   }
-  const sandbox: SandboxPort = {
+  const verification: VerificationPort = {
+    supportsStateProbe: ports.verification.supportsStateProbe,
     runSingleShot: async (input, signal) => {
-      const result = await ports.sandbox.runSingleShot(input, signal)
-      record.sandbox = result
+      const result = await ports.verification.runSingleShot(input, signal)
+      record.verification = result
       return result
     },
     runStateProbe: async (input, signal) => {
-      const result = await ports.sandbox.runStateProbe(input, signal)
+      const result = await ports.verification.runStateProbe(input, signal)
       record.stateProbes.push(result)
       return result
     },
   }
-  return { ingestion, sanitizer, sandbox }
+  return { ingestion, sanitizer, verification }
 }

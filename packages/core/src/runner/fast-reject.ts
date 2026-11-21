@@ -27,7 +27,7 @@ const wording = (reject: FastReject) => {
   if (reject.reasonCode === "NON_FAITHFUL_OVERRIDE")
     return {
       summary: "Rejected by the sanitizer: the PoC does not faithfully exercise the target.",
-      reasoning: `The pre-execution anti-cheat filter flagged the submitted PoC (${flaggedRules(reject.findings)}). A PoC that overrides target logic, mocks internal state or reaches outside the sandbox does not demonstrate the reported vulnerability, so the finding is invalid. ${NotRepaired}`,
+      reasoning: `The pre-execution anti-cheat filter flagged the submitted PoC (${flaggedRules(reject.findings)}). A PoC that overrides target logic, mocks internal state or reaches outside the verification does not demonstrate the reported vulnerability, so the finding is invalid. ${NotRepaired}`,
     }
 }
 

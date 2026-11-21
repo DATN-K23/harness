@@ -213,7 +213,12 @@ application, ports, adapters, tests and migration contributions as they become n
 | scoring | `packages/core/src/scoring`; scorer-entrypoint-only contracts | labels, adjudication and scoring metadata in restricted schema/role |
 | model_gateway | `packages/llm/src`; one-attempt model port | port owns attempt/profile semantics; its PostgreSQL adapter and migration contribution live in `packages/core/src/model-gateway-persistence` |
 | future audit | `packages/core/src/audit`; declared mode workflow seam | future findings/reports |
-| future verification | separate VerificationRunner port/process seam | separate change; no PoC authority in Judge |
+| execution | `packages/core/src/execution`, `@harness/core/execution` | application permissions and host process supervision for trusted composition |
+| verification | `packages/core/src/verification`, `@harness/core/verification` | trusted fixture preparation and safe execution evidence, with verification unavailable in ordinary Judge |
+
+The host driver follows OpenCode's permission, process service and environment split. Native execution runs with the
+host account's permissions and is limited to reviewed fixtures in a scorer-free internal composition. Judge and Audit
+depend on the verification operation. The protocol retains serialized evidence metadata and historical event readers.
 
 The gateway persistence adapter in core implements the llm-owned port; llm never imports
 core. It is the gateway capability's persistence contribution, not permission for other

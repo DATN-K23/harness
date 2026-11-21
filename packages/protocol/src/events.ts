@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { ContextItemSchema, PrepareTelemetrySchema, TransformationSchema } from "./context"
 import { ModelAttemptErrorClassifications, ModelPricingStatuses, ModelUsageSchema, ProviderErrorCategorySchema, ReasoningEfforts, TokenUsageSchema, FinishReasons } from "./model-gateway"
-import { RunConfigSnapshotSchema, Sha256DigestSchema } from "./run-config"
+import { RunConfigSnapshotSchema, Sha256DigestSchema, VerificationTelemetrySchema } from "./run-config"
 import { BudgetTerminalReasonSchema, TerminalReasonSchema } from "./stop-conditions"
 import { VerdictReasonCodes, JudgeVerdictSchema } from "./verdict"
 
@@ -64,10 +64,11 @@ export const EventSchemaVersion = 1
 /** Longest provider error message a `provider.attempted` event keeps. */
 export const AttemptErrorMessageMaxChars = 500
 
-export const StageNames = ["ingestion", "claim_extraction", "sanitizer", "sandbox", "agent_loop", "verdict_synthesis"] as const
+export const StageNames = ["ingestion", "claim_extraction", "sanitizer", "verification", "sandbox", "agent_loop", "verdict_synthesis"] as const
 
 export const CancellationBoundaries = [
   "before_ingestion",
+  "before_verification",
   "before_sandbox",
   "before_provider_call",
   "before_tool_dispatch",
@@ -235,6 +236,7 @@ export const EventPayloadSchemas = {
     outcome: z.enum(["ok", "rejected", "failed"]),
     reasonCode: z.string().optional(),
     durationMs: z.number().int().nonnegative(),
+    verification: VerificationTelemetrySchema.optional(),
   }),
   "step.started": z.object({ stepIndex: z.number().int().positive(), toolsDisabled: z.boolean() }),
 } satisfies Record<EventType, z.ZodType>

@@ -50,14 +50,15 @@ Each scenario directory holds the seven pillars of the demo specification:
 
 ## Ports and who implements them
 
-The loop is complete against fakes. Each real implementation belongs to another track and must satisfy the port in
-`@harness/protocol`; the fakes in `@harness/core/testing` show the expected behavior.
+The fakes in `@harness/core/testing` show the expected behavior. Shared ports live in `@harness/protocol`, and execution
+and verification ports live in their core capability subpaths.
 
 | Port | Owner | What the owner must implement |
 | --- | --- | --- |
 | `ContextEnginePort` | TV2 | `prepare` (token accounting with the authoritative `o200k_base` tokenizer, transformations, compaction and stop signals, telemetry), `record` and `shapeToolResult`. The fakes use a characters/4 estimate and are labeled as stand-ins. |
 | `ToolRegistryPort` | TV3 | Read-only snapshot tools (`read_file`, `grep`, `glob`, `list_dir`): definitions, execution with failures returned as error results, path containment. |
-| `IngestionPort`, `SanitizerPort`, `SandboxPort`, `SecurityFilterPort` | TV4 | PoC ingestion, the pre-execution anti-cheat sanitizer with state-probe injection, isolated sandbox execution (single shot and state probe), and the secret filter for tool output and traces. |
+| `IngestionPort`, `SanitizerPort`, `SecurityFilterPort` | TV4 | PoC ingestion, anti-cheat checks and secret filtering for tool output and traces. |
+| `LocalExecutionPort`, `VerificationPort` | Core | Rule-checked host execution and reviewed fixture evidence. Ordinary Judge uses unavailable verification. |
 | `RunStorePort` | TV6 | Durable runs and events: unique contiguous sequences, compare-and-set transitions, claim tokens with lease expiry, immutable terminal runs. Proven with the contract tests below. |
 | `ModelGatewayPort` | TV1 with `packages/llm` | One provider attempt per call, usage and cost on every response, provider errors returned as data. The scripted gateway here is the only implementation in this package. |
 
@@ -95,3 +96,58 @@ Decisions that are not settled yet (G1 verdict shape, G2 execution authority, G3
 arms, G5 additive demo fields, G6 event vocabulary) are listed with their current handling in
 [`openspec/changes/bootstrap-agent-loop-core/design.md`](../../openspec/changes/bootstrap-agent-loop-core/design.md),
 section "Approval gates".
+
+## Reviewed local Foundry fixtures
+
+`@harness/core/execution` checks executable digests, exact argv and canonical staged paths before direct host spawn.
+The service supervises the owned process with a deadline, cancellation and a combined output limit. This is
+application permission. The child keeps the host account's filesystem and network permissions. The driver
+provides neither aggregate resource quotas nor crash cleanup guarantees for detached descendants.
+
+`@harness/core/verification` exposes `createReviewedFoundryVerification` for internal composition. A maintainer
+reviews and pins the test, all staged Solidity sources and dependencies, and both executables in the manifest.
+Source digests cover snapshot lines joined with LF. Run reviewed fixtures in a scorer-free environment with no
+accessible research labels or scorer credentials. The flag alone cannot admit a new PoC. Server and ordinary CLI
+Judge use unavailable verification, and real state probes remain unavailable.
+
+The driver checks runtime and toolchain availability on the host. This does not establish full Harness support
+for that platform. Prepare the official Forge and solc releases offline and verify their release checksums before
+passing their absolute executable paths and `sha256:` digests to the opt-in fixture test:
+
+```sh
+export HARNESS_TEST_FORGE=/absolute/path/to/forge
+export HARNESS_TEST_FORGE_SHA256=sha256:REPLACE_WITH_VERIFIED_EXECUTABLE_DIGEST
+export HARNESS_TEST_SOLC=/absolute/path/to/solc
+export HARNESS_TEST_SOLC_SHA256=sha256:REPLACE_WITH_VERIFIED_EXECUTABLE_DIGEST
+bun test --cwd packages/core test/verification/foundry-fixture.test.ts
+HARNESS_TEST_NATIVE_BENCHMARK=1 bun test --cwd packages/core test/verification/foundry-fixture.test.ts -t 'measures first'
+```
+
+New run snapshots record `localExecution.version` and the `disabled`, `scripted` or `host` backend. Use the
+resolved snapshot digest for frozen experiment identity. A backend, platform, policy, toolchain or input digest
+change requires a new profile. The verifier records safe permission decisions, output bytes, phase timings and
+observed peak RSS when available. Raw compiler output stays private to the verification operation. Historical
+sandbox stages and configuration remain readable with their original payloads and digests.
+
+### Replacement evidence
+
+On macOS 26.2 ARM64 with Bun 1.4.3, Forge 1.5.1 and solc 0.8.30, native pass, assertion failure and zero-test
+fixtures produced the expected outcomes. Unreviewed inputs and missing toolchains were rejected before spawn.
+Linux and Windows are unverified for this fixture. The demo uses scripted execution evidence and requires no
+native toolchain.
+
+The following numbers are from one benchmark process. First invocation means the first fixture in that process,
+without flushing the OS cache. Subsequent invocations use the same artifacts and fresh staging. Warm p95 uses
+nearest rank. RSS is an observation reported by Bun for the owned child, not a limit.
+
+| Metric | First invocation (n=1) | Subsequent median (n=10) | Subsequent p95 (n=10) |
+| --- | ---: | ---: | ---: |
+| Preparation and permission (ms) | 95.52 | 49.69 | 51.49 |
+| Process (ms) | 180.59 | 71.10 | 74.99 |
+| Cleanup (ms) | 0.97 | 0.88 | 1.19 |
+| Total (ms) | 278.17 | 120.60 | 125.04 |
+| Peak RSS (MiB) | 29.73 | 29.75 | 30.03 |
+
+Toolchain profile digest is `sha256:6a46f93e08caad9dae31c46a96065193219040c80382fc666100d1c0af89f20e`.
+Policy digest is `sha256:caef294d134295893d77405d4df1b26398ee97e0cfadaffaffdab0de65284803`.
+There is no comparable Docker baseline for this fixture.

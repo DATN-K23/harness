@@ -52,6 +52,7 @@ describe("buildRunConfigSnapshot", () => {
     expect(digest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(snapshot.maxProbeRuns).toBe(DefaultMaxProbeRuns)
     expect(snapshot.enablePocExecution).toBe(false)
+    expect(snapshot.localExecution).toEqual({ version: 1, backend: "disabled" })
     expect(snapshot.contextPolicy).toEqual(inputWith(allOn).policy)
     expect(snapshot.budget).toEqual(inputWith(allOn).limits)
   })
@@ -59,13 +60,40 @@ describe("buildRunConfigSnapshot", () => {
   test("effective runtime routing and pricing are included in the immutable run snapshot", () => {
     const input = inputWith(allOn)
     input.runtime = { providerName: "openai", modelName: "gpt-test", baseURL: "https://router.example/v1", timeoutMs: 10_000,
-      inputCostPerMTok: 1, outputCostPerMTok: 2, profileVersion: "profile-v1", ingestionVersion: "solc-v1", sandboxMode: "disabled",
-      maxContextTokens: 128_000, maxOutputTokens: 4_000, solidityCompilerVersion: "solc-0.8.30", foundryImage: "foundry@sha256:abc" }
+      inputCostPerMTok: 1, outputCostPerMTok: 2, profileVersion: "profile-v1", ingestionVersion: "solc-v1",
+      maxContextTokens: 128_000, maxOutputTokens: 4_000, solidityCompilerVersion: "solc-0.8.30" }
     const baseline = buildRunConfigSnapshot(input)
     const changed = buildRunConfigSnapshot({ ...input, runtime: { ...input.runtime, baseURL: "https://other.example/v1" } })
     expect(baseline.snapshot.runtime).toEqual(input.runtime)
     expect(changed.digest).not.toBe(baseline.digest)
     expect(JSON.stringify(baseline.snapshot)).not.toMatch(/apiKey|secret/i)
+  })
+
+  test("historical sandbox configuration decodes without altering its digest", () => {
+    const input = inputWith(allOn)
+    const { localExecution: _version, ...snapshot } = buildRunConfigSnapshot(input).snapshot
+    const runtime = { providerName: "provider", modelName: "model", timeoutMs: 100, profileVersion: "v1",
+      ingestionVersion: "v1", maxContextTokens: 100, maxOutputTokens: 20, solidityCompilerVersion: "0.8.30",
+      sandboxMode: "enabled" as const, foundryImage: "legacy-image" }
+    const historical = { ...snapshot, runtime, enablePocExecution: true }
+    expect(digestOf(RunConfigSnapshotSchema.parse(historical))).toBe(digestOf(historical))
+    const current = buildRunConfigSnapshot({ ...input, runtime })
+    expect(current.snapshot.runtime).not.toHaveProperty("sandboxMode")
+    expect(current.snapshot.runtime).not.toHaveProperty("foundryImage")
+    expect(current.digest).not.toBe(digestOf(historical))
+  })
+
+  test("platform, policy and toolchain distinguish frozen execution profiles", () => {
+    const localExecution = { version: 1, backend: "host", platform: "linux", architecture: "arm64",
+      policyDigest: digestOf("policy"), toolchainDigest: digestOf("tools"), snapshotDigest: digestOf("source"),
+      testDigest: digestOf("test"), timeoutMs: 1_000, maxOutputBytes: 512 } as const
+    const input = { ...inputWith(allOn), enablePocExecution: true, localExecution }
+    const baseline = buildRunConfigSnapshot(input)
+    expect(baseline.snapshot.localExecution).toEqual(localExecution)
+    expect(buildRunConfigSnapshot(structuredClone(input)).digest).toBe(baseline.digest)
+    for (const patch of [{ platform: "win32" }, { policyDigest: digestOf("other") }, { toolchainDigest: digestOf("other") }]) {
+      expect(buildRunConfigSnapshot({ ...input, localExecution: { ...localExecution, ...patch } }).digest).not.toBe(baseline.digest)
+    }
   })
 
   test("a configured reasoning effort is recorded and changes the digest", () => {

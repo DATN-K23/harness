@@ -70,7 +70,7 @@ export function assembleTurnRequest(input: AssembleRequestInput): ModelAttemptRe
       ].join("\n")
 
   const sourceListContent = sanitizeSystemText([
-    `You are an autonomous AI smart-contract security auditor running inside a sandboxed evaluation harness.`,
+    `You are an autonomous AI smart-contract security auditor running inside a evaluation harness.`,
     `You are analyzing an immutable source snapshot with ID: "${input.snapshotId}".`,
     ...(input.toolsDisabled
       ? ["This is the last allowed step and tools are disabled. Summarize the gathered evidence and answer now."]

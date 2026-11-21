@@ -1,5 +1,6 @@
+import type { StateProbeResult } from "../../src/verification"
 import { describe, expect, test } from "bun:test"
-import type { SanitizerResult, StateProbeResult } from "@harness/protocol"
+import type { SanitizerResult } from "@harness/protocol"
 import {
   RunStateProbeToolName,
   buildInitialContext,
@@ -11,7 +12,7 @@ import {
 import { FakeClock, SeededRandom } from "../../src/testing/deterministic"
 import { RegexSecurityFilter } from "../../src/testing/regex-security-filter"
 import { InMemoryToolRegistry } from "../../src/testing/in-memory-tool-registry"
-import { ScriptedSandbox, ScriptedSanitizer } from "../../src/testing/scripted-stages"
+import { ScriptedVerification, ScriptedSanitizer } from "../../src/testing/scripted-stages"
 import { createIdGenerator } from "../../src/util/id"
 
 type Sanitized = Extract<SanitizerResult, { kind: "ok" }>
@@ -33,18 +34,18 @@ const probeResult: StateProbeResult = {
 const setup = (hasSubmitterAssertions: boolean, maxProbeRuns = 2) => {
   const registry = new InMemoryToolRegistry({ files: { "src/Vault.sol": "contract Vault {}\n" } })
   const sanitizer = new ScriptedSanitizer([sanitized(hasSubmitterAssertions)])
-  const sandbox = new ScriptedSandbox({ stateProbe: [probeResult] })
+  const verification = new ScriptedVerification({ stateProbe: [probeResult] })
   const probe = stateProbeFor({
     sanitized: sanitized(hasSubmitterAssertions),
     claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply change", attackScenario: "attacker calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
     stage: { runId: "run-1", snapshotId: "snap-1" },
     sanitizer,
-    sandbox,
+    verification,
     maxProbeRuns,
     counter: createProbeCounter(),
     security: new RegexSecurityFilter(),
   })
-  return { registry, sanitizer, sandbox, tools: composeTools(registry, probe) }
+  return { registry, sanitizer, verification, tools: composeTools(registry, probe) }
 }
 
 const probeCall = (callId: string) => ({
@@ -70,8 +71,8 @@ describe("adjudication step: tier selection and state probe", () => {
     expect(names(true)).toEqual(["read_file", "grep", "glob", "list_dir"])
   })
 
-  test("the third probe with maxProbeRuns = 2 is refused without a sandbox call", async () => {
-    const { tools, sandbox, sanitizer, registry } = setup(false, 2)
+  test("the third probe with maxProbeRuns = 2 is refused without a verification call", async () => {
+    const { tools, verification, sanitizer, registry } = setup(false, 2)
     const first = await tools.execute(probeCall("probe-1"))
     await tools.execute(probeCall("probe-2"))
     const third = await tools.execute(probeCall("probe-3"))
@@ -79,8 +80,8 @@ describe("adjudication step: tier selection and state probe", () => {
     expect(first.isError).toBe(false)
     expect(first.content).toContain("| totalSupply | 100 | 250 |")
     expect(sanitizer.probeCalls).toHaveLength(2)
-    expect(sandbox.stateProbeCalls).toHaveLength(2)
-    expect(sandbox.stateProbeCalls[0]).toMatchObject({ runId: "run-1", snapshotId: "snap-1" })
+    expect(verification.stateProbeCalls).toHaveLength(2)
+    expect(verification.stateProbeCalls[0]).toMatchObject({ runId: "run-1", snapshotId: "snap-1" })
     expect(third.isError).toBe(true)
     expect(third.content).toContain("limit of 2 state probe runs")
     expect(third.content).toContain("Suggested next step:")
@@ -89,14 +90,14 @@ describe("adjudication step: tier selection and state probe", () => {
 
   test("state delta values are secret-filtered and bounded before evidence or output", async () => {
     const secret = "sk-ant-api03-AbCdEfGhIjKlMnOpQrSt"
-    const sandbox = new ScriptedSandbox({ stateProbe: [{ ...probeResult, stateDeltas: [
+    const verification = new ScriptedVerification({ stateProbe: [{ ...probeResult, stateDeltas: [
       { variable: "totalSupply", before: secret, after: "x".repeat(20_001) },
     ] }] })
     const sanitizer = new ScriptedSanitizer([sanitized(false)])
     const probe = stateProbeFor({
       sanitized: sanitized(false),
       claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply", attackScenario: "calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
-      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer, sandbox, maxProbeRuns: 1, counter: createProbeCounter(),
+      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer, verification, maxProbeRuns: 1, counter: createProbeCounter(),
       evidence: new Map(), security: new RegexSecurityFilter(),
     })!
     const result = await probe.execute({ stateVariables: ["totalSupply"] })
@@ -107,7 +108,7 @@ describe("adjudication step: tier selection and state probe", () => {
   })
 
   test("state probe output and evidence omit deltas beyond the count limit", async () => {
-    const sandbox = new ScriptedSandbox({ stateProbe: [{
+    const verification = new ScriptedVerification({ stateProbe: [{
       ...probeResult,
       stateDeltas: Array.from({ length: 100 }, (_, index) => ({
         variable: `state${index}`,
@@ -118,7 +119,7 @@ describe("adjudication step: tier selection and state probe", () => {
     const probe = stateProbeFor({
       sanitized: sanitized(false),
       claim: { targetContracts: ["Vault"], targetFunctions: [], rootCause: "supply", attackScenario: "calls", callerAssumptions: [], claimedImpact: "totalSupply rises", claimedState: "totalSupply" },
-      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer: new ScriptedSanitizer([sanitized(false)]), sandbox,
+      stage: { runId: "run-1", snapshotId: "snap-1" }, sanitizer: new ScriptedSanitizer([sanitized(false)]), verification,
       maxProbeRuns: 1, counter: createProbeCounter(), evidence: new Map(), security: new RegexSecurityFilter(),
     })!
 
@@ -131,12 +132,12 @@ describe("adjudication step: tier selection and state probe", () => {
   })
 
   test("a probe request must name exactly one variable", async () => {
-    const { tools, sandbox, sanitizer } = setup(false)
+    const { tools, verification, sanitizer } = setup(false)
     const result = await tools.execute(multiProbeCall("probe-multiple"))
     expect(result.isError).toBe(true)
     expect(result.content).toContain("exactly one")
     expect(sanitizer.probeCalls).toHaveLength(0)
-    expect(sandbox.stateProbeCalls).toHaveLength(0)
+    expect(verification.stateProbeCalls).toHaveLength(0)
   })
 })
 

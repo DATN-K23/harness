@@ -9,6 +9,13 @@ const result = (filePath: string, lineRange: [number, number]) =>
   event("context.item_added", { item: { id: "r", turn: 2, type: "tool_result", isPinned: false, content: "code", toolMeta: { callId: "c", toolName: "read_file", filePath, lineRange } } })
 
 describe("judge live trace", () => {
+  test("displays historical sandbox and current verification stage names", () => {
+    const trace = createJudgeLiveTrace()
+    expect(trace(event("stage.finished", { stage: "sandbox", outcome: "ok", durationMs: 4 }))).toEqual(["[stage] sandbox ok"])
+    expect(trace(event("stage.finished", { stage: "verification", outcome: "rejected", reasonCode: "EXECUTION_FAILED", durationMs: 4 })))
+      .toEqual(["[stage] verification rejected (EXECUTION_FAILED)"])
+  })
+
   test("shows each step: forced flag, model call, tool call, model words and the direction results", () => {
     const trace = createJudgeLiveTrace()
     const lines = [

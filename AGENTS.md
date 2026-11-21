@@ -49,7 +49,8 @@ Harness implements a **Hexagonal Architecture (Ports and Adapters)**, maintainin
   - `tool/`: Modular tool definitions, parameter JSON schemas, bounded execution handlers (`read_file`, `grep`, `glob`, `list_dir`), and `ToolRegistry`.
   - `source/`: `SourceSnapshot` interface, path authorization algorithms (`checkSnapshotPath`), and `InMemorySnapshot`.
   - `context/`: `ContextEngine` contracts, token estimation (`estimateTokens`), and observation compaction (`ThresholdContextEngine`).
-  - `sandbox/`: Isolation contracts for containerized PoC exploit verification (`forge test` in Docker `--network none`) and `ScriptedSandbox`.
+  - `execution/`: Application permission checks and bounded local process supervision for trusted callers.
+  - `verification/`: Reviewed Foundry fixtures and evidence interpretation. Ordinary Judge uses unavailable verification.
   - `audit/`: Autonomous exploration domain models (`AuditReport`, `AuditFinding`) and `AuditRunner` stub.
   - `eval/`: Research evaluation metrics (`calculateMetrics`, `calculateDelta`, RQ1 gate evaluation) and `ContestCorpusManifest` validation.
   - `util/`: Deterministic sorting (`canonicalJson`), SHA-256 hashing (`digestOf`), and sortable time-ordered identifier generator (`createIdGenerator`).
@@ -83,7 +84,8 @@ Harness implements a **Hexagonal Architecture (Ports and Adapters)**, maintainin
 │   │   ├── tool/          # ToolRegistry, dispatcher, handlers (read-file, grep, glob, list-dir)
 │   │   ├── source/        # SourceSnapshot contracts, path validation, in-memory snapshot
 │   │   ├── context/       # ContextEngine, token estimation, observation compaction
-│   │   ├── sandbox/       # Containerized sandbox interfaces, ScriptedSandbox
+│   │   ├── execution/     # Permission checks and local process driver
+│   │   ├── verification/  # Reviewed Foundry fixtures and verification outcomes
 │   │   ├── audit/         # Audit mode exploration contracts, AuditReport definitions
 │   │   ├── eval/          # Evaluation metrics (precision, recall, F1, delta), corpus loader
 │   │   ├── util/          # Cryptographic hashing (digestOf), sortable ID generator
@@ -272,7 +274,7 @@ When porting or adapting components from the OpenCode upstream reference reposit
 - **Shared Catalog**: Core dependency versions are pinned in `package.json` under `catalog:` (`@tsconfig/bun`, `@types/bun`, `typescript`, `zod`). Internal dependencies use `workspace:*`.
 - **Database**: PostgreSQL 16+ (local service or Docker container).
 - **ORM & Migrations**: Drizzle ORM (`drizzle-orm`, `drizzle-kit`).
-- **Target System**: Darwin / Linux (POSIX shell).
+- **Target System**: Darwin / Linux for repository tooling. The local execution driver checks runtime and toolchain availability. The shared CLI daemon binds to loopback and generates its own HTTP Basic password. Explicit foreground mode requires `HARNESS_SERVER_PASSWORD`.
 
 ---
 

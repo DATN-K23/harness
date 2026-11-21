@@ -9,13 +9,14 @@
     "typecheck": "bun turbo typecheck",
     "test": "bun turbo test",
     "demo": "bun run --cwd packages/core demo",
-    "cli:run": "bun run --cwd packages/cli dev -- run",
-    "cli:view": "bun run --cwd packages/cli dev -- view",
+    "cli:run": "bun run packages/cli/src/index.ts run",
+    "cli:view": "bun run packages/cli/src/index.ts view",
     "db:migrate": "bun run --cwd packages/schema db:migrate",
     "demo:judge": "bun run packages/server/scripts/demo-e2e-judge.ts",
-    "cli:repo": "bun run --cwd packages/cli dev -- repo",
-    "cli:snapshot": "bun run --cwd packages/cli dev -- snapshot",
-    "cli:serve": "bun run --cwd packages/cli dev -- serve"
+    "cli:repo": "bun run packages/cli/src/index.ts repo",
+    "cli:snapshot": "bun run packages/cli/src/index.ts snapshot",
+    "cli:serve": "bun run packages/cli/src/index.ts serve",
+    "cli:judge": "bun run packages/cli/src/index.ts judge"
   },
   "workspaces": {
     "packages": [

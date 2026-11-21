@@ -5,6 +5,8 @@
 > **Mục đích:** Tóm lược và đặt đề xuất vào các ranh giới kiến trúc, an toàn hiện hành của Harness.
 > **Cập nhật 2026-11-18:** Harness **không** triển khai bước BCE. Model tự đọc phần source cần thiết qua các tool snapshot (`read_file`, `grep`, `glob`, `list_dir`) thay vì nhận sẵn các slice AST, vì slice ghim vào context làm tốn token và gây nhiễu (trên 12 run Judge thật, BCE không trả về slice nào). Quy tắc tổng hợp ở mục 4 được giữ và luôn áp dụng (`staticVerdictDecision`).
 
+> Phần sandbox dưới đây mô tả thiết kế lịch sử. Xem [hướng dẫn kiểm chứng local](../packages/core/README.md#reviewed-local-foundry-fixtures) để biết backend và phạm vi thực thi hiện hành.
+
 ## 1. Tóm tắt
 
 Judge Mode nhận một báo cáo lỗ hổng do con người viết, gồm nguyên nhân gốc, đường tấn công, tác động được tuyên bố và có thể có PoC. Đề xuất chuyển SmartPoC từ bộ lọc finding của Audit Mode thành pipeline adjudication: kiểm tra báo cáo theo cả chiều tiến (từ entry point tới code bị khai thác) và chiều lùi (từ trạng thái tác động về các điều kiện cần), sau đó dùng chạy PoC trong sandbox làm bằng chứng thực nghiệm khi hai chiều không thống nhất hoặc chưa đủ kết luận.

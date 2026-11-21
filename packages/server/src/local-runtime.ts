@@ -1,5 +1,5 @@
 import { listenLocal } from "./local-server"
-import { isAuthorizedLocalRequest } from "./runtime-security"
+import { isAuthorizedLocalRequest, localAuthenticationRequired, requireLocalServerPassword } from "./runtime-security"
 
 export interface LocalRuntimeOptions<T> {
   hostname: string
@@ -10,12 +10,12 @@ export interface LocalRuntimeOptions<T> {
 }
 
 export const startLocalRuntime = <T>(options: LocalRuntimeOptions<T>): T => {
-  if (!options.credential) throw new Error("Keychain credential unavailable")
+  const password = requireLocalServerPassword(options.credential)
   return listenLocal(options.hostname, options.port, () => options.listen(
     options.hostname,
     options.port,
-    async (request) => isAuthorizedLocalRequest(request, options.credential!)
+    async (request) => isAuthorizedLocalRequest(request, password)
       ? options.fetch(request)
-      : Response.json({ error: { code: "unauthorized", message: "Authentication required" } }, { status: 401 }),
+      : localAuthenticationRequired(),
   ))
 }
